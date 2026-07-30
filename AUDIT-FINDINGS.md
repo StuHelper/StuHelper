@@ -146,7 +146,7 @@ P2 唯一根因应按以下修复簇合并，避免重复设计：
 | R-5 | error-code 文档 49/6 漂移 | 部分成立、P3 | 未引用常量可作为保留 vocabulary，不能批删；但文档声称唯一真源却漏掉 admission 的 6 个 dotted code，需记录 exception 或统一真源。 |
 | R-6 | 4 个限流端点未声明 429 | **确认，应移回待办（P3）** | 真实 middleware 可返回 429/503，OpenAPI 必须声明并 generate；客户端容错不代表契约正确。 |
 | R-7 | capturedAt 被静默丢弃 | 部分成立、P4 hygiene | 字段确实由客户端发送且服务端丢弃，但当前无业务语义。优先从 spec+client 删除，服务端时间才可信；不新增持久化。 |
-| R-8 | Redis outage 被误报 cooldown | **确认，应移回待办（P2/P3）** | 两处代码先判断空 result，导致 transport error 永远落成 cooldown/429，后续错误分支不可达。先判 err 并映射现有 unavailable/503，补 transport error 测试。 |
+| R-8 | Redis outage 被误报 cooldown | **确认，已完成最小修复与 transport 回归** | P2/P3 → 已修复，待发布。两处先判 `err`：只有 `redis.Nil` 或 nil-error 的非 `OK` 是 cooldown/429，其他 Redis error 保留底层 cause 并包装现有 unavailable sentinel/503。Admission request-otp 的 OpenAPI 503 与生成物已同步；未改 cooldown 时长、key 或限流预算。 |
 | R-9 | 两段 rating stats SQL 重复 | 证伪成立 | 90 行重复真实，但不是运行时缺陷；动态表/列 helper 会增加 SQL 风险。共同修改时再抽取，当前只需等价测试。 |
 | R-10 | QueryTimeout 让 connect timeout 不可达 | 证伪成立 | 外层是端到端 lookup SLA，内层 connect timeout 仍是更窄上限且都可配置。移除 query context 会回归。 |
 | R-11 | 固定 outbox dedupe row 串行化写入 | **确认，应移回待办但先测（P3）** | 固定唯一键确会持锁到事务结束，且拿锁后仍有同步统计工作。先做并发测试/lock-wait 指标；证实影响后按事务或分片事件合并刷新，不能直接移除可靠投影。 |
@@ -183,7 +183,7 @@ P2 唯一根因应按以下修复簇合并，避免重复设计：
    服务热重载/插件卸载仍是发布环境验收项。
 4. P2-7 Koishi 转发 poison、P2-13/14/15 claimed batch 与 P2-23 outbox handler panic
    均已完成隔离、全量/状态机回归和独立提交。
-5. P2-21/P2-22 breaker 分类已完成；继续 R-8 Redis 错误分类与 P3-9 cache version unavailable。
+5. P2-21/P2-22 breaker 分类与 R-8 Redis 错误分类已完成；继续 P3-9 cache version unavailable。
 6. P2-9 Ansible 路径和 P2-18 filter invalidation 已完成修复；继续 P2-16 NULL 语义决策。
 
 #### 第三批：可测量的性能与一致性
@@ -307,7 +307,7 @@ P3-1 至 P3-6、P3-8、R-5 至 R-7、R-14、R-15、R-17。X-2 的配置分类治
   caller cancellation、内部 timeout、half-open probe 和完整性分类专项回归。其余绿灯仍不覆盖
   panic-continuation、真实 Oracle 驱动/生产数据、真实 DB pair 与大表场景。
 - P3/驳回项：Admin 相关 Vitest 9/9、Koishi reminder 7/7、externaldata、OTP、cache、
-  review projection 定向 Go 测试通过；仍缺 Redis transport error、cache v0 故障、
+  review projection 定向 Go 测试通过；R-8 已补真实 Redis transport error；仍缺 cache v0 故障、
   min-width override、reviewed-row action 和 lock-wait 测试。
 - P2-11 对 `openapi-fetch` 的实测确认数组被序列化为重复 `courseIDs` 参数。
 - P2-9 后续已在隔离 venv 安装固定 `ansible-core==2.20.2`，补齐真实 controller 复现、
@@ -336,6 +336,7 @@ P3-1 至 P3-6、P3-8、R-5 至 R-7、R-14、R-15、R-17。X-2 的配置分类治
 | P2-13/P2-14 | 主因已修复，未发布；P2-15 为重复标签；补偿失败/replay 边界已记录 | 每批固定两次上下文查询；补偿可写时，全批 enrichment failure/取消归还未公开 lease；单行确定性 preparation failure 独立 retry/dead-letter，stale/failure/abandon 使用 attempt fence。真实 PostgreSQL 覆盖固定查询数、故障/cancel cleanup、旧 lease fence、poison 隔离；Admission 全包 `-race`、全服务端 lint/build 与文档检查通过。未把补偿写同时不可用或 terminal replay 误报为已解决 | `fix(admission): isolate claimed action failures` |
 | P2-21/P2-22 | 已修复，未发布；真实 Oracle/生产指标待验收 | parent cancel/deadline 与单条 invalid/ambiguous row 记 neutral 并释放 half-open probe；目录自身 timeout、backend failure 和 bind identity mismatch 仍记 failure。三类固定 integrity metric 已接入，typed error 经既有 adapter 保持 503。定向三包 race、全服务端 race、lint/build 与文档卫生通过 | `fix(externaldata): classify Oracle source outcomes` |
 | P2-23 | 已修复，未发布；生产 poison 告警/replay 待验收 | `process` panic 转成带 stack 的普通 job error；第 5 次沿既有路径 dead-letter、增加 terminal metric，同批健康 job 继续。真实 PostgreSQL 18 直接验证 poison/healthy 最终状态；outbox 定向与全服务端 race、lint/build/docs 通过。未修改 runtime root supervisor，也未把两个 Admission expiry loop 误报为已覆盖 | `fix(outbox): isolate panicking job handlers` |
+| R-8 | 已修复，未发布 | Admission/User 两条 OTP cooldown reserve 对 `redis.Nil` 保持 429，对真实 miniredis server 关闭后的 transport failure 返回各自 unavailable sentinel 并映射 503；Admission request-otp OpenAPI 与 bundle/Go/TS 生成物同步。两包/全服务端 race、lint/build、spec、生成稳定性和 docs 通过 | `fix(otp): distinguish Redis outages from cooldowns` |
 
 ### 明确不建议实施的“修复”
 
@@ -809,6 +810,15 @@ live rating bar 已完成可达表面的最小修复。优先做一处根因、�
   和文档卫生均通过。源码调用面复枚举为 5 个共享 outbox polling worker；两个 Admission
   expiry loop 不调用 `ProcessBatch`，本修复不声称覆盖。生产告警投递、真实 poison replay 和
   外部副作用幂等仍是发布验收边界。
+- R-8 分别启动 miniredis 后关闭 server，使 go-redis 的 `SET NX` 经真实 socket 得到
+  connection-refused transport error；Admission/User 两条路径都断言 unavailable sentinel
+  存在、cooldown sentinel 不存在，错误文本保留具体 reserve operation。独立 HTTP mapping
+  用例确认 unavailable 为 503，既有第二次请求用例继续确认真实 NX 冲突为 429。Admission
+  request-otp 先补 OpenAPI 503，再执行完整 Go/TS generate；第二次 generate 前后对
+  bundle、嵌入 Go spec 和 TS 类型的 binary diff hash 相同，证明生成稳定。Admission/User
+  两包完整 race、全服务端 `make test`（`-race -p 1 ./...`）、spec lint、Casdoor boundary、
+  `golangci-lint`、静态 build 和文档卫生均通过。没有改变 Redis key、60 秒 cooldown、
+  endpoint limiter 或 OTP 状态机；生产 Redis 故障注入仍待发布验收。
 
 测试通过只说明现有正向契约未被破坏，不能覆盖报告指出的所有负向场景。以下仍需在真正处置时
 单独验收：
@@ -866,6 +876,7 @@ live rating bar 已完成可达表面的最小修复。优先做一处根因、�
 | P2-18 | 已修复，待发布 | 成功敏感词 mutation 使本地快照 stale，失败 mutation 不失效；refresh/invalidation 串行避免旧查询恢复 freshness，重载失败 fail-closed。真实 PostgreSQL 覆盖 create/update/delete 和依赖失败；评课/全服务端 race、lint/build/docs 通过，单 app 范围与多副本前置要求已写入安全文档 | `fix(review): invalidate sensitive-word snapshots` |
 | P2-21/P2-22 | 已修复，待发布；真实 Oracle 与生产指标/告警待验收 | parent cancel/deadline 和 invalid/ambiguous row 均记 neutral，不增加或重置 failure，并释放 half-open probe；内部 query timeout、backend failure 与 bind identity mismatch 仍计 failure。三类固定 integrity counter、typed error 与既有 503 adapter 契约均有回归；三包定向 race、全服务端 race、lint/build/docs 通过 | `fix(externaldata): classify Oracle source outcomes` |
 | P2-23 | 已修复，待发布；生产告警与 poison replay 待验收 | per-job recover 将 handler panic 转为带 stack 的普通失败，沿既有 attempt/dead-letter/terminal metric 路径处理；同批健康 job 继续。真实 PostgreSQL 18 验证 poison=`dead_letter`、healthy=`completed`，定向/全服务端 race、lint/build/docs 通过；未增加 runtime supervisor，未覆盖 Admission 手写 expiry loop | `fix(outbox): isolate panicking job handlers` |
+| R-8 | 已修复，待发布；生产 Redis 故障注入待验收 | 两条 OTP reserve 只有真实 NX miss 才返回 cooldown/429，transport error 包装现有 unavailable/503 并保留 cause；miniredis socket 关闭与 HTTP 映射回归通过。Admission request-otp 补 503 后完整生成，两个业务包/全服务端 race、lint/build/spec/codegen stability/docs 通过 | `fix(otp): distinguish Redis outages from cooldowns` |
 
 ## Claude 原审计的确认问题分布（保留原始记录）
 

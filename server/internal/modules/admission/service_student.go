@@ -317,11 +317,14 @@ func (s *Service) reserveEmailOTPCooldown(ctx context.Context, userID, schoolID 
 		Mode: "NX",
 		TTL:  admissionEmailOTPCooldown,
 	}).Result()
-	if errors.Is(err, redis.Nil) || result != "OK" {
-		return ErrAdmissionOTPCooldown
-	}
 	if err != nil {
-		return fmt.Errorf("reserveEmailOTPCooldown: %w", err)
+		if errors.Is(err, redis.Nil) {
+			return ErrAdmissionOTPCooldown
+		}
+		return fmt.Errorf("%w: reserve email otp cooldown: %w", ErrAdmissionRedisUnavailable, err)
+	}
+	if result != "OK" {
+		return ErrAdmissionOTPCooldown
 	}
 	return nil
 }

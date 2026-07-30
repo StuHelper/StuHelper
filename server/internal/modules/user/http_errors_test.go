@@ -24,6 +24,7 @@ func TestRespondVerifyStudentError(t *testing.T) {
 		{name: "school missing", err: ErrSchoolNotFound, status: http.StatusNotFound, code: errs.ErrProfileSchoolNotFound, contains: "school not found"},
 		{name: "ldap failed", err: ErrLDAPFailed, status: http.StatusBadRequest, code: errs.ErrProfileLDAPFailed, contains: "LDAP verification failed"},
 		{name: "student id invalid", err: ErrStudentIDInvalid, status: http.StatusBadRequest, code: errs.ErrBadRequest, contains: "student ID is invalid"},
+		{name: "redis unavailable", err: ErrStudentEmailRedisUnavailable, status: http.StatusServiceUnavailable, code: errs.ErrServiceUnavailable, contains: "student email verification is unavailable"},
 	}
 
 	for _, tt := range tests {

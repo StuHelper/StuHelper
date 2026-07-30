@@ -215,6 +215,18 @@ func TestRequestSchoolEmailOTPSendFailureKeepsCooldown(t *testing.T) {
 	assert.Equal(t, 1, sender.calls)
 }
 
+func TestReserveEmailOTPCooldownMapsRedisTransportFailure(t *testing.T) {
+	redis := redisfixture.Start(t)
+	svc := &Service{redisClient: redis.Client}
+	redis.Server.Close()
+
+	err := svc.reserveEmailOTPCooldown(context.Background(), 7, 4111010006)
+
+	require.ErrorIs(t, err, ErrAdmissionRedisUnavailable)
+	require.NotErrorIs(t, err, ErrAdmissionOTPCooldown)
+	assert.Contains(t, err.Error(), "reserve email otp cooldown")
+}
+
 func TestRequestSchoolEmailOTPSendFailureCleanupSurvivesRequestCancellation(t *testing.T) {
 	pg := postgresfixture.Start(t)
 	redis := redisfixture.Start(t)

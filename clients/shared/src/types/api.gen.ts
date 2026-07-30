@@ -10658,6 +10658,7 @@ export interface operations {
             400: components["responses"]["ErrorResponse"];
             401: components["responses"]["ErrorResponse"];
             429: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     verifyAdmissionSchoolEmailOTP: {
