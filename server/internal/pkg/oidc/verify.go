@@ -51,6 +51,7 @@ func (c *Client) verifyIDToken(ctx context.Context, expectedClientID, rawIDToken
 	if err := idToken.Claims(claims); err != nil {
 		return nil, fmt.Errorf("oidc: failed to parse claims: %w", err)
 	}
+	claims.ExpiresAt = idToken.Expiry.Unix()
 	c.decorateIDTokenClaims(rawJSON, claims)
 	return claims, nil
 }

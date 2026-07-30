@@ -98,16 +98,17 @@ func sessionAccessTokenMatches(rawToken, storedHash string) bool {
 
 func authResultFromOIDCClaims(claims *oidc.Claims, fallbackUnix int64) *authResult {
 	return &authResult{
-		userID:         claims.GetUserID(),
-		appID:          claims.GetAppID(),
-		username:       claims.GetUsername(),
-		email:          claims.GetEmail(),
-		displayName:    claims.GetDisplayName(),
-		avatar:         claims.GetAvatar(),
-		roles:          claims.Roles,
-		orgScopedRoles: claims.OrgScopedRoles,
-		authTime:       oidcAuthTime(claims.AuthTime, fallbackUnix),
-		mfaProofAt:     claims.MFAProofVerifiedAt(),
+		userID:               claims.GetUserID(),
+		appID:                claims.GetAppID(),
+		username:             claims.GetUsername(),
+		email:                claims.GetEmail(),
+		displayName:          claims.GetDisplayName(),
+		avatar:               claims.GetAvatar(),
+		roles:                claims.Roles,
+		orgScopedRoles:       claims.OrgScopedRoles,
+		authTime:             oidcAuthTime(claims.AuthTime, fallbackUnix),
+		mfaProofAt:           claims.MFAProofVerifiedAt(),
+		accessTokenExpiresAt: timeFromUnix(claims.ExpiresAt),
 	}
 }
 

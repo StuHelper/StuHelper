@@ -39,6 +39,7 @@ func TestLogout_ReceivesRefreshCookieAndRevokesCurrentSession(t *testing.T) {
 	r.Use(func(c *gin.Context) {
 		c.Set(middleware.CtxKeyUserID, "user-123")
 		c.Set(middleware.CtxKeyUsername, "tester")
+		c.Set(middleware.CtxKeyAccessTokenExpiry, futureAccessTokenExpiry())
 		c.Next()
 	})
 	r.GET("/api/v1/auth/issue", func(c *gin.Context) {

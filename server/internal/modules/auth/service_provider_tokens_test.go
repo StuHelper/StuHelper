@@ -99,11 +99,11 @@ func TestProviderRefreshTokenRevokedOnSessionLifecycle(t *testing.T) {
 	assert.NotEmpty(t, session.ProviderRefreshTokenEnc)
 	assert.NotContains(t, session.ProviderRefreshTokenEnc, "old-refresh")
 
-	err = svc.RotateSession(t.Context(), "sid-oidc", "user-1", "old-refresh", "new-access", "new-refresh")
+	err = svc.RotateSession(t.Context(), "sid-oidc", "user-1", "old-refresh", "new-access", futureAccessTokenExpiryUnix(), "new-refresh")
 	require.NoError(t, err)
 	assert.Equal(t, []string{"old-refresh"}, revoker.tokens)
 
-	err = svc.RevokeSession(t.Context(), "sid-oidc", "user-1", "new-access", "new-refresh")
+	err = svc.RevokeSession(t.Context(), "sid-oidc", "user-1", "new-access", "new-refresh", futureAccessTokenExpiry())
 	require.NoError(t, err)
 	assert.Equal(t, []string{"old-refresh", "new-refresh"}, revoker.tokens)
 	assert.Nil(t, requireSession(t, tokenSvc, "sid-oidc"))
@@ -124,7 +124,7 @@ func TestProviderRefreshTokenRevokedAfterSessionTouch(t *testing.T) {
 	_, err := svc.CreateSession(t.Context(), "sid-provider-order", "user-1", "old-access", "old-refresh", "oidc", "browser")
 	require.NoError(t, err)
 
-	err = svc.RotateSession(t.Context(), "sid-provider-order", "user-1", "old-refresh", "new-access", "new-refresh")
+	err = svc.RotateSession(t.Context(), "sid-provider-order", "user-1", "old-refresh", "new-access", futureAccessTokenExpiryUnix(), "new-refresh")
 	require.NoError(t, err)
 }
 
@@ -135,7 +135,7 @@ func TestProviderRefreshTokenNotRevokedWhenRotationValidationFails(t *testing.T)
 	_, err := svc.CreateSession(t.Context(), "sid-oidc-mismatch", "user-1", "old-access", "old-refresh", "oidc", "browser")
 	require.NoError(t, err)
 
-	err = svc.RotateSession(t.Context(), "sid-oidc-mismatch", "user-1", "other-refresh", "new-access", "new-refresh")
+	err = svc.RotateSession(t.Context(), "sid-oidc-mismatch", "user-1", "other-refresh", "new-access", futureAccessTokenExpiryUnix(), "new-refresh")
 	require.ErrorIs(t, err, errSessionRefreshTokenMismatch)
 	assert.Empty(t, revoker.tokens)
 }
@@ -149,6 +149,7 @@ func TestProviderRefreshTokenInputsAreNormalized(t *testing.T) {
 		"sid-provider-trim",
 		"user-1",
 		"access-token",
+		futureAccessTokenExpiryUnix(),
 		" \tprovider-refresh\n ",
 		"oidc-native",
 		" \t"+oidc.ApplicationUniapp+"\n ",
@@ -168,7 +169,7 @@ func TestProviderRefreshTokenInputsAreNormalized(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, oidc.ApplicationUniapp, appKey)
 
-	err = svc.RevokeSession(t.Context(), "sid-provider-trim", "user-1", "access-token", " \tprovider-refresh\n ")
+	err = svc.RevokeSession(t.Context(), "sid-provider-trim", "user-1", "access-token", " \tprovider-refresh\n ", futureAccessTokenExpiry())
 	require.NoError(t, err)
 	assert.Equal(t, []providerRefreshTokenRevokeCall{
 		{appKey: oidc.ApplicationUniapp, refreshToken: "provider-refresh"},
@@ -184,6 +185,7 @@ func TestProviderRefreshTokenWhitespaceOnlySkipped(t *testing.T) {
 		"sid-provider-blank",
 		"user-1",
 		"access-token",
+		futureAccessTokenExpiryUnix(),
 		" \t\n ",
 		"oidc-native",
 		" \t\n ",
@@ -195,7 +197,7 @@ func TestProviderRefreshTokenWhitespaceOnlySkipped(t *testing.T) {
 	assert.Empty(t, session.ProviderRefreshTokenEnc)
 	assert.Equal(t, oidc.ApplicationUniapp, session.ProviderAppKey)
 
-	err = svc.RevokeSession(t.Context(), "sid-provider-blank", "user-1", "access-token", " \t\n ")
+	err = svc.RevokeSession(t.Context(), "sid-provider-blank", "user-1", "access-token", " \t\n ", futureAccessTokenExpiry())
 	require.NoError(t, err)
 	assert.Empty(t, revoker.calls)
 }
@@ -259,7 +261,7 @@ func TestRevokeSessionRevokesLocalSessionWhenProviderRevokeFails(t *testing.T) {
 		SessionID: "sid-a", UserID: "user-1", RefreshToken: "provider-refresh-a", LoginMethod: "oidc",
 	})
 
-	err := svc.RevokeSession(t.Context(), "sid-a", "user-1", "access-sid-a", "provider-refresh-a")
+	err := svc.RevokeSession(t.Context(), "sid-a", "user-1", "access-sid-a", "provider-refresh-a", futureAccessTokenExpiry())
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "provider revoke failed")

@@ -47,7 +47,14 @@ func (h *Handler) Logout(c *gin.Context) {
 
 	cleanupCtx, cancel := ctxutil.DetachedTimeout(c.Request.Context(), logoutCleanupTimeout)
 	defer cancel()
-	if err := h.svc.RevokeSession(cleanupCtx, sessionID, userID, accessToken, refreshToken); err != nil {
+	if err := h.svc.RevokeSession(
+		cleanupCtx,
+		sessionID,
+		userID,
+		accessToken,
+		refreshToken,
+		middleware.GetAccessTokenExpiresAt(c),
+	); err != nil {
 		if errors.Is(err, token.ErrSessionNotFound) ||
 			errors.Is(err, errSessionIDRequired) ||
 			errors.Is(err, errSessionUserRequired) ||

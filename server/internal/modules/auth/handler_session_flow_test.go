@@ -34,11 +34,11 @@ func newRefreshTestHandlerWithFixture(t *testing.T, repo UserSyncRepo) (*Handler
 
 	fixture := redisfixture.Start(t)
 
-	tokenSvc, err := token.NewService(token.ServiceConfig{RedisClient: fixture.Client, AccessTTL: 300, RefreshTTL: 600})
+	tokenSvc, err := token.NewService(token.ServiceConfig{RedisClient: fixture.Client, AccessTTL: 300, RefreshTTL: 7200})
 	require.NoError(t, err)
 	t.Cleanup(tokenSvc.Close)
 
-	tokenCfg := config.TokenConfig{AccessTokenTTL: 300, RefreshTokenTTL: 600}
+	tokenCfg := config.TokenConfig{AccessTokenTTL: 300, RefreshTokenTTL: 7200}
 	svc := NewService(tokenCfg, tokenSvc, repo)
 	return &Handler{
 		svc:              svc,
@@ -316,7 +316,15 @@ func TestRefreshToken_BlacklistedRefreshReuseRevokesAllSessionsAfterOldRefTTLWas
 	require.NoError(t, err)
 	require.NoError(t, fixture.Client.PExpire(ctx, refreshTokenRefKeyForTest(oldRefreshHash), 50*time.Millisecond).Err())
 
-	err = h.svc.RotateSession(ctx, "sid-refresh-near-expiry-a", "user-refresh-near-expiry", oldRefresh, "new-access-token", "new-refresh-token")
+	err = h.svc.RotateSession(
+		ctx,
+		"sid-refresh-near-expiry-a",
+		"user-refresh-near-expiry",
+		oldRefresh,
+		"new-access-token",
+		futureAccessTokenExpiryUnix(),
+		"new-refresh-token",
+	)
 	require.NoError(t, err)
 	time.Sleep(100 * time.Millisecond)
 

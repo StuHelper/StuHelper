@@ -181,7 +181,7 @@ func newOIDCTestHandlerWithProvider(t *testing.T, repo UserSyncRepo, provider *f
 	h.oidcClient = provider.client
 	h.defaultRedirectURL = "https://web.example.com"
 	h.allowedRedirectHosts = map[string]struct{}{"web.example.com": {}}
-	h.tokenConfig = config.TokenConfig{AccessTokenTTL: 300, RefreshTokenTTL: 600}
+	h.tokenConfig = config.TokenConfig{AccessTokenTTL: 300, RefreshTokenTTL: 7200}
 	return h, recordingRepo
 }
 
@@ -243,6 +243,7 @@ func TestHandleWebCallback_Success(t *testing.T) {
 
 	cookies := w.Result().Cookies()
 	var hasAccess, hasRefresh, hasSession bool
+	var issuedSessionID string
 	for _, cookie := range cookies {
 		switch cookie.Name {
 		case "access_token":
@@ -251,11 +252,17 @@ func TestHandleWebCallback_Success(t *testing.T) {
 			hasRefresh = true
 		case sessionCookieName:
 			hasSession = true
+			issuedSessionID = cookie.Value
 		}
 	}
 	assert.True(t, hasAccess)
 	assert.True(t, hasRefresh)
 	assert.True(t, hasSession)
+	session, err := h.tokenService.GetSessionStore().Get(t.Context(), issuedSessionID)
+	require.NoError(t, err)
+	require.NotNil(t, session)
+	assert.Greater(t, session.AccessTokenExpiresAt, time.Now().Add(59*time.Minute).Unix())
+	assert.LessOrEqual(t, session.AccessTokenExpiresAt, time.Now().Add(time.Hour).Unix())
 }
 
 func TestHandleWebCallback_InvalidRolesClaimCannotAuthorizeRoleReconciliation(t *testing.T) {
@@ -395,6 +402,8 @@ func TestRefreshOIDCToken_Success(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "sid-oidc-refresh", session.SessionID)
 	assert.NotEmpty(t, session.RefreshTokenHash)
+	assert.Greater(t, session.AccessTokenExpiresAt, time.Now().Add(59*time.Minute).Unix())
+	assert.LessOrEqual(t, session.AccessTokenExpiresAt, time.Now().Add(time.Hour).Unix())
 	avatarURL := "https://cdn.example.com/oidc.png"
 	assert.Equal(t, UserSyncInput{
 		CasdoorSubject:     "oidc-user-1",

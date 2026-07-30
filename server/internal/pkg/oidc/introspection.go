@@ -31,6 +31,7 @@ type IntrospectionResult struct {
 	Scope          string              `json:"scope"`
 	AMR            []string            `json:"amr,omitempty"`
 	AuthTime       int64               `json:"auth_time,omitempty"`
+	ExpiresAt      int64               `json:"exp,omitempty"`
 	AppID          string              `json:"-"`
 	Roles          []string            `json:"-"` // 从原始 JSON 解析
 	OrgScopedRoles map[string][]string `json:"-"`

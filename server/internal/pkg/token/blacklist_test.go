@@ -35,6 +35,55 @@ func TestBlacklist_Add(t *testing.T) {
 	assert.True(t, isBlacklisted)
 }
 
+func TestBlacklist_AddUntilUsesVerifiedAbsoluteExpiry(t *testing.T) {
+	require.NoError(t, crypto.InitHMACKey("test-blacklist-until-secret", false))
+
+	fixture := setupTestRedis(t)
+	bl := NewBlacklist(fixture.Client)
+	t.Cleanup(bl.Close)
+	ctx := t.Context()
+	expiresAt := time.Now().Add(8 * time.Minute)
+
+	require.NoError(t, bl.AddUntil(ctx, "provider-access-token", expiresAt))
+
+	hash, err := hashToken("provider-access-token")
+	require.NoError(t, err)
+	ttl, err := fixture.Client.PTTL(ctx, blacklistPrefix+hash).Result()
+	require.NoError(t, err)
+	assert.Greater(t, ttl, 7*time.Minute+50*time.Second)
+	assert.LessOrEqual(t, ttl, 8*time.Minute)
+}
+
+func TestBlacklistTTLUntilBoundaryPolicy(t *testing.T) {
+	now := time.Date(2026, 7, 31, 12, 0, 0, 0, time.UTC)
+
+	ttl, required, err := blacklistTTLUntil(time.Time{}, now)
+	require.Error(t, err)
+	assert.Zero(t, ttl)
+	assert.False(t, required)
+
+	ttl, required, err = blacklistTTLUntil(now.Add(-time.Second), now)
+	require.NoError(t, err)
+	assert.Zero(t, ttl)
+	assert.False(t, required)
+
+	ttl, required, err = blacklistTTLUntil(now.Add(100*time.Millisecond), now)
+	require.NoError(t, err)
+	assert.Equal(t, minBlacklistTTL, ttl)
+	assert.True(t, required)
+
+	ttl, required, err = blacklistTTLUntil(now.Add(2*time.Hour), now)
+	require.NoError(t, err)
+	assert.Equal(t, 2*time.Hour, ttl)
+	assert.True(t, required)
+
+	ttl, required, err = blacklistTTLUntil(now.Add(maxBlacklistTTL+time.Second), now)
+	require.Error(t, err)
+	assert.Zero(t, ttl)
+	assert.False(t, required)
+	assert.Contains(t, err.Error(), "exceeds hard maximum")
+}
+
 func TestBlacklist_IsBlacklisted(t *testing.T) {
 	// 显式初始化 HMAC key，确保单独运行时不依赖其他测试的副作用
 	require.NoError(t, crypto.InitHMACKey("test-blacklist-secret", false))

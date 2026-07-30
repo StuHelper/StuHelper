@@ -23,6 +23,10 @@ type Claims struct {
 	AMR               []string `json:"amr,omitempty"`
 	AuthTime          int64    `json:"auth_time,omitempty"`
 	AppID             string   `json:"-"`
+	// ExpiresAt comes from the expiry accepted by the verified ID token.
+	// Callers use it to retain revocation state for the token's real remaining
+	// lifetime instead of a local cookie/session policy TTL.
+	ExpiresAt int64 `json:"-"`
 
 	// 解析后的角色列表（如 ["school_admin", "verified_student"]）
 	Roles []string `json:"-"`

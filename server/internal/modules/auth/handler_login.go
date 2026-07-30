@@ -203,7 +203,15 @@ func (h *Handler) handleWebCallback(c *gin.Context, ctx context.Context, input w
 	}
 	deviceInfo := c.Request.UserAgent()
 	sessInfo, sessErr := h.svc.CreateSessionForApplication(
-		ctx, sessionID, claims.GetUserID(), rawIDToken, oauthToken.RefreshToken, "oidc", input.application, deviceInfo,
+		ctx,
+		sessionID,
+		claims.GetUserID(),
+		rawIDToken,
+		claims.ExpiresAt,
+		oauthToken.RefreshToken,
+		"oidc",
+		input.application,
+		deviceInfo,
 	)
 	if sessErr != nil {
 		logger.FromGin(c).Error("failed to create session",
@@ -653,7 +661,15 @@ func (h *Handler) ExchangeNative(c *gin.Context) {
 	}
 	deviceInfo := c.Request.UserAgent()
 	if _, sessErr := h.svc.CreateSessionForApplication(
-		ctx, nativeSessionID, claims.GetUserID(), rawIDToken, oauthToken.RefreshToken, "oidc-native", appKey, deviceInfo,
+		ctx,
+		nativeSessionID,
+		claims.GetUserID(),
+		rawIDToken,
+		claims.ExpiresAt,
+		oauthToken.RefreshToken,
+		"oidc-native",
+		appKey,
+		deviceInfo,
 	); sessErr != nil {
 		logger.FromGin(c).Error("native exchange: failed to create session",
 			zap.String("user_id", claims.GetUserID()), zap.Error(sessErr))

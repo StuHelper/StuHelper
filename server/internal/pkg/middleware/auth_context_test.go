@@ -20,20 +20,23 @@ func TestSetClaimsToContextPropagatesAuthTimeAndMFAProof(t *testing.T) {
 	c.Request = httptest.NewRequest(http.MethodGet, "/me", nil)
 	authTime := time.Date(2026, 5, 2, 11, 30, 0, 0, time.UTC)
 	proofAt := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
+	accessExpiry := time.Date(2026, 5, 2, 13, 0, 0, 0, time.UTC)
 
 	setClaimsToContext(c, &authResult{
-		userID:      "casdoor-user-1",
-		username:    "alice",
-		displayName: "Alice",
-		roles:       []string{"school_admin"},
-		authTime:    authTime,
-		mfaProofAt:  proofAt,
+		userID:               "casdoor-user-1",
+		username:             "alice",
+		displayName:          "Alice",
+		roles:                []string{"school_admin"},
+		authTime:             authTime,
+		mfaProofAt:           proofAt,
+		accessTokenExpiresAt: accessExpiry,
 	})
 
 	assert.Equal(t, "casdoor-user-1", GetUserID(c))
 	assert.Equal(t, "alice", GetUsername(c))
 	assert.True(t, GetAuthenticationTime(c).Equal(authTime))
 	assert.True(t, GetMFAProofVerifiedAt(c).Equal(proofAt))
+	assert.True(t, GetAccessTokenExpiresAt(c).Equal(accessExpiry))
 	assert.False(t, GetMFAEnrollmentActive(c))
 }
 

@@ -21,10 +21,11 @@ const providerRefreshCompensationTimeout = 2 * time.Second
 var errOIDCRefreshTokenNotRotated = errors.New("oidc refresh token was not rotated")
 
 type oidcRefreshPayload struct {
-	rawIDToken   string
-	refreshToken string
-	userID       string
-	userSync     UserSyncInput
+	rawIDToken           string
+	refreshToken         string
+	userID               string
+	accessTokenExpiresAt int64
+	userSync             UserSyncInput
 }
 
 type oidcSessionRotation struct {
@@ -133,9 +134,10 @@ func (h *Handler) fetchOIDCRefreshPayload(c *gin.Context, appKey, oldRefreshToke
 	}
 	revokeUncommittedRefresh = false
 	return oidcRefreshPayload{
-		rawIDToken:   rawIDToken,
-		refreshToken: newToken.RefreshToken,
-		userID:       newClaims.GetUserID(),
+		rawIDToken:           rawIDToken,
+		refreshToken:         newToken.RefreshToken,
+		userID:               newClaims.GetUserID(),
+		accessTokenExpiresAt: newClaims.ExpiresAt,
 		userSync: UserSyncInput{
 			CasdoorSubject:     newClaims.GetUserID(),
 			Username:           newClaims.GetUsername(),
@@ -181,6 +183,7 @@ func (h *Handler) rotateOIDCSession(c *gin.Context, rotation oidcSessionRotation
 		rotation.userID,
 		rotation.oldRefreshToken,
 		rotation.payload.rawIDToken,
+		rotation.payload.accessTokenExpiresAt,
 		rotation.payload.refreshToken,
 	)
 	if err == nil {

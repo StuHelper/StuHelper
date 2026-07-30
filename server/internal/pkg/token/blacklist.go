@@ -143,6 +143,21 @@ func (b *Blacklist) AddByHash(ctx context.Context, tokenHash string, expiry time
 	return nil
 }
 
+// AddByHashUntil keeps a known token hash revoked until its verified absolute
+// expiry. An already-expired token needs no Redis entry. Durations below one
+// second are rounded up to Redis' minimum supported policy TTL; durations above
+// the hard maximum fail instead of being silently truncated.
+func (b *Blacklist) AddByHashUntil(ctx context.Context, tokenHash string, expiresAt time.Time) error {
+	ttl, required, err := blacklistTTLUntil(expiresAt, time.Now())
+	if err != nil {
+		return err
+	}
+	if !required {
+		return nil
+	}
+	return b.AddByHash(ctx, tokenHash, ttl)
+}
+
 // Add 将 token 加入黑名单
 func (b *Blacklist) Add(ctx context.Context, token string, expiry time.Duration) error {
 	if expiry < minBlacklistTTL || expiry > maxBlacklistTTL {
@@ -174,6 +189,39 @@ func (b *Blacklist) Add(ctx context.Context, token string, expiry time.Duration)
 	}
 	b.cb.RecordSuccess()
 	return nil
+}
+
+// AddUntil keeps a raw token revoked until its verified absolute expiry.
+func (b *Blacklist) AddUntil(ctx context.Context, token string, expiresAt time.Time) error {
+	ttl, required, err := blacklistTTLUntil(expiresAt, time.Now())
+	if err != nil {
+		return err
+	}
+	if !required {
+		return nil
+	}
+	return b.Add(ctx, token, ttl)
+}
+
+func blacklistTTLUntil(expiresAt, now time.Time) (time.Duration, bool, error) {
+	if expiresAt.IsZero() {
+		return 0, false, errors.New("blacklist token expiry is required")
+	}
+	ttl := expiresAt.Sub(now)
+	if ttl <= 0 {
+		return 0, false, nil
+	}
+	if ttl > maxBlacklistTTL {
+		return 0, false, fmt.Errorf(
+			"blacklist TTL %v exceeds hard maximum %v",
+			ttl,
+			maxBlacklistTTL,
+		)
+	}
+	if ttl < minBlacklistTTL {
+		ttl = minBlacklistTTL
+	}
+	return ttl, true, nil
 }
 
 // TryConsumeRefreshToken 原子标记 refresh token 已被使用（一次性使用）。

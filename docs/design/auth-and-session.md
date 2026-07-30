@@ -3,7 +3,7 @@ type: design
 audience: backend-dev, frontend-dev
 status: current
 authoritative-source: server/internal/modules/auth/
-last-verified: 2026-07-30
+last-verified: 2026-07-31
 ---
 
 # 认证与 SSO
@@ -47,13 +47,16 @@ StuHelper 个人中心仍可以承载手机号补绑 / 更换 UI，但写路径�
 
 ## 会话
 
-| 令牌 | TTL | 存储 | 用途 |
-|------|-----|------|------|
-| Access Token | 5 分钟（默认 300 s） | HttpOnly Cookie | API 访问 |
-| Refresh Token | 7 天 | Path `/api/v1/auth` HttpOnly Cookie | 续期 |
-| CSRF Token | 随 refresh | 普通 Cookie | 写请求防 CSRF |
+| 凭据 / 状态 | 有效期口径 | 存储 | 用途 |
+|-------------|------------|------|------|
+| Casdoor ID Token（StuHelper access credential） | provider `exp` 是自然失效真值；仓库托管的 Casdoor application 默认 1 小时 | HttpOnly Cookie 或 native 安全存储 | API 访问 |
+| Access Cookie / `expiresIn` 策略 | `TOKEN_ACCESS_TTL` 默认 300 s；这是客户端刷新/持有策略，不会改写 provider `exp` | HttpOnly Cookie / 响应字段 | 缩短浏览器持有窗口、提示客户端刷新 |
+| Provider Refresh Token | 仓库托管的 Casdoor application 默认 24 小时；本地 session / cookie lease 由 `TOKEN_REFRESH_TTL` 控制，默认 7 天 | Path `/api/v1/auth` HttpOnly Cookie；服务端 session 保存加密副本 | 续期 |
+| CSRF Token | 随本地 refresh/session lease | 普通 Cookie | 写请求防 CSRF |
 
-access / refresh token 区分 `typ`，refresh 不会被当作 access 验证。
+Casdoor token 通过 provider `tokenType` 区分 access / refresh；遗留 StuHelper 自签 token
+通过 `typ` 区分，但已不属于公开登录链路。`TOKEN_ACCESS_TTL` 不能作为 provider token
+黑名单 TTL，因为默认配置下它比已验证 ID token 的真实寿命短 55 分钟。
 
 ### Refresh 行为
 
@@ -69,16 +72,22 @@ access / refresh token 区分 `typ`，refresh 不会被当作 access 验证。
 - session 定位来源必须唯一：`X-Stuhelper-Session-ID` 必须是单个非空 header，且不能与浏览器 `session_id` cookie 同时出现。
 - OIDC refresh token 由 StuHelper session store 代持：
   - `oidc` / `oidc-native` session 会把 provider refresh token 加密后写入 Redis session；
-  - refresh 轮换时先吊销旧 provider refresh token，再保存新 provider refresh token；
-  - `logout` / `logout-all` 必须先调用 Casdoor revocation endpoint 吊销 provider refresh token，失败时返回错误，不清理本地 session 假装成功；
+  - refresh 在同一个 Redis Lua 操作中更新 access token hash、已验证 `exp`、refresh token hash 和 session lease，避免 hash 与 expiry 分离；
+  - `logout` / `logout-all` 会撤销本地 session 和 token blacklist，并尝试执行 provider refresh-token 清理；当前固定 Casdoor 版本的 provider 撤销契约仍须按审计项 N-1 独立修复/验收，不能只因 HTTP 2xx 宣称 provider token family 已撤销；
   - 当前公开登录链路全部是 OIDC provider session，不存在 StuHelper 自签 phone-login refresh token；遗留自签 refresh token 会被 `/api/v1/auth/refresh` 拒绝，遗留自签 access cookie 也不会被认证中间件接受。
 
 ### 浏览器 access token 校验模型
 
-- 浏览器 Cookie access token 走 **本地 JWKS 验证**，不做每请求 session store lookup
-- 即时吊销依赖 Redis blacklist；自然过期依赖 5 分钟 `TOKEN_ACCESS_TTL`
-- `refresh` / `logout` / `logout-all` 仍会命中 session store 做轮换或撤销
-- 这是当前有意的性能/安全边界：不把浏览器读请求重新拉回每请求 Redis RTT
+- 浏览器 Cookie access token 先查 Redis blacklist，再按 `session_id` 读取 session，校验
+  provider application、user 和 access token hash，最后做本地 JWKS / audience / `exp` 验证。
+- 新登录把已验证的 provider `exp` 与 access token hash 一起保存；refresh 原子替换二者。
+  新 token 的剩余寿命不得大于本地 session lease，也不得超过 blacklist 30 天硬上限。
+- `logout` / `logout-all` 对每个 session 按其 access token 的真实剩余寿命写 blacklist。
+  已自然过期的 token 不再写 key，接近一秒的剩余时间只为 Redis 最小粒度向上取整；
+  超过硬上限直接失败，不能静默截断。
+- 滚动升级前创建、没有 `accessTokenExpiresAt` 的旧 session 无法从 token hash 还原
+  `exp`。仅在托管 Casdoor access TTL 不超过 session lease 的前提下，以该 session
+  的实际 Redis PTTL 作为保守上界；session key 没有 TTL 时 fail-closed。
 
 ### Bearer access token 校验模型
 
@@ -90,13 +99,17 @@ access / refresh token 区分 `typ`，refresh 不会被当作 access 验证。
   claim 缺失、opaque 或 malformed token 均 fail-closed。
 - 用户认证路径还要求 token 来自已登记的应用且 `sub` 非空。introspection response
   的 `token_type=Bearer` 只表示传输 scheme，不能用来区分 access 与 refresh。
+- Bearer 路径保持 provider introspection，不为每个请求新增 session lookup 或新 session ID。
+  introspection 返回的标准 `exp` 只随认证结果进入上下文，供没有 tracked session 的
+  logout 兜底按真实剩余寿命吊销。
 
 ### Native exchange / refresh 当前口径
 
 - `POST /api/v1/auth/exchange-native` 请求体：`{ code, state }`
 - 成功响应：`{ accessToken, refreshToken, sessionID, expiresIn }`
 - 原生 OIDC refresh 必须通过 `X-Stuhelper-Session-ID` 回传 `sessionID`；缺失或不匹配时拒绝 refresh。
-- refresh 会对旧 refresh token 做 blacklist，并在 session store 内更新新 token hash 和加密后的 provider refresh token。
+- refresh 会对旧 refresh token 做 blacklist，并在 session store 内原子更新新 access
+  hash、已验证 `exp`、新 refresh hash 和加密后的 provider refresh token。
 - 旧 refresh token 再次提交会触发 reuse detection：吊销该用户全部 session 并记录审计。
 
 ## Shadow User

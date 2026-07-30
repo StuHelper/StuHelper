@@ -3,7 +3,7 @@ type: design
 audience: backend-dev, ops
 status: current
 authoritative-source: this file
-last-verified: 2026-07-30
+last-verified: 2026-07-31
 ---
 
 # 安全实践
@@ -18,23 +18,33 @@ last-verified: 2026-07-30
 
 ### Token
 
-| 令牌 | TTL | 存储 | 用途 |
-|------|-----|------|------|
-| Access Token | 5 分钟（默认 300 s，可通过 `TOKEN_ACCESS_TTL` 配置） | HttpOnly Cookie | API 访问 |
-| Refresh Token | 7 天 | Path `/api/v1/auth` HttpOnly Cookie | 续期 |
-| CSRF Token | 随 refresh | 普通 Cookie | 前端读取后放 `X-CSRF-Token` |
+| 凭据 / 状态 | TTL 口径 | 存储 | 用途 |
+|-------------|----------|------|------|
+| Casdoor ID Token（access credential） | 以已验证 provider `exp` 为真值；托管 application 默认 1 小时 | HttpOnly Cookie / native 安全存储 | API 访问 |
+| Access Cookie / `expiresIn` 策略 | `TOKEN_ACCESS_TTL` 默认 300 s，不改变 provider `exp` | HttpOnly Cookie / 响应字段 | 缩短客户端持有与刷新窗口 |
+| Provider Refresh Token / 本地 session | Casdoor 默认 24 小时；本地 session lease 默认 7 天 | Path `/api/v1/auth` HttpOnly Cookie + Redis 加密副本 | 续期 |
+| CSRF Token | 随本地 refresh/session lease | 普通 Cookie | 前端读取后放 `X-CSRF-Token` |
 
-access / refresh token 已显式区分 `typ`。
+Casdoor access / refresh 由 provider `tokenType` 区分；遗留 StuHelper 自签 token 才使用
+`typ`，且已不进入公开登录链路。
 
 ### 吊销
 
 - Redis 黑名单用于紧急吊销
 - `logout` 撤销当前设备
 - `logout-all` 撤销全部已跟踪 token
-- OIDC provider refresh token 由后端加密代持；`refresh` 轮换、`logout`、`logout-all` 都会先调用 Casdoor revocation endpoint 吊销 provider refresh token
-- provider revoke 失败时返回错误并保留本地 session，避免 Casdoor 端仍可 refresh 但 StuHelper 误报登出成功
-- 浏览器 Cookie 中的 Casdoor JWT access token 走 **本地 JWKS 验证**，不会为每个请求额外查询 session store
-- 即时吊销模型明确收口为：**blacklist + 5 分钟 access TTL + refresh 轮换**；`refresh` 仍会触达 session store，浏览器写请求不引入每请求 Redis RTT
+- OIDC provider refresh token 由后端加密代持；本地 session/blacklist 撤销与 provider
+  token-family 撤销是两层边界。固定 Casdoor 版本的 provider 撤销适配仍是独立审计项
+  N-1，HTTP 2xx 不能单独证明 refresh grant 已失效。
+- 浏览器 Cookie 中的 Casdoor JWT access credential 会先查 blacklist 和 tracked session
+  hash，再做本地 JWKS / audience / `exp` 验证；Bearer 继续走 provider introspection，
+  不新增每请求 session 绑定。
+- 登录保存已验证 `exp`，refresh 原子更新 access hash + expiry。单设备和全设备登出按
+  每个 token 的真实剩余寿命写 blacklist，不再使用 5 分钟
+  `TOKEN_ACCESS_TTL` 代替 provider 自然寿命，也不会把超过 30 天硬上限的 TTL 静默截断。
+- 新 access token 的剩余寿命必须不大于 session lease。旧 session 缺少 expiry 时，只在
+  托管 Casdoor access TTL 不超过 session lease 的发布约束下使用实际 Redis PTTL；无 TTL
+  的旧 session 撤销 fail-closed。
 
 ## 手机号与 SMS
 

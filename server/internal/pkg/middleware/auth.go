@@ -95,16 +95,17 @@ func resolveToken(c *gin.Context, oidcClient *oidc.Client, tokenService *token.S
 			return nil, errTokenMalformed
 		}
 		return &authResult{
-			userID:         subject,
-			appID:          result.GetAppID(),
-			username:       result.Username,
-			email:          result.Email,
-			displayName:    result.Name,
-			tokenScopes:    result.Scopes(),
-			roles:          result.Roles,
-			orgScopedRoles: result.OrgScopedRoles,
-			authTime:       timeFromUnix(result.AuthTime),
-			mfaProofAt:     result.MFAProofVerifiedAt(),
+			userID:               subject,
+			appID:                result.GetAppID(),
+			username:             result.Username,
+			email:                result.Email,
+			displayName:          result.Name,
+			tokenScopes:          result.Scopes(),
+			roles:                result.Roles,
+			orgScopedRoles:       result.OrgScopedRoles,
+			authTime:             timeFromUnix(result.AuthTime),
+			mfaProofAt:           result.MFAProofVerifiedAt(),
+			accessTokenExpiresAt: timeFromUnix(result.ExpiresAt),
 		}, nil
 	}
 

@@ -425,7 +425,7 @@ Claude 新生成的 `AUDIT-REPORT.md` 是一份新的汇总快照，不是对本
 | 9 | 确认，已完成本地修复与回归验证 | P1 | review parser 已按 OpenAPI 的 `like`/`dislike` enum 保留可选 `userVote`，非法值继续 fail-closed；针对两种投票和非法值的定向回归通过。没有为了一个字段建设反射式“全 DTO 自动对齐”框架。 |
 | 11 | 确认，修正失败后果 | P1 | 仓库没有受支持、可审计的 school/section admin tuple 发放与撤销流程；运维可手写 OpenFGA tuple，所以不是物理上“无法写入”。实际后果是 scoped role 默认 fail-closed、角色不可用，不是自动获得全局权限。应先确定 Casdoor、业务库或运维清单中的权威来源，再实现最小 grant/revoke/reconcile/audit；在权威来源未定前一次性建设 DB、outbox、API、CLI 和 MFA 全套流程属于过度设计。 |
 | 17 | 确认，已完成本地修复、真实 OpenFGA 协议与回归验证 | P1 | `super_admin` tuple 原先只增不减，角色降级后 OpenFGA 全局权力会残留。现在只有 Web/native login 与 refresh 新签发、已验签且显式包含结构合法 roles claim 的 ID token 才设置 `RolesAuthoritative` 并执行 reconcile；`/auth/me` 的旧 access token、claim 缺失、`null` 或解析失败均不能增删 tuple。撤权使用 higher-consistency 的完整 direct tuple 精确读取，再以 `on_missing=ignore` 幂等删除并写 `iam.role.revoke` 审计；读取/删除失败时认证同步 fail-closed。真实 OpenFGA v1.18.1 临时 store 验证写入后为 1、首次和重复删除均为 200、最终为 0，store 已删除。没有顺手建设 #11 的 scoped provisioning 平台，也没有让 introspection 每请求写 OpenFGA。 |
-| 18 | 确认，原时长与兼容方案需要纠正 | P1 | blacklist TTL 不取 token 自身 `exp` 的问题真实。仓库 bootstrap 默认 Casdoor access=1h、provider refresh=24h，本地 blacklist/cookie policy=5m、session lease=7d，故刚登录后 logout 的默认残余窗口约 55 分钟，不是原文的 168h；生产实际值仍须核验。应从已验签 claims 保存 access expiry，并在 refresh 时把 hash+expiry 原子更新；每个 session 按真实剩余寿命吊销。超过 hard cap 不能静默向下截断；旧 session 的 logout-all 无法从 hash 还原 expiry，必须以真实 provider TTL 不超过 session lease 的发布前检查作为保守 PTTL 回退前提，否则 fail-closed/强制重新认证。每个 bearer 立即绑定新 session ID 仍属于第二阶段设计。深挖还确认了下方 N-1 provider 撤销 no-op，须独立修复，不能混入本项假装一次解决。 |
+| 18 | 确认，已完成本地修复与真实 Redis 验证 | P1 | blacklist TTL 不取 token 自身 `exp` 的问题真实；进一步确认 tracked logout 原先先按 session 写 blacklist，随后又用本地 5 分钟 TTL 对同一 key 二次 `SET`，会把较长 TTL 缩短。现在 Web/native login 与 refresh 都从已验签 ID token 保存 provider `exp`，refresh 在既有 Redis Lua 中原子更新 access hash + expiry；新 token 剩余寿命必须不超过 session lease 和 30 天 hard cap。logout/logout-all 对每个 session 按真实剩余寿命吊销，已过期不写 key，低于 1 秒只向上取整，超过上限不静默截断；tracked 撤销成功后直接返回，消除了二次覆盖。滚动升级旧 session 仅在仓库托管 Casdoor access=1h、不超过 session lease 的约束下使用真实 Redis PTTL，无 TTL 时 fail-closed。永久回归、四包定向/race、全服务端 race、lint/build/docs 均通过；一次性 Redis 8.8.1 容器验证原子轮换、50 分钟现代 session、20 分钟 legacy PTTL、10/40 分钟逐 session logout-all 和 hard-cap 拒绝均符合预期，容器已删除。没有给每个 Bearer 请求新增 session lookup/ID；N-1 provider 撤销 no-op 仍是独立 P1，未伪装成已解决。生产实际 Casdoor TTL 与真实登出仍待发布验收。 |
 | 28 | 确认，已完成实现前深挖 | P2 | 页面保存的是 7 个逻辑域，而非固定“7 次请求”：实际 mutation 数是 `6 + D` 次关键词删除 + `N` 次关键词 upsert。失败会形成部分落地，当前又继续展示旧 baseline。最小修复是逐域记录 confirmed/unconfirmed/not-run、仅对确认成功的 slice 更新 baseline、失败后提供带确认的服务端 reload，并让“已不存在”的关键词删除幂等；前端跨 HTTP 伪造 transaction/rollback、`Promise.all` 并发冲击、2PC 或 saga 都是过度设计。 |
 | 30 | 部分确认，已完成实现前深挖 | P2 | Admission runtime 确实加载全部 active records 后按 deadline 静默截断为 100 条，页面同时显示未截断统计和“100 条”却无解释；但“其余记录在整个 Console 不可达、只能等待前 100 条老化”不成立。处置中心可检索全部 active records 并放行/拒绝/延期，群内授权命令可查询/重发/重新生成/跳过，backend-sync 与 time-code 扫描也不受 UI cap 影响；deadline 到期本身不会让记录退出 active。应先基于同一 guild scope 显示 `shown / total / truncated` 和替代操作说明，并用 `(deadlineAt,id)` 稳定排序；只有遥测证明队列经常持续超过 100、替代路径不足或全量加载产生 SLO 问题时，才做数据库级 scoped cursor pagination/search。 |
 | 33 | 部分确认 | P3 | custom navigation 没有通用安全区处理，首页风险明确；仅凭静态代码不足以断言 login/callback 在所有设备都重叠。可恢复 native navigation，或按平台 status bar/capsule 做正确间距，并用微信真机验收。 |
@@ -535,7 +535,8 @@ P2-13/P2-14 的合并修复和回归记录，P2-15 是同一逐行上下文查�
 1. #3 + #4：Koishi Console 全局/群 scope 和跨群数据隔离。
 2. #44：access/refresh token 类型边界与非空 subject。
 3. #17：`super_admin` tuple 的权威 reconcile；#11 先确定 scoped tuple 的权威来源。
-4. #18：按 token 自身 `exp` 计算 blacklist 并完成旧 session 迁移边界。
+4. #18：**已完成本地修复**；按 token 自身 `exp` 计算 blacklist，并以受约束的 Redis
+   PTTL 完成旧 session 滚动升级边界。
 5. N-1：在 #18 之后单独实现并验证真实 Casdoor logout/token-family 撤销契约。
 6. U-1：academics import 补复用现有 MFA chain。
 7. #9：恢复 `userVote` 契约，避免用户动作语义反转。
@@ -570,7 +571,7 @@ bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复
 | WF03：#17 | 真实 P1，已修复；协议假设经真实 OpenFGA 纠正 | `RolesClaimPresent` 只表示 claim 明确存在且结构有效，Web/native login 与 refresh 才把新 token 提升为 `RolesAuthoritative`；`/auth/me` 明确保持 false。精确 direct tuple 使用 higher-consistency Read，存在时通过 SDK `on_missing=ignore` 删除，避免并发 refresh 的 read/delete 竞态把已撤权状态误报为失败；实际删除后记录 `iam.role.revoke`。Claude 所引 `client_edge_test.go` 只证明空列表 no-op，并未证明缺失 tuple 默认幂等；真实 v1.18.1 验证确认必须显式使用 ignore。没有实现 #11 的 DB/outbox/API/CLI provisioning 平台。 |
 | WF04：#9 | 真实 P1，已修复 | 所有 `readReviewPagePayload` consumer 都经过同一 parser；保留 `like/dislike` enum、缺失可选、非法 fail-closed 足够，不建设反射式 DTO 自动同步框架。 |
 | WF05/WF10：U-1 | MFA 缺口真实；“缺通用 admin-entry”证伪；交叉审查从 FAIL 修到 PASS | 三条 `/admin/academics` route 已复用现有 admin MFA chain。反向复核发现共享 RBAC step-up 曾返回 428、与 OpenAPI/管理端 412 契约冲突，已中央对齐 412并扩展真实链路断言；非 MFA 的 Open Platform 428 未被机械替换。精确 global capability 已比 admin-entry 更严格，无需重复 gate。 |
-| WF06：#18 + N-1 | #18 真实 P1；同时把 provider revoke 从“风险”提升为已证实 no-op P1 | 保存已验签 expiry、原子轮换 hash+expiry、逐 session 计算剩余 TTL；legacy logout-all 迁移必须有 provider TTL invariant，不能用 30 天向下 clamp。N-1 独立实现 Casdoor adapter，避免把会话迁移、blacklist 和 provider 协议揉成一次 IAM 重写。 |
+| WF06：#18 + N-1 | #18 真实 P1，已修复并完成真实 Redis 验证；provider revoke 是独立、已证实 no-op 的 P1 | 已保存已验签 expiry、原子轮换 hash+expiry、逐 session 计算剩余 TTL，并修复 tracked logout 的二次短 TTL 覆盖。新 token 强制 `remaining <= session lease <= 30d`；legacy logout-all 只在托管 provider TTL invariant 下使用真实 PTTL，无 TTL fail-closed。N-1 仍须独立实现 Casdoor adapter，避免把会话迁移、blacklist 和 provider 协议揉成一次 IAM 重写。 |
 | WF07：#51 | 较窄 P2 真实 | referenced session 存在、当前 refresh hash 非空且与 presented hash **不同**才是真 reuse；session 缺失或 hash 相同是已撤销/并发 logout，不触发 family revoke。无需为此新增 revoke-reason schema。 |
 | WF08：#57 | 真实 P2，原报告的 hidden-row 与 `Review.SchoolID` 证据不成立 | public full-content entitlement 只接受 global grant；不改 capability producer、管理路由、Review DTO/OpenAPI/SQL，不实现新的“scope 内 public full”产品语义。 |
 | WF09：#45 | 真实 P2，报告漏掉 1 条 token route 和 2 类 body-limit 日志 | 4 类日志点统一用 `FullPath()`，未匹配 404/405 固定 `unmatched`；保留 query masking。不得回退 raw path，也不维护敏感参数黑名单或 token 字符串替换器。 |
@@ -611,6 +612,12 @@ bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复
   Casdoor 边界检查、`golangci-lint` 和 build 均通过。真实 OpenFGA v1.18.1 一次性独立 store
   验证写入 200、精确读取 `1`、首次删除 200、重复删除 200、最终读取 `0`；store 以 204 删除并
   确认不存在。没有读取或修改现有业务 store。
+- #18 修复的 OIDC expiry provenance、login/native/refresh 持久化、Lua hash+expiry 原子轮换、
+  session lease/hard-cap 拒绝、tracked logout 无二次覆盖、逐 session logout-all、legacy PTTL
+  与无 TTL fail-closed 均有负向测试；`token`、`oidc`、`middleware`、`auth` 四包定向与 race、
+  全服务端 `make test`（`-race -p 1 ./...`）、Casdoor 边界检查、`golangci-lint`、build 和
+  文档卫生均通过。一次性 Redis 8.8.1 容器实测现代 token 约 50 分钟、legacy PTTL 约 20 分钟、
+  logout-all 两条 token 约 10/40 分钟，超 30 天拒绝且不写 key；测试容器已删除。
 - #30 通过源码链路确认 100 条上限只存在于 Admission runtime payload；处置中心、群内命令和
   两类后台扫描不受该 cap 影响。尚未用真实生产数据证明队列经常超过 100。
 - #34 用真实 Chromium 观察 GSAP global timeline：初始 50，跨帧 resize 后逐批增加，离开首页
@@ -623,6 +630,9 @@ bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复
 单独验收：
 
 - 生产 Casdoor 的实际 access/refresh TTL、introspection、logout/revocation 和 JWKS 故障行为；
+- #18 已完成本地实现和 Redis 协议验证，但生产发布仍须确认 `bootstrap-platform.sh prod`
+  收敛 access TTL、旧 session PTTL 前提成立，并以真实 login → logout/logout-all → token
+  拒绝链路留证；不能用本地绿灯替代。
 - 生产 Casdoor 实际降级 `super_admin` 后的新 ID token、OpenFGA tuple 撤权、审计落库以及各
   school/resource 权限立即失效的端到端验收；
 - 真实 scoped Console operator 的跨群读写、插件重载与全局设置权限；
@@ -637,6 +647,7 @@ bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复
 | 3 + 4 | 已修复，待发布；真实 scoped Console 操作员验收待补 | Canonical scope resolver、global settings fail-closed、scoped records/stats/filter-before-limit、foreign action side-effect=0、scoped `globalRuntime=null` 和全局 loader=0 均有负向测试；22 定向、602 全量 unit、双插件 typecheck、contracts、build、startup 与 46 UI smoke 通过；独立复核经历 FAIL→修正→PASS | `7b448809` `fix(koishi): enforce admission console guild scope` |
 | 9 | 已修复，待发布 | Web review payload reader 保留 `like`/`dislike`，缺失字段保持可选，非法 enum fail-closed；定向 payload/voting 回归、Web 类型检查与相关静态检查通过 | `59322589` `fix(review): preserve current user vote state` |
 | 17 | 已修复，待发布；生产 Casdoor 降级与 OpenFGA 撤权待验收 | 新 ID token 的合法 roles claim 才能触发 reconcile，`/auth/me`/缺失/畸形 claim 均不 mutation；exact direct tuple higher-consistency Read、`on_missing=ignore` 删除、失败关闭和 `iam.role.revoke` 有负向测试。四包定向/race、全服务端 race、lint/build 与真实 OpenFGA v1.18.1 临时 store 写入/重复撤权/清理验证通过 | `fix(auth): reconcile authoritative super admin roles` |
+| 18 | 已修复，待发布；生产 Casdoor TTL/真实登出待验收 | 已验证 provider `exp` 随 session 保存并在 refresh 原子轮换；新 token 强制不超过 session lease/30 天，logout/logout-all 逐 token 写真实 TTL，legacy 仅按受约束 PTTL 回退，无 TTL fail-closed；并消除 tracked logout 的 5 分钟二次覆盖。四包定向/race、全服务端 race、lint/build/docs 与真实 Redis 8.8.1 PTTL/hard-cap 验证通过 | `fix(auth): revoke access tokens through verified expiry` |
 | 44 | 已修复，待发布 | active introspection 只接受 Casdoor `access-token` purpose，refresh/missing/malformed/opaque token 均拒绝；Bearer 用户路径拒绝空白 subject，provider unavailable 与 inactive 分类保持不变；OIDC、middleware、app/auth 定向回归与服务端静态检查通过 | `3d12d259` `fix(auth): reject refresh tokens on bearer paths` |
 | U-1 | 已修复，待发布 | 三个 academics admin operation 消费现有 admin MFA middlewares；共享 step-up 响应从错误的 428 对齐既有 412 契约，OpenAPI/生成物同步；blocking route contract、真实 MFA chain、相关包/全量 Go 回归、race、spec/drift、lint/build 与文档检查通过 | `4b2f520b` `fix(academics): require MFA for import administration` |
 

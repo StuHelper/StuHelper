@@ -29,6 +29,7 @@ const (
 	CtxKeyCapabilitySet      = "capability_set"       // map[string]struct{} — O(1) 查找
 	CtxKeyAuthBackendFailure = "auth_backend_failure" // OptionalAuth 后端故障诊断标记
 	CtxKeyAuthenticationTime = "authentication_time"
+	CtxKeyAccessTokenExpiry  = "access_token_expiry"
 )
 
 // authResult 认证解析结果
@@ -40,6 +41,7 @@ type authResult struct {
 	orgScopedRoles                              map[string][]string
 	authTime                                    time.Time
 	mfaProofAt                                  time.Time
+	accessTokenExpiresAt                        time.Time
 }
 
 func withResolvedRoleScopes(ctx context.Context, auth *authResult, resolver RoleScopeResolver) (*authResult, error) {
@@ -136,6 +138,9 @@ func setClaimsToContext(c *gin.Context, auth *authResult) {
 	c.Set(CtxKeyCapabilitySet, capSet)
 	SetAuthenticationTime(c, auth.authTime)
 	SetMFAProofVerifiedAt(c, auth.mfaProofAt)
+	if !auth.accessTokenExpiresAt.IsZero() {
+		c.Set(CtxKeyAccessTokenExpiry, auth.accessTokenExpiresAt.UTC())
+	}
 }
 
 func setAvatarContext(c *gin.Context, avatar *string) {
@@ -153,6 +158,17 @@ func GetUserID(c *gin.Context) string {
 
 func GetAppID(c *gin.Context) string {
 	return getContextString(c, CtxKeyAppID)
+}
+
+// GetAccessTokenExpiresAt returns the expiry from the token verification result.
+// A zero value means the verifier/provider did not supply a usable expiry.
+func GetAccessTokenExpiresAt(c *gin.Context) time.Time {
+	if val, exists := getContextValue(c, CtxKeyAccessTokenExpiry); exists {
+		if expiresAt, ok := val.(time.Time); ok {
+			return expiresAt.UTC()
+		}
+	}
+	return time.Time{}
 }
 
 func GetTokenScopes(c *gin.Context) []string {
