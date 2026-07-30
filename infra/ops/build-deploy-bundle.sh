@@ -23,42 +23,25 @@ mkdir -p "${OUTPUT_DIR}"
 tmpfile="$(mktemp "${OUTPUT_DIR}/bundle.XXXXXX.tar.gz")"
 trap 'rm -f "${tmpfile}"' EXIT
 
-(
-  cd "${REPO_ROOT}"
-  tar \
-    --exclude='.git' \
-    --exclude='.claude' \
-    --exclude='.run' \
-    --exclude='.tools' \
-    --exclude='.env*' \
-    --exclude='.env' \
-    --exclude='.env.generated' \
-    --exclude='.env.generated.secrets' \
-    --exclude='.env.prod.local' \
-    --exclude='.env.prod.shared' \
-    --exclude='.env.prod.secrets' \
-    --exclude='.env.prod.secrets.local' \
-    --exclude='.env.prod.generated' \
-    --exclude='.env.prod.generated.secrets' \
-    --exclude='.secrets' \
-    --exclude='.secrets/*' \
-    --exclude='.deploy' \
-    --exclude='infra/generated' \
-    --exclude='infra/generated/*' \
-    --exclude='**/node_modules' \
-    --exclude='**/dist' \
-    --exclude='**/.turbo' \
-    --exclude='**/.vite' \
-    --exclude='clients/**/node_modules' \
-    --exclude='clients/**/dist' \
-    --exclude='clients/**/.turbo' \
-    --exclude='clients/**/.vite' \
-    --exclude='server/tmp' \
-    --exclude='server/bin' \
-    --exclude='**/.DS_Store' \
-    -czf "${tmpfile}" \
-    .
-)
+# The bundle is exactly the tracked source at HEAD. Building it from the Git
+# index rather than the working tree makes it impossible for an ignored file
+# (local secrets, build output, generated env) to reach a deployment target,
+# and the clean-worktree gate above guarantees HEAD matches what was tested.
+git -C "${REPO_ROOT}" archive --format=tar.gz --output="${tmpfile}" HEAD
+
+# Deployment and rollback both call ensure_env_file(), which fails when the env
+# templates are absent. Assert their presence rather than trusting the packaging
+# path to keep including them.
+bundled_env_files="$(tar -tzf "${tmpfile}" | sed 's|^\./||' | grep -E '^\.env' || true)"
+for required in .env.example .env.prod.example; do
+  if ! grep -qxF "${required}" <<<"${bundled_env_files}"; then
+    die "deployment bundle is missing required env template: ${required}"
+  fi
+done
+unexpected_env_files="$(grep -vxE '\.env\.example|\.env\.prod\.example' <<<"${bundled_env_files}" | grep -v '^$' || true)"
+if [[ -n "${unexpected_env_files}" ]]; then
+  die "deployment bundle contains unexpected env files: ${unexpected_env_files//$'\n'/ }"
+fi
 
 mv "${tmpfile}" "${OUTPUT_FILE}"
 log "deployment bundle created: ${OUTPUT_FILE}"

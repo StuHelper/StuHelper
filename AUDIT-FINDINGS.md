@@ -44,9 +44,8 @@ Web / Admin / UniAppX+Koishi UI / Koishi / 基础设施 / 代码质量与文档)
   实际启动恢复后的 PostgreSQL 18.4 base backup 并读回探针数据，但没有登录生产主机、
   检查生产备份目录或用生产 WAL 执行目标时间点恢复，也没有观察生产锁等待或真实大表延迟。
   因此“生产已经丢失 PITR”“生产已经 OOM/死锁/永久停更”等说法仍不得当作已证实事实。
-- 当前工作树在复核开始前已经有未提交修改。P1-4 的修复仍只存在于当前工作树，
-  不是已提交、已合并或已发布状态；Codex 对 P0-1、P1-1、P1-2 与 P1-3 的修复已经
-  按问题独立提交，但均未合并或发布。
+- 当前工作树在复核开始前已经有未提交修改。Codex 对 P0-1、P1-1、P1-2、P1-3 与
+  P1-4 的修复已经按问题独立提交，但均未合并或发布；原有其他工作树修改没有混入这些提交。
 - 原报告大量“修复方案”和全部 18 条驳回长文在句中截断。例如 P0-1 结尾是
   `only surface the 4`，P1-1 结尾是 `Promise.resolve<string[]>(`，P1-3 结尾是
   `both loc`；P3-1 至 P3-9 的方案也全部半句结束。第 1 条驳回理由还重复了两次。
@@ -73,7 +72,7 @@ Web / Admin / UniAppX+Koishi UI / Koishi / 基础设施 / 代码质量与文档)
 | P1-1 | 确认，已完成本地修复与回归验证 | P1 | 已修复，待发布 | 缺 Session 时 fail-closed；私聊无群号仍按 command policy 的 `minAuthority` 校验，但不加载成员角色，随后在访问数据前返回群上下文提示；私聊显式群号继续按目标群角色策略校验，复核列表始终带 guild filter。没有禁用合法私聊，也没有重写命令权限框架。 |
 | P1-2 | 确认，已完成本地修复与真实迁移验证 | P1 | 已修复，待发布 | 已将权威来源纠正为完整有序 migration 集合，明确 `000001` 是不可变初始基线、后续变更必须新增递增 `.up/.down` 文件，并同步 Make 帮助、数据库参考与 CI 步骤名。未普遍加入 `IF NOT EXISTS`，避免掩盖脏迁移和 schema drift；隔离 PostgreSQL 18 上按 CI 非超级用户权限实际完成 19 版 `up → down 1 → up`，最终 `dirty=false`。 |
 | P1-3 | 确认，已完成本地修复与真实隔离恢复；生产状态未验证 | P1 | 已修复，待发布；生产 PITR 待演练 | 已改为 staging 内 `plain + wal-method=stream`，使用临时 replication slot 和 `pg_verifybackup`，压缩后经 `.partial` 原子发布；同步器排除临时工件，evidence 同时验证本地/取回的逻辑与物理备份、SHA256、可读性和新鲜度。固定 PostgreSQL 18.4 客户端真实生成并校验备份，无网络恢复实例成功读回探针，临时 slot/容器/卷/网络均已清理。没有引入持久 slot、备份平台或通用编排层；仍不能据此宣称生产 WAL 连续性/PITR 已验收。 |
-| P1-4 | 确认，当前工作树已有未提交修复 | P1 | 必须完成交付 | `git archive HEAD` 加根目录 env 模板断言适合本仓库，契约测试已通过。仍需提交、CI、部署/回滚演练；不能标为已发布。 |
+| P1-4 | 确认，已完成本地修复与真实干净 worktree 打包验证 | P1 | 已修复，待发布 | 部署包改为只取 Git `HEAD` 跟踪文件，脏工作树在创建输出前拒绝；打包后断言根目录恰好包含 `.env.example`、`.env.prod.example`，不存在其他根 env 文件。临时干净仓库实测忽略的 secret/`node_modules` 不入包、两个模板存在、未跟踪文件会阻断。没有维护第二份易漂移 exclude 清单或引入新发布系统；仍需 CI 和真实远端部署/回滚验收。 |
 | P1-5 | 部分确认；首次过期失败日为 2026-08-06 | P1/P2 边界 | 必须修规则 | 新版本生产部署应继续硬校验当前 image review；对“曾批准且 digest 不变”的紧急回滚设计窄范围、环境相关、可审计的豁免，并由定时 CI 提前告警。把所有生产 deploy/rollback 一律改成 report-only 会削弱供应链门禁，属于错误优化。 |
 | P1-6 | 确认，但只在存在活跃 SSE 时触发 | P1 | 必须 | 将进程 shutdown context 传入 bot-action 与 camera SSE 的 `select`，使长连接主动退出并加关闭测试。“每次 SIGTERM 都失败”措辞过度；强制所有流 10 分钟重连与本缺陷无关。 |
 | P1-7 | 确认 | P1 → P2 | 应改 | 先改 OpenAPI 的 optional auth，再生成契约、接可选认证中间件并测 owner/non-owner。它造成刷新后删除按钮消失，是 UX/契约缺陷，不是 P1 级安全事件。 |
@@ -171,7 +170,7 @@ P2 唯一根因应按以下修复簇合并，避免重复设计：
 
 #### 第二批：发布、运行前进性与核心契约
 
-1. P0-1 已完成实现和本地验证；继续完成 P1-4 的独立交付，并处理 P1-5 可审计回滚例外。
+1. P0-1 与 P1-4 已完成修复、验证和独立提交；继续处理 P1-5 可审计回滚例外。
 2. P1-2 migration 指南已完成修复、真实迁移验证和独立提交；继续 P1-6 SSE shutdown。
 3. P2-1/P2-2 CI 门禁，P2-6 privileged listener 生命周期。
 4. P2-7 转发 poison、P2-13/14/15 claimed batch、P2-23 outbox panic。
@@ -202,7 +201,10 @@ R-14、R-15、R-17，以及 X-2 的配置分类治理。
   dry-run 通过；在无卷隔离 PostgreSQL 18 上复现 CI 的非超级用户 `stuhelper_app` 权限，
   实际完成 `000001` 至 `000019` 的全量前进、回滚最新一版、再次前进，最终
   `schema_migrations = 19, dirty = false`。验证容器已删除，未接触现有开发数据库。
-- 部署包：`infra/ops/tests/deploy-bundle-contract.sh` 通过；当前修复仍未提交/发布。
+- 部署包 P1-4：ShellCheck、`deploy-bundle-contract.sh`、CI drift/deploy security contracts 和
+  文档卫生 5/5 通过。临时干净 Git 仓库实际运行打包脚本，确认被忽略的
+  `.env.prod.secrets`/`node_modules` 不入包，根 env 文件恰好为两个模板；新增未跟踪文件后，
+  脚本在创建输出前失败。临时仓库与 tar 已删除；尚未执行真实远端部署/回滚。
 - PostgreSQL P1-3：固定 18.4 客户端确认原 `tar + gzip + stream + pgdata=-` 参数在解析阶段
   失败；最终实现没有采用依赖 WAL 保留窗口的 `fetch`，而是在独立 staging 使用
   `plain + stream` 和临时 slot。真实 PostgreSQL 18.4 源库完成 `pg_basebackup`，
@@ -230,6 +232,7 @@ R-14、R-15、R-17，以及 X-2 的配置分类治理。
 | P1-1 | 已修复，未发布 | 缺 Session fail-closed；私聊无 guild 仍校验 policy 且禁止无范围查询；显式 guild 保留并按目标群授权。定向 14 tests、Koishi build、全量 593 tests 和 UI contracts 通过 | `fix(koishi): fail closed without a guild context` |
 | P1-2 | 已修复，未发布 | 迁移权威改为有序 migration 集合；`000001` 锁定为初始基线，后续只新增递增 `.up/.down`；同步 Make/CI/数据库文档。文档与 CI 契约检查通过，隔离 PostgreSQL 18 实际 `up → down 1 → up` 后为 `19, dirty=false` | `docs(database): make migrations append-only` |
 | P1-3 | 已修复，未发布；生产 PITR 待验收 | 物理备份在外部 staging 以 `plain + stream` 生成，经临时 slot、`pg_verifybackup`、SHA256 和 `.partial` 原子发布；同步排除临时工件，evidence 覆盖本地/取回的逻辑与物理备份及新鲜度。真实 18.4 隔离恢复启动并读回探针；ShellCheck、文档卫生和 75 个 infra contracts 通过 | `fix(backup): verify and atomically publish base backups` |
+| P1-4 | 已修复，未发布 | 部署包只取干净 Git `HEAD`，生成后断言两个根 env 模板存在且无其他根 env；干净临时仓库实测忽略 secret/依赖不入包、未跟踪文件 fail-closed。ShellCheck、部署包/CI 契约与文档卫生通过 | `fix(deploy): preserve required env templates in bundles` |
 
 ### 明确不建议实施的“修复”
 
@@ -2443,7 +2446,7 @@ STUHELPER_REDIS_INTEGRATION
 | P1-1 | 私聊空 guild 绕过策略并跨群读取复核队列 | Codex 已完成实现：缺 Session fail-closed；无 guild 仍校验 authority policy 且在数据访问前返回上下文提示；显式 guild 保持目标群授权与过滤。定向 14 tests、Koishi 全量 593 tests、build 和 UI contracts 通过。随独立修复提交入库，尚未发布 |
 | P1-2 | 迁移指南要求修改已执行的初始基线 | Codex 已完成修复：权威来源改为完整有序 migration 集合，后续 schema 变更必须新增递增 `.up/.down`；Make、CI 与数据库文档已同步。文档/契约检查通过，隔离 PostgreSQL 18 按 CI 最小权限实际完成 19 版 `up → down 1 → up`，最终无 dirty 状态。随独立修复提交入库，尚未发布 |
 | P1-3 | 物理备份命令无法生成、半成品可被同步且 evidence 不覆盖物理备份 | Codex 已完成实现：改为外部 staging 的 `plain + stream`、临时 replication slot、`pg_verifybackup`、SHA256 与 `.partial` 原子发布；同步排除临时工件，evidence 覆盖本地/取回的逻辑与物理备份及新鲜度。真实 PostgreSQL 18.4 备份在无网络隔离实例启动并读回探针，75 个 infra contracts 全部通过。随独立修复提交入库，尚未发布；生产对象存储/WAL PITR 仍须单独验收 |
-| P1-4 | 部署包丢失 env 模板 | 当前未提交工作树已改为 `git archive` + 断言，契约测试通过；未合并、未执行真实部署/回滚 |
+| P1-4 | 部署包丢失 env 模板 | Codex 已完成实现：部署包只取干净 Git `HEAD`，打包后断言两个根 env 模板存在且无其他根 env。临时干净仓库实测忽略 secret/依赖不入包、未跟踪文件阻断，相关部署/CI 契约通过。随独立修复提交入库，尚未发布；未执行真实远端部署/回滚 |
 | X-1 | 无 scope 的 school_admin 全量可见 | Codex 已证伪；现有 capability 展开和 admin Entry 在 Handler 前返回 403，不按 P1 修复 |
 | X-2 | env 模板差集 | Codex 判定部分成立；改为分类治理，不执行 21 项全量入模板/严格集合相等方案 |
 | 其余条目 | — | 不再用“其余 41 项待修”概括；按 Codex 逐项表和四批实施顺序处置 |

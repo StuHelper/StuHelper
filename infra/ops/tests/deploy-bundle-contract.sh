@@ -18,6 +18,14 @@ assert_contains() {
   fi
 }
 
+refute_contains() {
+  local file="$1"
+  local pattern="$2"
+  if grep -Eq -- "${pattern}" "${file}"; then
+    fail "${file} must not contain pattern: ${pattern}"
+  fi
+}
+
 line_number() {
   local pattern="$1"
   local line
@@ -32,26 +40,50 @@ assert_contains "${BUNDLE_SCRIPT}" '^require_cmd git$'
 assert_contains "${BUNDLE_SCRIPT}" 'rev-parse --is-inside-work-tree'
 assert_contains "${BUNDLE_SCRIPT}" 'status --porcelain --untracked-files=all'
 assert_contains "${BUNDLE_SCRIPT}" 'deployment bundle requires a clean git worktree'
-assert_contains "${BUNDLE_SCRIPT}" "--exclude='\\.git'"
-assert_contains "${BUNDLE_SCRIPT}" "--exclude='\\.run'"
-assert_contains "${BUNDLE_SCRIPT}" "--exclude='\\.deploy'"
-assert_contains "${BUNDLE_SCRIPT}" "--exclude='\\.env'"
-assert_contains "${BUNDLE_SCRIPT}" "--exclude='\\.env\\*'"
-assert_contains "${BUNDLE_SCRIPT}" "--exclude='\\.env\\.prod\\.shared'"
-assert_contains "${BUNDLE_SCRIPT}" "--exclude='infra/generated'"
-assert_contains "${BUNDLE_SCRIPT}" "--exclude='infra/generated/\\*'"
-assert_contains "${BUNDLE_SCRIPT}" "--exclude='\\*\\*/node_modules'"
-assert_contains "${BUNDLE_SCRIPT}" "--exclude='\\*\\*/dist'"
+
+# The bundle is built from the Git index so ignored secrets cannot reach a
+# deployment target. A working-tree tar with an exclude list is not acceptable:
+# an over-broad pattern silently drops the env templates that deploy requires,
+# and an under-broad one ships secrets.
+assert_contains "${BUNDLE_SCRIPT}" 'git -C "\$\{REPO_ROOT\}" archive --format=tar\.gz'
+refute_contains "${BUNDLE_SCRIPT}" "--exclude='\\.env"
+
+# The packaging path must prove the env templates survived, not assume it.
+assert_contains "${BUNDLE_SCRIPT}" 'missing required env template'
+assert_contains "${BUNDLE_SCRIPT}" 'unexpected env files'
 
 clean_check_line="$(line_number 'status --porcelain --untracked-files=all')"
 mkdir_line="$(line_number 'mkdir -p "\$\{OUTPUT_DIR\}"')"
-tar_line="$(line_number '^[[:space:]]*tar[[:space:]]+\\$')"
+archive_line="$(line_number 'git -C "\$\{REPO_ROOT\}" archive')"
 
 if (( clean_check_line >= mkdir_line )); then
   fail "clean worktree check must run before creating generated bundle output"
 fi
-if (( clean_check_line >= tar_line )); then
-  fail "clean worktree check must run before tar packaging"
+if (( clean_check_line >= archive_line )); then
+  fail "clean worktree check must run before archiving"
+fi
+
+# Behavioural check: whatever the packaging path is, the archive it produces
+# must carry both env templates and no other env file. ensure_env_file() in
+# lib/common.sh fails hard when a template is absent, so a bundle without them
+# breaks every remote deploy and rollback.
+archive_listing="$(mktemp)"
+trap 'rm -f "${archive_listing}"' EXIT
+git -C "${REPO_ROOT}" archive --format=tar.gz HEAD | tar -tz | sed 's|^\./||' >"${archive_listing}"
+
+bundled_env_files="$(grep -E '^\.env' "${archive_listing}" || true)"
+for required in .env.example .env.prod.example; do
+  grep -qxF "${required}" <<<"${bundled_env_files}" ||
+    fail "bundle must include env template: ${required}"
+done
+
+unexpected="$(grep -vxE '\.env\.example|\.env\.prod\.example' <<<"${bundled_env_files}" | grep -v '^$' || true)"
+if [[ -n "${unexpected}" ]]; then
+  fail "bundle must not include env files beyond the templates: ${unexpected//$'\n'/ }"
+fi
+
+if grep -qE '(^|/)node_modules/' "${archive_listing}"; then
+  fail "bundle must not include node_modules"
 fi
 
 echo "[deploy-bundle-contract] all assertions passed"
