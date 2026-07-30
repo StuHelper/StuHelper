@@ -8,7 +8,11 @@ import (
 	"strconv"
 	"strings"
 
+	"go.uber.org/zap"
+
 	"github.com/StuHelper/StuHelper/server/internal/pkg/fga"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/logger"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/metrics"
 )
 
 const (
@@ -112,22 +116,29 @@ func (r *RoleScopeResolver) resolveSectionRoleScopes(
 		return fmt.Errorf("list %s scopes: %w", role, err)
 	}
 	sectionIDs := objectIDs(sections, openFGASectionType)
-	if err := validateReviewModerationSections(sectionIDs); err != nil {
-		return err
-	}
+	sectionIDs = validReviewModerationSections(subject, role, sectionIDs)
 	if len(sectionIDs) > 0 {
 		scopes[role] = sectionIDs
 	}
 	return nil
 }
 
-func validateReviewModerationSections(sectionIDs []string) error {
+func validReviewModerationSections(subject, role string, sectionIDs []string) []string {
+	valid := make([]string, 0, len(sectionIDs))
 	for _, sectionID := range sectionIDs {
 		if _, ok := fga.ParseReviewModerationSectionID(sectionID); !ok {
-			return fmt.Errorf("unsupported review moderation section scope: %s", sectionID)
+			metrics.ObserveIAMInvalidRoleScope()
+			logger.L().Warn(
+				"ignoring invalid OpenFGA role scope",
+				zap.String("fga_user", subject),
+				zap.String("role", role),
+				zap.String("section_id", sectionID),
+			)
+			continue
 		}
+		valid = append(valid, sectionID)
 	}
-	return nil
+	return valid
 }
 
 func fgaUser(userID int64) string {

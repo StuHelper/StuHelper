@@ -138,6 +138,8 @@ target 均为 1。这样可以区分“exporter 进程活着”与“exporter �
 - API 5xx / 延迟
 - DB / Redis
 - OpenFGA / Casdoor / SMS / Oracle 学籍源等外部依赖
+- `iam_invalid_role_scope_total`：按 warning 日志定位无效 section ID，并在权威来源确认后
+  清理陈旧 OpenFGA tuple；应用只忽略无效 grant，不会在请求读路径自动删除
 - `circuit_breaker_state{name=...}` 持续非零和 `external_requests_total{client="oracle_student_directory",status="error"}` 异常
 - 证件审核 / SSE 队列积压
 

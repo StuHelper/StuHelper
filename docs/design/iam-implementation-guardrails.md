@@ -51,6 +51,23 @@ Casdoor 的扁平 `super_admin` role 投影到 `ecosystem:stuhelper#super_admin`
 - 本规则只适用于平台级扁平角色；school/section scope 继续以 StuHelper DB / OpenFGA 业务投影
   为权威，不得从 Casdoor role 名推导。
 
+## School / Section Scope 完整性
+
+OpenFGA 查询本身失败时，role scope resolution 必须 fail-closed 并返回依赖不可用；不得把
+网络、超时或服务端错误降级成“没有 scope”。
+
+单个 `section` grant 的 object ID 无法按受支持的 review-moderation codec 解析时，应把该
+grant 视为无效权限并忽略，不能让它授予 capability，也不能让同一用户的其他合法 scope
+全部 503。每个被忽略的 grant 必须：
+
+- 增加无 label 的 `iam_invalid_role_scope_total`，避免把外部 ID 引入指标基数；
+- 记录包含内部 FGA user、固定 role 和无效 section ID 的 warning；
+- 触发 `StuHelperInvalidOpenFGARoleScope` 告警，由值班人员定位并清理陈旧 tuple。
+
+运行时不得自动删除 tuple：当前仓库尚未确定 scoped role 的权威 provisioning 来源，读路径
+无权猜测某条 tuple 是否应被永久撤销。只有无效 grant 时对应 scoped role 展开为零 capability；
+合法 grant 继续生效。
+
 ## 后台任务生命周期
 
 业务模块不得用裸 `go fn()` 启动长期后台任务。长期任务必须通过 `Runtime.startBackgroundTask` 注册，以获得统一的 context cancellation、WaitGroup、启动/停止日志和 panic 记录。

@@ -224,6 +224,12 @@ func TestObserveIAMDriftReconciliationThresholdExceeded_Counter(t *testing.T) {
 	assert.Equal(t, before+1, testutil.ToFloat64(IAMDriftReconciliationThresholdExceededTotal.WithLabelValues("openfga_relation")))
 }
 
+func TestObserveIAMInvalidRoleScope_Counter(t *testing.T) {
+	before := testutil.ToFloat64(IAMInvalidRoleScopeTotal)
+	ObserveIAMInvalidRoleScope()
+	assert.Equal(t, before+1, testutil.ToFloat64(IAMInvalidRoleScopeTotal))
+}
+
 // ---------------------------------------------------------------------------
 // Redis metrics (redis.go)
 // ---------------------------------------------------------------------------

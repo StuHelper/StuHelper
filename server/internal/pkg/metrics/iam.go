@@ -13,6 +13,17 @@ var IAMDriftReconciliationThresholdExceededTotal = promauto.NewCounterVec(
 	[]string{"domain"},
 )
 
+var IAMInvalidRoleScopeTotal = promauto.NewCounter(
+	prometheus.CounterOpts{
+		Name: "iam_invalid_role_scope_total",
+		Help: "Total number of invalid OpenFGA role scopes ignored during authorization resolution",
+	},
+)
+
 func ObserveIAMDriftReconciliationThresholdExceeded(domain string) {
 	IAMDriftReconciliationThresholdExceededTotal.WithLabelValues(domain).Inc()
+}
+
+func ObserveIAMInvalidRoleScope() {
+	IAMInvalidRoleScopeTotal.Inc()
 }

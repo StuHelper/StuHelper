@@ -471,7 +471,7 @@ Claude 的两条 `/admin/stats` 记录是同一位置、同一 middleware 顺序
 | `/admin/stats` 跳过 MFA（两个重复标签） | **部分重新确认** | P3 | 跳过 5 分钟 step-up freshness 是有提交和测试锁定的刻意 carve-out，不能直接把整个 group middleware 移上去；但该独立 route 也绕过基础 MFA context/enrollment，而 IAM 文档要求 `super_admin` 使用 MFA。应明确记录例外，或只补基础 MFA proof/enrollment gate、不要求 freshness。 |
 | academics 使用 `UserSchool*` capability | 维持证伪 | 不立项 | 路由调用 `RequireGlobalCapability`，scoped school admin 不会通过；当前与 `UserSystem*` 的主体集合相同，仅是命名债务。 |
 | `/internal/sms/send` 无 `/api/v1` limiter | 维持证伪 | 不按公网漏洞立项 | shipped ingress 不暴露 `/internal`，服务绑定 loopback 且需要 internal key。可在部署加固中验证私网 ingress 和 Casdoor 侧预算，但不应把内部 route 机械搬进 public API/global limiter。 |
-| 非法 FGA section 让该用户请求 503 | **部分重新确认** | P2 | 非法/陈旧的手工 tuple 会毒化持有对应 scoped role 的那个用户，不是“所有用户”。对解析失败的 granted scope 应 fail-closed 地忽略、记录 metric/log 并触发 reconcile；合法 scope 继续工作，只有非法 scope 时得到零 scoped grant；真正 FGA 查询错误仍返回 503。 |
+| 非法 FGA section 让该用户请求 503 | **部分重新确认，已完成本地修复、告警接线与回归验证** | P2 | 非法/陈旧的手工 tuple 原先会毒化持有对应 scoped role 的那个用户，不是“所有用户”。现在逐项过滤无法按 review-moderation codec 解析的 section：无效 grant 不生成 capability，合法 grant 继续工作，只有无效 grant 时得到零 scoped grant；真正的 OpenFGA 查询错误仍返回 503。每项无效 grant 增加无 label 的 `iam_invalid_role_scope_total` 并记录内部 FGA user、固定 role 与 section ID warning；Prometheus 告警要求人工 reconcile。运行时没有在尚未确定 scoped provisioning 权威来源时擅自删除 tuple。 |
 | section school 从 synthetic ID 解析 | 维持证伪 | 不立项 | 应用从同一 schoolID 同时生成 section ID 与 tuple，原报告所述不一致无法由当前写路径产生。可在 provisioning/reconcile 时做完整性检查，不应在每次请求额外读 tuple。 |
 | GetAdminStats 无 school scope/cache key | 维持证伪 | 不立项 | route 只允许 global dashboard grant，全局聚合和 scope-free cache 与授权语义一致。 |
 | RatingBar 无无障碍文本 | **部分重新确认，纠正位置** | P2 | 被引用的 `RatingBar/DimensionBars` 是 dead code，但真实 `CourseDetailPage` 中的可视化 bars 同样只靠宽度/颜色传递定性信息。给 live surface 增加定性 `aria-label`/`role=img` 并隐藏纯视觉层；产品测试明确不展示精确评分，不应借无障碍修复泄露精确数值。 |
@@ -548,7 +548,7 @@ fail-closed 语义和撤权测试，再做局部实现。
 #### 第二批：隐私、可靠性和核心前进性
 
 1. #45 path credential 日志脱敏（已完成本地修复），#51 refresh reuse 误判（已完成本地修复），#57 scoped grant 的 public-content 边界（已完成本地修复）。
-2. #39 projection polling（已完成本地修复）、#43 breaker cancellation（已完成本地修复）、U-2 JWKS 缓存策略（已完成代码与守卫文档修复；用户架构稿旧段待收敛）。
+2. #39 projection polling（已完成本地修复）、#43 breaker cancellation（已完成本地修复）、U-2 JWKS 缓存策略（已完成代码与守卫文档修复；用户架构稿旧段待收敛），以及非法 FGA section 的单 grant 隔离/告警（已完成本地修复）。
 3. #5 的 H5 资产产物契约（已完成本地修复）；mp-weixin 假绿另做“实现真实平台 build 或明确不支持”的产品决策。
 4. #6、#7、#8、#28、#30、#34、#35、#36、#37、#38、#42（均已完成本地修复）等会让用户状态错误、流程卡死、异常不可见、键盘流程受阻或操作结果不可信的问题。
 
@@ -590,6 +590,7 @@ bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复
 | WF23：#42 | 部分真实 P2，已完成最小页面状态修复与失败重试验证 | `/auth/me` 的账号/邮箱与三条 verification 状态请求不是同一事实来源；只保护 phone、QQ、实名、学籍和相关披露字段。页面本地状态在 ready 前隐藏未知负面结论，pending 显示轻量 loading，失败保留可靠字段并提供 single-flight 重试。无需修改共享 store 数据模型、添加全局 error bus，或在一次子请求失败后清空已有 store 投影。 |
 | WF24：#36 | 真实 P2，已完成既有 telemetry 的最小扩展与隐私边界回归 | `ErrorBoundary` 返回 `false` 后异常不会进入 Vue 全局 handler，所以必须在边界本身调用 reporter；没有边界的组件异常继续由全局 handler 兜底。两处只传固定 `vue-error`，后端沿用现有有限 label counter，不接收为诊断而扩建的 stack/props 存储。reporter 只在既有 bootstrap 明确初始化后生效并吞掉 transport 自身异常；无需第二个 API、错误数据库、全局事件总线或第三方采集平台。 |
 | WF25：#37 | 真实 P2，已完成 AppShell 级最小修复与真实键盘回归 | 按最新 Web Interface Guidelines 复核后，缺口限定为 shell 的 bypass block；skip link 使用原生 anchor 和 fragment，不用 click handler 模拟导航，`main` 只增加稳定 id 与 `tabindex=-1`。样式沿用现有 token、全局 focus-visible 和 reduced-motion，z-index 高于 sticky header。桌面/移动 Chromium 实测首个 Tab 可见、Enter 后 main 获得焦点；无需在各页面复制链接或构建 focus manager。 |
+| WF26：反向复核 / 非法 FGA section | 部分真实 P2，已完成单 grant 隔离、可观测性与失败关闭回归 | `ListObjects` 成功返回的每个 section ID 独立经过既有 codec；解析失败项不再把 resolver 整体变成 dependency error，但也绝不进入 `orgScopedRoles`。混合列表保留合法 scope，纯无效列表展开为零 capability；OpenFGA transport/server error 在过滤前返回，继续映射 503。无效项用无 label counter 控制基数、结构化 warning 定位，并由告警要求人工 reconcile；由于 #11 的权威来源尚未决定，读路径不自动删除 tuple。 |
 
 ### 本轮交叉验证与尚未验证边界
 
@@ -742,6 +743,12 @@ bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复
   warning）、production build 与文档卫生通过。首次 Playwright 命令使用了仓库不存在的
   `chromium` project，未启动测试；随后按真实 `desktop-chromium`/`mobile-chromium`
   完整重跑并通过，未将工具参数错误混作产品失败。
+- 反向复核的非法 FGA section 回归覆盖纯无效、合法/无效混合和 school/section 两类真实
+  dependency error：前两者分别得到零 scope/只保留合法 scope，并按无效 grant 增加 counter；
+  dependency error 仍可 `errors.Is` 原始 OpenFGA 错误。authorization/metrics 定向 race、
+  全服务端 `make test`（`-race -p 1 ./...`）、Casdoor boundary、`golangci-lint`、静态 build、
+  全部 infra contracts、告警 contract 与文档卫生均通过。指标没有外部 ID label，日志不含
+  Casdoor subject；没有自动删除 tuple 或把依赖故障降级成零权限。
 
 测试通过只说明现有正向契约未被破坏，不能覆盖报告指出的所有负向场景。以下仍需在真正处置时
 单独验收：
@@ -757,6 +764,8 @@ bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复
 - 生产 Casdoor 实际降级 `super_admin` 后的新 ID token、OpenFGA tuple 撤权、审计落库以及各
   school/resource 权限立即失效的端到端验收；
 - 真实 scoped Console operator 的跨群读写、插件重载与全局设置权限；
+- 生产无效 section tuple 的 warning、`StuHelperInvalidOpenFGARoleScope` 告警投递与人工
+  reconcile 流程；本地验证只覆盖规则与契约，没有写入或删除生产 tuple；
 - 微信开发者工具/真机 mp-weixin 包、原生 SSO redirect 和浏览器 storage 受限模式；
 - 超过 100 条的真实 restricted-member 队列、生产 Redis p95/p99 与 breaker 行为；
 - 任何真实部署、生产数据迁移或生产 OpenFGA tuple reconcile。
@@ -790,6 +799,7 @@ bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复
 | 35 | 已修复，待发布；仍无 restore/undo 产品能力 | own-review 删除改为局部两阶段确认并管理键盘焦点；取消零请求，确认后唯一 DELETE，composable 程序级 single-flight。组件/边界回归 3/3、全部已跟踪 Web unit 511/511、type-check、ESLint、production build 与 docs 通过 | `fix(review): confirm own-review deletion` |
 | 36 | 已修复，待发布；生产 dashboard/告警消费仍待验收 | `ErrorBoundary` 与 Vue 全局 handler 复用既有 kind-only telemetry，固定 `vue-error` label；未初始化时 no-op，transport failure 被隔离，后端不存原始异常。组件/transport/基数负向回归、全部受控 Web unit 514/514、type-check、ESLint、production build、metrics race、app、Go lint、spec/generate stability 与 docs 通过 | `fix(web): report captured Vue component errors` |
 | 37 | 已修复，待发布 | AppShell 首个键盘停靠点增加本地化原生 skip link，唯一 main target 可聚焦；链接 focus-visible 时位于 fixed header 之上并遵守 safe-area/reduced-motion。双视口真实键盘与 Axe 14/14、全部受控 Web unit 514/514、type-check、ESLint、production build 与 docs 通过 | `fix(web): let keyboard users skip application navigation` |
+| 反向-FGA | 已修复，待发布；生产告警投递与人工 tuple reconcile 待验收 | 无效 section grant 独立忽略、计数并 warning，合法 grant 保留，纯无效得到零 scope，真实 OpenFGA error 仍失败关闭；Prometheus warning alert 已接线。定向 race、全服务端 race、lint/build、全部 infra contracts 与 docs 通过 | `fix(authz): isolate invalid OpenFGA role scopes` |
 
 ## Claude 原审计的确认问题分布（保留原始记录）
 

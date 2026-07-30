@@ -6,10 +6,12 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/StuHelper/StuHelper/server/internal/pkg/fga"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/metrics"
 )
 
 type fakeScopeReader struct {
@@ -92,18 +94,42 @@ func TestRoleScopeResolverResolvesSectionRoleScopesToSections(t *testing.T) {
 	assert.Empty(t, reader.readCalls)
 }
 
-func TestRoleScopeResolverFailsClosedOnUnsupportedSectionScope(t *testing.T) {
+func TestRoleScopeResolverIgnoresUnsupportedSectionScope(t *testing.T) {
 	reader := newFakeScopeReader()
 	reader.listResponses[listScopeKey("user:42", "section_admin", "section")] = []string{"section:orphan"}
 	resolver, err := NewRoleScopeResolver(reader, func(context.Context, string) (int64, error) {
 		return 42, nil
 	})
 	require.NoError(t, err)
+	before := testutil.ToFloat64(metrics.IAMInvalidRoleScopeTotal)
 
-	_, err = resolver.ResolveRoleScopes(context.Background(), "casdoor-subject-1", []string{"section_admin"})
+	scopes, err := resolver.ResolveRoleScopes(context.Background(), "casdoor-subject-1", []string{"section_admin"})
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "unsupported review moderation section scope")
+	require.NoError(t, err)
+	assert.Nil(t, scopes)
+	assert.Equal(t, before+1, testutil.ToFloat64(metrics.IAMInvalidRoleScopeTotal))
+}
+
+func TestRoleScopeResolverPreservesValidSectionsAlongsideInvalidScope(t *testing.T) {
+	reader := newFakeScopeReader()
+	reader.listResponses[listScopeKey("user:42", "section_moderator", "section")] = []string{
+		"section:orphan",
+		"section:school_10001_review_moderation",
+		"section:school_10002_review_moderation",
+	}
+	resolver, err := NewRoleScopeResolver(reader, func(context.Context, string) (int64, error) {
+		return 42, nil
+	})
+	require.NoError(t, err)
+	before := testutil.ToFloat64(metrics.IAMInvalidRoleScopeTotal)
+
+	scopes, err := resolver.ResolveRoleScopes(context.Background(), "casdoor-subject-1", []string{"section_moderator"})
+
+	require.NoError(t, err)
+	assert.Equal(t, map[string][]string{
+		"section_moderator": {"school_10001_review_moderation", "school_10002_review_moderation"},
+	}, scopes)
+	assert.Equal(t, before+1, testutil.ToFloat64(metrics.IAMInvalidRoleScopeTotal))
 }
 
 func TestRoleScopeResolverSkipsRolesWithoutSchoolScope(t *testing.T) {
@@ -123,17 +149,21 @@ func TestRoleScopeResolverSkipsRolesWithoutSchoolScope(t *testing.T) {
 }
 
 func TestRoleScopeResolverPropagatesDependencies(t *testing.T) {
-	expectedErr := errors.New("openfga unavailable")
-	reader := newFakeScopeReader()
-	reader.err = expectedErr
-	resolver, err := NewRoleScopeResolver(reader, func(context.Context, string) (int64, error) {
-		return 42, nil
-	})
-	require.NoError(t, err)
+	for _, role := range []string{"school_admin", "section_admin"} {
+		t.Run(role, func(t *testing.T) {
+			expectedErr := errors.New("openfga unavailable")
+			reader := newFakeScopeReader()
+			reader.err = expectedErr
+			resolver, err := NewRoleScopeResolver(reader, func(context.Context, string) (int64, error) {
+				return 42, nil
+			})
+			require.NoError(t, err)
 
-	_, err = resolver.ResolveRoleScopes(context.Background(), "casdoor-subject-1", []string{"school_admin"})
+			_, err = resolver.ResolveRoleScopes(context.Background(), "casdoor-subject-1", []string{role})
 
-	require.ErrorIs(t, err, expectedErr)
+			require.ErrorIs(t, err, expectedErr)
+		})
+	}
 }
 
 func TestNewRoleScopeResolverRequiresDependencies(t *testing.T) {
