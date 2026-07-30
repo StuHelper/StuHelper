@@ -11,7 +11,6 @@
     "build:web": "pnpm run build:shared && pnpm --filter @stuhelper/web build",
     "build:admin": "pnpm run build:shared && pnpm --dir admin build:ele",
     "build:uni:h5": "pnpm run build:shared && pnpm --filter @stuhelper/uniappx build:h5",
-    "build:uni:mp": "pnpm run build:shared && pnpm --filter @stuhelper/uniappx build:mp-weixin",
     "storybook:web": "pnpm --filter @stuhelper/web storybook",
     "build:storybook:web": "pnpm --filter @stuhelper/web build-storybook",
     "test:web": "pnpm run build:shared && pnpm --filter @stuhelper/web test",

@@ -117,6 +117,7 @@ assert_text_contains "${backend_filter}" "^[[:space:]]+- '\\.env\\.prod\\.exampl
 repository_policy_block="$(sed -n '/^  repository-policy:$/,/^  secret-scan:$/p' "${GITHUB_CI_FILE}")"
 sast_job_block="$(sed -n '/^  sast:$/,/^  required:$/p' "${GITHUB_CI_FILE}")"
 assert_text_contains "${repository_policy_block}" "needs\\.changes\\.outputs\\.guards == 'true'" "repository-policy job"
+assert_text_contains "${repository_policy_block}" "node scripts/check-uniappx-platform-contract\\.mjs" "repository-policy job"
 assert_text_contains "${sast_job_block}" "needs\\.changes\\.outputs\\.guards == 'true'" "sast job"
 
 static_contracts_block="$(sed -n '/^  static-contracts:$/,/^  repository-policy:$/p' "${GITHUB_CI_FILE}")"

@@ -423,7 +423,7 @@ Claude 新生成的 `AUDIT-REPORT.md` 是一份新的汇总快照，不是对本
 | P3 | 18 | 局部 UX、可访问性、契约/文档和治理加固 |
 
 严重度表示修复优先级，不表示当前生产已经发生相应后果。尚未执行真实生产 Casdoor、
-真实 Console 操作员、微信开发者工具/真机、原生 SSO、超过 100 条真实队列或生产 Redis
+真实 Console 操作员、原生 SSO、超过 100 条真实队列或生产 Redis
 延迟验收，不能把静态机制直接写成生产事故。
 
 ### 对 Claude 第二轮 39 个“确认问题”的逐项复核
@@ -434,7 +434,7 @@ Claude 新生成的 `AUDIT-REPORT.md` 是一份新的汇总快照，不是对本
 |----------|------------|----------|--------------------------------------|
 | 3 | 确认，已完成本地修复、对抗复核与回归验证 | P1 | Group Guard 通过 Core service 复用唯一的权威 guild-scope resolver；保存 bot-wide runtime settings 前先解析必需 scope 并 `assertGlobal`，resolver 缺失、认证畸形、authority 不足或 binding 查询失败均 fail-closed。scoped 页面不再下发或渲染全局开关，绕过 UI 直接调用仍在任何保存/刷新前拒绝。没有搬迁整套 RBAC helper 或建设第二套 Console 权限框架。 |
 | 4 | 确认，已完成本地修复、对抗复核与回归验证 | P1 | 成员、binding、被引用 template 和全部统计先按可管理 guild 过滤，再排序和截取 100 条；action 读取可信 record 后、在任何平台或 store 副作用前断言目标 guild。bot-wide 配置、平台信息和全部 Bot inventory 收拢为 `globalRuntime`，scoped response 返回 `null` 且不加载这些全局 store，客户端只显示权限说明。首次独立复核据此发现并阻断了“业务记录已过滤但全局运行态仍泄漏”的不完整修复；补齐后第二次复核 PASS。把 scope 下推 Repository 只有在真实规模/延迟需要时再做，当前继续改造属于过度优化。 |
-| 5 | 确认 H5 缺陷，已完成本地修复与真实产物/HTTP 回归；纠正 mp-weixin 证据 | P2 | `pages.json` 引用的 4 组、共 8 个 tabBar 图标原本位于 uni-app 的 `src` 输入树之外；H5 build 虽退出 0，但产物没有这些文件，静态预览全部 404。现在 8 个原 blob 原样移入 `src/static/tabbar`；`build:h5` 编译后运行零依赖 Node 契约，从 `pages.json` 动态派生 `iconPath/selectedIconPath`，同时断言源文件和 `dist/build/h5` 产物。原 `/static/...` URL 不变，构建预览 8/8 返回 200 `image/png`。没有增加 `publicDir`、资源副本或硬编码第二份图标表。报告所称 mp-weixin “因缺图硬编译失败”仍没有真实小程序产物支持；当前 mp build 假绿是独立 P2 产品决策，本项不伪称已修复。UniAppX 仍是实验性客户端，因此不升为 P1。 |
+| 5 | 确认 H5 缺陷并已完成修复；相邻 mp-weixin 假绿也已按不支持边界收口 | P2 | H5 的 8 个 tabBar 资源已移入输入树并由声明驱动的 source/output 契约保护。对 mp-weixin 再次实测：旧命令退出 0，却只生成 H5 `index.html/assets`，且仓库没有微信 compiler、认证或真机链路；因此没有把 H5 冒充微信产物，也没有无需求扩建微信平台。现已移除根/包级微信 dev/build 命令、manifest 微信 appid 声明并在 README 明确 H5 是唯一正式验证目标；零依赖 CI 契约持续拒绝重新误宣称。UniAppX 仍是实验性客户端，因此不升为 P1。 |
 | 6 | 确认，已完成本地修复与回归验证；纠正恢复与清理语义 | P2 | PostgreSQL/OpenAPI 是按用户唯一的单槽 draft；页面原先不核对 `courseID`，会把 A 课程内容恢复到 B，并在 B 成功提交后删除未消费的 A 草稿。现在只恢复未绑定或 `courseID` 精确匹配当前课程的草稿；未绑定草稿不恢复 teacher。显式 cleanup eligibility 只在本页成功恢复或成功保存该槽后置 true，且仍只有 create 成功才 best-effort DELETE；外课程草稿不载入、不清理，保存响应不确定时也保守不授予清理资格。产品文档已纠正无 course path 的 GET/POST/DELETE 和单槽语义。没有改 DB/OpenAPI 为多草稿、增加 autosave 框架或为尚未证明的跨设备 ABA 引入 generation/CAS migration。 |
 | 7 | 确认，已完成本地修复与回归验证 | P2 | 只有 provider-owned 的 username/email/avatar 原本被硬编码到只读 `/account/profile`；phone/identity/student/school 已指向真实可写页面。现在 Profile Completion 按字段复用 `/auth/me` 已校验的绝对 `accountSettingsUrl`，四类本地字段仍使用后端 action，URL 缺失时保守回退声明值。10 个单元用例覆盖三类 provider、四类本地和三类缺省回退，桌面/移动 Playwright 20/20 同时验证页面 href、刷新、非法 redirect 与完成后 Continue。没有重构 profile service、增加通用 action registry、复制 issuer fallback 或在只读摘要页建设资料编辑器。 |
 | 8 | 部分确认，已完成本地修复与回归验证 | P2 | 只影响创建资源的 POST；metadata PATCH 不上传内容。原严格相等会误拒 OOXML/旧 Office、CSV/Markdown/JSON 等常见 refinement，但不是“每种文件都必然失败”。现在只在资源解码边界接受精确枚举的 ZIP 容器与文本细分；旧 Office 还要求 OLE 魔数，JSON 还要求语法有效，并将规范化有效 MIME 传入存储和版本记录。23 个正反边界子测试、真实 PostgreSQL 持久化用例和资源包全量 race 通过。任意 `text/*`、`vnd.*`、`*+zip`、无魔数 legacy 声明、无效 JSON 和真实类型矛盾仍拒绝；未改身份/准入图片链路，也未增加前后端重复 allowlist。 |
@@ -483,7 +483,7 @@ Claude 的两条 `/admin/stats` 记录是同一位置、同一 middleware 顺序
 | 原驳回发现简称 | Codex 最终结论 | 级别 | 必要性与建议 |
 |----------------|-----------------|------|----------------|
 | A11yButton 键盘触发两次 | 维持证伪 | 不立项 | H5 probe 与 Playwright 均只触发一次 action。最多增加 `defaultPrevented`/key repeat 防御，不能按“控件无法打开”修复。 |
-| mp-weixin 无可达 SSO | **重新确认** | P2 | `package.json`、manifest 和 README 都宣称支持 mp-weixin，但实际 build 虽返回 0，却只产出 H5 `index.html/assets`，没有小程序必须的 `app.json/wxml/wxss`；即使修好构建，login 也只有 `plus`/`window` 分支。必须做产品决策：实现真实 MP build/auth、CI 与开发者工具/真机验收，或明确移除/标记不支持。当前“构建成功”是 false positive。 |
+| mp-weixin 无可达 SSO | **重新确认，已按“明确不支持”完成修复** | P2 | 修复前再次真实运行 `build:mp-weixin`：退出 0，但 `dist/build/mp-weixin` 只有 `index.html`、单个 JS/CSS 与静态图标，没有 `app.json`/WXML/WXSS；依赖中也没有 `@dcloudio/uni-mp-weixin`，login 只有 `plus`/`window` 分支。根 `AGENTS.md` 将 UniAppX 定义为实验性跨端，故选择不虚构平台支持：删除两级微信命令、manifest 声明与 README 支持说法，并接入静态目标契约。将来只有同时补真实 compiler、认证、CI 和开发者工具/真机验收后才能重新声明支持。 |
 | `/admin/stats` 跳过 MFA（两个重复标签） | **部分重新确认** | P3 | 跳过 5 分钟 step-up freshness 是有提交和测试锁定的刻意 carve-out，不能直接把整个 group middleware 移上去；但该独立 route 也绕过基础 MFA context/enrollment，而 IAM 文档要求 `super_admin` 使用 MFA。应明确记录例外，或只补基础 MFA proof/enrollment gate、不要求 freshness。 |
 | academics 使用 `UserSchool*` capability | 维持证伪 | 不立项 | 路由调用 `RequireGlobalCapability`，scoped school admin 不会通过；当前与 `UserSystem*` 的主体集合相同，仅是命名债务。 |
 | `/internal/sms/send` 无 `/api/v1` limiter | 维持证伪 | 不按公网漏洞立项 | shipped ingress 不暴露 `/internal`，服务绑定 loopback 且需要 internal key。可在部署加固中验证私网 ingress 和 Casdoor 侧预算，但不应把内部 route 机械搬进 public API/global limiter。 |
@@ -498,6 +498,42 @@ Claude 的两条 `/admin/stats` 记录是同一位置、同一 middleware 顺序
 
 这 14 个标签对应 13 个唯一根因：**1 个确认、4 个部分确认、8 个维持证伪**。因此
 `AUDIT-REPORT.md` 中“以下条目不应修改”的总括语不再准确。
+
+#### Codex 对 mp-weixin 假绿的最终复核与实施记录（2026-07-31）
+
+**结论与产品边界**
+
+- 旧 `pnpm --filter @stuhelper/uniappx build:mp-weixin` 再次真实退出 0，并提示导入微信开发者
+  工具；但目标目录只有 `index.html`、一个 JS、一个 CSS 和 H5 静态资源，没有小程序入口
+  `app.json` 或任何 WXML/WXSS。该“成功”不能被解释为微信产物。
+- `clients/uniappx` 没有 `@dcloudio/uni-mp-weixin` 依赖；登录页只实现浏览器
+  `window.location` 与原生 `plus.runtime.openURL`，没有小程序登录/授权码/回调链路。旧
+  manifest appid 占位、README 和脚本只是宣称，不构成实现。
+- 根 `AGENTS.md` 明确把 UniAppX 定义为“实验性跨端”，而 H5 已有正式 build、产物契约、
+  类型/单元和双视口浏览器回归。基于现有证据，最小、诚实的产品选择是“当前不支持
+  mp-weixin”，而不是为了关闭报告而引入 compiler、微信认证和发布体系。
+
+**最小实现与防回归**
+
+1. 删除 monorepo `build:uni:mp`、包内 `dev:mp-weixin` / `build:mp-weixin`，以及 manifest
+   的 `mp-weixin` appid 声明；调用旧两级命令现在均明确以 missing-script 非零退出，不再假绿。
+2. README 将 H5 标为当前唯一有正式构建与回归的目标，并列出未来重新声明微信支持的最小
+   门槛：真实 compiler、`app.json`/WXML/WXSS 产物契约、小程序认证、CI、开发者工具与真机
+   验收。原生 App 代码仍是实验性源代码，不借本项扩展或宣称发布支持。
+3. 新增零依赖 `check-uniappx-platform-contract.mjs`：要求 H5 两级 build 命令存在，同时拒绝
+   微信两级命令与 manifest 声明；repository-policy job 永久执行，现有 CI wiring contract
+   锁定接线。未来若正式支持微信，必须在一个受审变更中更新实现、契约和支持声明。
+
+**验证**
+
+- 修复前真实命令以 0 退出且输出仅为 H5 结构；修复后根/包两条旧命令均非零，
+  supported-target contract 通过。
+- H5 正式 monorepo build 和 8/8 tabBar source/output 契约通过；UniAppX type-check、
+  8 files / 58 unit 与已跟踪 `surface.spec.ts` 桌面/移动 72/72 通过。未跟踪的临时
+  `probe.spec.ts` 属于用户工作树，未纳入提交或以其替代受控回归。Actionlint、
+  CI/drift 定向与全部 infra contracts、文档卫生均通过。
+- 微信开发者工具/真机不再是当前发布验收缺口，因为仓库不再声称支持微信；将来重新声明时，
+  这些验证是硬门槛，H5 绿灯不能替代。
 
 ### 补齐 Claude 未完成验证的 3 项
 
@@ -565,7 +601,8 @@ fail-closed 语义和撤权测试，再做局部实现。
 
 1. #45 path credential 日志脱敏（已完成本地修复），#51 refresh reuse 误判（已完成本地修复），#57 scoped grant 的 public-content 边界（已完成本地修复）。
 2. #39 projection polling（已完成本地修复）、#43 breaker cancellation（已完成本地修复）、U-2 JWKS 缓存策略（已完成代码与守卫文档修复；用户架构稿旧段待收敛），以及非法 FGA section 的单 grant 隔离/告警（已完成本地修复）。
-3. #5 的 H5 资产产物契约（已完成本地修复）；mp-weixin 假绿另做“实现真实平台 build 或明确不支持”的产品决策。
+3. #5 的 H5 资产产物契约与相邻 mp-weixin 假绿均已完成：H5 保留真实产物门禁，
+   mp-weixin 按当前实验性产品范围明确为不支持并由静态契约防止再次误宣称。
 4. #6、#7、#8、#28、#30、#34、#35、#36、#37、#38、#42（均已完成本地修复）等会让用户状态错误、流程卡死、异常不可见、键盘流程受阻或操作结果不可信的问题。
 
 #### 第三批：局部 UX、可访问性、契约和文档
@@ -594,7 +631,7 @@ live rating bar 已完成可达表面的最小修复。优先做一处根因、�
 | WF09：#45 | 真实 P2，已完成本地修复；报告漏掉 1 条 token route 和 2 类 body-limit 日志 | RequestLogger、Recovery 和两类 body-limit 告警统一走 `requestLogRoute`：匹配路由用 `FullPath()`，未匹配 404/405 固定 `unmatched`；永久回归验证 handler 前后模板和负向路由，静态扫描无旧 raw-path logger。保留 query masking，未维护敏感参数黑名单或 token 字符串替换器。 |
 | WF20：#39 | 真实 P2，已完成本地修复；原报告把 403 与 401 一并视为 hard auth failure 的建议过宽 | `fetchUser` 只在 `/auth/me` 返回 401 时清身份；403/5xx/网络/超时均保留已有用户但继续向调用方抛错。投影轮询只捕获 refresh request 失败，非 401 在原五次预算内继续，Abort/401 立即停止；耗尽后页面保留 `projectionPending` 与手动重试。服务端 capability/OpenFGA 仍是授权真值，不增加轮询次数、全局 retry abstraction 或客户端授权降级。 |
 | WF21：U-2 | 真实 P2，已完成实现与回归；用户工作中的架构稿仍有旧 TTL 文案 | 选择仓库已声明的“已知 key 离线验证、未知 kid 回源失败 503”策略，直接复用固定 go-oidc 的 long-lived `RemoteKeySet`；薄包装只做错误分类。测试证明初次加载只请求一次，provider 下线后已知 key 不回源、未知 key 返回 provider unavailable，失败后已知 key 仍可验签。紧急移除已泄漏 known key 通过 provider 撤 key、撤 session 与滚动重启 verifier 明确处置，不用任意 TTL 猜窗口。 |
-| WF11：#5 | H5 缺图真实 P2，已完成本地修复与真实产物/HTTP 回归；mp-weixin 缺图硬失败未验证，真实相邻问题仍是 mp build 假绿 | 8 个原 blob 移到 `src/static`，`build:h5` 强制执行从 `pages.json` 派生的源/产物契约，公共 URL 不变；构建预览逐项 200 `image/png`。没有增加 `publicDir`、资源副本或硬编码清单。mp 仍须先决定支持与否，再补真实平台 compiler/app.json/WXML 门禁，不能把 H5 产物当微信验证。 |
+| WF11：#5 + mp-weixin 反向项 | H5 缺图与 mp build 假绿均为真实 P2，已分别完成最小修复 | 8 个原 blob 移到 `src/static`，H5 build 强制执行声明驱动的源/产物契约。mp 旧命令再次复现退出 0、仅输出 H5 结构；当前没有 compiler/auth/真机证据，故删除虚假命令与 manifest 声明、README 明确不支持，并由 CI 静态契约固定。没有增加资源副本，也没有为实验性客户端擅自建设微信发布体系。 |
 | WF12：#6 | 真实 P2，已完成本地修复与回归；“create 失败也删除”证伪 | 只恢复匹配或未绑定课程草稿，未绑定不恢复 teacher；显式记录当前页是否成功恢复/保存服务端单槽，create 成功后才有条件清理。外课程草稿和不确定保存结果均保守保留。产品文档同步真实无 course path 单槽契约；不改 DB/OpenAPI 为多草稿，也不在本项解决跨设备 CAS/If-Match。 |
 | WF13：#7 | 真实 P2，已完成本地修复与回归 | Profile Completion 对 username/email/avatar 优先使用 `/auth/me` 已给出的绝对 `accountSettingsUrl`，phone/identity/student/school 保留后端本地 route，缺失外部 URL 时回退声明 action。单元和双视口浏览器回归覆盖字段归属与既有 Continue 链路。未为静态 catalog 注入整套 config/service、复制 issuer fallback 或把本地只读资料页改造成第二个身份提供方编辑器。 |
 | WF14：#8 | 部分确认 P2，已完成本地修复与回归；问题是有限的媒体类型兼容，不是通用 MIME 绕过 | 只在资源 POST 的内容解码边界做窄映射并返回 effective MIME；ZIP/Office/OLE/text refinement 精确枚举且保留 sniff，OLE/JSON 另做内容验证。负向测试固定任意 `text/*`、`vnd.*`、`*+zip`、无魔数 legacy 与无效 JSON 仍拒绝。没有把策略复制到身份/准入图片路径，也没有增加易漂移的前端 allowlist。 |
@@ -633,8 +670,10 @@ live rating bar 已完成可达表面的最小修复。优先做一处根因、�
   package 与 monorepo 正式 `build:uni:h5` 都通过声明驱动契约；本机 built preview 从
   `pages.json` 派生 8 个 URL，逐项返回 200 `image/png`。UniAppX 8 files / 58 unit、
   type-check、桌面/移动定向 2/2 和完整跟踪版 `surface.spec.ts` 68/68 均通过。
-  README 已固定输入树和门禁语义。实际 mp-weixin build 仍错误地以 0 退出却只生成 H5
-  结构，没有 `app.json`、WXML/WXSS 等小程序产物；该独立产品决策没有混入本项。
+  README 已固定输入树和门禁语义。后续单独复现 mp-weixin 命令仍以 0 退出却只生成 H5
+  结构；现已按实验性产品范围明确为不支持，删除虚假命令/manifest 声明并接入静态目标契约。
+  H5 再次完成正式 build、58/58 unit、type-check 和已跟踪双视口 72/72 E2E；没有用 H5
+  绿灯替代微信验证，也没有把用户未跟踪的临时 probe 混入回归或提交。
 - #3/#4 修复最终执行 4 个测试文件 / 22 个定向测试和 Koishi 全量 602/602 unit；Core/Group Guard
   两个 `tsc --noEmit`、Vue UI contracts、完整 build、startup smoke 与 46/46 Chromium UI smoke
   均通过。独立代理第一次复核发现 scoped response 仍携带 bot-wide 配置/Bot inventory 而判
@@ -883,7 +922,7 @@ live rating bar 已完成可达表面的最小修复。优先做一处根因、�
 - 真实 scoped Console operator 的跨群读写、插件重载与全局设置权限；
 - 生产无效 section tuple 的 warning、`StuHelperInvalidOpenFGARoleScope` 告警投递与人工
   reconcile 流程；本地验证只覆盖规则与契约，没有写入或删除生产 tuple；
-- 微信开发者工具/真机 mp-weixin 包、原生 SSO redirect 和浏览器 storage 受限模式；
+- 原生 SSO redirect 和浏览器 storage 受限模式；mp-weixin 已明确不支持，不再伪列为当前验收项；
 - 超过 100 条的真实 restricted-member 队列、生产 Redis p95/p99 与 breaker 行为；
 - 任何真实部署、生产数据迁移或生产 OpenFGA tuple reconcile。
 
@@ -904,7 +943,8 @@ live rating bar 已完成可达表面的最小修复。优先做一处根因、�
 | 44 | 已修复，待发布 | active introspection 只接受 Casdoor `access-token` purpose，refresh/missing/malformed/opaque token 均拒绝；Bearer 用户路径拒绝空白 subject，provider unavailable 与 inactive 分类保持不变；OIDC、middleware、app/auth 定向回归与服务端静态检查通过 | `3d12d259` `fix(auth): reject refresh tokens on bearer paths` |
 | U-1 | 已修复，待发布 | 三个 academics admin operation 消费现有 admin MFA middlewares；共享 step-up 响应从错误的 428 对齐既有 412 契约，OpenAPI/生成物同步；blocking route contract、真实 MFA chain、相关包/全量 Go 回归、race、spec/drift、lint/build 与文档检查通过 | `4b2f520b` `fix(academics): require MFA for import administration` |
 | U-2 | 已修复，待发布；用户架构稿旧 TTL 段待收敛 | verifier 复用单一 long-lived go-oidc `RemoteKeySet`，known key 离线验证、unknown kid 单次回源失败 503，失败不清旧 cache；session/blacklist/claims 门禁不变。OIDC 普通/race、middleware+auth race、app、全服务端 race、lint/build/docs 通过；生产故障演练待发布验收 | `fix(auth): preserve cached JWKS during provider outages` |
-| 5 | 已修复，待发布；mp-weixin 假绿仍是独立决策 | 8 个 tabBar blob 原样移入 `src/static`；H5 build 从 `pages.json` 派生并强制检查 8 个 source/output 文件，built preview 8/8 为 200 PNG。58 unit、type-check、桌面/移动 68 E2E、package/monorepo build 通过；未改 URL/publicDir、未复制资源、未把 H5 当微信产物 | `fix(uniappx): include declared tab bar assets in H5 builds` |
+| 5 | 已修复，待发布；相邻 mp-weixin 假绿已另行收口 | 8 个 tabBar blob 原样移入 `src/static`；H5 build 从 `pages.json` 派生并强制检查 8 个 source/output 文件，built preview 8/8 为 200 PNG。58 unit、type-check、桌面/移动 68 E2E、package/monorepo build 通过；未改 URL/publicDir、未复制资源、未把 H5 当微信产物 | `fix(uniappx): include declared tab bar assets in H5 builds` |
+| 反向-mp-weixin | 已修复，待发布；当前明确不支持微信小程序 | 修复前命令退出 0 但只有 H5 `index.html/assets`；当前无微信 compiler/auth。已删除根/包微信命令和 manifest 声明，README 固定 H5-only 验证边界，零依赖 target contract 接入 repository-policy。旧命令现均非零；H5 build/8 资产、58 unit、type-check、已跟踪双视口 72 E2E、Actionlint、docs 与全部 infra contracts 通过。未建设未经需求驱动的微信发布体系 | `fix(uniappx): stop advertising unsupported WeChat builds` |
 | 6 | 已修复，待发布；跨设备 ABA 未提前设计 | 当前页只恢复 course 匹配/未绑定草稿，未绑定不恢复 teacher；成功恢复或保存才获得 create 成功后的单槽清理资格，外课程和不确定保存结果均保留。产品文档纠正为无 course path 的每用户单槽。58 unit、type-check、草稿边界 8 E2E、完整 H5 72 E2E、正式 build/docs 通过 | `fix(uniappx): preserve drafts across course submissions` |
 | 7 | 已修复，待发布 | provider-owned 三个字段使用已验证的 `accountSettingsUrl`；四个 StuHelper 字段保留后端本地 action，外部 URL 缺失时不猜测 issuer。10 个单元测试、Web type-check/ESLint、桌面和移动完整 Open Platform 流程 20/20 通过，既有 Continue 与安全 redirect 行为未回归 | `fix(web): route provider profile completion to account settings` |
 | 8 | 已修复，待发布 | 资源创建对精确 ZIP/OLE/text refinement 返回并持久化有效 MIME；OLE/JSON 增加内容验证，未知 octet-stream、任意文本/ZIP 派生和真实冲突继续拒绝。23 个媒体边界子测试、真实 PostgreSQL 持久化、资源全包 race、OpenAPI spec/drift、全服务端 race/lint/build/docs 通过 | `fix(resource): preserve verified upload media types` |

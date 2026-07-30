@@ -141,6 +141,9 @@ jobs:
       - name: Check UniAppX shadow files
         run: bash scripts/check-uniappx-shadow-files.sh
 
+      - name: Check UniAppX supported targets
+        run: node scripts/check-uniappx-platform-contract.mjs
+
       - name: Lint GitHub Actions workflows
         run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
 

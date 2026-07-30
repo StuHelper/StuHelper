@@ -38,20 +38,24 @@ src/
 # 开发 H5
 pnpm dev:h5
 
-# 开发微信小程序
-pnpm dev:mp-weixin
-
 # 构建 H5
 pnpm build:h5
-
-# 构建微信小程序
-pnpm build:mp-weixin
 ```
 
 `build:h5` 会在编译后从 `src/pages.json` 读取 tabBar 的 `iconPath` /
 `selectedIconPath`，并同时检查 `src/` 输入树和 `dist/build/h5/` 产物中的每个文件。
 tabBar 资源必须放在 `src/static/`；不要改成 `/src/static/...` URL，也不要在项目根目录
 或额外 `publicDir` 中维护第二份副本。
+
+### 支持边界
+
+- H5 是当前唯一有正式构建、产物契约和浏览器回归的 UniAppX 目标。
+- `mp-weixin` 当前**不受支持**。仓库没有 `@dcloudio/uni-mp-weixin` 编译器依赖，也没有
+  小程序登录/回调实现或微信开发者工具/真机验收；因此不提供 `dev:mp-weixin`、
+  `build:mp-weixin` 或根级 `build:uni:mp` 命令，也不在 manifest 中声明微信 appid。
+- 若将来决定支持微信小程序，应在同一变更中加入真实平台编译器、`app.json`/WXML/WXSS
+  产物门禁、小程序认证方案、CI 以及开发者工具/真机验收；不得用 H5
+  `index.html/assets` 产物冒充微信小程序构建成功。
 
 ## 当前状态
 
@@ -62,7 +66,7 @@ tabBar 资源必须放在 `src/static/`；不要改成 `/src/static/...` URL，�
 - 已接入个人中心的「我的评课 / 我的投票 / 我的收藏 / 通知」页面
 - 运行时请求通过 uni-app transport 适配层实现，但业务接口仍统一来自 `clients/shared`
 - H5 本地开发默认把 `/api` 代理到 `VITE_DEV_PROXY_TARGET`，缺省为 `http://localhost:8080`；
-  原生 / 小程序构建需要提供绝对 `VITE_API_URL`
+  原生实验代码若单独构建，需要提供绝对 `VITE_API_URL`
 - H5 启动只在存在浏览器会话提示（`csrf_token` cookie 或已持久化 CSRF token）时探测
   `/api/v1/auth/me`，游客态不得产生预期内的 401 控制台噪声；原生 App 仍以 secure-storage
   bridge 中的 token 作为会话提示
