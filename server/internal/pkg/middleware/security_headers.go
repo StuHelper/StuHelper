@@ -73,7 +73,7 @@ func (b *auditedBody) Read(p []byte) (n int, err error) {
 				zap.String("request_id", requestID),
 				zap.String("client_ip", b.c.ClientIP()),
 				zap.String("method", b.c.Request.Method),
-				zap.String("path", b.c.Request.URL.Path),
+				zap.String("path", requestLogRoute(b.c)),
 				zap.Int64("max_bytes", b.maxBytes),
 				zap.String("user_agent", b.c.Request.UserAgent()),
 			)
@@ -91,7 +91,7 @@ func MaxBodySize(maxBytes int64) gin.HandlerFunc {
 				zap.String("request_id", requestID),
 				zap.String("client_ip", c.ClientIP()),
 				zap.String("method", c.Request.Method),
-				zap.String("path", c.Request.URL.Path),
+				zap.String("path", requestLogRoute(c)),
 				zap.Int64("content_length", c.Request.ContentLength),
 				zap.Int64("max_bytes", maxBytes),
 				zap.String("user_agent", c.Request.UserAgent()),

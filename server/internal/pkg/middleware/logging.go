@@ -22,7 +22,8 @@ const (
 	CtxKeyRequestID = "request_id"
 	HeaderRequestID = "X-Request-ID"
 	// maxRequestIDLen X-Request-ID 最大允许长度
-	maxRequestIDLen = 128
+	maxRequestIDLen       = 128
+	unmatchedRequestRoute = "unmatched"
 )
 
 // validRequestID 仅允许字母、数字和连字符（排除点号和下划线以减少注入面）
@@ -70,7 +71,6 @@ func RequestIDMiddleware() gin.HandlerFunc {
 func RequestLogger() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
-		path := c.Request.URL.Path
 		// 对 query string 中的敏感参数进行脱敏
 		query := maskSensitiveQueryParams(c.Request.URL.RawQuery)
 
@@ -86,6 +86,7 @@ func RequestLogger() gin.HandlerFunc {
 
 		latency := time.Since(start)
 		status := c.Writer.Status()
+		path := requestLogRoute(c)
 
 		fields := []zap.Field{
 			zap.String("request_id", requestID),
@@ -143,7 +144,7 @@ func Recovery() gin.HandlerFunc {
 				fields := []zap.Field{
 					zap.String("request_id", requestID),
 					zap.Any("error", err),
-					zap.String("path", c.Request.URL.Path),
+					zap.String("path", requestLogRoute(c)),
 					zap.String("method", c.Request.Method),
 					zap.Strings("stack", stackLines),
 				}
@@ -161,6 +162,21 @@ func Recovery() gin.HandlerFunc {
 		}()
 		c.Next()
 	}
+}
+
+// requestLogRoute returns only Gin's matched route template. Dynamic path
+// values can be bearer credentials, resource identifiers or personal data and
+// must never enter application logs. Unknown routes use a fixed label instead
+// of falling back to the raw request URL.
+func requestLogRoute(c *gin.Context) string {
+	if c == nil {
+		return unmatchedRequestRoute
+	}
+	route := strings.TrimSpace(c.FullPath())
+	if route == "" {
+		return unmatchedRequestRoute
+	}
+	return route
 }
 
 // GetRequestID 从 Gin context 中提取请求 ID

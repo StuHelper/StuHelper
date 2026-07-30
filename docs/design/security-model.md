@@ -189,6 +189,12 @@ CSV 加 UTF-8 BOM，公式注入字符（`=`、`+`、`-`、`@`）添加前缀转
 
 禁止原样记录：token / password / code / secret / state、完整手机号、完整 IP、过长 User-Agent。
 
+- 匹配到 Gin route 的结构化访问日志、panic 日志和请求体超限告警只记录
+  `c.FullPath()` 路由模板，例如 `/api/v1/admission/sessions/:token`；不得回退到含动态
+  参数值的 `Request.URL.Path`。
+- 404/405 等未匹配请求固定记录 `path=unmatched`，不保留 raw path。query string 继续按
+  敏感参数名脱敏；不能用 path 参数黑名单或字符串替换器代替路由模板边界。
+
 ## 待改进
 
 1. 证件照片仍经后端中转上传（未实现浏览器直传）

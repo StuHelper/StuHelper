@@ -440,7 +440,7 @@ Claude 新生成的 `AUDIT-REPORT.md` 是一份新的汇总快照，不是对本
 | 42 | 部分确认 | P2 | fresh store 的 status fetch 失败会把依赖验证状态的字段呈现为 false negative；并非所有 email/base info 都必然受影响，已有 cache 时也可能保留。应显式建 loading/ready/error/retry 状态，在成功前不展示“未验证”结论。 |
 | 43 | 确认 | P2 | caller cancellation 和 50ms lookup deadline 都会记作全局 breaker failure，连续 5 次可使鉴权 fail-closed 30 秒。应把 caller cancellation 分类为 neutral，并为必要查询使用有界 detached context；没有指标前武断改成 200ms/3s 只是参数猜测。 |
 | 44 | 确认，已完成本地修复与回归验证 | P1 | Bearer introspection 现在发送 `token_type_hint=access_token`，并在 active 后对同一原始 JWT 强制校验 Casdoor `tokenType == "access-token"`；refresh、claim 缺失、opaque 和 malformed token 均 fail-closed。用户认证还要求已登记应用和非空 `sub`。没有信任 response 的通用 `token_type=Bearer`，也没有为每个 Bearer 请求再建一套 JWKS 验签。 |
-| 45 | 确认，影响面比报告列举更广 | P2 | 实际有 5 条 admission `:token` 路由；raw path 不只进入 RequestLogger/Recovery，还进入两条请求体超限告警，共 4 类日志点。所有匹配路由统一记录 `c.FullPath()` 模板；Gin 在进入全局 middleware chain 前已经完成路由匹配，无需把记录逻辑推迟到 handler 后。404/405 的 `FullPath()` 为空时必须记录固定 `unmatched`，绝不能回退 raw URL。枚举敏感参数名、遍历 Params 或做字符串替换都容易漏编码/新参数，属于脆弱的过度设计。 |
+| 45 | 确认，已完成本地修复与回归验证；影响面比报告列举更广 | P2 | 实际有 5 条 admission `:token` 路由；raw path 原先不只进入 RequestLogger/Recovery，还进入两条请求体超限告警，共 4 类日志点。现在全部复用单一 `requestLogRoute`：匹配路由只记录 `c.FullPath()` 模板，404/405 固定记录 `unmatched`，绝不回退 raw URL。永久测试证明全局 middleware 在 handler 前后都能得到不含 credential 的模板，并覆盖 404/405；静态扫描确认 4 个旧 raw-path 日志点均消失。保留既有 query masking，没有枚举敏感 path 参数、遍历 Params 或做字符串替换。 |
 | 51 | 部分确认，已完成本地修复与回归验证 | P2 | browser cookie 场景存在 logout 与在途 refresh 竞争，原实现会仅凭历史 attribution 误判 reuse 并撤销整个 family；native 常在更早的 tracked-session 检查失败。现在加载 referenced session，只有 session 存在、当前 refresh hash 非空且与提交 token hash 不同时才判定真 reuse；session 缺失或 hash 相同只返回 revoked，不撤销其他设备、不增加 reuse metric、也不记录虚假 reuse 审计。测试覆盖成功轮换、logout 已完成、blacklist→delete 竞争窗口和无 attribution 四种状态。没有新增 revoke reason schema。 |
 | 57 | 确认，收窄泄漏叙事与修复范围 | P2 | course/latest/search/batch 四类 public read 共用只接收 flat capability 的 access facts，把合法 scoped `admin:reviews:manage` 错当平台级 full-content 标志，导致范围外已发布正文由 preview 升为 full。当前 public SQL 仍限制 `status='published'`，没有证据支持报告所称 hidden row 泄漏。最小修复只让 global grant 推出 `CanManageReviews/CanViewFull`，scoped admin 继续使用已有 scoped moderation route。报告引用的 `Review.SchoolID` 实际不存在；为了在公共列表实现“范围内 full”而扩 DTO、多组 SQL、scan 和缓存是新的产品增强，不是本安全修复。 |
 | 58 | 部分确认 | P3 | `admin:reports:manage` 未被直接使用，moderation route 仍按 role gate；但当前 raw-role 集合与 capability catalog 等价，下游 scope 也仍检查，所以尚无可利用的授权漂移。可逐步改用已有非全局 capability 并保留 scope，不需要新建 content-edit capability 或一次性重写全部 RBAC。 |
@@ -547,7 +547,7 @@ fail-closed 语义和撤权测试，再做局部实现。
 
 #### 第二批：隐私、可靠性和核心前进性
 
-1. #45 path credential 日志脱敏，#51 refresh reuse 误判（已完成本地修复），#57 scoped grant 的 public-content 边界。
+1. #45 path credential 日志脱敏（已完成本地修复），#51 refresh reuse 误判（已完成本地修复），#57 scoped grant 的 public-content 边界。
 2. #39 projection polling、#43 breaker cancellation、U-2 JWKS 缓存策略。
 3. #5 的 H5 资产产物契约；mp-weixin 假绿另做“实现真实平台 build 或明确不支持”的产品决策。
 4. #6、#7、#28、#30、#38、#42 等会让用户状态错误、流程卡死或操作结果不可信的问题。
@@ -575,7 +575,7 @@ bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复
 | WF06：#18 + N-1 | 两项均为真实 P1，已分别修复；Redis、固定 Casdoor 源码/运行实例与 contract 交叉验证通过 | #18 已保存已验签 expiry、原子轮换 hash+expiry、逐 session 计算剩余 TTL，并修复 tracked logout 的二次短 TTL 覆盖。N-1 又将 provider access/refresh 密文纳入同一 Lua 轮换；仅对 issuer 同源的精确 `/api/logout` 使用 `id_token_hint` 并校验 JSON 业务状态，RFC 7009 端点保持独立。正常 refresh 不重复 revoke 旧 row，refresh 阶段未提交 family 才补偿；logout-all 先做本地撤销，legacy family 使用受约束的 refresh-rotate-logout bridge。没有把两项揉成 IAM 重写，也没有增加 provider token 数据库、后台迁移或每请求 session lookup。 |
 | WF07：#51 | 较窄 P2 真实，已完成本地修复 | referenced session 存在、当前 refresh hash 非空且与 presented hash **不同**才是真 reuse；session 缺失或 hash 相同是已撤销/并发 logout，只返回 revoked，不触发 family revoke、metric 或 audit。永久回归覆盖 rotated、logout-complete、blacklist-before-delete 与 missing attribution；无需为此新增 revoke-reason schema。 |
 | WF08：#57 | 真实 P2，原报告的 hidden-row 与 `Review.SchoolID` 证据不成立 | public full-content entitlement 只接受 global grant；不改 capability producer、管理路由、Review DTO/OpenAPI/SQL，不实现新的“scope 内 public full”产品语义。 |
-| WF09：#45 | 真实 P2，报告漏掉 1 条 token route 和 2 类 body-limit 日志 | 4 类日志点统一用 `FullPath()`，未匹配 404/405 固定 `unmatched`；保留 query masking。不得回退 raw path，也不维护敏感参数黑名单或 token 字符串替换器。 |
+| WF09：#45 | 真实 P2，已完成本地修复；报告漏掉 1 条 token route 和 2 类 body-limit 日志 | RequestLogger、Recovery 和两类 body-limit 告警统一走 `requestLogRoute`：匹配路由用 `FullPath()`，未匹配 404/405 固定 `unmatched`；永久回归验证 handler 前后模板和负向路由，静态扫描无旧 raw-path logger。保留 query masking，未维护敏感参数黑名单或 token 字符串替换器。 |
 | WF11：#5 | H5 缺图真实 P2；mp-weixin 缺图硬失败未验证，真实相邻问题是 mp build 假绿 | 移动 `static` 到 `src/static` 并补从 `pages.json` 派生的产物断言；保留现有公共 URL。mp 先决定支持与否，再补真实平台 compiler/app.json/WXML 门禁，不能把 H5 假产物当微信验证。 |
 | WF12：#6 | 真实 P2；“create 失败也删除”证伪 | 只恢复匹配或未绑定课程草稿，未绑定不恢复 teacher；显式记录当前页是否消费/保存服务端单槽，create 成功后才有条件清理。不改 DB/OpenAPI 为多草稿，也不在本项解决跨设备 CAS/If-Match。 |
 | WF13：#7 | 真实 P2；provider-owned 三个字段的 action 落到只读摘要，其他四类字段路径正确 | Profile Completion 对 username/email/avatar 优先使用 `/auth/me` 已给出的绝对 `accountSettingsUrl`，phone/identity/student/school 保留后端本地 route。避免为静态 catalog 注入整套 config/service、复制 issuer fallback 或把本地只读资料页改造成第二个身份提供方编辑器。 |
@@ -631,6 +631,13 @@ bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复
   Casdoor 边界检查、`golangci-lint`、build 与文档卫生均通过；一次性 Redis 8.8.1 验证
   provider access/refresh 密文随 hash/expiry 原子轮换、logout 使用最新 family，容器和
   临时测试文件均已删除。
+- #45 重新枚举当前 admission routes 得到 5 条 `:token` 路由，并逐点确认 RequestLogger、
+  Recovery、已知 Content-Length 超限和流式读取超限四类日志原先都使用 raw URL path。
+  统一 helper 的路由级回归验证匹配请求在 handler 前后都只得到模板，404/405 固定为
+  `unmatched`；静态扫描确认 middleware 内不存在旧的 raw-path zap 字段。middleware
+  定向/全包 race、全服务端 race、lint、build、文档卫生与差异检查均通过；全量门禁中
+  一次无关的 course PostgreSQL fixture 就绪超时，经 fixture 回收后该包独立无缓存 race
+  和完整 `make test` 复跑均通过，未通过放宽 timeout 或改动课程代码规避。
 - #51 的永久 handler 回归分别制造四种 Redis 状态：成功 rotation 后旧 hash 与当前 hash
   不同，判定真 reuse 并撤销全部 session；logout 完成后 referenced session 不存在；
   logout 的 blacklist→delete 竞争窗口仍保留相同当前 hash；以及历史 attribution 缺失。
@@ -673,6 +680,7 @@ bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复
 | 17 | 已修复，待发布；生产 Casdoor 降级与 OpenFGA 撤权待验收 | 新 ID token 的合法 roles claim 才能触发 reconcile，`/auth/me`/缺失/畸形 claim 均不 mutation；exact direct tuple higher-consistency Read、`on_missing=ignore` 删除、失败关闭和 `iam.role.revoke` 有负向测试。四包定向/race、全服务端 race、lint/build 与真实 OpenFGA v1.18.1 临时 store 写入/重复撤权/清理验证通过 | `fix(auth): reconcile authoritative super admin roles` |
 | 18 | 已修复，待发布；生产 Casdoor TTL/真实登出待验收 | 已验证 provider `exp` 随 session 保存并在 refresh 原子轮换；新 token 强制不超过 session lease/30 天，logout/logout-all 逐 token 写真实 TTL，legacy 仅按受约束 PTTL 回退，无 TTL fail-closed；并消除 tracked logout 的 5 分钟二次覆盖。四包定向/race、全服务端 race、lint/build/docs 与真实 Redis 8.8.1 PTTL/hard-cap 验证通过 | `fix(auth): revoke access tokens through verified expiry` |
 | N-1 | 已修复，待发布；生产 Casdoor 受控账号 token-family 撤销待验收 | session 加密保存并原子轮换 provider access/refresh；issuer 同源且路径精确的 Casdoor `/api/logout` 使用 `id_token_hint` 并校验 JSON `status=ok`，RFC 7009 路径保持独立；正常 refresh 不重复 revoke 旧 row，refresh 阶段未提交 family 补偿撤销，logout-all 先做本地撤销，legacy family 通过 refresh-rotate-logout bridge。固定镜像源码/运行实例无状态探针、忠实 contract、三包定向/race、全服务端 race、lint/build/docs 与真实 Redis 8.8.1 轮换验证通过 | `fix(auth): revoke Casdoor token families correctly` |
+| 45 | 已修复，待发布 | 5 条 admission token route 的 RequestLogger、Recovery 与两类 body-limit 告警统一记录 route template；404/405 固定 `unmatched`。handler 前后/未匹配负向测试与 raw-path logger 静态扫描通过；middleware 定向/全包 race、全服务端 race、lint/build/docs/diff 检查均通过 | `fix(logging): keep dynamic path credentials out of logs` |
 | 51 | 已修复，待发布 | blacklisted token 只有在 referenced session 存在、当前 refresh hash 非空且与提交 hash 不同时才是真 reuse；session 缺失、hash 相同或 attribution 缺失只返回 revoked。rotated/logout-complete/blacklist-before-delete/missing-ref 回归验证其他设备和 metric 语义；auth 全包/race、全服务端 race、lint/build/docs 通过 | `fix(auth): distinguish revoked refresh tokens from reuse` |
 | 44 | 已修复，待发布 | active introspection 只接受 Casdoor `access-token` purpose，refresh/missing/malformed/opaque token 均拒绝；Bearer 用户路径拒绝空白 subject，provider unavailable 与 inactive 分类保持不变；OIDC、middleware、app/auth 定向回归与服务端静态检查通过 | `3d12d259` `fix(auth): reject refresh tokens on bearer paths` |
 | U-1 | 已修复，待发布 | 三个 academics admin operation 消费现有 admin MFA middlewares；共享 step-up 响应从错误的 428 对齐既有 412 契约，OpenAPI/生成物同步；blocking route contract、真实 MFA chain、相关包/全量 Go 回归、race、spec/drift、lint/build 与文档检查通过 | `4b2f520b` `fix(academics): require MFA for import administration` |
