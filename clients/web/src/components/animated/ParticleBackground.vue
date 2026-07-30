@@ -60,6 +60,7 @@ const resizeCanvas = () => {
 }
 
 const createParticles = () => {
+  gsap.killTweensOf(particles)
   particles = []
   for (let i = 0; i < props.particleCount; i++) {
     const particle: Particle = {

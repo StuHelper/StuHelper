@@ -3,7 +3,7 @@ type: adr
 audience: frontend-dev
 status: current
 authoritative-source: this file
-last-verified: 2026-04-19
+last-verified: 2026-07-31
 ---
 
 # ADR-0003: Mandatory three-guard safety pattern for JS animation composables
@@ -31,6 +31,12 @@ All JS-driven animation composables in this project must implement a three-guard
 3. **Guard 3 — Captured DOM reference**: In `onMounted`, capture `elementRef.value` into a local `let mountedEl` variable. In `onUnmounted`, use `mountedEl` (not `elementRef.value`) for `removeEventListener`.
 
 This pattern applies to: `use3DTilt`, `useMagneticCursor`, and any future composable that registers DOM listeners for animation (parallax, magnetic buttons, cursor effects, gyroscope tilt, etc.).
+
+Direct GSAP target ownership has one additional lifecycle invariant: before replacing or discarding an
+array of target objects, the owner must call `gsap.killTweensOf` on the old array. Component unmount must
+also kill the current batch and cancel owned animation frames. Killing only the newest batch during
+unmount is insufficient if resize or other rebuild paths have already dropped references to older
+infinite tweens.
 
 ## Alternatives Considered
 
