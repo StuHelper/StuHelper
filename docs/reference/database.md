@@ -41,7 +41,8 @@ last-verified: 2026-07-30
 
 - `users` 是 shadow user 表：业务外键锚点 + 最小用户画像缓存，身份真源是 Casdoor。
 - `domain_event_outbox` 是统一 outbox：`stream + dedupe_key` 唯一键；`pending / processing / completed / failed / dead_letter` 状态机；后台 worker 按 stream 消费，主事务不直连外部系统。`revision` / `locked_revision` 是 supersession fence：处理中的同 key 新事件只提升 revision 并保留当前 lease，旧 worker 完成或失败时若发现 revision 已变化，就把最新修订重新排队，不能把新事件错误标成完成或 dead letter。进程取消时已 claim 但未处理的 job 以 detached finalize context 归还 pending，且不增加失败次数。
-- `admission_bot_action_outbox.attempt_count` 同时作为下发世代号暴露为 `dispatchAttempt`；Koishi ACK 必须回传该值。服务端只有在 action 仍为 `dispatched` 且 attempt 相等时接受成功/失败回执，延迟到达的旧世代 ACK 不能覆盖新一轮派发状态。
+- `admission_bot_action_outbox.attempt_count` 同时作为下发世代号暴露为 `dispatchAttempt`；Koishi ACK 必须回传该值。服务端只有在 action 仍为 `dispatched` 且 attempt 相等时接受成功/失败回执；claim 路径的 preparation failure 与 stale 最终化也使用同一 fence，延迟到达的旧世代更新不能覆盖新一轮派发状态。
+- Admission action claim 提交后只做每批两次 policy/failure 上下文查询。若批量查询失败或请求在 Service 返回前取消，动作尚未向 Bot 公开，服务端用独立 5 秒 context 一次性、批量归还仍属于本次 attempt 的 lease，并延后 30 秒再取；**补偿写成功时**不消耗业务重试预算，补偿写本身失败时原 claim 仍保持 `dispatched` 并保留此次 attempt，调用方会收到合并错误。单行动作缺少 policy 等确定性 preparation failure 则只让该行消费 attempt、按 backoff 重试并在第 5 次进入 `dead_letter`，不能阻塞健康行。这里的 attempt 回退只允许用于同步、未公开、不可重试的内部补偿：它会让下一次 claim 复用数值世代；若以后改为逐行流式发送、异步重试 cleanup 或多阶段处理，必须拆出单调 `dispatch_generation` / lease token，不能沿用此补偿。当前 Admission action 还没有显式 dead-letter replay API；terminal 行的运营恢复能力是未完成边界，不能把“poison 已隔离”解释为“poison 已可恢复”。
 - `teacher_public_stats` 是异步投影。`reviews`、`teachers`、`departments` 的 statement-level trigger 在同一数据库事务中幂等 upsert `review_projection / teacher_public_stats_refresh / teacher_public_stats` job；单并发 worker 刷新物化视图后统一失效 Redis 缓存，周期性 enqueue 只承担漂移对账，不把同步刷新延迟带回 HTTP 请求。
 - 评课点赞与回复通知在业务写事务内写入 `review_notification` outbox。worker 可重试投递，`notifications.idempotency_key` 的 partial unique index 保证重复消费只产生一条持久通知；实时 SSE 只在首次插入时发送，不能把连接在线状态当作持久投递保证。
 - `audit_events.category = 'admin_operation'` 收口所有管理员操作的审计留痕。

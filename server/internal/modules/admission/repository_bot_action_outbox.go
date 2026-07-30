@@ -228,17 +228,95 @@ func (r *Repository) MarkBotActionFailedTx(
 	return nil
 }
 
-func (r *Repository) MarkBotActionStale(ctx context.Context, actionID int64, now time.Time) error {
+func (r *Repository) MarkBotActionPreparationFailed(
+	ctx context.Context,
+	actionID int64,
+	dispatchAttempt int,
+	lastError string,
+	now time.Time,
+) error {
 	ctx = withDBTable(ctx, admissionBotActionOutboxTable)
-	_, err := r.db.Exec(ctx, `
+	tag, err := r.db.Exec(ctx, `
+		UPDATE admission_bot_action_outbox
+		SET status = CASE WHEN attempt_count >= $5 THEN 'dead_letter' ELSE 'failed' END,
+		    last_error = $2,
+		    next_attempt_at = $3,
+		    updated_at = $4
+		WHERE id = $1
+		  AND status = 'dispatched'
+		  AND attempt_count = $6
+	`, actionID, lastError, now.Add(botActionRetryBackoff(dispatchAttempt)), now,
+		admissionBotActionMaxAttempts, dispatchAttempt)
+	if err != nil {
+		return fmt.Errorf("MarkBotActionPreparationFailed: %w", err)
+	}
+	if tag.RowsAffected() != 1 {
+		return ErrAdmissionBotActionLeaseLost
+	}
+	return nil
+}
+
+func (r *Repository) MarkBotActionStale(
+	ctx context.Context,
+	actionID int64,
+	dispatchAttempt int,
+	now time.Time,
+) error {
+	ctx = withDBTable(ctx, admissionBotActionOutboxTable)
+	tag, err := r.db.Exec(ctx, `
 		UPDATE admission_bot_action_outbox
 		SET status = 'stale', updated_at = $2
-		WHERE id = $1 AND status <> 'succeeded'
-	`, actionID, now)
+		WHERE id = $1
+		  AND status = 'dispatched'
+		  AND attempt_count = $3
+	`, actionID, now, dispatchAttempt)
 	if err != nil {
 		return fmt.Errorf("MarkBotActionStale: %w", err)
 	}
+	if tag.RowsAffected() != 1 {
+		return ErrAdmissionBotActionLeaseLost
+	}
 	return nil
+}
+
+// abandonBotActionClaims is only valid for a synchronous, single-shot cleanup
+// of claims that ClaimQueuedAdmissionActions has not exposed to a bot. Returning
+// the retry budget reuses the numeric attempt on the next claim, so this helper
+// must never be retried asynchronously or used after a response may be visible.
+func (r *Repository) abandonBotActionClaims(
+	ctx context.Context,
+	rows []AdmissionBotActionOutboxRow,
+	now time.Time,
+) (int64, error) {
+	if len(rows) == 0 {
+		return 0, nil
+	}
+	ids := make([]int64, len(rows))
+	attempts := make([]int32, len(rows))
+	for i := range rows {
+		ids[i] = rows[i].ID
+		attempts[i] = int32(rows[i].AttemptCount)
+	}
+	ctx = withDBTable(ctx, admissionBotActionOutboxTable)
+	tag, err := r.db.Exec(ctx, `
+		WITH claims(id, attempt_count) AS (
+			SELECT *
+			FROM unnest($1::bigint[], $2::integer[])
+		)
+		UPDATE admission_bot_action_outbox AS o
+		SET status = CASE WHEN o.attempt_count <= 1 THEN 'pending' ELSE 'failed' END,
+		    attempt_count = o.attempt_count - 1,
+		    next_attempt_at = $4,
+		    updated_at = $3
+		FROM claims
+		WHERE o.id = claims.id
+		  AND o.status = 'dispatched'
+		  AND o.attempt_count = claims.attempt_count
+	`, ids, attempts, now, now.Add(botActionDispatchRetryAfter))
+	if err != nil {
+		return 0, fmt.Errorf("abandonBotActionClaims: %w", err)
+	}
+	return tag.RowsAffected(), nil
 }
 
 func (r *Repository) MarkBotActionStaleTx(ctx context.Context, tx pgx.Tx, actionID int64, now time.Time) error {

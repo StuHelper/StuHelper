@@ -45,8 +45,9 @@ Web / Admin / UniAppX+Koishi UI / Koishi / 基础设施 / 代码质量与文档)
   检查生产备份目录或用生产 WAL 执行目标时间点恢复，也没有观察生产锁等待或真实大表延迟。
   因此“生产已经丢失 PITR”“生产已经 OOM/死锁/永久停更”等说法仍不得当作已证实事实。
 - 当前工作树在复核开始前已经有未提交修改。Codex 对 P0-1、P1-1、P1-2、P1-3、P1-4、
-  P1-5、P1-6、P1-7、P1-8、P1-9、P1-10、P2-1、P2-2、P2-6、P2-7 与 P2-10 的修复已经按问题独立提交
-  （提交见下方进度表），但均未合并或发布；原有其他工作树修改没有混入这些提交。
+  P1-5、P1-6、P1-7、P1-8、P1-9、P1-10、P2-1、P2-2、P2-6、P2-7、P2-10，以及合并根因
+  P2-13/P2-14 的修复，已经按问题或根因分别独立提交（提交见下方进度表），但均未合并或发布；
+  P2-15 是重复标签，没有制造第二个提交；原有其他工作树修改没有混入这些提交。
 - 原报告大量“修复方案”和全部 18 条驳回长文在句中截断。例如 P0-1 结尾是
   `only surface the 4`，P1-1 结尾是 `Promise.resolve<string[]>(`，P1-3 结尾是
   `both loc`；P3-1 至 P3-9 的方案也全部半句结束。第 1 条驳回理由还重复了两次。
@@ -99,9 +100,9 @@ Web / Admin / UniAppX+Koishi UI / Koishi / 基础设施 / 代码质量与文档)
 | P2-10 | 确认，已完成最小修复、真实 PostgreSQL 语义验证与全量 infra 回归 | P2 | 已修复，待发布 | 普通 importer 已拒绝 `sfzjh_enc`/`sfzjh_hash`，并从 normalize、临时表、copy、insert 和 conflict update 全链路移除两列：新行得到 `NULL/NULL`，重导保留既有 pair。当前仓库没有完整 pair 导入入口；在没有真实需求和密钥治理设计前不新增 CLI/API，也不能伪造空 `enc` 绕过约束。 |
 | P2-11 | 确认潜在契约缺陷 | P2 → P3 | 应改 | 统一为 `explode: true`，Handler 用 `QueryArray` 并兼容旧逗号格式，重新生成；修正或删除未使用的 Web grouped adapter。OpenAPI 与 Handler 当前都按逗号语义，真正不兼容的是默认客户端，原文“三端各不兼容”不准确。 |
 | P2-12 | 确认 | P2 | 必须 | 对会调用外部 Oracle 的 academic-match/request-otp 增加鉴权后的 Redis per-user 共享预算；测 429、用户隔离与 Redis 策略。现有全局/IP limiter 不等于完全无限流，但不足以保护昂贵 fan-out。 |
-| P2-13 | 确认 | P2 | 必须 | claim 后批量加载上下文；批量查询失败时按 attempt fence 安全释放 lease，单行 stale/映射错误不能中断其余项，并用独立有界 cleanup context。原文只做 per-row continue 仍处理不了批量查询失败。 |
-| P2-14 | 确认，属于 P2-13 的性能放大器 | 单独看 P3 | 合并修复 | claim 后一次批量加载 policy/failure contexts，并测 query count。默认批是 50，额外约 100 次查询，不是原文按 server 上限 200 推算的 400 次。 |
-| P2-15 | 事实重复 | 与 P2-14 重复 | 不单独立项 | 与 P2-14 是同两个逐行 context query，不是第二个根因；从唯一问题计数和独立修复计划中删除。 |
+| P2-13 | 确认，已完成主因最小修复与真实 PostgreSQL 状态机回归 | P2 | 主路径已修复，待发布；补偿失败与 dead-letter replay 为显式残余边界 | claim 后每批加载一次上下文；批量查询失败或 caller cancel 时，用独立 5 秒 context 一次性归还所有未公开 lease；缺 policy 等确定性单行 preparation failure 只消耗本行 attempt，stale/failure/abandon 均按 claimed attempt fenced，健康行继续返回。补偿写也失败时仍会保留 attempt；Admission 尚无 dead-letter replay API，不能宣称所有故障下都不会耗尽预算或 terminal 行已可运营恢复。 |
+| P2-14 | 确认，属于 P2-13 的性能放大器；已合并修复 | 单独看 P3 | 已修复，待发布 | policy/failure contexts 已从逐行 `2N` 查询改为每批固定 2 条；真实 PostgreSQL 对 1 行与 8 行均测得 3 次 pool acquisition（1 次 claim 事务 + 2 次查询）。默认批是 50，修复前约 100 次额外查询，不是原文按 server 上限 200 推算的常态 400 次。 |
+| P2-15 | 事实重复，已随 P2-14 覆盖 | 与 P2-14 重复 | 不单独立项/提交 | 与 P2-14 是同两个逐行 context query，不是第二个根因；保留原始记录用于追溯，不计入唯一问题数，也不建设第二套实现。 |
 | P2-16 | 确认 | P2 | 决策后必须 | 先盘点 NULL 数据和产品语义：非法则回填后 migration 加 NOT NULL；合法则 Go/OpenAPI 改 nullable 并生成。默认 `COALESCE` 为 0/空串会伪造数据，不能采用。 |
 | P2-17 | 确认两个配置当前未生效，但行为可能是刻意安全收紧 | P2 → P3/P4 | 决策 | 优先决定是否废弃 content preview knobs，并把 title knob 说明改成锁定首行 teaser；若恢复，只对已认证非 full tier 接线并保持 guest 收紧。直接“恢复配置生效”可能削弱访问控制。 |
 | P2-18 | 确认 | P2 | 必须 | 当前单 app 部署只需本地 `Filter.Invalidate()`：mutation 成功后标记过期，使下次检查 reload；测 create/update/delete 和 reload 失败。当前就引入 Redis version/pubsub 是过度设计，等真实多副本需求再做。 |
@@ -114,7 +115,7 @@ Web / Admin / UniAppX+Koishi UI / Koishi / 基础设施 / 代码质量与文档)
 P2 唯一根因应按以下修复簇合并，避免重复设计：
 
 1. P2-1 + P2-2：CI 路径与静态契约触发，已按编号拆成两个独立提交完成。
-2. P2-13 + P2-14 + P2-15：claim 后批量上下文、逐项隔离和 lease 安全释放。
+2. P2-13 + P2-14 + P2-15：claim 后批量上下文、逐项隔离和 lease 安全释放，已合并完成本地修复。
 3. P2-21 + P2-22：Oracle outcome 分类与 circuit-breaker neutral 语义。
 
 ### P3 逐项复核
@@ -180,8 +181,8 @@ P2 唯一根因应按以下修复簇合并，避免重复设计：
 3. P2-1 guard 路径分类、P2-2 always-on 静态供应链/Koishi package contract 与 P2-6
    privileged listener 生命周期均已完成修复、回归和独立提交；P2-6 的真实 Console
    服务热重载/插件卸载仍是发布环境验收项。
-4. P2-7 Koishi 转发 poison 已完成分阶段隔离、全量回归和独立提交；继续
-   P2-13/14/15 claimed batch 与 P2-23 outbox panic。
+4. P2-7 Koishi 转发 poison 与 P2-13/14/15 claimed batch 均已完成隔离、全量/状态机回归
+   和独立提交；P2-23 outbox panic 留待后续指令继续。
 5. P2-21/P2-22 breaker 分类，R-8 Redis 错误分类，P3-9 cache version unavailable。
 6. P2-9 Ansible 路径、P2-16 NULL 语义决策、P2-18 filter invalidation。
 
@@ -289,6 +290,16 @@ P3-1 至 P3-6、P3-8、R-5 至 R-7、R-14、R-15、R-17，以及 X-2 的配置�
   PostgreSQL 18 容器复现旧两种失败并逐列核对修复后的 15 列链路，最终只要求纠正文案中不存在
   的“现成受控工具”，纠正后无代码 blocker。主代理一次长复合数据库验证调用无输出并以 139
   退出，拆成只操作临时表的短事务后全部通过；未向持久表导入测试数据，也未处理真实身份证件号。
+- Admission claimed batch P2-13/14/15：两个独立只读代理分别复核状态机与测试设计，确认
+  claim 事务提交后 enrichment 失败会遗留整批 `dispatched` 并消耗 attempt，且旧
+  `MarkBotActionStale` 没有 attempt fence；同时确认 P2-14/P2-15 是同一 N+1 根因。
+  实现后真实 PostgreSQL 覆盖 1/8 行固定 3 次 pool acquisition、policy 表故障后的整批归还与
+  可重领、父 context 取消后的 detached cleanup、旧 attempt stale/abandon 不覆盖新 lease、
+  缺 policy poison kick 与健康 release 同批隔离及 poison 第 5 次单独 dead-letter。
+  Admission 开启 race detector 的全包测试、全服务端 lint/build 与文档卫生检查通过；未模拟
+  Service 返回后的网络丢包，因为那时动作可能已公开，按 at-least-once 语义不得自动归还。
+  attempt 回退被限制为同步、未公开、single-shot cleanup；没有为当前不可达的异步 ABA
+  场景提前增加 generation migration。
 - image policy：2026-07-30 通过，2026-08-06 因 `review_by=2026-08-05` 失败，确认日历门禁。
 - 授权：capability/RBAC/review 定向 Go 测试通过，确认 X-1 在 Handler 前 fail-closed。
 - P2 早期基线：3 个 infra/import contract、Koishi 定向 29 tests，以及 outbox、externaldata、
@@ -320,6 +331,7 @@ P3-1 至 P3-6、P3-8、R-5 至 R-7、R-14、R-15、R-17，以及 X-2 的配置�
 | P2-6 | 已修复，未发布；真实 Console 热重载/插件卸载待验收 | Group Guard 使用 required console 子作用域；Core/Group Guard 特权 listeners 都由 `ctx.effect` 绑定生命周期，并用 registration identity 避免旧 disposer 删除新注册。authority 固定为 4。build、contracts、595 unit、startup 与 package contract 通过；WebUI E2E 首轮无关用例 45/46，立即复跑 46/46 | `fix(koishi): dispose privileged console listeners` |
 | P2-7 | 已修复，未发布；真实材料转发待启用验收 | delivery failure 逐项记录并继续，成功项 ACK；批末重抛。ACK failure 独立记录并 fail-fast。poison→healthy 与 ACK failure 回归通过；完整 Koishi build/contracts/597 unit/startup/46 E2E 及 package contract 通过 | `fix(koishi): isolate freshman forward failures` |
 | P2-10 | 已修复，未发布；完整 pair 导入能力不存在且不在本次范围 | 普通 TSV 拒绝两个身份证安全列，15 列 normalize/copy/upsert 链路不再写 pair；已有 pair 保留，新行 `NULL/NULL`。真实 PostgreSQL 临时表语义、定向契约、ShellCheck、76 个 infra contracts 与文档卫生通过 | `fix(import): preserve academic identity pairs` |
+| P2-13/P2-14 | 主因已修复，未发布；P2-15 为重复标签；补偿失败/replay 边界已记录 | 每批固定两次上下文查询；补偿可写时，全批 enrichment failure/取消归还未公开 lease；单行确定性 preparation failure 独立 retry/dead-letter，stale/failure/abandon 使用 attempt fence。真实 PostgreSQL 覆盖固定查询数、故障/cancel cleanup、旧 lease fence、poison 隔离；Admission 全包 `-race`、全服务端 lint/build 与文档检查通过。未把补偿写同时不可用或 terminal replay 误报为已解决 | `fix(admission): isolate claimed action failures` |
 
 ### 明确不建议实施的“修复”
 
@@ -1822,6 +1834,82 @@ Building the slice from all rows (rather than pre-filtering with `sessionCanDisp
    `func (s *Service) pendingActionFromQueuedRow(row *AdmissionBotActionOutboxRow, contexts pendingActionContexts, now time.Time)`
    and delete lines 137-140 (the per-row `s.pendingActionContexts` call and its error branch). The `context.Context` parameter becomes unused — drop it. Keep the per-row `pendingActionSeeds([]AdmissionSession{session}, now)` at line 136 as-is (it is pure and does no I/O), or index into a batched `pendingActionSeeds(sessions, now)` for symmetry with `pendingActionsFromSessio
 
+#### Codex 对 P2-13/P2-14/P2-15 的最终复核与实施记录（2026-07-30）
+
+**最终结论**
+
+- P2-13 的正确性核心真实存在：`ClaimDueBotActions` 的事务一旦提交，整批已经成为
+  `dispatched` 且 `attempt_count + 1`；随后任一批量上下文错误、逐行映射错误或 caller
+  cancellation 都不会回滚 claim。旧实现返回错误时，Bot 一个 action 也收不到，但整批会在
+  30 秒后继续消耗 attempt，持续故障最终可让稳定 key 的 release 进入无法自动重排的
+  `dead_letter`。
+- 原文的“一次失败即永久丢失”和“约 2.5 分钟”过强。实际需要持续失败耗尽 5 次 claim，
+  总耗时还受 30 秒 lease、SSE 断线重连和抖动影响；kick key 含 scheduled time，也不能扩大成
+  “该 session 永远不能再产生任何 kick”。release key 稳定且 upsert 保留 dead letter 的后果则成立。
+- P2-14 的 `2N` 查询真实存在，但单独属于 P3 性能问题；它会放大 P2-13。常规 Koishi
+  `limit=50` 对应约 100 次额外查询，只有显式最大 `limit=200` 才会达到 400 次。
+- P2-15 与 P2-14 指向完全相同的 `pendingActionContexts` 调用，是重复标签，不是第二个根因。
+- 原审计还漏掉一个真实竞态：旧 `MarkBotActionStale` 仅按 ID 且
+  `status <> 'succeeded'` 更新，旧 attempt 在 30 秒后可能把新 attempt 标成 stale。
+
+**已实施的最小状态机**
+
+1. claim 后从所有返回行构造 sessions/seeds，整批只调用一次 `pendingActionContexts`：
+   policy 与 failure 各一条批量 SQL；不把两类数据硬拼成怪异的单条查询。
+2. 批量查询失败或 caller 在 Service 返回前取消时，Handler 尚未写出任何 action。服务端用
+   detached、5 秒有界 context 一次性批量归还仍匹配 `id + status=dispatched +
+   attempt_count` 的 lease；补偿写成功时退还本次 retry budget，并把下次领取延后 30 秒
+   避免热循环。若 outbox 补偿写本身也超时/断连，原 claim 不会被原子回滚，仍保留此次
+   attempt；方法返回包含原错误与 cleanup 错误的合并错误。
+3. 确定性单行 preparation failure（当前可复现的是 kick 缺 policy）只把本行按 fence 标成
+   `failed`、写 `last_error` 并 backoff；第 5 次只让该 poison 行 `dead_letter`。健康
+   release/remind 继续返回，不能因 poison 行丢弃整批。
+4. stale 与 preparation failure 都要求 exact attempt 且检查 `RowsAffected`。逐行最终化遇到
+   基础设施错误时先对本行做一次同步 abandon；只有最终化和补偿都失败，才返回批次错误并归还
+   其他尚未公开的健康/未处理 lease。
+5. Service 成功返回后的 HTTP/SSE 丢包存在“客户端是否收到”的模糊窗口，仍按 at-least-once
+   投递保留 `dispatched`；此路径绝不回退 attempt。
+
+**ABA 与过度设计边界**
+
+归还 helper 会把 attempt 从 N 退回 N-1，下一次 claim 会再次得到 N，因此它不是可重试的通用
+lease token。当前实现安全依赖三个同时成立的约束：仅 Service 内部可调用、动作尚未向 Bot
+公开、cleanup 同步 single-shot 且返回前完成；发生模糊错误也不后台重试。当前链路不存在携带
+旧 N 的外部 ACK 或延迟 cleanup 回调，故不为本项增加 migration。若未来改成逐行流式写出、
+异步重试 cleanup、多阶段 action preparation，必须把单调 `dispatch_generation`/lease token
+与 retry count 拆开；继续回退并复用 `dispatchAttempt` 将不再安全。
+
+**残余风险与后续建议**
+
+- 这是补偿式恢复，不是跨 claim、enrichment 与 cleanup 的原子事务。真实 PostgreSQL 测试稳定
+  证明的是“policy/failure 查询失败或 caller cancel，且 outbox 仍可接受补偿写”时不消耗
+  attempt；它没有证明连接池/网络/outbox 同时不可用时补偿必定成功。在极端间歇故障中，
+  claim 提交成功而 enrichment 与 cleanup 连续失败，仍可能逐次消耗预算并最终 dead-letter。
+  若产品要求“内部 enrichment 失败在任何存储故障下绝不消耗预算”的硬保证，需要重新设计
+  retry count 与单调 lease generation/事务边界；这不是本次局部批次修复可以诚实保证的性质。
+- 确定性 poison 现在不会阻塞健康行，但达到第 5 次后仍进入 terminal `dead_letter`；
+  `QueueBotActionTx` 会保留该状态，仓库目前没有 Admission 专用 replay API。补齐 policy 后动作
+  不会自动复活。显式、授权、带审计的 dead-letter replay 是独立的运营恢复待办；本次没有顺带
+  扩建 OpenAPI、Admin UI 和授权流，也不把“隔离并终止”误写成“已经可恢复”。
+
+**交叉验证与测试**
+
+- 两个独立只读代理分别审查了事务边界、poison 分类、fence/ABA 和测试注入方式；均确认应修
+  P2-13、合并 P2-14、删除 P2-15 独立计数，并反对用长事务、generic outbox 重写或单条巨型 SQL。
+- 真实 PostgreSQL 测试确认 1 行与 8 行均固定为 3 次 pool acquisition（claim 事务 +
+  2 次上下文查询），旧实现则随 N 增长为 `1 + 2N`。
+- 临时 rename policy 表稳定注入 claim 提交后的 batch lookup failure，确认两行均恢复为
+  pending/attempt 0，30 秒后可重新领取；表锁 + caller cancel 确认 cleanup 不继承父取消。
+- 回归还覆盖旧 attempt 的 stale/abandon 不能覆盖新 attempt、缺 policy kick 在第 5 次单独
+  dead-letter 且同批健康 release 正常 ACK，以及既有迟到 ACK、dispatch timeout 和 stale 路径。
+- 测试没有破坏 outbox 写入或整个连接池，因此不声称补偿写同时失败时也能归还 lease；也没有
+  replay terminal 行，因为该 API 当前不存在。这两项按上述残余风险保留。
+- 最终提交前再次运行 Admission 全包 `go test -race ./internal/modules/admission -count=1`，
+  并通过全服务端 `golangci-lint`、production binary build、文档卫生单测与全量文档检查。
+
+本次没有引入新队列/worker、没有把 claim/enrichment 放进长事务、没有修改 OpenAPI 或迁移，
+也没有做 200 行压力测试或为精确 wire SQL 数引入 tracer；这些都不是消除当前根因的必要条件。
+
 #### P2-16. Nullable courses columns are scanned into non-nullable Go fields; one NULL department_id/code/credits 500s every course endpoint
 
 - **位置**：`server/internal/modules/course/repository.go:175`
@@ -2865,6 +2953,7 @@ STUHELPER_REDIS_INTEGRATION
 | P2-6 | Console listeners 不随插件作用域释放，停用后仍可能调用特权动作 | Codex 已完成实现：Group Guard 改为 required console 子作用域；Core 与 Group Guard listeners 均由 `ctx.effect` 管理，并以 registration identity 保护服务重载后的新注册，authority 固定为 4。build、contracts、595 unit、startup 与 package contract 通过；WebUI E2E 首轮无关用例 45/46，立即复跑 46/46。随独立修复提交入库；真实 Console 热重载/插件卸载待验收 |
 | P2-7 | 单个不可转发的新生材料阻塞后续队列 | Codex 已完成 Koishi delivery 阶段修复：单项 delivery failure 记录后继续，健康项 ACK，批末保持失败信号；ACK failure 分相并 fail-fast。poison→healthy、ACK failure 及既有多群语义测试通过，完整 Koishi build/contracts/597 unit/startup/46 E2E 与 package contract 通过。随独立修复提交入库；功能默认关闭，真实启用验收及服务端 URL 批构建边界仍待处理 |
 | P2-10 | 普通学籍 importer 破坏身份证 enc/hash 成对写入约束 | Codex 已完成最小修复：普通 TSV 明确拒绝两列并从全部写入阶段移除 hash，重导不触碰已有 pair，新行保持 `NULL/NULL`；真实 PostgreSQL 18、定向契约、ShellCheck、76 个 infra contracts 和文档卫生通过。随独立修复提交入库；仓库当前没有完整 pair 导入入口，本次没有过度扩建 PII API/CLI |
+| P2-13/P2-14/P2-15 | claimed bot action 批次被单行错误丢弃，且逐行重复查询上下文 | Codex 已完成主因合并修复：上下文查询从 `2N` 固定为每批 2 条；补偿可写时，批量查询失败/caller cancel 用 detached context 归还未公开 lease；确定性 poison 只消耗本行 attempt，stale/failure/abandon 使用 attempt fence。真实 PostgreSQL 覆盖固定查询数、故障/取消 cleanup、旧 lease fence、poison 隔离及第 5 次单独 dead-letter；Admission 全包 `-race`、lint/build 和文档检查通过。补偿写同时失败仍可能保留 attempt，Admission dead-letter replay API 尚不存在，已明确保留为残余边界。P2-15 与 P2-14 重复，不单独计数或提交。随独立修复提交入库，尚未发布 |
 | X-1 | 无 scope 的 school_admin 全量可见 | Codex 已证伪；现有 capability 展开和 admin Entry 在 Handler 前返回 403，不按 P1 修复 |
 | X-2 | env 模板差集 | Codex 判定部分成立；改为分类治理，不执行 21 项全量入模板/严格集合相等方案 |
 | 其余条目 | — | 不再用“其余 41 项待修”概括；按 Codex 逐项表和四批实施顺序处置 |
