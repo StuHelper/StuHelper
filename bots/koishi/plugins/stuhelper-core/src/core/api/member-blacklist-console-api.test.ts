@@ -142,11 +142,20 @@ async function callListener(
 }
 
 function createConsoleContext(listeners: Map<string, Listener>) {
+  const consoleListeners: Record<string, {
+    callback: Listener
+    authority?: number
+  }> = Object.create(null)
   return {
     console: {
-      addListener(event: string, callback: Listener) {
+      listeners: consoleListeners,
+      addListener(event: string, callback: Listener, options?: { authority?: number }) {
+        consoleListeners[event] = { callback, ...options }
         listeners.set(event, callback)
       },
+    },
+    effect(register: () => () => void) {
+      return register()
     },
     database: {
       get: async () => [{ aid: 42, platform: 'qq', pid: 'operator' }],

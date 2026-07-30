@@ -147,17 +147,19 @@ export function startGroupGuardRuntime(ctx: Context, config: Config) {
     reminderDeduper: admissionReminderDeduper,
   })
 
-  registerAdmissionConsoleAPI(ctx, {
-    config,
-    platform,
-    runtimeSettings,
-    behaviorSettings,
-    messageProvider,
-    guardStore,
-    policyStore,
-    moderationStore,
-    admissionSubjectCoordinator,
-    onRuntimeSettingsChanged: () => actionStreams.refresh(),
+  ctx.inject(['console'], (consoleCtx) => {
+    registerAdmissionConsoleAPI(consoleCtx, {
+      config,
+      platform,
+      runtimeSettings,
+      behaviorSettings,
+      messageProvider,
+      guardStore,
+      policyStore,
+      moderationStore,
+      admissionSubjectCoordinator,
+      onRuntimeSettingsChanged: () => actionStreams.refresh(),
+    })
   })
 
   ctx.on('ready', async () => {

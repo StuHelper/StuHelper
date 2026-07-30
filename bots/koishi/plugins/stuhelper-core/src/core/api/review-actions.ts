@@ -11,6 +11,7 @@ import {
   type ReviewActionInput,
   type WorkItemActionInput,
 } from './review-action-handler'
+import { createAuthority4ListenerRegistrar } from './authority-listener'
 import { resolveRequiredConsoleGuildScope } from './console-guild-scope'
 
 export { handleWorkItemAction } from './review-action-handler'
@@ -24,22 +25,23 @@ export function registerReviewActionAPI(ctx: Context) {
   const guardMemberStore = new GuardMemberWorkItemStore(ctx)
   const actions = new ModerationActionService(moderationStore)
   const deps = { ctx, moderationStore, guardMemberStore, actions }
+  const addAuthorityListener = createAuthority4ListenerRegistrar(ctx)
 
-  ctx.console.addListener('stuhelperGroupCenter/action/review', async function (input) {
+  addAuthorityListener('stuhelperGroupCenter/action/review', async function (input) {
     return handleWorkItemAction(
       deps,
       normalizeLegacyReviewAction(input),
       await resolveActionActor(ctx, this),
     )
-  }, { authority: 4 })
+  })
 
-  ctx.console.addListener('stuhelperGroupCenter/action/work-item', async function (input) {
+  addAuthorityListener('stuhelperGroupCenter/action/work-item', async function (input) {
     return handleWorkItemAction(
       deps,
       parseWorkItemActionInput(input),
       await resolveActionActor(ctx, this),
     )
-  }, { authority: 4 })
+  })
 }
 
 export function normalizeLegacyReviewAction(input: unknown): ReviewActionInput {

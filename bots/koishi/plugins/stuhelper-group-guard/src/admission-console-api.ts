@@ -1,4 +1,4 @@
-import type {} from '@koishijs/plugin-console'
+import type { Events as ConsoleEvents } from '@koishijs/plugin-console'
 import type { Context, Universal } from 'koishi'
 
 import type {
@@ -84,23 +84,39 @@ declare module '@koishijs/console' {
 }
 
 export function registerAdmissionConsoleAPI(ctx: Context, deps: AdmissionConsoleAPIDeps) {
-  if (!ctx.console) {
-    return
-  }
+  const addConsoleListener = createAdmissionConsoleListenerRegistrar(ctx)
 
-  ctx.console.addListener(ADMISSION_RUNTIME_PAGE_EVENT, async () => {
+  addConsoleListener(ADMISSION_RUNTIME_PAGE_EVENT, async () => {
     return buildAdmissionRuntimePageData(ctx, deps)
-  }, { authority: CONSOLE_AUTHORITY })
+  })
 
-  ctx.console.addListener(ADMISSION_RUNTIME_ACTION_EVENT, async function (input) {
+  addConsoleListener(ADMISSION_RUNTIME_ACTION_EVENT, async function (input) {
     return handleAdmissionRuntimeAction(ctx, deps, input, this as ConsoleActionClient)
-  }, { authority: CONSOLE_AUTHORITY })
+  })
 
-  ctx.console.addListener(ADMISSION_RUNTIME_SETTINGS_EVENT, async (input) => {
+  addConsoleListener(ADMISSION_RUNTIME_SETTINGS_EVENT, async (input) => {
     await deps.runtimeSettings.saveSettings(parseRuntimeSettingsInput(input))
     await deps.onRuntimeSettingsChanged?.()
     return groupGuardMessage(await getGroupGuardMessages(deps.messageProvider), 'admissionConsoleSettingsSaved')
-  }, { authority: CONSOLE_AUTHORITY })
+  })
+}
+
+function createAdmissionConsoleListenerRegistrar(ctx: Context) {
+  const console = ctx.console
+  return function addConsoleListener<K extends keyof ConsoleEvents>(
+    event: K,
+    callback: ConsoleEvents[K],
+  ) {
+    return ctx.effect(() => {
+      console.addListener(event, callback, { authority: CONSOLE_AUTHORITY })
+      const registration = console.listeners[event]
+      return () => {
+        if (console.listeners[event] === registration) {
+          delete console.listeners[event]
+        }
+      }
+    })
+  }
 }
 
 export async function buildAdmissionRuntimePageData(ctx: Context, deps: AdmissionConsoleAPIDeps) {

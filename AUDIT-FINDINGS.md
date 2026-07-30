@@ -45,7 +45,7 @@ Web / Admin / UniAppX+Koishi UI / Koishi / 基础设施 / 代码质量与文档)
   检查生产备份目录或用生产 WAL 执行目标时间点恢复，也没有观察生产锁等待或真实大表延迟。
   因此“生产已经丢失 PITR”“生产已经 OOM/死锁/永久停更”等说法仍不得当作已证实事实。
 - 当前工作树在复核开始前已经有未提交修改。Codex 对 P0-1、P1-1、P1-2、P1-3、P1-4、
-  P1-5、P1-6、P1-7、P1-8、P1-9、P1-10、P2-1 与 P2-2 的修复已经按问题独立提交
+  P1-5、P1-6、P1-7、P1-8、P1-9、P1-10、P2-1、P2-2 与 P2-6 的修复已经按问题独立提交
   （提交见下方进度表），但均未合并或发布；原有其他工作树修改没有混入这些提交。
 - 原报告大量“修复方案”和全部 18 条驳回长文在句中截断。例如 P0-1 结尾是
   `only surface the 4`，P1-1 结尾是 `Promise.resolve<string[]>(`，P1-3 结尾是
@@ -92,7 +92,7 @@ Web / Admin / UniAppX+Koishi UI / Koishi / 基础设施 / 代码质量与文档)
 | P2-3 | 确认机制，影响未量化 | 条件性 P2，否则 P3 | 先测并做低风险修复 | 将 repeat 检测的排序/limit 下推 DB，增加 `(guildId, createdAt)` 索引和基础 retention；记录表规模与 p95。立即建设 retention WebUI/完整配置面属于过度设计。 |
 | P2-4 | 部分确认；原报告引用了一条 dead 路径 | P2 → P3 | 先测 | 当前 dashboard 仍有 recent events 与 active guards 的全扫，应下推过滤/limit 后测延迟。原文所称 admission console 全量扫描不成立，五步聚合与全面 API 重写过重。 |
 | P2-5 | 确认 | P2 → P3 | 应改 | 修复空格分隔 ID 的 destructuring，并同步真实命令名和回归测试。低频、低成本 correctness，不需要新 parser 框架。 |
-| P2-6 | 确认 | P2 | 必须 | 用 required console injection 处理服务重载，同时使用 identity-checked disposer 清掉 plugin unload 后仍可调用的 authority-4 listener。只做 injection 不能消除陈旧特权回调；无需全局 monkey patch。 |
+| P2-6 | 确认，已完成本地修复与回归验证；真实 Console 热重载待验收 | P2 | 已修复，待发布与运行时热重载验收 | Group Guard 在 required console 子作用域注册；Group Guard 与 Core 的特权 listener 都交给 `ctx.effect` 管理，并只在 registry 仍指向本次 registration 时删除。authority 固定为 4，调用方不能降级。只做 injection 不能消除陈旧回调，无条件按 event 删除又会误删新作用域注册；无需全局 monkey patch 或修改上游 Console。 |
 | P2-7 | 确认 | P2 | 必须 | 每个 material-forward item 独立捕获失败、继续后项，并记录失败指标/日志；测 poison + healthy。立即加 server attempts/dead-letter/schema 不是解除队首阻塞的必要条件。 |
 | P2-8 | 确认 | P2 → P4 | 可选 | 中英文增加 `school_email_otp`、`school_sso` 标签并可选保留 enum 原值 fallback。只是后台 i18n，不应占用 P2 修复预算。 |
 | P2-9 | 强静态证据确认；运行验证待补 | P2 | 必须 | 用 `{{ playbook_dir }}` 构造 command/copy 绝对源路径，使用 `argv` 并加窄路径契约/语法检查。当前环境没有 `ansible-playbook`，因此仍需 CI/真实 controller 验证。通用扫描所有 Ansible command/shell 的检测器过重。 |
@@ -176,8 +176,9 @@ P2 唯一根因应按以下修复簇合并，避免重复设计：
 1. P0-1、P1-4 与 P1-5 已完成修复、验证和独立提交；P1-5 仍需在受保护
    GitHub environment 与真实目标机执行一次带审计记录的回滚演练。
 2. P1-2 migration 指南与 P1-6 SSE shutdown 已完成修复、真实回归验证和独立提交。
-3. P2-1 guard 路径分类与 P2-2 always-on 静态供应链/Koishi package contract 均已完成
-   修复、全量 infra 回归和独立提交；继续 P2-6 privileged listener 生命周期。
+3. P2-1 guard 路径分类、P2-2 always-on 静态供应链/Koishi package contract 与 P2-6
+   privileged listener 生命周期均已完成修复、回归和独立提交；P2-6 的真实 Console
+   服务热重载/插件卸载仍是发布环境验收项。
 4. P2-7 转发 poison、P2-13/14/15 claimed batch、P2-23 outbox panic。
 5. P2-21/P2-22 breaker 分类，R-8 Redis 错误分类，P3-9 cache version unavailable。
 6. P2-9 Ansible 路径、P2-16 NULL 语义决策、P2-18 filter invalidation。
@@ -261,6 +262,14 @@ P3-1 至 P3-6、P3-8、R-5 至 R-7、R-14、R-15、R-17，以及 X-2 的配置�
   且成为 `required.needs`；Koishi job 在现有 build/test 后执行 deployable package contract。
   三个定向合约、actionlint 与全部 76 个 infra contracts（75 shell + 1 mjs）通过。未在真实
   GitHub runner 上验证 job 调度/耗时，也未把本地合约通过表述为 branch protection 已生效。
+- Koishi P2-6：源码扫描确认 StuHelper Core 与 Group Guard 的 production listener 注册只剩
+  两个受 `ctx.effect` 管理的 registrar；单测覆盖 authority 不能被调用方降到 4 以下、卸载时
+  删除本作用域 registration，以及旧作用域 disposer 不会误删同 event 的新 registration。
+  Koishi build、Vue UI contracts、595/595 unit tests、startup smoke 与 deployable package
+  contract 通过。首次完整 `yarn test` 在 WebUI E2E 的无关“配置治理标签页导航”用例出现一次
+  5 秒时序失败（45/46），随即在全新临时 Koishi 实例上复跑 `yarn test:ui` 为 46/46；
+  因此如实记录为一次偶发复跑通过，而不把首次完整命令写成成功。现有 E2E 会真实调用 Console
+  action，但不会在已连接客户端下切换 Console 服务或卸载插件，真实热重载/卸载仍待验收。
 - image policy：2026-07-30 通过，2026-08-06 因 `review_by=2026-08-05` 失败，确认日历门禁。
 - 授权：capability/RBAC/review 定向 Go 测试通过，确认 X-1 在 Handler 前 fail-closed。
 - P2：3 个 infra/import contract 通过；Koishi 定向 29 tests 通过；outbox、externaldata、
@@ -289,6 +298,7 @@ P3-1 至 P3-6、P3-8、R-5 至 R-7、R-14、R-15、R-17，以及 X-2 的配置�
 | P1-10 | 已修复，未发布；生产规模影响待观测 | 主结果集完整 drain 后显式关闭，tags/bindings 分别批量加载，查询数由 `1 + 2N` 固定为 3。真实 PostgreSQL 单连接池覆盖固定 query count、详情、空数组、排序和 6 并发；定向 race、资源全包、vet 与 lint 通过 | `fix(resource): batch related data loads` |
 | P2-1 | 已修复，待 GitHub CI 验收 | `guards` 覆盖根 scripts/tools；文档库、Vue 合约、Semgrep 和 Node pin 精确触发消费 job，两个 Node 版本文件强制同步。CI contract、Bash 语法、actionlint 与文档检查通过 | `fix(ci): route guard changes to their checks` |
 | P2-2 | 已修复，待 GitHub CI 验收 | always-on 静态 job 执行 Dockerfile/CI wiring 并纳入 Required；Koishi job 执行 deployable package contract。三个定向合约、actionlint 与全量 76 个 infra contracts 通过 | `fix(ci): make supply-chain contracts unskippable` |
+| P2-6 | 已修复，未发布；真实 Console 热重载/插件卸载待验收 | Group Guard 使用 required console 子作用域；Core/Group Guard 特权 listeners 都由 `ctx.effect` 绑定生命周期，并用 registration identity 避免旧 disposer 删除新注册。authority 固定为 4。build、contracts、595 unit、startup 与 package contract 通过；WebUI E2E 首轮无关用例 45/46，立即复跑 46/46 | `fix(koishi): dispose privileged console listeners` |
 
 ### 明确不建议实施的“修复”
 
@@ -302,6 +312,9 @@ P3-1 至 P3-6、P3-8、R-5 至 R-7、R-14、R-15、R-17，以及 X-2 的配置�
 - 不为 P1-10 引入 ORM、DataLoader 或通用关联加载框架；两个本地批量查询已经消除该根因。
 - 不把 `bots/koishi/**` 整体加入 infra filter；构建型 package contract 复用 Koishi job，
   静态供应链合约 always-on，避免为每次机器人改动重复执行整套浏览器/生产运维合约。
+- 不为 P2-6 monkey-patch 全局 Console、修改 `node_modules` 或只按 event 无条件删除 listener；
+  后者会让旧作用域的延迟清理误删服务重载后同名的新 registration。也不为两个插件边界先建
+  通用事件注册框架，局部 lifecycle helper 已覆盖当前根因。
 - 不用 `COALESCE('', 0)` 隐藏 P2-16 的 NULL 数据语义。
 - 不在当前单副本部署为 P2-18 先建 Redis pub/sub/version 系统。
 - 不为 P2-23 增加无限自动 supervisor；panic 必须进入现有 retry/dead-letter。
@@ -1283,6 +1296,44 @@ export function addDisposableConsoleListener<K extends keyof ConsoleEvents>(
   ctx: Context, event: K, callback: ConsoleEvents[K], options?: DataService.Options,
 ) {
   ctx.effe
+```
+
+> Claude 原修复方案在 `ctx.effe` 处截断；上面的残缺片段仅为原始取证记录，不是最终实现。
+
+**Codex 独立复核与处置（2026-07-30）**
+
+- **问题真实，P2 与“必须修复”判断合适。**仓库安装的 Console `addListener` 只覆盖
+  `console.listeners[event]`，本身不返回 disposer；原代码既没有 `ctx.effect`，Group Guard
+  又只把 `console` 声明为顶层 optional service。插件作用域被释放后，authority-4 listener
+  仍可持有并调用旧的 mutation closure；Console 服务重建后，原作用域也不会因此可靠地重注册。
+  这不是未授权提权：调用者仍需 authority 4，所以不升为 P1；但“插件显示已停用而特权动作仍可
+  调用”属于真实生命周期与运维边界缺陷，不能按低价值优化驳回。
+- **采用了两部分最小修复。**Group Guard 在
+  `stuhelper-group-guard/src/index.ts` 中用 `ctx.inject(['console'], ...)` 建立 required
+  registration 子作用域，服务出现时注册、消失或替换时释放/重建。StuHelper Core 原本已有
+  required `console/database/stuhelperGroupCenter/auth` 子作用域，因此保留该结构，只修正其
+  listener 的释放行为。
+- **所有相关注册现在跟随作用域释放。**Core 的 page、review、governance、blacklist 及其他
+  WebSocket API listener 统一经过 `createAuthority4ListenerRegistrar(ctx)`；Group Guard 的
+  page/action/settings 三个 listener 经过本地 registrar。两个 registrar 都在 `ctx.effect`
+  内注册，并捕获 Console registry 中本次写入的 registration。
+- **清理必须做 identity check。**disposer 只有在 `console.listeners[event]` 仍严格等于
+  自己捕获的 registration 时才删除。若服务重载或新作用域已覆盖同名 event，旧作用域随后释放
+  不会把新 listener 一并删掉。Core registrar 还把 `authority: 4` 放在 options 展开之后，
+  防止调用方通过 options 意外降低特权门槛。
+- **没有采用原文建议的共享包抽象。**Group Guard 与 Core 的 Console event 类型分别由不同
+  模块扩展，当前只有两个明确注册边界；在各自边界放一个很小的 registrar 比新增跨包通用框架
+  更直接。实现没有 monkey-patch Console、没有改 `node_modules`，也没有维护第二份全局 listener
+  registry。
+- **验证结果。**新增单测模拟同 event 的两个作用域，确认先释放旧作用域不会删除新 registration，
+  再释放新作用域后 registry 为空；另测调用方传入 `authority: 1` 仍实际注册为 4。Koishi
+  build、Vue UI contracts、595/595 unit tests、startup smoke 与 deployable package contract
+  通过。首次完整 `yarn test` 的 WebUI 阶段在无关配置治理导航用例发生一次 5 秒时序失败
+  （45/46），在全新临时实例立即复跑为 46/46。
+- **验证边界。**startup smoke 和 WebUI E2E 证明完整 Koishi 实例可启动且真实 Console actions
+  可调用，但测试没有在保持 authority-4 WebSocket 客户端连接的同时卸载 Group Guard、重载
+  Console 服务并再次调用旧/新 action。故本地实现与模拟生命周期已验证，发布环境的真实
+  Console 热重载/插件卸载仍标记为 pending，不能声称已完成运行时热重载验收。
 
 #### P2-7. One unforwardable freshman application permanently blocks all later material forwards
 
@@ -2714,6 +2765,7 @@ STUHELPER_REDIS_INTEGRATION
 | P1-10 | Resource 逐行加载 tags/bindings 并在外层 cursor 打开时嵌套取连接 | Codex 已完成实现：先 drain/关闭主结果，再用两条批量 SQL 回填关联，查询数由 `1 + 2N` 固定为 3。真实 PostgreSQL `MaxConns=1` 覆盖 1/2 条数据的固定 query count、详情、排序、空数组和 6 并发；定向 race、资源全包、vet 与全服务端 lint 通过。随独立修复提交入库，尚未发布；生产规模影响仍待指标观测 |
 | P2-1 | Guard/toolchain 文件变化不触发消费它们的 CI 门禁 | Codex 已完成实现：新增 guards 分类，并把 docs hygiene、Vue UI contract、Semgrep 与 Node pin 精确接到实际消费 job；两个 Node 版本文件必须同步。CI wiring contract、Bash 语法、actionlint 与文档卫生通过。随独立修复提交入库，真实 GitHub paths-filter 调度待验收 |
 | P2-2 | Dockerfile/Koishi 输入可绕过只在 infra job 中运行的供应链合约 | Codex 已完成实现：Dockerfile/CI wiring 两个静态合约改为 always-on Required 依赖，Koishi package contract 接入已有 Koishi build/test job；没有扩大为所有机器人变更跑全套 infra。三个定向合约、actionlint 与全部 76 个 infra contracts 通过。随独立修复提交入库，真实 GitHub runner 待验收 |
+| P2-6 | Console listeners 不随插件作用域释放，停用后仍可能调用特权动作 | Codex 已完成实现：Group Guard 改为 required console 子作用域；Core 与 Group Guard listeners 均由 `ctx.effect` 管理，并以 registration identity 保护服务重载后的新注册，authority 固定为 4。build、contracts、595 unit、startup 与 package contract 通过；WebUI E2E 首轮无关用例 45/46，立即复跑 46/46。随独立修复提交入库；真实 Console 热重载/插件卸载待验收 |
 | X-1 | 无 scope 的 school_admin 全量可见 | Codex 已证伪；现有 capability 展开和 admin Entry 在 Handler 前返回 403，不按 P1 修复 |
 | X-2 | env 模板差集 | Codex 判定部分成立；改为分类治理，不执行 21 项全量入模板/严格集合相等方案 |
 | 其余条目 | — | 不再用“其余 41 项待修”概括；按 Codex 逐项表和四批实施顺序处置 |

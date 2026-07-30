@@ -891,12 +891,21 @@ function createContext(
   listeners: Map<string, Listener>,
   events: Map<string, EventHandler[]> = new Map(),
 ) {
+  const consoleListeners: Record<string, {
+    callback: Listener
+    authority?: number
+  }> = Object.create(null)
   return {
     console: {
       clients: {},
-      addListener(event: string, callback: Listener) {
+      listeners: consoleListeners,
+      addListener(event: string, callback: Listener, options?: { authority?: number }) {
+        consoleListeners[event] = { callback, ...options }
         listeners.set(event, callback)
       },
+    },
+    effect(register: () => () => void) {
+      return register()
     },
     bots: [
       {

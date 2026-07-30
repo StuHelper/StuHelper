@@ -356,14 +356,30 @@ test('admission runtime platform 404 names the missing admission session for ses
 
 test('admission runtime settings action persists WebUI switch changes', async () => {
   const listeners = new Map<string, (input: unknown) => Promise<string>>()
+  const consoleListeners: Record<string, {
+    callback: (input: unknown) => Promise<string>
+    authority?: number
+  }> = Object.create(null)
+  const disposers: Array<() => void> = []
   const savedInputs: unknown[] = []
   let refreshCount = 0
   registerAdmissionConsoleAPI({
     ...fakeContext(),
     console: {
-      addListener(event: string, listener: (input: unknown) => Promise<string>) {
+      listeners: consoleListeners,
+      addListener(
+        event: string,
+        listener: (input: unknown) => Promise<string>,
+        options?: { authority?: number },
+      ) {
+        consoleListeners[event] = { callback: listener, ...options }
         listeners.set(event, listener)
       },
+    },
+    effect(register: () => () => void) {
+      const dispose = register()
+      disposers.push(dispose)
+      return dispose
     },
   } as unknown as Context, {
     config: createConfig(),
@@ -419,6 +435,72 @@ test('admission runtime settings action persists WebUI switch changes', async ()
     reminderDirectEnabled: undefined,
     timeCodeReminderEnabled: false,
   }])
+  assert.equal(Object.keys(consoleListeners).length, 3)
+  assert.ok(Object.values(consoleListeners).every((listener) => listener.authority === 4))
+
+  for (const dispose of disposers) {
+    dispose()
+  }
+  assert.deepEqual(Object.keys(consoleListeners), [])
+})
+
+test('admission console disposal preserves listeners registered by a newer scope', () => {
+  const consoleListeners: Record<string, {
+    callback: (...args: unknown[]) => unknown
+    authority?: number
+  }> = Object.create(null)
+  const consoleService = {
+    listeners: consoleListeners,
+    addListener(
+      event: string,
+      listener: (...args: unknown[]) => unknown,
+      options?: { authority?: number },
+    ) {
+      consoleListeners[event] = { callback: listener, ...options }
+    },
+  }
+  const createConsoleContext = (disposers: Array<() => void>) => ({
+    ...fakeContext(),
+    console: consoleService,
+    effect(register: () => () => void) {
+      const dispose = register()
+      disposers.push(dispose)
+      return dispose
+    },
+  } as unknown as Context)
+  const deps = {
+    config: createConfig(),
+    platform: fakePlatform(),
+    runtimeSettings: fakeRuntimeSettings(),
+    guardStore: fakeGuardStore(),
+    policyStore: fakePolicyStore(),
+    moderationStore: fakeModerationStore(),
+  }
+
+  const firstDisposers: Array<() => void> = []
+  registerAdmissionConsoleAPI(createConsoleContext(firstDisposers), deps)
+  const firstRegistrations = { ...consoleListeners }
+
+  const secondDisposers: Array<() => void> = []
+  registerAdmissionConsoleAPI(createConsoleContext(secondDisposers), deps)
+  const secondRegistrations = { ...consoleListeners }
+  assert.equal(Object.keys(secondRegistrations).length, 3)
+  assert.notEqual(
+    secondRegistrations['stuhelperGroupGuard/action/admission-member'],
+    firstRegistrations['stuhelperGroupGuard/action/admission-member'],
+  )
+
+  for (const dispose of firstDisposers) {
+    dispose()
+  }
+  for (const [event, registration] of Object.entries(secondRegistrations)) {
+    assert.equal(consoleListeners[event], registration)
+  }
+
+  for (const dispose of secondDisposers) {
+    dispose()
+  }
+  assert.deepEqual(Object.keys(consoleListeners), [])
 })
 
 test('admission runtime console actions use configured message templates', async () => {

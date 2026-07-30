@@ -3,17 +3,24 @@ import type { Context } from 'koishi'
 
 const CONSOLE_MIN_AUTHORITY = 4
 
-type ConsoleInstance = NonNullable<Context['console']>
-
-export function createAuthority4ListenerRegistrar(console: ConsoleInstance) {
+export function createAuthority4ListenerRegistrar(ctx: Context) {
+  const console = ctx.console
   return function addAuthorityListener<K extends keyof ConsoleEvents>(
     event: K,
     callback: ConsoleEvents[K],
     options?: DataService.Options,
   ) {
-    console.addListener(event, callback, {
-      authority: CONSOLE_MIN_AUTHORITY,
-      ...options,
+    return ctx.effect(() => {
+      console.addListener(event, callback, {
+        ...options,
+        authority: CONSOLE_MIN_AUTHORITY,
+      })
+      const registration = console.listeners[event]
+      return () => {
+        if (console.listeners[event] === registration) {
+          delete console.listeners[event]
+        }
+      }
     })
   }
 }
