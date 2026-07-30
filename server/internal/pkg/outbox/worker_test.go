@@ -323,6 +323,82 @@ func TestProcessBatch_RecordsTerminalFailureMetric(t *testing.T) {
 	assert.Equal(t, before+1, after)
 }
 
+func TestProcessBatch_RecoversPanicDeadLettersPoisonAndContinues(t *testing.T) {
+	const (
+		workerName = "panic isolation worker"
+		jobType    = "panic_poison"
+	)
+	before := testutil.ToFloat64(metrics.OutboxJobFailuresTotal.WithLabelValues(workerName, jobType, "true"))
+	var (
+		batchErr     error
+		processedIDs []int64
+		doneIDs      []int64
+		failedID     int64
+		failureText  string
+		terminal     bool
+		scheduledAt  time.Time
+	)
+
+	require.NotPanics(t, func() {
+		batchErr = ProcessBatch(
+			context.Background(),
+			WorkerConfig{
+				Name:             workerName,
+				BatchSize:        10,
+				LockStaleAfter:   time.Minute,
+				RetryBaseBackoff: time.Second,
+				MaxAttempts:      5,
+			},
+			func(context.Context, int, time.Duration) ([]testJob, error) {
+				return []testJob{
+					{id: 1, jobType: jobType, attemptCount: 4},
+					{id: 2, jobType: "healthy", attemptCount: 0},
+				}, nil
+			},
+			func(_ context.Context, job testJob) error {
+				processedIDs = append(processedIDs, job.id)
+				if job.id == 1 {
+					panic("poison payload")
+				}
+				return nil
+			},
+			func(_ context.Context, jobID int64, _ time.Time) error {
+				doneIDs = append(doneIDs, jobID)
+				return nil
+			},
+			func(
+				_ context.Context,
+				jobID int64,
+				_ time.Time,
+				next time.Time,
+				lastError string,
+				isTerminal bool,
+			) error {
+				failedID = jobID
+				scheduledAt = next
+				failureText = lastError
+				terminal = isTerminal
+				return nil
+			},
+			func(job testJob) JobMeta {
+				return JobMeta{ID: job.id, JobType: job.jobType, AttemptCount: job.attemptCount}
+			},
+			nil,
+		)
+	})
+
+	require.NoError(t, batchErr)
+	assert.Equal(t, []int64{1, 2}, processedIDs)
+	assert.Equal(t, []int64{2}, doneIDs)
+	assert.EqualValues(t, 1, failedID)
+	assert.True(t, terminal)
+	assert.True(t, scheduledAt.IsZero())
+	assert.Contains(t, failureText, "job handler panicked: poison payload")
+	assert.Contains(t, failureText, "runtime/debug.Stack")
+	after := testutil.ToFloat64(metrics.OutboxJobFailuresTotal.WithLabelValues(workerName, jobType, "true"))
+	assert.Equal(t, before+1, after)
+}
+
 func TestNextAttemptAt_UsesExponentiallyJitteredBackoff(t *testing.T) {
 	t.Parallel()
 

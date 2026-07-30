@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand/v2"
+	"runtime/debug"
 	"time"
 
 	"go.uber.org/zap"
@@ -109,7 +110,7 @@ func ProcessBatch[T any](
 				abandonClaimedJobs(ctx, cfg, jobs[index:], markFailure, meta),
 			)
 		}
-		if err := process(ctx, job); err != nil {
+		if err := processJobSafely(ctx, process, job); err != nil {
 			if ctx.Err() != nil {
 				return errors.Join(
 					batchErr,
@@ -164,6 +165,23 @@ func ProcessBatch[T any](
 		}
 	}
 	return batchErr
+}
+
+// processJobSafely turns a single handler panic into the same retry/dead-letter
+// path as an ordinary process error. Recovery belongs at this per-job boundary:
+// the next job in the batch must still run, and a poison job must consume the
+// configured bounded retry budget instead of terminating the polling worker.
+func processJobSafely[T any](
+	ctx context.Context,
+	process ProcessFunc[T],
+	job T,
+) (err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("job handler panicked: %v\n%s", recovered, debug.Stack())
+		}
+	}()
+	return process(ctx, job)
 }
 
 func abandonClaimedJobs[T any](

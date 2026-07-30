@@ -110,7 +110,7 @@ Web / Admin / UniAppX+Koishi UI / Koishi / 基础设施 / 代码质量与文档)
 | P2-20 | 确认结构风险，生产是否超过 5 秒未验证 | 条件性 P2 | 先测后改 | 给 materialized-view refresh 独立可配置 timeout，继承 parent cancel；增加 duration、projection age、retry 指标。不要抬高全局 DB timeout，也无需先重写所有 shutdown/retry。 |
 | P2-21 | 确认，已完成最小修复与断路器状态回归 | P2 | 已修复，待发布 | `Probe`/`LookupStudent` 的错误统一进入局部 classifier：parent caller cancel/deadline 为 neutral，目录自身 query timeout 与真实 backend error 仍为 failure；neutral 必须调用 `RecordNeutral()`，因此 half-open probe 会被释放。没有改变全局 breaker 阈值、窗口或超时。 |
 | P2-22 | 核心确认，已完成最小修复并保留 503 契约 | P2 | 已修复，待发布 | 无效/冲突单行保留 typed error 并记 neutral，不增加也不重置既有健康计数；学号与绑定参数错位拆成独立 sentinel，仍是 source failure。新增固定三类、无原始数据 label 的 integrity counter；app adapter 继续把所有源错误映射到既有 503。原建议用 `RecordSuccess()` 会错误清空此前真实失败，未采用。 |
-| P2-23 | 确认 | P2 | 必须 | 在同一 worker goroutine 内把单 job panic 转成带 stack 的普通失败，复用现有 retry/dead-letter/指标；测试 poison 后下一 job 继续。无限 root supervisor 会形成 panic loop且绕开死信，属于过度设计。 |
+| P2-23 | 核心确认、原影响范围夸大；已完成最小修复与真实 PostgreSQL 回归 | P2 | 已修复，待发布 | 共享 outbox 的 `process` panic 在 per-job 边界转成带 stack 的普通失败，复用现有 retry/dead-letter/terminal metric；同批后续 job 继续。真实生产调用面是 5 个共享 outbox worker，不包括两个手写 Admission expiry loop。没有加入无界 root supervisor；它会对无 durable attempt 的 poison 形成 panic loop。 |
 
 P2 唯一根因应按以下修复簇合并，避免重复设计：
 
@@ -181,8 +181,8 @@ P2 唯一根因应按以下修复簇合并，避免重复设计：
 3. P2-1 guard 路径分类、P2-2 always-on 静态供应链/Koishi package contract 与 P2-6
    privileged listener 生命周期均已完成修复、回归和独立提交；P2-6 的真实 Console
    服务热重载/插件卸载仍是发布环境验收项。
-4. P2-7 Koishi 转发 poison 与 P2-13/14/15 claimed batch 均已完成隔离、全量/状态机回归
-   和独立提交；P2-23 outbox panic 留待后续指令继续。
+4. P2-7 Koishi 转发 poison、P2-13/14/15 claimed batch 与 P2-23 outbox handler panic
+   均已完成隔离、全量/状态机回归和独立提交。
 5. P2-21/P2-22 breaker 分类已完成；继续 R-8 Redis 错误分类与 P3-9 cache version unavailable。
 6. P2-9 Ansible 路径和 P2-18 filter invalidation 已完成修复；继续 P2-16 NULL 语义决策。
 
@@ -335,6 +335,7 @@ P3-1 至 P3-6、P3-8、R-5 至 R-7、R-14、R-15、R-17。X-2 的配置分类治
 | P2-10 | 已修复，未发布；完整 pair 导入能力不存在且不在本次范围 | 普通 TSV 拒绝两个身份证安全列，15 列 normalize/copy/upsert 链路不再写 pair；已有 pair 保留，新行 `NULL/NULL`。真实 PostgreSQL 临时表语义、定向契约、ShellCheck、76 个 infra contracts 与文档卫生通过 | `fix(import): preserve academic identity pairs` |
 | P2-13/P2-14 | 主因已修复，未发布；P2-15 为重复标签；补偿失败/replay 边界已记录 | 每批固定两次上下文查询；补偿可写时，全批 enrichment failure/取消归还未公开 lease；单行确定性 preparation failure 独立 retry/dead-letter，stale/failure/abandon 使用 attempt fence。真实 PostgreSQL 覆盖固定查询数、故障/cancel cleanup、旧 lease fence、poison 隔离；Admission 全包 `-race`、全服务端 lint/build 与文档检查通过。未把补偿写同时不可用或 terminal replay 误报为已解决 | `fix(admission): isolate claimed action failures` |
 | P2-21/P2-22 | 已修复，未发布；真实 Oracle/生产指标待验收 | parent cancel/deadline 与单条 invalid/ambiguous row 记 neutral 并释放 half-open probe；目录自身 timeout、backend failure 和 bind identity mismatch 仍记 failure。三类固定 integrity metric 已接入，typed error 经既有 adapter 保持 503。定向三包 race、全服务端 race、lint/build 与文档卫生通过 | `fix(externaldata): classify Oracle source outcomes` |
+| P2-23 | 已修复，未发布；生产 poison 告警/replay 待验收 | `process` panic 转成带 stack 的普通 job error；第 5 次沿既有路径 dead-letter、增加 terminal metric，同批健康 job 继续。真实 PostgreSQL 18 直接验证 poison/healthy 最终状态；outbox 定向与全服务端 race、lint/build/docs 通过。未修改 runtime root supervisor，也未把两个 Admission expiry loop 误报为已覆盖 | `fix(outbox): isolate panicking job handlers` |
 
 ### 明确不建议实施的“修复”
 
@@ -798,6 +799,16 @@ live rating bar 已完成可达表面的最小修复。优先做一处根因、�
   契约未改变。externaldata/metrics/app 三包定向 race、全服务端 `make test`
   （`-race -p 1 ./...`）、Casdoor boundary、`golangci-lint`、静态 build 和文档卫生均通过。
   本地没有连接真实 Oracle，也未验证生产指标抓取、告警或真实坏行。
+- P2-23 的 unit 状态机把 attempt=4、`MaxAttempts=5` 的 poison panic 转为 terminal failure，
+  验证 `outbox_job_failures_total{terminal="true"}` 增量、stack 保留和同批 healthy job
+  `markDone`。另用 testcontainers 启动真实 PostgreSQL 18 并应用完整 migration：同一 stream
+  中先插 poison、再插 healthy，执行一次 `ProcessBatch` 后逐行读回
+  `dead_letter/attempt_count=1/last_error contains stack` 与
+  `completed/attempt_count=0/locked_at=NULL`；容器与 Ryuk 均已自动清理。outbox 定向 race、
+  全服务端 `make test`（`-race -p 1 ./...`）、Casdoor boundary、`golangci-lint`、静态 build
+  和文档卫生均通过。源码调用面复枚举为 5 个共享 outbox polling worker；两个 Admission
+  expiry loop 不调用 `ProcessBatch`，本修复不声称覆盖。生产告警投递、真实 poison replay 和
+  外部副作用幂等仍是发布验收边界。
 
 测试通过只说明现有正向契约未被破坏，不能覆盖报告指出的所有负向场景。以下仍需在真正处置时
 单独验收：
@@ -854,6 +865,7 @@ live rating bar 已完成可达表面的最小修复。优先做一处根因、�
 | P2-9 | 已修复，待 CI/远端发布验收 | 旧任务在干净 clone 的真实 Ansible Core 2.20.2 中找到脚本后，于相对 output + `git -C` 处稳定失败；候选改动三 playbook syntax 通过，`deploy-bundle` tag 1/1 并生成含两个 env 模板的目标 tar。固定 controller requirements、core-compatible callback、窄路径/CI contract、Actionlint、全部 infra contracts 和 docs 通过；未连接远端 | `fix(deploy): anchor Ansible bundle paths` |
 | P2-18 | 已修复，待发布 | 成功敏感词 mutation 使本地快照 stale，失败 mutation 不失效；refresh/invalidation 串行避免旧查询恢复 freshness，重载失败 fail-closed。真实 PostgreSQL 覆盖 create/update/delete 和依赖失败；评课/全服务端 race、lint/build/docs 通过，单 app 范围与多副本前置要求已写入安全文档 | `fix(review): invalidate sensitive-word snapshots` |
 | P2-21/P2-22 | 已修复，待发布；真实 Oracle 与生产指标/告警待验收 | parent cancel/deadline 和 invalid/ambiguous row 均记 neutral，不增加或重置 failure，并释放 half-open probe；内部 query timeout、backend failure 与 bind identity mismatch 仍计 failure。三类固定 integrity counter、typed error 与既有 503 adapter 契约均有回归；三包定向 race、全服务端 race、lint/build/docs 通过 | `fix(externaldata): classify Oracle source outcomes` |
+| P2-23 | 已修复，待发布；生产告警与 poison replay 待验收 | per-job recover 将 handler panic 转为带 stack 的普通失败，沿既有 attempt/dead-letter/terminal metric 路径处理；同批健康 job 继续。真实 PostgreSQL 18 验证 poison=`dead_letter`、healthy=`completed`，定向/全服务端 race、lint/build/docs 通过；未增加 runtime supervisor，未覆盖 Admission 手写 expiry loop | `fix(outbox): isolate panicking job handlers` |
 
 ## Claude 原审计的确认问题分布（保留原始记录）
 
@@ -3450,6 +3462,7 @@ STUHELPER_REDIS_INTEGRATION
 | P2-10 | 普通学籍 importer 破坏身份证 enc/hash 成对写入约束 | Codex 已完成最小修复：普通 TSV 明确拒绝两列并从全部写入阶段移除 hash，重导不触碰已有 pair，新行保持 `NULL/NULL`；真实 PostgreSQL 18、定向契约、ShellCheck、76 个 infra contracts 和文档卫生通过。随独立修复提交入库；仓库当前没有完整 pair 导入入口，本次没有过度扩建 PII API/CLI |
 | P2-13/P2-14/P2-15 | claimed bot action 批次被单行错误丢弃，且逐行重复查询上下文 | Codex 已完成主因合并修复：上下文查询从 `2N` 固定为每批 2 条；补偿可写时，批量查询失败/caller cancel 用 detached context 归还未公开 lease；确定性 poison 只消耗本行 attempt，stale/failure/abandon 使用 attempt fence。真实 PostgreSQL 覆盖固定查询数、故障/取消 cleanup、旧 lease fence、poison 隔离及第 5 次单独 dead-letter；Admission 全包 `-race`、lint/build 和文档检查通过。补偿写同时失败仍可能保留 attempt，Admission dead-letter replay API 尚不存在，已明确保留为残余边界。P2-15 与 P2-14 重复，不单独计数或提交。随独立修复提交入库，尚未发布 |
 | P2-21/P2-22 | caller cancellation 与单条坏数据错误污染 Oracle 共享 breaker | Codex 已完成合并修复：parent cancellation/deadline 和 invalid/ambiguous row 统一为 neutral 并释放 half-open probe；内部 query timeout、backend failure 和 bind identity mismatch 保持 failure。未采用会重置既有失败的 `RecordSuccess` 方案。固定 integrity metric 与现有 503 adapter 契约有专项回归，全服务端 race/lint/build/docs 通过；真实 Oracle/生产指标仍待发布验收 |
+| P2-23 | 任一 outbox handler panic 永久杀死 polling worker | Codex 已完成最小修复：只在共享 outbox per-job 边界 recover，panic 带 stack 进入原 retry/dead-letter/metric 路径并继续健康 job。真实 PostgreSQL 18 验证 poison dead-letter 与 healthy completed；原文所列真实共享调用面是 5 个，不包括两个 Admission expiry 手写循环。未增加会形成 panic loop 的 runtime supervisor；生产告警/replay 与外部副作用幂等仍待验收 |
 | X-1 | 无 scope 的 school_admin 全量可见 | Codex 已证伪；现有 capability 展开和 admin Entry 在 Handler 前返回 403，不按 P1 修复 |
 | X-2 | env 模板差集 | Codex 判定部分成立；改为分类治理，不执行 21 项全量入模板/严格集合相等方案 |
 | 其余条目 | — | 不再用“其余 41 项待修”概括；按 Codex 逐项表和四批实施顺序处置 |

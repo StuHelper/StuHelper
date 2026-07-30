@@ -38,6 +38,115 @@ func TestRepository_MarkJobFailureTerminalWritesDeadLetter(t *testing.T) {
 	assert.Empty(t, reclaimed)
 }
 
+func TestProcessBatch_PanicDeadLettersOnlyPoisonWithRepository(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	ctx := context.Background()
+	require.NoError(t, fixture.DB.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		if err := UpsertJobTx(
+			ctx,
+			tx,
+			"panic_isolation",
+			"poison",
+			"panic-poison",
+			[]byte(`{"version":1}`),
+		); err != nil {
+			return err
+		}
+		return UpsertJobTx(
+			ctx,
+			tx,
+			"panic_isolation",
+			"healthy",
+			"panic-healthy",
+			[]byte(`{"version":1}`),
+		)
+	}))
+
+	var processedTypes []string
+	err := ProcessBatch(
+		ctx,
+		WorkerConfig{
+			Name:           "panic isolation",
+			BatchSize:      10,
+			LockStaleAfter: time.Minute,
+			MaxAttempts:    1,
+		},
+		func(ctx context.Context, limit int, staleAfter time.Duration) ([]Job, error) {
+			return ClaimJobs(ctx, fixture.DB, "panic_isolation", limit, staleAfter)
+		},
+		func(_ context.Context, job Job) error {
+			processedTypes = append(processedTypes, job.JobType)
+			if job.JobType == "poison" {
+				panic("repository poison")
+			}
+			return nil
+		},
+		func(ctx context.Context, jobID int64, lockedAt time.Time) error {
+			return MarkJobDone(ctx, fixture.DB, jobID, lockedAt)
+		},
+		func(
+			ctx context.Context,
+			jobID int64,
+			lockedAt time.Time,
+			nextAttemptAt time.Time,
+			lastError string,
+			terminal bool,
+		) error {
+			return MarkJobFailure(
+				ctx,
+				fixture.DB,
+				jobID,
+				lockedAt,
+				nextAttemptAt,
+				lastError,
+				terminal,
+			)
+		},
+		func(job Job) JobMeta {
+			return JobMeta{
+				ID:           job.ID,
+				JobType:      job.JobType,
+				AttemptCount: job.AttemptCount,
+				LockedAt:     job.LockedAt,
+			}
+		},
+		nil,
+	)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"poison", "healthy"}, processedTypes)
+
+	var (
+		poisonStatus      string
+		poisonAttempts    int
+		poisonLastError   string
+		healthyStatus     string
+		healthyLastError  *string
+		healthyLockedAt   *time.Time
+		healthyAttemptCnt int
+	)
+	err = fixture.Pool.QueryRow(ctx, `
+		SELECT status, attempt_count, last_error
+		FROM domain_event_outbox
+		WHERE stream = 'panic_isolation' AND job_type = 'poison'
+	`).Scan(&poisonStatus, &poisonAttempts, &poisonLastError)
+	require.NoError(t, err)
+	err = fixture.Pool.QueryRow(ctx, `
+		SELECT status, attempt_count, last_error, locked_at
+		FROM domain_event_outbox
+		WHERE stream = 'panic_isolation' AND job_type = 'healthy'
+	`).Scan(&healthyStatus, &healthyAttemptCnt, &healthyLastError, &healthyLockedAt)
+	require.NoError(t, err)
+
+	assert.Equal(t, StatusDeadLetter, poisonStatus)
+	assert.Equal(t, 1, poisonAttempts)
+	assert.Contains(t, poisonLastError, "job handler panicked: repository poison")
+	assert.Contains(t, poisonLastError, "runtime/debug.Stack")
+	assert.Equal(t, StatusCompleted, healthyStatus)
+	assert.Equal(t, 0, healthyAttemptCnt)
+	assert.Nil(t, healthyLastError)
+	assert.Nil(t, healthyLockedAt)
+}
+
 func TestRepository_UpsertResetsDeadLetterJob(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	ctx := context.Background()

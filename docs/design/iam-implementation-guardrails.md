@@ -82,6 +82,9 @@ grant 视为无效权限并忽略，不能让它授予 capability，也不能让
 统一 outbox worker 必须按 per-job 隔离语义处理 batch。
 
 - 单个 job 的 `process`、`markDone` 或 `markRetry` 失败不得阻止同 batch 后续 job；
+- `process` panic 必须在 per-job 边界转成带 stack 的普通失败，复用相同的 retry、
+  `dead_letter` 和 `outbox_job_failures_total` 路径；不得让 panic 越过整个 polling loop，
+  也不得用无界 root supervisor 反复重启 poison job；
 - `process` 成功但 `markDone` 失败必须记录 job ID、job type、错误和指标，并在 batch 末返回聚合错误；
 - outbox consumer 应尽量幂等，但 worker 不能把所有副作用严格幂等作为隐藏前提；
 - `failed` 状态只表示 retry-scheduled，不得用远未来 `available_at` 表达终止失败；
