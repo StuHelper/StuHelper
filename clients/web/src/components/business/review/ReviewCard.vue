@@ -195,15 +195,50 @@
       <!-- 删除按钮（自己的评价） -->
       <button
         type="button"
-        v-if="props.isOwnReview"
+        v-if="props.isOwnReview && !confirmingDelete"
+        ref="deleteButtonRef"
         v-ripple
         :class="[dangerActionButtonClass, { 'ml-auto': editing }]"
         :aria-label="t('review.review.deleteBtn')"
+        :data-testid="`review-delete-${review.id}`"
         :disabled="deleting"
-        @click="handleDeleteOwn"
+        @click="requestDelete"
       >
         <Trash2 :size="16" />
       </button>
+    </div>
+
+    <div
+      v-if="confirmingDelete"
+      class="mt-3 rounded-lg border border-danger/25 bg-danger/5 p-3"
+      :data-testid="`review-delete-confirm-${review.id}`"
+      role="group"
+      :aria-label="t('review.review.deleteConfirm')"
+      @keydown.esc="cancelDelete"
+    >
+      <p class="m-0 text-sm text-text-primary">
+        {{ t('review.review.deleteConfirm') }}
+      </p>
+      <div class="mt-3 flex justify-end gap-2">
+        <button
+          ref="deleteCancelButtonRef"
+          type="button"
+          :data-testid="`review-delete-cancel-${review.id}`"
+          class="rounded-md border border-border bg-bg-card px-3 py-1.5 text-xs text-text-secondary transition-colors hover:text-text-primary"
+          @click="cancelDelete"
+        >
+          {{ t('common.actions.cancel') }}
+        </button>
+        <button
+          type="button"
+          :data-testid="`review-delete-confirm-action-${review.id}`"
+          class="rounded-md border border-danger bg-danger px-3 py-1.5 text-xs text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+          :disabled="deleting"
+          @click="confirmDelete"
+        >
+          {{ t('common.actions.confirm') }}
+        </button>
+      </div>
     </div>
 
     <!-- 举报下拉菜单 -->
@@ -309,7 +344,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Heart, ThumbsDown, MessageCircle, EyeOff, Eye, Pencil, ShieldAlert, Flag, Trash2 } from 'lucide-vue-next'
 import type { Review } from '@stuhelper/shared/review'
@@ -357,6 +392,8 @@ const warningActionButtonClass = `${actionButtonClass} hover:text-warning hover:
 const dangerActionButtonClass = `${actionButtonClass} hover:text-danger hover:bg-danger/10`
 
 const cardRef = ref<HTMLElement>()
+const deleteButtonRef = ref<HTMLButtonElement>()
+const deleteCancelButtonRef = ref<HTMLButtonElement>()
 const { style: tiltStyle } = use3DTilt(cardRef, { maxTilt: 4, scale: 1.01, speed: 500 })
 
 const isAuthenticated = computed(() => authStore.isAuthenticated)
@@ -433,6 +470,29 @@ const {
 } = useReviewEdit(() => props.review, t, (id, content) => emit('updated', id, content))
 
 const { deleting, handleDeleteOwn } = useReviewDelete(() => props.review, t, (id) => emit('deleted', id))
+const confirmingDelete = ref(false)
+
+async function requestDelete() {
+  if (deleting.value || confirmingDelete.value) return
+  confirmingDelete.value = true
+  await nextTick()
+  deleteCancelButtonRef.value?.focus()
+}
+
+async function cancelDelete() {
+  if (deleting.value) return
+  confirmingDelete.value = false
+  await nextTick()
+  deleteButtonRef.value?.focus()
+}
+
+async function confirmDelete() {
+  if (deleting.value) return
+  confirmingDelete.value = false
+  await handleDeleteOwn()
+  await nextTick()
+  deleteButtonRef.value?.focus()
+}
 
 const {
   showModerationDialog,

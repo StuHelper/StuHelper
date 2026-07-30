@@ -430,7 +430,7 @@ Claude 新生成的 `AUDIT-REPORT.md` 是一份新的汇总快照，不是对本
 | 30 | 部分确认，已完成本地修复与截断边界回归 | P2 | Admission runtime 确实在当前 guild scope 内把 active records 截断为 100 条，原页面同时显示未截断统计和“100 条”却无解释；但“其余记录在整个 Console 不可达、只能等待前 100 条老化”不成立。现在 API 返回同一 scope 快照的 `shown/total/limit/truncated`，服务端和客户端统一用 `(deadlineAt,id)` 稳定排序；页面显示 `shown / total`，截断时解释窗口并可直接进入处置中心按准入/成员/群号检索，也说明群内命令入口。103 条同截止时间回归固定前 100 条边界。处置中心和后台扫描仍不受窗口限制；没有提前增加 Repository pagination/search。 |
 | 33 | 部分确认 | P3 | custom navigation 没有通用安全区处理，首页风险明确；仅凭静态代码不足以断言 login/callback 在所有设备都重叠。可恢复 native navigation，或按平台 status bar/capsule 做正确间距，并用微信真机验收。 |
 | 34 | 确认，已完成本地修复、真实 Chromium 复现与生命周期回归 | P2 | 每个实际执行的 resize rAF 回调原先会丢弃当前 50 个粒子引用并新建 50 个 `repeat:-1` GSAP tween；同帧 resize 已合并，原报告按每个 event/帧推算的数量不是实测。Chromium 探针确认旧 tween 在离开首页后仍被 global timeline 强引用并继续推进。现在 `createParticles` 在丢弃数组前精确 `killTweensOf` 当前批次；回归固定 resize 合并、旧批先 kill、新批重建和卸载清理。没有增加 animation manager、坐标 clamp、Worker、ResizeObserver 或 Tween handle registry。 |
-| 35 | 确认，已完成实现前深挖 | P2（偏低） | `/user/reviews` 的 own-review 垃圾桶首击即发送 DELETE；后端是 soft delete，正文仍在库中，但用户和管理员都没有受支持的 restore 路径，且用户可重新发布造成旧状态恢复语义复杂。应在 `ReviewCard` 复用本地两阶段确认或既有可访问 Dialog，并给 in-flight 增加 single-flight；不要把无 focus trap 的 inline panel 标成 `alertdialog`。新增 undelete API、migration、延时队列、undo 基础设施、服务端 `confirm=true` 或全站确认框架都不是本项必要修复。 |
+| 35 | 确认，已完成本地修复与删除边界回归 | P2（偏低） | `/user/reviews` 的 own-review 垃圾桶原先首击即发送 DELETE；后端是 soft delete，正文仍在库中，但用户和管理员都没有受支持的 restore 路径，且用户可重新发布造成旧状态恢复语义复杂。现在 `ReviewCard` 使用局部两阶段确认：首击/取消零请求，出现时聚焦取消、取消后恢复垃圾桶焦点，确认后才删除；composable 在同步置位后 fail-fast 保持 single-flight。内联块使用非模态 `role=group`，没有伪装成缺 focus trap 的 `alertdialog`。未新增 undelete API、migration、延时队列、undo、服务端 `confirm=true` 或全站确认框架。 |
 | 36 | 确认 | P2 | `ErrorBoundary` 阻止异常继续传播，production 又不输出或上报，现有 frontend error telemetry 因而收不到组件错误。复用现有 telemetry 并做脱敏即可；当前无需新增第二个 `/vue-error` OpenAPI。 |
 | 37 | 确认 | P2 | AppShell 没有 skip-to-content，违反 WCAG 2.4.1 A 的 bypass blocks 要求。增加 skip link、稳定的 `main` id 和焦点样式；原文“所有页恰好 11 个 tab stop”不是成立所必需，也不应硬编码。 |
 | 38 | 确认，已完成本地修复与跨作用域回归验证 | P2 | toast 状态是全局的，但组件卸载 cleanup 原先只取消 timer、不移除全局 toast，能留下永久提示。现在删除错误的组件作用域 timer cleanup，让现有模块级 timer 在页面卸载后仍按原 duration 关闭；显式 `remove`/`clearAll` 继续同步取消 timer。没有把已有模块级状态重写成新 store/singleton，也没有在卸载时立即删掉用户尚未看见的成功提示。 |
@@ -585,7 +585,7 @@ bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复
 | WF15：#28 | 真实 P2，已完成本地修复与回归；“7 endpoint”已纠正为 7 个逻辑域、`6 + D + N` 次 mutation | 顺序 orchestrator 区分 confirmed/unconfirmed/not-run；成功 slice 与关键词子 mutation 逐步推进 baseline，失败后可确认 reload，missing delete 幂等且已有规则继续做 scope 检查。客户端和运行时共用安全正则校验。没有引入 rollback、2PC、saga 或无界并发。 |
 | WF16：#30 | 部分确认 P2，已完成本地修复与回归；100 条静默窗口真实，但全系统不可处理和等待老化叙事被证伪 | API 和页面已显示同一授权 scope 下 `shown/total/limit/truncated`，以 `(deadlineAt,id)` 稳定选取窗口并链接处置中心；103 条同 deadline 回归固定 100 条边界。处置中心、群内命令、backend-sync/time-code 仍覆盖窗口外记录；没有在缺乏规模/SLO 证据时建设 Repository cursor pagination/search。 |
 | WF17：#34 | 真实 P2，已完成最小修复；Chromium 与永久生命周期回归均通过 | 在 `createParticles()` 丢弃当前 targets 前 kill；保留现有 rAF 合并与 unmount 清理。永久测试证明同帧两个 resize 只重建一次、旧 targets 在新 `gsap.to` 前被清理、unmount 清当前批次。无需 GSAP context 重构、坐标 clamp、Tween handle registry、ResizeObserver、Worker 或全局 animation manager。 |
-| WF18：#35 | 真实但偏低端 P2；用户删除是 soft delete，却没有受支持的用户/管理员恢复 | 在 `ReviewCard` 做局部两阶段确认或复用已有可访问 Dialog，并用 single-flight 防重复提交；失败时保留重试状态。不要为确认框顺带新增 restore schema/API、延时删除、undo 平台或全站 modal manager。 |
+| WF18：#35 | 真实但偏低端 P2，已完成局部确认与 single-flight 修复 | `ReviewCard` 首击只进入 inline `role=group` 确认态并把焦点移到取消；取消零请求并恢复焦点，确认才调用原 DELETE。`useReviewDelete` 在 await 前同步检查/置位，程序级重复调用也只有一个请求。没有新增 restore schema/API、延时删除、undo 平台或全站 modal manager。 |
 | WF22：#38 | 真实 P2，已完成最小修复与组件卸载交叉验证 | Toast 列表、timer map 与 ID 本来就是模块级状态，唯一错误是创建组件销毁时取消 timer 却保留列表项。删除该 dispose hook 后，timer 闭包仍安全调用既有 `remove`；永久 Node 回归用 `effectScope.stop()` 固定跨作用域自动关闭，Claude 的 jsdom mount/unmount 探针也转为通过。无需把函数整体提升重写成第二套 singleton/store，也不能在卸载时立即移除提示。 |
 | WF23：#42 | 部分真实 P2，已完成最小页面状态修复与失败重试验证 | `/auth/me` 的账号/邮箱与三条 verification 状态请求不是同一事实来源；只保护 phone、QQ、实名、学籍和相关披露字段。页面本地状态在 ready 前隐藏未知负面结论，pending 显示轻量 loading，失败保留可靠字段并提供 single-flight 重试。无需修改共享 store 数据模型、添加全局 error bus，或在一次子请求失败后清空已有 store 投影。 |
 
@@ -720,6 +720,10 @@ bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复
   已跟踪 Web unit 文件 508/508、type-check、定向 ESLint、production build 与文档卫生通过。
 - #35 精确 Playwright 用例确认 own-review 首击立即触发 DELETE；服务端与迁移证据确认是
   soft delete，但现有用户和管理员状态机都没有 restore。该用例输出在工作树外，未制造新文件。
+  修复后的永久组件回归覆盖首击/取消零请求、确认后唯一请求、deleted ID、成功 toast、焦点
+  转移/恢复及 composable 重复调用 single-flight，共 3/3；全部 81 个已跟踪 Web unit 文件
+  511/511、type-check、定向 ESLint、production build 与文档卫生通过。没有把前端确认误报为
+  服务端 restore/undo 保证。
 
 测试通过只说明现有正向契约未被破坏，不能覆盖报告指出的所有负向场景。以下仍需在真正处置时
 单独验收：
@@ -765,6 +769,7 @@ bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复
 | 38 | 已修复，待发布 | 删除与全局 Toast 生命周期冲突的组件 scope timer cleanup；创建 scope 销毁后仍于原 duration 自动关闭，显式 remove/clearAll 语义保持。永久 Node 回归 2/2、用户 jsdom 卸载探针 1/1、全部已跟踪 Web unit 505/505、type-check、ESLint、production build 与 docs 通过 | `fix(web): keep toast dismissal across navigation` |
 | 42 | 已修复，待发布 | 资料页本地 `loading/ready/error` 只保护 verification 来源字段；账号和邮箱在失败时保留，状态成功前不显示未知的未验证/未绑定结论，内联重试成功后恢复真实状态。组件负向/重试 2/2、全部已跟踪 Web unit 507/507、type-check、ESLint、production build 与 docs 通过 | `fix(web): distinguish unknown profile verification state` |
 | 34 | 已修复，待发布 | `createParticles` 在覆盖 target 数组前 kill 当前 GSAP tweens，保留既有 resize rAF 合并和卸载清理。真实 Chromium 前后对照、永久生命周期回归 1/1、全部已跟踪 Web unit 508/508、type-check、ESLint、production build 与 docs 通过 | `fix(web): release particle tweens before rebuild` |
+| 35 | 已修复，待发布；仍无 restore/undo 产品能力 | own-review 删除改为局部两阶段确认并管理键盘焦点；取消零请求，确认后唯一 DELETE，composable 程序级 single-flight。组件/边界回归 3/3、全部已跟踪 Web unit 511/511、type-check、ESLint、production build 与 docs 通过 | `fix(review): confirm own-review deletion` |
 
 ## Claude 原审计的确认问题分布（保留原始记录）
 

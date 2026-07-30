@@ -17,6 +17,8 @@ export function useReviewDelete(
   const deleting = ref(false)
 
   async function handleDeleteOwn() {
+    if (deleting.value) return
+
     deleting.value = true
     try {
       const review = reviewGetter()
