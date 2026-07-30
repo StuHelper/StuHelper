@@ -439,7 +439,7 @@ Claude 新生成的 `AUDIT-REPORT.md` 是一份新的汇总快照，不是对本
 | 7 | 确认，已完成本地修复与回归验证 | P2 | 只有 provider-owned 的 username/email/avatar 原本被硬编码到只读 `/account/profile`；phone/identity/student/school 已指向真实可写页面。现在 Profile Completion 按字段复用 `/auth/me` 已校验的绝对 `accountSettingsUrl`，四类本地字段仍使用后端 action，URL 缺失时保守回退声明值。10 个单元用例覆盖三类 provider、四类本地和三类缺省回退，桌面/移动 Playwright 20/20 同时验证页面 href、刷新、非法 redirect 与完成后 Continue。没有重构 profile service、增加通用 action registry、复制 issuer fallback 或在只读摘要页建设资料编辑器。 |
 | 8 | 部分确认，已完成本地修复与回归验证 | P2 | 只影响创建资源的 POST；metadata PATCH 不上传内容。原严格相等会误拒 OOXML/旧 Office、CSV/Markdown/JSON 等常见 refinement，但不是“每种文件都必然失败”。现在只在资源解码边界接受精确枚举的 ZIP 容器与文本细分；旧 Office 还要求 OLE 魔数，JSON 还要求语法有效，并将规范化有效 MIME 传入存储和版本记录。23 个正反边界子测试、真实 PostgreSQL 持久化用例和资源包全量 race 通过。任意 `text/*`、`vnd.*`、`*+zip`、无魔数 legacy 声明、无效 JSON 和真实类型矛盾仍拒绝；未改身份/准入图片链路，也未增加前后端重复 allowlist。 |
 | 9 | 确认，已完成本地修复与回归验证 | P1 | review parser 已按 OpenAPI 的 `like`/`dislike` enum 保留可选 `userVote`，非法值继续 fail-closed；针对两种投票和非法值的定向回归通过。没有为了一个字段建设反射式“全 DTO 自动对齐”框架。 |
-| 11 | 确认，修正失败后果 | P1 | 仓库没有受支持、可审计的 school/section admin tuple 发放与撤销流程；运维可手写 OpenFGA tuple，所以不是物理上“无法写入”。实际后果是 scoped role 默认 fail-closed、角色不可用，不是自动获得全局权限。应先确定 Casdoor、业务库或运维清单中的权威来源，再实现最小 grant/revoke/reconcile/audit；在权威来源未定前一次性建设 DB、outbox、API、CLI 和 MFA 全套流程属于过度设计。 |
+| 11 | 确认，已完成权威来源复查；实现等待 owner 决策 | P1（功能不可用，非越权） | 仓库没有受支持、可审计的 school/section admin tuple 发放与撤销流程；运维仍可直接写 OpenFGA tuple，所以不是物理上“无法写入”。实际后果是 scoped role 默认 fail-closed、角色不可用，不是自动获得全局权限。已提交 guardrail 明确记载 scoped provisioning 权威来源尚未确定；工作树中的新版 IAM 草稿只表达 OpenFGA 关系权威与管理面方向，尚未定义期望状态存储、Casdoor 角色协同和灾后重建，也未提交。必须由 owner 先在 DB 真源、OpenFGA 直管或受保护运维清单之间定案，再做局部实现；不能由审计修复擅自同时建设 DB、outbox、API、CLI 和 MFA 全套平台。 |
 | 17 | 确认，已完成本地修复、真实 OpenFGA 协议与回归验证 | P1 | `super_admin` tuple 原先只增不减，角色降级后 OpenFGA 全局权力会残留。现在只有 Web/native login 与 refresh 新签发、已验签且显式包含结构合法 roles claim 的 ID token 才设置 `RolesAuthoritative` 并执行 reconcile；`/auth/me` 的旧 access token、claim 缺失、`null` 或解析失败均不能增删 tuple。撤权使用 higher-consistency 的完整 direct tuple 精确读取，再以 `on_missing=ignore` 幂等删除并写 `iam.role.revoke` 审计；读取/删除失败时认证同步 fail-closed。真实 OpenFGA v1.18.1 临时 store 验证写入后为 1、首次和重复删除均为 200、最终为 0，store 已删除。没有顺手建设 #11 的 scoped provisioning 平台，也没有让 introspection 每请求写 OpenFGA。 |
 | 18 | 确认，已完成本地修复与真实 Redis 验证 | P1 | blacklist TTL 不取 token 自身 `exp` 的问题真实；进一步确认 tracked logout 原先先按 session 写 blacklist，随后又用本地 5 分钟 TTL 对同一 key 二次 `SET`，会把较长 TTL 缩短。现在 Web/native login 与 refresh 都从已验签 ID token 保存 provider `exp`，refresh 在既有 Redis Lua 中原子更新 access hash + expiry；新 token 剩余寿命必须不超过 session lease 和 30 天 hard cap。logout/logout-all 对每个 session 按真实剩余寿命吊销，已过期不写 key，低于 1 秒只向上取整，超过上限不静默截断；tracked 撤销成功后直接返回，消除了二次覆盖。滚动升级旧 session 仅在仓库托管 Casdoor access=1h、不超过 session lease 的约束下使用真实 Redis PTTL，无 TTL 时 fail-closed。永久回归、四包定向/race、全服务端 race、lint/build/docs 均通过；一次性 Redis 8.8.1 容器验证原子轮换、50 分钟现代 session、20 分钟 legacy PTTL、10/40 分钟逐 session logout-all 和 hard-cap 拒绝均符合预期，容器已删除。没有给每个 Bearer 请求新增 session lookup/ID；当时独立保留的 N-1 provider no-op 后续已按下方 N-1 记录修复，没有混入本项。生产实际 Casdoor TTL 与真实登出仍待发布验收。 |
 | 28 | 确认，已完成本地修复与失败路径回归 | P2 | 页面保存的是 7 个逻辑域，而非固定“7 次请求”：实际 mutation 数是 `6 + D` 次关键词删除 + `N` 次关键词 upsert。现在固定顺序记录 confirmed/unconfirmed/not-run，只对收到成功响应的 slice 推进 baseline；关键词域每个已确认删除/upsert 都立即推进，失败重试不会重复已确认删除。错误区展示逐域结果，并提供二次确认后的服务端 reload；missing keyword delete 幂等，已存在规则仍保留 guild scope 检查。WebUI 也复用服务端的安全正则校验。没有用 `Promise.all`、前端 rollback、2PC 或 saga 伪造跨 HTTP 事务。 |
@@ -474,6 +474,66 @@ Claude 新生成的 `AUDIT-REPORT.md` 是一份新的汇总快照，不是对本
 
 这 39 个标签经重新分级后为 **P1 × 7、P2 × 17、P3 × 15**。其中 9 条是部分确认，
 意味着应处理较窄根因，不能直接采用原报告中更宽的故障叙事或重构方案。
+
+#### #11 scoped role provisioning 的最终复核与决策边界（2026-07-31）
+
+**结论：缺口真实，但 Claude 的标题和修复范围都过宽。**当前没有受支持的
+`school#admin`、`section#section_admin`、`section#section_moderator` 人员授权写路径；
+因此只在 Casdoor 给用户分配同名扁平角色不会产生任何 scoped capability。该用户会在后台
+Entry capability gate 被 403 拒绝，资源级 OpenFGA check 也会拒绝，不会因为 scope 为空而
+获得全局权限。OpenFGA 运维人员仍能直接写入合法 tuple 并让角色生效，所以“所有 scoped
+role 物理上都无法工作”不准确；真正缺少的是**受支持、可审计、可撤销、可恢复的生命周期**。
+
+本轮对当前工作树重新做了以下交叉验证：
+
+- `RoleScopeResolver` 只读取 `school#effective_admin`、`section#section_admin` 和
+  `section#section_moderator`，并先把 Casdoor subject 映射为内部 `users.id`；tuple 的 user
+  不能使用 Casdoor subject。
+- 非测试写路径只覆盖 ecosystem/school/section 结构关系、资源 owner/author/school 关系、
+  profile/admission 投影和平台 `super_admin`；`fga-setup` 也只写 school parent 与每校一个
+  review-moderation synthetic section 的结构 tuple。Casdoor bootstrap 只创建扁平角色目录。
+- 永久测试覆盖：没有 tuple 时 resolver 不产生 scope，非法 section grant 被忽略并计数，
+  OpenFGA 查询错误向上传播并保持 fail-closed。原 X-1 的“空 scope 变全局读”攻击链已被
+  admin Entry 前置 capability gate 截断。
+- 当前实现只接受 `ReviewModerationSectionID` codec 生成的 synthetic section；#11 不能借机
+  扩成任意业务 section 管理平台。`section_reviewer` 当前既不进入 resolver，也没有有效
+  capability，仍按 #78 的 P3 文档/产品语义项处理，不混入本 P1。
+- 已提交的
+  [`iam-implementation-guardrails.md`](docs/design/iam-implementation-guardrails.md)
+  明确规定“当前仓库尚未确定 scoped role 的权威 provisioning 来源”，且禁止读路径猜测并
+  自动删除 tuple。工作区尚未提交的 `iam-architecture.md` / ADR 草稿倾向 OpenFGA 关系权威、
+  受 step-up MFA 保护的管理面和“DB/OpenFGA 可审计事实”，但没有定案期望状态存储、
+  Casdoor 扁平角色协同、reconcile 或灾后重建；本轮未修改、未提交这些用户草稿，也没有把
+  它们冒充当前权威来源。
+- Claude 的原方案第 4 点在 `AUDIT-REPORT.md` 中以
+  `Short-term, low-risk mi …` 截断，不能作为完整实施说明；其前三点又同时要求 migration、
+  outbox、API、CLI、MFA 和 audit，超出了“先补一条可用写路径”的最小修复。
+
+需要 owner 选择的是**期望授权事实的真源**，不是 OpenFGA 是否参与最终授权：
+
+| 方案 | 最小实现 | 收益与代价 | Codex 建议 |
+|------|----------|------------|------------|
+| A. StuHelper DB 为期望状态真源 | 受限的 grant/list/revoke Service + Repository；同一事务写 grant、审计与既有 outbox，worker 投影 Casdoor 扁平角色和精确 OpenFGA tuple；某用户该 role 最后一条 grant 撤销时才撤 Casdoor role | 可审计、可重试、可从 DB 重建 OpenFGA，最符合多操作员和灾后恢复；但需要新 migration、OpenAPI、事务语义及两类投影 | **生产长期方案推荐**。首版只做 API + 既有 outbox，不同时建设独立 CLI、通用 tuple API、UI 或第二套作业框架 |
+| B. OpenFGA tuple 本身为真源 | 受 step-up MFA 和 `user:system:update` 保护的窄 grant/list/revoke API，直接写固定 relation/object 并落 `audit_events`；Casdoor role 仍需定义协同规则 | 改动较小、立即可用；但 DB 不能重建授权，备份、漂移、角色 claim 与 tuple 的部分成功语义必须另行定案 | 仅当 owner 明确接受 OpenFGA store/backup 为唯一期望状态时采用；不得暴露自由填写 relation/object 的通用写接口 |
+| C. 受保护的运维清单为真源 | 受代码评审和最小权限保护的外部 desired-state 清单，窄 reconcile 命令只计算/应用允许的三类 relation，并生成审计证据 | 最小应用面，适合少量 bootstrap；身份 ID、清单保存位置、撤权时效和生产审批依赖运维治理 | 可作为小规模过渡方案；不能把含用户标识的清单随意提交到公开仓库，也不能把 shell 历史当持久审计 |
+| D. 从 Casdoor role 名或 metadata 推导 scope | 在身份层编码 school/section | 看似少一个数据源，但会把业务授权事实塞回 IDP，破坏扁平 role 与 Authorization Service 边界 | **拒绝** |
+
+无论选择 A、B 还是 C，实施时都必须保持以下最小验收边界：
+
+1. 只允许 `school_admin`、`section_admin`、`section_moderator` 与受支持的 school /
+   review-moderation section 组合；user 统一使用内部 `users.id`，不提供任意 tuple 写入能力。
+2. grant/revoke 幂等，撤权失败 fail-closed；OpenFGA 不可用不能返回成功。Casdoor 扁平角色与
+   scoped grant 的创建、最后一条 grant 撤销及部分失败恢复规则必须有明确测试。
+3. 操作需要全局 `user:system:update`、现有 step-up MFA chain，并记录 actor、target、role、
+   scope、reason、outcome；不能依赖客户端隐藏按钮。
+4. 永久负向测试至少覆盖：无 scope 为零 capability、跨 school/section 拒绝、非法 ID 拒绝、
+   重复 grant/revoke、OpenFGA/Casdoor/audit/outbox 失败、最后一条与非最后一条 grant 撤销。
+5. 使用真实 PostgreSQL 与临时 OpenFGA store 做 grant → login/refresh → resolve/check →
+   revoke → deny 闭环；发布后再以受控生产账号验收，不能用本地测试声称生产授权已收敛。
+
+在 owner 选择 A/B/C 以及“同一管理流程是否同时拥有 Casdoor 扁平角色 membership”之前，
+#11 保持 **P1 decision-blocked**。这不是技术实现受阻，而是三种实现会形成不同的授权真源与
+恢复模型；擅自选择会造成比当前 fail-closed 功能缺口更难回滚的长期架构债务。
 
 ### 对 Claude 第二轮 14 个“驳回标签”的反向复核
 
@@ -586,7 +646,10 @@ P2-13/P2-14 的合并修复和回归记录，P2-15 是同一逐行上下文查�
 
 1. #3 + #4：Koishi Console 全局/群 scope 和跨群数据隔离。
 2. #44：access/refresh token 类型边界与非空 subject。
-3. #17：`super_admin` tuple 的权威 reconcile；#11 先确定 scoped tuple 的权威来源。
+3. #17：`super_admin` tuple 的权威 reconcile（已完成本地修复）；#11 的代码、测试、已提交
+   guardrail 与未提交 IAM 草稿均已复查，当前唯一缺口是 owner 选择 scoped grant 真源及
+   Casdoor membership ownership，详见上方决策矩阵。在此之前保持 P1 decision-blocked，
+   不由审计修复擅自建设授权平台。
 4. #18：**已完成本地修复**；按 token 自身 `exp` 计算 blacklist，并以受约束的 Redis
    PTTL 完成旧 session 滚动升级边界。
 5. N-1：**已完成本地修复**；在 #18 之后以独立改动实现并验证 Casdoor
@@ -932,6 +995,7 @@ live rating bar 已完成可达表面的最小修复。优先做一处根因、�
 |----------|------|----------|------|
 | 3 + 4 | 已修复，待发布；真实 scoped Console 操作员验收待补 | Canonical scope resolver、global settings fail-closed、scoped records/stats/filter-before-limit、foreign action side-effect=0、scoped `globalRuntime=null` 和全局 loader=0 均有负向测试；22 定向、602 全量 unit、双插件 typecheck、contracts、build、startup 与 46 UI smoke 通过；独立复核经历 FAIL→修正→PASS | `7b448809` `fix(koishi): enforce admission console guild scope` |
 | 9 | 已修复，待发布 | Web review payload reader 保留 `like`/`dislike`，缺失字段保持可选，非法 enum fail-closed；定向 payload/voting 回归、Web 类型检查与相关静态检查通过 | `59322589` `fix(review): preserve current user vote state` |
+| 11 | 复核闭环；P1 decision-blocked，未改授权代码 | 非测试写路径、`fga-setup`、Casdoor bootstrap、resolver/capability/Entry 及永久负向测试交叉确认：缺少受支持生命周期，但空 scope 为 403/deny 而非全局权限。已提交 guardrail 明确来源未定；未提交 IAM/ADR 草稿也未完成期望状态、Casdoor 协同和恢复模型。文档现给出 DB/OpenFGA/运维清单三方案、推荐与共同验收边界；待 owner 选择真源及 role membership ownership | `docs(audit): bound scoped role provisioning` |
 | 17 | 已修复，待发布；生产 Casdoor 降级与 OpenFGA 撤权待验收 | 新 ID token 的合法 roles claim 才能触发 reconcile，`/auth/me`/缺失/畸形 claim 均不 mutation；exact direct tuple higher-consistency Read、`on_missing=ignore` 删除、失败关闭和 `iam.role.revoke` 有负向测试。四包定向/race、全服务端 race、lint/build 与真实 OpenFGA v1.18.1 临时 store 写入/重复撤权/清理验证通过 | `fix(auth): reconcile authoritative super admin roles` |
 | 18 | 已修复，待发布；生产 Casdoor TTL/真实登出待验收 | 已验证 provider `exp` 随 session 保存并在 refresh 原子轮换；新 token 强制不超过 session lease/30 天，logout/logout-all 逐 token 写真实 TTL，legacy 仅按受约束 PTTL 回退，无 TTL fail-closed；并消除 tracked logout 的 5 分钟二次覆盖。四包定向/race、全服务端 race、lint/build/docs 与真实 Redis 8.8.1 PTTL/hard-cap 验证通过 | `fix(auth): revoke access tokens through verified expiry` |
 | N-1 | 已修复，待发布；生产 Casdoor 受控账号 token-family 撤销待验收 | session 加密保存并原子轮换 provider access/refresh；issuer 同源且路径精确的 Casdoor `/api/logout` 使用 `id_token_hint` 并校验 JSON `status=ok`，RFC 7009 路径保持独立；正常 refresh 不重复 revoke 旧 row，refresh 阶段未提交 family 补偿撤销，logout-all 先做本地撤销，legacy family 通过 refresh-rotate-logout bridge。固定镜像源码/运行实例无状态探针、忠实 contract、三包定向/race、全服务端 race、lint/build/docs 与真实 Redis 8.8.1 轮换验证通过 | `fix(auth): revoke Casdoor token families correctly` |
