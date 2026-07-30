@@ -278,6 +278,17 @@ func TestObserveExternalRequest_Error(t *testing.T) {
 	assert.Equal(t, before+1, after)
 }
 
+func TestObserveExternalDataIntegrityError(t *testing.T) {
+	counter := ExternalDataIntegrityErrorsTotal.WithLabelValues(
+		"oracle_student_directory",
+		"invalid_record",
+	)
+	before := testutil.ToFloat64(counter)
+	ObserveExternalDataIntegrityError("oracle_student_directory", "invalid_record")
+	after := testutil.ToFloat64(counter)
+	assert.Equal(t, before+1, after)
+}
+
 // ---------------------------------------------------------------------------
 // Frontend errors handler (frontend_errors.go)
 // ---------------------------------------------------------------------------

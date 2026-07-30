@@ -26,6 +26,16 @@ var (
 		},
 		[]string{"client", "operation", "status"},
 	)
+
+	// ExternalDataIntegrityErrorsTotal counts bounded classes of unusable
+	// records returned by external data sources.
+	ExternalDataIntegrityErrorsTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "external_data_integrity_errors_total",
+			Help: "Total number of unusable records returned by external data sources",
+		},
+		[]string{"client", "reason"},
+	)
 )
 
 // ObserveExternalRequest 记录外部依赖调用结果。
@@ -36,4 +46,10 @@ func ObserveExternalRequest(client, operation string, start time.Time, err error
 	}
 	ExternalRequestDuration.WithLabelValues(client, operation, status).Observe(time.Since(start).Seconds())
 	ExternalRequestsTotal.WithLabelValues(client, operation, status).Inc()
+}
+
+// ObserveExternalDataIntegrityError records a fixed, low-cardinality
+// classification chosen by the caller; raw row contents must never be labels.
+func ObserveExternalDataIntegrityError(client, reason string) {
+	ExternalDataIntegrityErrorsTotal.WithLabelValues(client, reason).Inc()
 }

@@ -140,7 +140,7 @@ target 均为 1。这样可以区分“exporter 进程活着”与“exporter �
 - OpenFGA / Casdoor / SMS / Oracle 学籍源等外部依赖
 - `iam_invalid_role_scope_total`：按 warning 日志定位无效 section ID，并在权威来源确认后
   清理陈旧 OpenFGA tuple；应用只忽略无效 grant，不会在请求读路径自动删除
-- `circuit_breaker_state{name=...}` 持续非零和 `external_requests_total{client="oracle_student_directory",status="error"}` 异常
+- `circuit_breaker_state{name=...}` 持续非零和 `external_requests_total{client="oracle_student_directory",status="error"}` 异常；同时观察 `external_data_integrity_errors_total{client="oracle_student_directory",reason=...}`，区分单条坏数据与共享依赖故障。该指标只使用 `invalid_record`、`ambiguous_record`、`identity_mismatch` 三个固定 reason，不得把学号、姓名或原始错误写入 label
 - 证件审核 / SSE 队列积压
 
 设置值班升级链路。

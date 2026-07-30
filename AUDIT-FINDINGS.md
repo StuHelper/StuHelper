@@ -108,15 +108,15 @@ Web / Admin / UniAppX+Koishi UI / Koishi / 基础设施 / 代码质量与文档)
 | P2-18 | 确认，已完成单实例最小修复与真实 PostgreSQL 回归 | P2 | 已修复，待发布 | create/update/delete 只有在 Repository 成功后才调用进程内 `Filter.Invalidate()`；下一次内容检查重载 DB，失败继续映射 `ErrModerationUnavailable`，不会用旧词表放行。`Invalidate` 与 `Refresh` 共享一把窄 mutex，避免 mutation 与在途刷新交错后旧结果重新获得 5 分钟 freshness；matcher 读锁不覆盖 DB 查询。真实数据库覆盖已预热快照上的新增、改词/改级别、删除、失败 mutation 不失效和 reload failure fail-closed。当前 Compose 是单 app，不引入 Redis version/pub/sub；多副本前置要求已写入安全文档。 |
 | P2-19 | 确认 | P2 → P3 | 应改 | 先为语义唯一的 dangerous/too-short/rating-required/invalid-rating 映射专用 code；共享的 content-too-long 需先拆 sentinel。不要把所有共享错误一刀切成 review code。 |
 | P2-20 | 确认结构风险，生产是否超过 5 秒未验证 | 条件性 P2 | 先测后改 | 给 materialized-view refresh 独立可配置 timeout，继承 parent cancel；增加 duration、projection age、retry 指标。不要抬高全局 DB timeout，也无需先重写所有 shutdown/retry。 |
-| P2-21 | 确认 | P2 | 必须 | 对外部源结果做分类：caller cancellation 为 neutral，内部 source timeout 仍为 failure；half-open 取消必须释放 in-flight probe。只跳过 `RecordFailure` 会让 half-open 永久卡住。 |
-| P2-22 | 核心确认；503 是现行文档契约 | P2 | 必须 | transport 成功但 bad row 不应污染共享 breaker；保留 typed integrity error 和当前 adapter 的 503 映射，增加 integrity metric。与 P2-21 使用同一 outcome classifier。 |
+| P2-21 | 确认，已完成最小修复与断路器状态回归 | P2 | 已修复，待发布 | `Probe`/`LookupStudent` 的错误统一进入局部 classifier：parent caller cancel/deadline 为 neutral，目录自身 query timeout 与真实 backend error 仍为 failure；neutral 必须调用 `RecordNeutral()`，因此 half-open probe 会被释放。没有改变全局 breaker 阈值、窗口或超时。 |
+| P2-22 | 核心确认，已完成最小修复并保留 503 契约 | P2 | 已修复，待发布 | 无效/冲突单行保留 typed error 并记 neutral，不增加也不重置既有健康计数；学号与绑定参数错位拆成独立 sentinel，仍是 source failure。新增固定三类、无原始数据 label 的 integrity counter；app adapter 继续把所有源错误映射到既有 503。原建议用 `RecordSuccess()` 会错误清空此前真实失败，未采用。 |
 | P2-23 | 确认 | P2 | 必须 | 在同一 worker goroutine 内把单 job panic 转成带 stack 的普通失败，复用现有 retry/dead-letter/指标；测试 poison 后下一 job 继续。无限 root supervisor 会形成 panic loop且绕开死信，属于过度设计。 |
 
 P2 唯一根因应按以下修复簇合并，避免重复设计：
 
 1. P2-1 + P2-2：CI 路径与静态契约触发，已按编号拆成两个独立提交完成。
 2. P2-13 + P2-14 + P2-15：claim 后批量上下文、逐项隔离和 lease 安全释放，已合并完成本地修复。
-3. P2-21 + P2-22：Oracle outcome 分类与 circuit-breaker neutral 语义。
+3. P2-21 + P2-22：Oracle outcome 分类与 circuit-breaker neutral 语义，已合并完成本地修复。
 
 ### P3 逐项复核
 
@@ -183,7 +183,7 @@ P2 唯一根因应按以下修复簇合并，避免重复设计：
    服务热重载/插件卸载仍是发布环境验收项。
 4. P2-7 Koishi 转发 poison 与 P2-13/14/15 claimed batch 均已完成隔离、全量/状态机回归
    和独立提交；P2-23 outbox panic 留待后续指令继续。
-5. P2-21/P2-22 breaker 分类，R-8 Redis 错误分类，P3-9 cache version unavailable。
+5. P2-21/P2-22 breaker 分类已完成；继续 R-8 Redis 错误分类与 P3-9 cache version unavailable。
 6. P2-9 Ansible 路径和 P2-18 filter invalidation 已完成修复；继续 P2-16 NULL 语义决策。
 
 #### 第三批：可测量的性能与一致性
@@ -303,8 +303,9 @@ P3-1 至 P3-6、P3-8、R-5 至 R-7、R-14、R-15、R-17。X-2 的配置分类治
 - image policy：2026-07-30 通过，2026-08-06 因 `review_by=2026-08-05` 失败，确认日历门禁。
 - 授权：capability/RBAC/review 定向 Go 测试通过，确认 X-1 在 Handler 前 fail-closed。
 - P2 早期基线：3 个 infra/import contract、Koishi 定向 29 tests，以及 outbox、externaldata、
-  review、admission 定向 Go 测试通过；P2-7 已另补 poison/ACK 专项回归。其余绿灯仍不覆盖
-  cancellation、panic-continuation、真实 DB pair 与大表场景。
+  review、admission 定向 Go 测试通过；P2-7 已另补 poison/ACK 专项回归，P2-21/P2-22 已补
+  caller cancellation、内部 timeout、half-open probe 和完整性分类专项回归。其余绿灯仍不覆盖
+  panic-continuation、真实 Oracle 驱动/生产数据、真实 DB pair 与大表场景。
 - P3/驳回项：Admin 相关 Vitest 9/9、Koishi reminder 7/7、externaldata、OTP、cache、
   review projection 定向 Go 测试通过；仍缺 Redis transport error、cache v0 故障、
   min-width override、reviewed-row action 和 lock-wait 测试。
@@ -333,6 +334,7 @@ P3-1 至 P3-6、P3-8、R-5 至 R-7、R-14、R-15、R-17。X-2 的配置分类治
 | P2-7 | 已修复，未发布；真实材料转发待启用验收 | delivery failure 逐项记录并继续，成功项 ACK；批末重抛。ACK failure 独立记录并 fail-fast。poison→healthy 与 ACK failure 回归通过；完整 Koishi build/contracts/597 unit/startup/46 E2E 及 package contract 通过 | `fix(koishi): isolate freshman forward failures` |
 | P2-10 | 已修复，未发布；完整 pair 导入能力不存在且不在本次范围 | 普通 TSV 拒绝两个身份证安全列，15 列 normalize/copy/upsert 链路不再写 pair；已有 pair 保留，新行 `NULL/NULL`。真实 PostgreSQL 临时表语义、定向契约、ShellCheck、76 个 infra contracts 与文档卫生通过 | `fix(import): preserve academic identity pairs` |
 | P2-13/P2-14 | 主因已修复，未发布；P2-15 为重复标签；补偿失败/replay 边界已记录 | 每批固定两次上下文查询；补偿可写时，全批 enrichment failure/取消归还未公开 lease；单行确定性 preparation failure 独立 retry/dead-letter，stale/failure/abandon 使用 attempt fence。真实 PostgreSQL 覆盖固定查询数、故障/cancel cleanup、旧 lease fence、poison 隔离；Admission 全包 `-race`、全服务端 lint/build 与文档检查通过。未把补偿写同时不可用或 terminal replay 误报为已解决 | `fix(admission): isolate claimed action failures` |
+| P2-21/P2-22 | 已修复，未发布；真实 Oracle/生产指标待验收 | parent cancel/deadline 与单条 invalid/ambiguous row 记 neutral 并释放 half-open probe；目录自身 timeout、backend failure 和 bind identity mismatch 仍记 failure。三类固定 integrity metric 已接入，typed error 经既有 adapter 保持 503。定向三包 race、全服务端 race、lint/build 与文档卫生通过 | `fix(externaldata): classify Oracle source outcomes` |
 
 ### 明确不建议实施的“修复”
 
@@ -786,6 +788,16 @@ live rating bar 已完成可达表面的最小修复。优先做一处根因、�
   refresh 覆盖失效。评课定向 5 项与全包 race、全服务端 `make test`（`-race -p 1 ./...`）、
   Casdoor boundary、`golangci-lint`、静态 build 和文档卫生均通过。当前没有多 app replica
   的受支持 Compose 拓扑，因此没有扩展为 Redis version/pub/sub。
+- P2-21/P2-22 通过 `database/sql` scripted driver 实际驱动 `LookupStudent`/`Probe` 状态机：
+  parent cancel 在 closed 状态保持 0 failure，在 half-open 状态返回原 `context.Canceled` 并释放
+  `probe_in_flight`；parent deadline 同属 neutral，而目录自身 10ms timeout 保留
+  `ErrStudentSourceUnavailable` 并打开 threshold=1 的 breaker。NULL 姓名和冲突重复姓名分别
+  返回原 typed integrity error、保持 breaker closed 并增加固定 reason counter；合法但与绑定参数
+  不同的学号返回新 identity-mismatch sentinel、保留 unavailable 包装并打开 breaker。adapter
+  专项测试确认 raw integrity error 仍嵌套 `ErrAcademicLookupUnavailable`，所以现有 HTTP 503
+  契约未改变。externaldata/metrics/app 三包定向 race、全服务端 `make test`
+  （`-race -p 1 ./...`）、Casdoor boundary、`golangci-lint`、静态 build 和文档卫生均通过。
+  本地没有连接真实 Oracle，也未验证生产指标抓取、告警或真实坏行。
 
 测试通过只说明现有正向契约未被破坏，不能覆盖报告指出的所有负向场景。以下仍需在真正处置时
 单独验收：
@@ -841,6 +853,7 @@ live rating bar 已完成可达表面的最小修复。优先做一处根因、�
 | X-2 / I-2 | 已修复，待 CI/发布验收 | 实施前 AST 精确枚举 184 runtime keys / 17 missing；13 个 operator-facing 键补入两模板，删除死 `LOG_SERVICE_VERSION`，3 个兼容 override 留在带理由 allowlist。当前 183 runtime keys 全覆盖；全服务端 race/lint/build、Actionlint、docs、dev/prod env 初始化和全部 infra contracts 通过，模板改动已接入 Backend job | `fix(config): keep runtime env templates complete` |
 | P2-9 | 已修复，待 CI/远端发布验收 | 旧任务在干净 clone 的真实 Ansible Core 2.20.2 中找到脚本后，于相对 output + `git -C` 处稳定失败；候选改动三 playbook syntax 通过，`deploy-bundle` tag 1/1 并生成含两个 env 模板的目标 tar。固定 controller requirements、core-compatible callback、窄路径/CI contract、Actionlint、全部 infra contracts 和 docs 通过；未连接远端 | `fix(deploy): anchor Ansible bundle paths` |
 | P2-18 | 已修复，待发布 | 成功敏感词 mutation 使本地快照 stale，失败 mutation 不失效；refresh/invalidation 串行避免旧查询恢复 freshness，重载失败 fail-closed。真实 PostgreSQL 覆盖 create/update/delete 和依赖失败；评课/全服务端 race、lint/build/docs 通过，单 app 范围与多副本前置要求已写入安全文档 | `fix(review): invalidate sensitive-word snapshots` |
+| P2-21/P2-22 | 已修复，待发布；真实 Oracle 与生产指标/告警待验收 | parent cancel/deadline 和 invalid/ambiguous row 均记 neutral，不增加或重置 failure，并释放 half-open probe；内部 query timeout、backend failure 与 bind identity mismatch 仍计 failure。三类固定 integrity counter、typed error 与既有 503 adapter 契约均有回归；三包定向 race、全服务端 race、lint/build/docs 通过 | `fix(externaldata): classify Oracle source outcomes` |
 
 ## Claude 原审计的确认问题分布（保留原始记录）
 
@@ -3436,6 +3449,7 @@ STUHELPER_REDIS_INTEGRATION
 | P2-7 | 单个不可转发的新生材料阻塞后续队列 | Codex 已完成 Koishi delivery 阶段修复：单项 delivery failure 记录后继续，健康项 ACK，批末保持失败信号；ACK failure 分相并 fail-fast。poison→healthy、ACK failure 及既有多群语义测试通过，完整 Koishi build/contracts/597 unit/startup/46 E2E 与 package contract 通过。随独立修复提交入库；功能默认关闭，真实启用验收及服务端 URL 批构建边界仍待处理 |
 | P2-10 | 普通学籍 importer 破坏身份证 enc/hash 成对写入约束 | Codex 已完成最小修复：普通 TSV 明确拒绝两列并从全部写入阶段移除 hash，重导不触碰已有 pair，新行保持 `NULL/NULL`；真实 PostgreSQL 18、定向契约、ShellCheck、76 个 infra contracts 和文档卫生通过。随独立修复提交入库；仓库当前没有完整 pair 导入入口，本次没有过度扩建 PII API/CLI |
 | P2-13/P2-14/P2-15 | claimed bot action 批次被单行错误丢弃，且逐行重复查询上下文 | Codex 已完成主因合并修复：上下文查询从 `2N` 固定为每批 2 条；补偿可写时，批量查询失败/caller cancel 用 detached context 归还未公开 lease；确定性 poison 只消耗本行 attempt，stale/failure/abandon 使用 attempt fence。真实 PostgreSQL 覆盖固定查询数、故障/取消 cleanup、旧 lease fence、poison 隔离及第 5 次单独 dead-letter；Admission 全包 `-race`、lint/build 和文档检查通过。补偿写同时失败仍可能保留 attempt，Admission dead-letter replay API 尚不存在，已明确保留为残余边界。P2-15 与 P2-14 重复，不单独计数或提交。随独立修复提交入库，尚未发布 |
+| P2-21/P2-22 | caller cancellation 与单条坏数据错误污染 Oracle 共享 breaker | Codex 已完成合并修复：parent cancellation/deadline 和 invalid/ambiguous row 统一为 neutral 并释放 half-open probe；内部 query timeout、backend failure 和 bind identity mismatch 保持 failure。未采用会重置既有失败的 `RecordSuccess` 方案。固定 integrity metric 与现有 503 adapter 契约有专项回归，全服务端 race/lint/build/docs 通过；真实 Oracle/生产指标仍待发布验收 |
 | X-1 | 无 scope 的 school_admin 全量可见 | Codex 已证伪；现有 capability 展开和 admin Entry 在 Handler 前返回 403，不按 P1 修复 |
 | X-2 | env 模板差集 | Codex 判定部分成立；改为分类治理，不执行 21 项全量入模板/严格集合相等方案 |
 | 其余条目 | — | 不再用“其余 41 项待修”概括；按 Codex 逐项表和四批实施顺序处置 |
