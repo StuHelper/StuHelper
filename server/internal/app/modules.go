@@ -117,7 +117,7 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 	if err != nil {
 		return err
 	}
-	userProfileGateway, err := rt.initCasdoorUserProfileGateway()
+	userProfileGateway, err := rt.initCasdoorUserProfileGateway(userRepo.GetCasdoorSubject)
 	if err != nil {
 		return err
 	}
@@ -168,7 +168,12 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 		bindPhoneSMS,
 		user.WithAdminAuthorizers(userAdminAuthorizers()),
 	)
-	openPlatformHandler, _, err := rt.initOpenPlatformModule(api, authMW, piiCipher, userRepo.GetInternalUserID)
+	openPlatformHandler, _, err := rt.initOpenPlatformModule(
+		api,
+		authMW,
+		userProfileGateway,
+		userRepo.GetInternalUserID,
+	)
 	if err != nil {
 		return err
 	}
@@ -315,12 +320,14 @@ func (rt *Runtime) initUserService(
 	return userService, nil
 }
 
-func (rt *Runtime) initCasdoorUserProfileGateway() (*casdoorUserProfileGateway, error) {
+func (rt *Runtime) initCasdoorUserProfileGateway(
+	casdoorSubjectByUserID func(context.Context, int64) (string, error),
+) (*casdoorUserProfileGateway, error) {
 	client, err := rt.newCasdoorUserProfileClient()
 	if err != nil {
 		return nil, err
 	}
-	return newCasdoorUserProfileGateway(client), nil
+	return newCasdoorUserProfileGateway(client, casdoorSubjectByUserID), nil
 }
 
 func (rt *Runtime) initCasdoorRoleSync(userRepo *user.Repository) (user.RoleSyncFunc, error) {

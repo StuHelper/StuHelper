@@ -45,8 +45,8 @@ Web / Admin / UniAppX+Koishi UI / Koishi / 基础设施 / 代码质量与文档)
   检查生产备份目录或用生产 WAL 执行目标时间点恢复，也没有观察生产锁等待或真实大表延迟。
   因此“生产已经丢失 PITR”“生产已经 OOM/死锁/永久停更”等说法仍不得当作已证实事实。
 - 当前工作树在复核开始前已经有未提交修改。Codex 对 P0-1、P1-1、P1-2、P1-3、P1-4、
-  P1-5、P1-6、P1-7 与 P1-8 的修复已经按问题独立提交，但均未合并或发布；原有其他工作树
-  修改没有混入这些提交。
+  P1-5、P1-6、P1-7、P1-8 与 P1-9 的修复已经按问题独立提交，但均未合并或发布；原有其他
+  工作树修改没有混入这些提交。
 - 原报告大量“修复方案”和全部 18 条驳回长文在句中截断。例如 P0-1 结尾是
   `only surface the 4`，P1-1 结尾是 `Promise.resolve<string[]>(`，P1-3 结尾是
   `both loc`；P3-1 至 P3-9 的方案也全部半句结束。第 1 条驳回理由还重复了两次。
@@ -78,7 +78,7 @@ Web / Admin / UniAppX+Koishi UI / Koishi / 基础设施 / 代码质量与文档)
 | P1-6 | 确认，已完成本地修复与真实 HTTP/数据库回归 | P1 | 已修复，待发布 | Admission handler 复用 runtime 现有 `bgCtx.Done()`，两个 SSE 在停机时发送 `end/shutdown` 并退出；ticker/keepalive 执行前二次检查，避免停机后再 claim。真实 HTTP + PostgreSQL 验证 bot 流可让 `http.Server.Shutdown` 在 2 秒内返回，camera 流同样主动结束。没有设置全局 `BaseContext` 或新增 10 分钟强制重连。 |
 | P1-7 | 确认，已完成本地修复与真实路由/数据库回归 | P1 → P2 | 已修复，待发布 | OpenAPI 改为匿名、cookie、bearer 三种可选认证并声明 503，生成 bundle、Go 内嵌契约和 TS 类型；真实 GET 路由接入 optional auth 与健康门禁。PostgreSQL route-level 测试覆盖 owner、其他登录用户、匿名和认证后端故障。没有把公开列表改成强制登录、增加 ownership SQL 或让前端自行推断身份。 |
 | P1-8 | 确认，已完成本地修复与真实 PostgreSQL 回归验证 | P1 | 已修复，待发布 | `ProcessReport` 对非删除态复用现有管理员转换白名单；作者已删除的 review 保持终态，只结案历史 report。缺失 review 统一映射 404。没有改 schema、增加新状态或在 Repository 注入静默 no-op。真实数据库覆盖 `hide`/`delete`、重复非法转换、计数和时间戳不变；评课包全量与定向 race 测试通过。 |
-| P1-9 | 核心确认 | P1/P2 边界 | 决策后必须 | `phone_enc` 存的是掩码值，`phone.read` 却要求连续 11 位。若保留能力，按安全模型实时从 Casdoor 获取并 fail-closed；否则删除/禁用该能力与契约。不能为省事把明文手机号落库，也不能用“无手机号 200”掩盖不可用。 |
+| P1-9 | 核心确认，已按既有安全模型完成本地修复 | P1/P2 边界 | 已修复，待真实 Casdoor 验收 | Open Platform 只传内部 user ID；app gateway 用 user repository 解析 Casdoor subject，再实时调用既有 `GetPhone`。本地只读取 `phone_enc IS NOT NULL` 作为验证状态，不再读取/解密掩码字节。真实 PostgreSQL/Redis 覆盖 phone API、identity-token、授权审计和 provider fail-closed；app adapter 覆盖身份解析失败不调用外部客户端。没有落库完整手机号、缓存 Casdoor 返回或让业务模块持有外部 subject。 |
 | P1-10 | 机制确认，生产饥饿尚未量化 | P1 → P2 | 应改 | 外层 rows 未关闭时每行再发 2 次 pool 查询，存在 N+1 与并发池饥饿。先 drain 主结果并批量取 tags/bindings，补 query-count/并发测试；无需引入通用 ORM/DataLoader 框架。 |
 | X-1 | 证伪 | P1 → 不成立 | 不改 | 无 school scope 的 `school_admin` 在 `ExpandRoleGrants` 已得到零 capability，admin Entry 会在 Handler 前返回 403；定向测试也覆盖该语义。Repository 的 nil/空切片确有可读性风险，但原攻击链不可达。最多补 route-level 防回归/显式空结果，按 P3 加固，不做紧急授权模型重写。 |
 | X-2 | 部分确认，原计数错误 | P2 | 应改 | config 包运行时键为 181 个，主模板实际缺 17 个；另外 4 个分别属于 bootstrap/FGA 工具、`GIN_MODE` 和 Redis 集成测试，不能混入运行时模板。建立分类 allowlist，只要求 operator-facing 配置进入对应模板；识别并删除 `LOG_SERVICE_VERSION` 等死配置。要求所有 `getenv` 与两个模板严格集合相等会暴露危险开关并制造噪声，属于过度设计。 |
@@ -168,7 +168,8 @@ P2 唯一根因应按以下修复簇合并，避免重复设计：
    已删除内容不会被举报处理复活，历史举报仍可正常结案。
 4. P2-10 身份证 enc/hash 导入约束。
 5. P3-7 敏感导出审计。
-6. P1-9 `phone.read` 产品决策后落地 fail-closed 方案。
+6. P1-9 `phone.read` 已按既有安全模型完成实时 Casdoor 读取与 fail-closed 修复；
+   仍需带真实 Casdoor 凭据执行一次发布环境验收。
 
 #### 第二批：发布、运行前进性与核心契约
 
@@ -239,6 +240,12 @@ P3-1 至 P3-6、P3-8、R-5 至 R-7、R-14、R-15、R-17，以及 X-2 的配置�
   auth 后端故障时，健康门禁在 Handler 前返回 503。定向普通/race、review 全包（24.833 秒）、
   `go vet`、全服务端 `golangci-lint`（0 issues）、OpenAPI lint、全量生成漂移和文档卫生
   检查通过；未要求匿名用户登录，也未改变回复数据和删除授权语义。
+- Open Platform P1-9：真实 PostgreSQL/Redis 中只放置已验证的掩码投影，fake authoritative
+  reader 通过内部 user ID 返回完整 `+86` 手机号；phone API 与 identity-token 都得到标准化
+  明文和掩码，并各写 granted 审计。随后注入 provider 故障，payload 不返回并写 denied 审计。
+  app adapter 测试证明内部 ID 先由 user repository resolver 映射，解析失败时不调用 Casdoor。
+  定向普通/race、Open Platform 全包（34.337 秒）、app/Casdoor 全包、`go vet`、Casdoor
+  boundary guard 和全服务端 `golangci-lint`（0 issues）通过；没有使用真实 Casdoor 凭据或网络。
 - image policy：2026-07-30 通过，2026-08-06 因 `review_by=2026-08-05` 失败，确认日历门禁。
 - 授权：capability/RBAC/review 定向 Go 测试通过，确认 X-1 在 Handler 前 fail-closed。
 - P2：3 个 infra/import contract 通过；Koishi 定向 29 tests 通过；outbox、externaldata、
@@ -263,6 +270,7 @@ P3-1 至 P3-6、P3-8、R-5 至 R-7、R-14、R-15、R-17，以及 X-2 的配置�
 | P1-6 | 已修复，未发布；真实进程 SIGTERM 待验收 | Admission handler 接入既有 shutdown context；两个 SSE 写 `end/shutdown` 后退出，并在周期任务前优先检查停机。真实 HTTP/PostgreSQL、`http.Server.Shutdown`、定向 race、admission 全包、vet 与 lint 通过 | `fix(admission): release SSE streams during shutdown` |
 | P1-7 | 已修复，未发布 | GET replies 的 OpenAPI 与真实路由均改为可选认证，认证后端故障 fail-closed 503；生成 bundle/Go/TS 契约。真实 PostgreSQL route-level 测试覆盖 owner、非 owner、匿名和故障，定向 race、review 全包、vet、lint、spec/drift 与文档检查通过 | `fix(review): preserve reply ownership on refresh` |
 | P1-8 | 已修复，未发布 | Service 复用统一 review 状态机；作者删除态只结案 report，不改 review。真实 PostgreSQL 覆盖两种动作、重复转换、计数、时间戳和后续 restore；评课包全量、定向 race、vet、全服务端 lint 与文档卫生检查通过 | `fix(review): preserve deleted reviews during report handling` |
+| P1-9 | 已修复，未发布；真实 Casdoor 待验收 | Open Platform 仅按内部 user ID 请求 authoritative phone；app gateway 在边界解析 Casdoor subject。真实 PostgreSQL/Redis 覆盖 phone API、identity-token、granted/denied 审计和 provider 故障；adapter、Casdoor client、race、全包、vet、边界门禁与 lint 通过 | `fix(openplatform): read disclosed phones from Casdoor` |
 
 ### 明确不建议实施的“修复”
 
@@ -271,6 +279,8 @@ P3-1 至 P3-6、P3-8、R-5 至 R-7、R-14、R-15、R-17，以及 X-2 的配置�
 - 不把 image review freshness 在所有生产部署和回滚中降成 report-only。
 - 不为 P1-6 顺带强制 SSE 10 分钟断线。
 - 不用 Repository 静默 no-op 替代 P1-8 的 Service 状态机。
+- 不让 P1-9 的 Open Platform 业务模块持有 Casdoor subject，不落库/缓存完整手机号，也不把
+  authoritative provider 空值降级成成功响应。
 - 不用 `COALESCE('', 0)` 隐藏 P2-16 的 NULL 数据语义。
 - 不在当前单副本部署为 P2-18 先建 Redis pub/sub/version 系统。
 - 不为 P2-23 增加无限自动 supervisor；panic 必须进入现有 retry/dead-letter。
@@ -793,11 +803,48 @@ Both sides use the same cipher (internal/app/modules.go:307 `user.NewService(use
 
 **失败场景**
 
-User binds 13812345678 via POST /api/v1/user/profile/bind-phone → users.phone_enc = Encrypt("138****5678"). An approved third-party app with an approved+consented `phone.read` scope calls GET /api/v1/open-platform/phone. addPhonePayload decrypts "138****5678"; mainlandPhoneDigitsPattern finds no 11-digit run, so ok=false and the request returns ErrDisclosureUnavailable → HTTP 503 "open platform disclosure unavailable", plus a bogus `open_platform.disclosure.denied` audit event with reason `payload_unavailable`. The OpenAPI contract (server/api/openapi.bundled.yaml:937 getOpenPlatformPhone) promises a 200 DisclosureResponse. The same failure hits the OIDC id_token path (UserInfoForIdentityToken with the `phone` scope). Profile completion does not catch it: RequiredProfileFields only checks `projection.PhoneVerified` (service_completion.go:83-86), which is true. No test exercises addPhonePayload — no test seeds phone_enc.
+用户绑定 `13812345678` 后，本地 `users.phone_enc` 实际保存
+`Encrypt("138****5678")`。已获批并取得 consent 的第三方调用 phone API 时，旧实现解密出的
+仍是掩码，无法匹配 11 位手机号，因此稳定返回 `ErrDisclosureUnavailable`/503；OIDC
+identity-token 的 `phone` scope 复用同一 payload builder，也同样失败。Profile completion 只看
+`PhoneVerified`，而非明文可用性，所以无法提前发现。OpenAPI 本来就同时声明 200 与 503，
+因此不是“只承诺 200”的契约遗漏；真实缺陷是合法、已完成资料的用户也没有可达的成功披露
+路径。旧 denied/`payload_unavailable` 审计符合当时的错误结果，但持续记录的是集成缺口，而非
+真实 provider 故障。
 
 **修复方案**
 
-Implement the documented behavior (real-time Casdoor read) rather than patching the symptom. Concretely: (1) server/internal/modules/openplatform/service.go:48 - add `type phoneProvider interface { GetPhone(ctx context.Context, subject string) (string, error) }` and a `WithPhoneProvider` ServiceOption; drop `phoneDecryptor`/`WithPhoneDecryptor` once unused. (2) server/internal/modules/openplatform/models.go:326 - add `CasdoorSubject string` to UserProjection, and select `u.casdoor_subject` in repository_projection.go:12-33 (column confirmed to exist: user/repository_academic.go:148). (3) service_disclosure.go:586-606 - rewrite addPhonePayload: keep the `!projection.PhoneVerified` early return as `phoneVerified:false` (200), then call `s.phoneProvider.GetPhone(ctx, projection.CasdoorSubject)` and pass the result to the existing normalizeCasdoorMainlandPhone (it already tolerates Casdoor's "+86" prefix via FindString); on provider error or unnormalizable value stay fail-closed with ErrDisclosureUnavailable per docs/design/security-model.md:46, but return `phoneVerified:false` + 200 when Casdoor reports no phone, so "unbound" is not reported as "service unavailable". Delete the phone_enc decrypt - the mask carries no usable information. (4) server/internal/app/modules_openplatform.go:39 - add a `GetPhone` method to casdoorUserProfileGateway (modules_openplatform.go:270-283) forwarding to platformcasdoor.UserProfileClient.GetPhone (platform/casdoor/user_profile.go:43) and pass it
+Implement the documented real-time authority read without moving Casdoor identity into a business module:
+
+1. Open Platform 的 provider 接口只接受内部 `userID`。`UserProjection` 只带内部 ID 和
+   `phone_enc IS NOT NULL` 派生的验证状态，不加载/解密 `phone_enc` 内容。
+2. app 组合根的 gateway 先调用 user repository 的 `GetCasdoorSubject(userID)`，再调用既有
+   `platform/casdoor.UserProfileClient.GetPhone`。Casdoor subject 只存在于允许的 user/app/platform
+   边界，不进入 `internal/modules/openplatform`。
+3. 本地未验证仍沿用 `phoneVerified:false`；一旦本地标记为已验证，reader 缺失、内部身份无效、
+   subject 解析失败、Casdoor 调用失败、返回空值或格式无法标准化都返回
+   `ErrDisclosureUnavailable`。不能把 Casdoor 空手机号降级成成功响应。
+4. 覆盖 phone API 与 OIDC identity-token 两条调用链，以及成功/失败审计、provider 故障和
+   app adapter 身份解析失败。
+
+**Codex 修复与复验（2026-07-30）**
+
+- 删除 Open Platform 的 `phoneDecryptor`/`WithPhoneDecryptor` 和 projection 中的 `PhoneEnc`；
+  新增 authoritative reader，只按内部 user ID 获取手机号。本地投影继续只表达验证状态。
+- 复用启动时已经创建的 Casdoor user-profile gateway；gateway 在 app 边界用
+  `userRepo.GetCasdoorSubject` 解析外部身份，再调用现有 `UserProfileClient.GetPhone`。这与当前
+  Casdoor Go SDK 的 `GetUserByUserId`/`User.Phone` 能力一致，没有新增 SDK 或 HTTP 客户端。
+- 真实 PostgreSQL/Redis 集成测试故意把掩码字节写入本地 `phone_enc`，reader 返回另一份
+  `+86` 完整号码；phone API 和 identity-token 都只返回 reader 的标准化号码并写 granted
+  审计。随后 provider 报错，payload 不返回、错误保持 `ErrDisclosureUnavailable` 并写 denied
+  审计。单元测试另覆盖本地未验证、reader 未配置、内部 ID 缺失、空值和非法格式。
+- app adapter 测试验证内部 ID 到 subject 的映射和 trim；映射失败时 Casdoor client 调用数为
+  0。定向普通/race、Open Platform 全包、app/Casdoor 全包、`go vet`、Casdoor boundary guard
+  与全服务端 `golangci-lint`（0 issues）通过。
+- 原方案要求把 `CasdoorSubject` 加入 Open Platform projection，违反
+  `check-casdoor-boundary.sh` 的 IAM 边界，Codex 不采纳；“Casdoor 无手机号时返回 200”也与
+  `security-model.md` 的 fail-closed 约束冲突。没有落库完整手机号、没有缓存 authoritative
+  响应、没有新增身份服务或更改 OpenAPI。尚未使用真实 Casdoor 凭据/网络执行发布环境验收。
 
 #### P1-10. Resource list issues 2 nested queries per row while the outer cursor still holds a pooled connection (N+1 + pool starvation)
 
@@ -2571,6 +2618,7 @@ STUHELPER_REDIS_INTEGRATION
 | P1-6 | 活跃 Admission SSE 阻塞优雅停机 | Codex 已完成实现：两个 SSE 复用 runtime shutdown context，发送 `end/shutdown` 后退出，周期分支工作前再次检查停机。真实 HTTP/PostgreSQL 测试证明 bot 流可让 `http.Server.Shutdown` 在 2 秒内成功，camera 流也主动结束；定向 race、admission 全包、vet 与 lint 通过。随独立修复提交入库，尚未发布；真实进程 SIGTERM 待演练 |
 | P1-7 | 回复列表刷新后丢失当前用户 ownership | Codex 已完成实现：GET replies 契约与真实路由接入可选认证，声明并 fail-closed 503，bundle/Go/TS 生成物同步。真实 PostgreSQL route-level 测试覆盖 owner、其他登录用户、匿名和认证后端故障；定向 race、review 全包、vet、lint、spec/drift 与文档检查通过。随独立修复提交入库，尚未发布 |
 | P1-8 | 举报处理可把作者已删除的评课改回隐藏态并再次发布 | Codex 已完成实现：举报入口复用统一状态机，作者删除态只结案 report、不改 review；缺失 review 映射 404。真实 PostgreSQL 覆盖 hide/delete、重复非法转换、计数、时间戳和后续 restore，评课包全量、定向 race、vet、全服务端 lint 与文档卫生检查通过。随独立修复提交入库，尚未发布 |
+| P1-9 | `phone.read` 解密到的仍是掩码手机号 | Codex 已完成实现：Open Platform 仅按内部 user ID 请求权威手机号，app gateway 在允许的边界解析 Casdoor subject 并调用既有 client；本地投影不再参与明文恢复。真实 PostgreSQL/Redis 覆盖 phone API、identity-token、granted/denied 审计和 provider 故障；adapter、race、全包、vet、Casdoor 边界门禁与 lint 通过。随独立修复提交入库，尚未发布；真实 Casdoor 待验收 |
 | X-1 | 无 scope 的 school_admin 全量可见 | Codex 已证伪；现有 capability 展开和 admin Entry 在 Handler 前返回 403，不按 P1 修复 |
 | X-2 | env 模板差集 | Codex 判定部分成立；改为分类治理，不执行 21 项全量入模板/严格集合相等方案 |
 | 其余条目 | — | 不再用“其余 41 项待修”概括；按 Codex 逐项表和四批实施顺序处置 |
