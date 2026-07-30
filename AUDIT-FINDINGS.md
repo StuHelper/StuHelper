@@ -45,7 +45,7 @@ Web / Admin / UniAppX+Koishi UI / Koishi / 基础设施 / 代码质量与文档)
   检查生产备份目录或用生产 WAL 执行目标时间点恢复，也没有观察生产锁等待或真实大表延迟。
   因此“生产已经丢失 PITR”“生产已经 OOM/死锁/永久停更”等说法仍不得当作已证实事实。
 - 当前工作树在复核开始前已经有未提交修改。Codex 对 P0-1、P1-1、P1-2、P1-3、P1-4、
-  P1-5、P1-6、P1-7、P1-8、P1-9、P1-10、P2-1、P2-2 与 P2-6 的修复已经按问题独立提交
+  P1-5、P1-6、P1-7、P1-8、P1-9、P1-10、P2-1、P2-2、P2-6 与 P2-7 的修复已经按问题独立提交
   （提交见下方进度表），但均未合并或发布；原有其他工作树修改没有混入这些提交。
 - 原报告大量“修复方案”和全部 18 条驳回长文在句中截断。例如 P0-1 结尾是
   `only surface the 4`，P1-1 结尾是 `Promise.resolve<string[]>(`，P1-3 结尾是
@@ -93,7 +93,7 @@ Web / Admin / UniAppX+Koishi UI / Koishi / 基础设施 / 代码质量与文档)
 | P2-4 | 部分确认；原报告引用了一条 dead 路径 | P2 → P3 | 先测 | 当前 dashboard 仍有 recent events 与 active guards 的全扫，应下推过滤/limit 后测延迟。原文所称 admission console 全量扫描不成立，五步聚合与全面 API 重写过重。 |
 | P2-5 | 确认 | P2 → P3 | 应改 | 修复空格分隔 ID 的 destructuring，并同步真实命令名和回归测试。低频、低成本 correctness，不需要新 parser 框架。 |
 | P2-6 | 确认，已完成本地修复与回归验证；真实 Console 热重载待验收 | P2 | 已修复，待发布与运行时热重载验收 | Group Guard 在 required console 子作用域注册；Group Guard 与 Core 的特权 listener 都交给 `ctx.effect` 管理，并只在 registry 仍指向本次 registration 时删除。authority 固定为 4，调用方不能降级。只做 injection 不能消除陈旧回调，无条件按 event 删除又会误删新作用域注册；无需全局 monkey patch 或修改上游 Console。 |
-| P2-7 | 确认 | P2 | 必须 | 每个 material-forward item 独立捕获失败、继续后项，并记录失败指标/日志；测 poison + healthy。立即加 server attempts/dead-letter/schema 不是解除队首阻塞的必要条件。 |
+| P2-7 | 条件性确认，已完成 Koishi 交付阶段修复与全量回归 | P2 | 已修复，待发布与功能启用验收 | 功能开启时，delivery 单项失败按 application 隔离、记录 `phase=delivery` 后继续，健康项正常 ACK；批末仍重抛以保留 scheduler error。ACK 失败记录 `phase=ack` 后 fail-fast，避免控制面失联时扩大重复发送。立即增加 attempts/dead-letter/schema、并行转发或 claim/lease 都不是解除单 poison 队首阻塞的必要条件。 |
 | P2-8 | 确认 | P2 → P4 | 可选 | 中英文增加 `school_email_otp`、`school_sso` 标签并可选保留 enum 原值 fallback。只是后台 i18n，不应占用 P2 修复预算。 |
 | P2-9 | 强静态证据确认；运行验证待补 | P2 | 必须 | 用 `{{ playbook_dir }}` 构造 command/copy 绝对源路径，使用 `argv` 并加窄路径契约/语法检查。当前环境没有 `ansible-playbook`，因此仍需 CI/真实 controller 验证。通用扫描所有 Ansible command/shell 的检测器过重。 |
 | P2-10 | 确认 | P2 | 必须 | 普通 importer 不应接受单独 hash；从普通 upsert 移除该字段并保留既有 enc/hash，若确需导入身份证则另做接受完整加密 pair 的受控入口。不能伪造空 `enc` 绕过约束。 |
@@ -179,7 +179,8 @@ P2 唯一根因应按以下修复簇合并，避免重复设计：
 3. P2-1 guard 路径分类、P2-2 always-on 静态供应链/Koishi package contract 与 P2-6
    privileged listener 生命周期均已完成修复、回归和独立提交；P2-6 的真实 Console
    服务热重载/插件卸载仍是发布环境验收项。
-4. P2-7 转发 poison、P2-13/14/15 claimed batch、P2-23 outbox panic。
+4. P2-7 Koishi 转发 poison 已完成分阶段隔离、全量回归和独立提交；继续
+   P2-13/14/15 claimed batch 与 P2-23 outbox panic。
 5. P2-21/P2-22 breaker 分类，R-8 Redis 错误分类，P3-9 cache version unavailable。
 6. P2-9 Ansible 路径、P2-16 NULL 语义决策、P2-18 filter invalidation。
 
@@ -270,10 +271,18 @@ P3-1 至 P3-6、P3-8、R-5 至 R-7、R-14、R-15、R-17，以及 X-2 的配置�
   5 秒时序失败（45/46），随即在全新临时 Koishi 实例上复跑 `yarn test:ui` 为 46/46；
   因此如实记录为一次偶发复跑通过，而不把首次完整命令写成成功。现有 E2E 会真实调用 Console
   action，但不会在已连接客户端下切换 Console 服务或卸载插件，真实热重载/卸载仍待验收。
+- Koishi P2-7：后端 SQL 静态复核确认队列按 `created_at` 取最老 100 条，且只有 ACK 后才设置
+  `forwarded_at`。新增测试覆盖“旧 delivery poison + 新健康项”：失败项不 ACK，健康项仍发送并
+  ACK，批次最终保持 rejected；另测 ACK 失败后立即停止后项，避免扩大未确认发送。既有测试继续
+  覆盖全部管理群成功后才 ACK，以及任一管理群失败时全部目标均尝试但不 ACK。独立代理从
+  scheduler、ACK、重复发送和 batch window 反证后确认分相方案无提交级 blocker。完整
+  `yarn test` 一次通过：build、Vue contracts、597/597 unit、startup smoke 和 WebUI E2E
+  46/46；deployable package contract 也通过。测试使用 fake bot/platform，没有向真实 QQ 群
+  发送材料；功能当前默认关闭，尚未在发布环境开启并观察真实队列推进。
 - image policy：2026-07-30 通过，2026-08-06 因 `review_by=2026-08-05` 失败，确认日历门禁。
 - 授权：capability/RBAC/review 定向 Go 测试通过，确认 X-1 在 Handler 前 fail-closed。
-- P2：3 个 infra/import contract 通过；Koishi 定向 29 tests 通过；outbox、externaldata、
-  review、admission 定向 Go 测试通过。绿灯只证明现有 happy-path，不覆盖本轮新增的 poison、
+- P2 早期基线：3 个 infra/import contract、Koishi 定向 29 tests，以及 outbox、externaldata、
+  review、admission 定向 Go 测试通过；P2-7 已另补 poison/ACK 专项回归。其余绿灯仍不覆盖
   cancellation、panic-continuation、真实 DB pair 与大表场景。
 - P3/驳回项：Admin 相关 Vitest 9/9、Koishi reminder 7/7、externaldata、OTP、cache、
   review projection 定向 Go 测试通过；仍缺 Redis transport error、cache v0 故障、
@@ -299,6 +308,7 @@ P3-1 至 P3-6、P3-8、R-5 至 R-7、R-14、R-15、R-17，以及 X-2 的配置�
 | P2-1 | 已修复，待 GitHub CI 验收 | `guards` 覆盖根 scripts/tools；文档库、Vue 合约、Semgrep 和 Node pin 精确触发消费 job，两个 Node 版本文件强制同步。CI contract、Bash 语法、actionlint 与文档检查通过 | `fix(ci): route guard changes to their checks` |
 | P2-2 | 已修复，待 GitHub CI 验收 | always-on 静态 job 执行 Dockerfile/CI wiring 并纳入 Required；Koishi job 执行 deployable package contract。三个定向合约、actionlint 与全量 76 个 infra contracts 通过 | `fix(ci): make supply-chain contracts unskippable` |
 | P2-6 | 已修复，未发布；真实 Console 热重载/插件卸载待验收 | Group Guard 使用 required console 子作用域；Core/Group Guard 特权 listeners 都由 `ctx.effect` 绑定生命周期，并用 registration identity 避免旧 disposer 删除新注册。authority 固定为 4。build、contracts、595 unit、startup 与 package contract 通过；WebUI E2E 首轮无关用例 45/46，立即复跑 46/46 | `fix(koishi): dispose privileged console listeners` |
+| P2-7 | 已修复，未发布；真实材料转发待启用验收 | delivery failure 逐项记录并继续，成功项 ACK；批末重抛。ACK failure 独立记录并 fail-fast。poison→healthy 与 ACK failure 回归通过；完整 Koishi build/contracts/597 unit/startup/46 E2E 及 package contract 通过 | `fix(koishi): isolate freshman forward failures` |
 
 ### 明确不建议实施的“修复”
 
@@ -315,6 +325,9 @@ P3-1 至 P3-6、P3-8、R-5 至 R-7、R-14、R-15、R-17，以及 X-2 的配置�
 - 不为 P2-6 monkey-patch 全局 Console、修改 `node_modules` 或只按 event 无条件删除 listener；
   后者会让旧作用域的延迟清理误删服务重载后同名的新 registration。也不为两个插件边界先建
   通用事件注册框架，局部 lifecycle helper 已覆盖当前根因。
+- 不为 P2-7 立即新增 `forward_attempt_count`、dead-letter、按群持久化 delivery 或
+  claim/lease schema，也不把最多 100 条顺序发送改成 `Promise.allSettled` 并发冲击 QQ；
+  当前局部隔离已解除单 poison 队首阻塞，复杂治理应由真实启用后的失败率与重复率驱动。
 - 不用 `COALESCE('', 0)` 隐藏 P2-16 的 NULL 数据语义。
 - 不在当前单副本部署为 P2-18 先建 Redis pub/sub/version 系统。
 - 不为 P2-23 增加无限自动 supervisor；panic 必须进入现有 retry/dead-letter。
@@ -1387,6 +1400,44 @@ if (failures.length) throw new AggregateError(failures, 'freshman forward batch 
 Rethrowing the single failure unchanged keeps freshman-forward.test.ts:73-88 and :109-118 green (Node matches a RegExp validator against `String(error)`, so the original message must survive) while every other application in the batch is still attempted. Add a regression test with an old poison item plus a newer healthy item asserting the healthy one is sent and marked.
 
 Note this only stops starvation *within* a batch; the poison item is still re-served first on every tick and still logs each interval. To actually drain the queue, add server-side failure tracking: a `forward_attempt_count`/`last_forward_error`/`last_forward_attempt_at` set of columns on
+
+> Claude 原修复方案在 `set of columns on` 处截断；上面的 schema 扩展不是完整设计，也不是本轮
+> 最小修复的前置条件。
+
+**Codex 独立复核与处置（2026-07-30）**
+
+- **核心问题确认，但触发条件必须写准确。**只有后端 policy 的
+  `forward_raw_material_to_qq` 和 Koishi runtime 的 `freshmanForwardEnabled` 都开启时才进入
+  该链路；当前默认值和运行文档均为关闭，因此不能描述成已发生的生产事故。功能开启后，后端按
+  `created_at` 升序返回最多 100 条 `pending + forwarded_at IS NULL` 记录，旧实现遇到第一条
+  `resolveFreshmanForwardBot`、URL 校验或发送失败就退出，后续项确实完全不尝试。
+- **最小修复只隔离 delivery 阶段。**每个 item 的 bot 解析和对全部管理群的发送放在独立
+  `try/catch` 中；失败时记录 `applicationID`、`phase=delivery` 和规范化错误，保留该 item
+  未 ACK 并继续后项。成功项仍严格在所有目标群发送成功后调用
+  `markFreshmanForwarded`。批次处理完后，单错误原样重抛、多错误用 `AggregateError` 重抛，
+  因此 scheduler 仍产生 error 级信号，不会把坏项静默伪装成整批成功。
+- **ACK 与 delivery 必须分相。**独立代理指出，把 ACK 网络/后端失败也当作 item-local continue
+  会在控制面不可确认时继续发送其余最多 99 条，使下轮重复范围从一条放大到整批。最终实现对
+  ACK 失败记录 `phase=ack` 后立即 fail-fast，保持旧行为的安全边界；如果此前已有 delivery
+  failures，则把它们与 ACK 错误聚合后退出。
+- **单 poison 不再卡住跨窗口队列。**失败项每轮仍占一个位置，但同批健康项会 ACK，下一轮新的
+  健康项可进入剩余窗口，因此原报告的“一条坏记录永久阻断所有后续记录”已解除。没有通过 ACK
+  坏项、吞掉错误或无界并发来换取表面推进。
+- **回归与交叉验证。**新增 poison→healthy 测试确认发送顺序、失败项不 ACK、健康项 ACK、
+  structured warning 和批末 reject；新增 ACK failure 测试确认第一项发送后 ACK 失败会阻止
+  第二项发送。既有测试继续覆盖全健康 ACK 和同一申请多个管理群部分失败。完整 `yarn test`
+  一次通过：build、Vue UI contracts、597/597 unit tests、startup smoke 与 WebUI E2E 46/46；
+  deployable package contract 通过。独立只读代理复查 scheduler、backend list/ACK、重复语义
+  和 batch window 后，确认当前分相实现没有提交级 blocker。
+- **仍存在但不应夸大为本提交已解决的边界。**服务端 `freshmanForwardItems` 为任一记录生成
+  material URL 失败时仍会让整个 list API 返回错误，Koishi 拿不到后续项；同一申请对多个群
+  部分成功时，下一轮按既有 at-least-once 语义可能重复发给已成功群；极慢扫描没有 single-flight
+  保护；100 个永久 poison 仍可占满窗口。本次结论只限于“Koishi delivery 阶段的一条 poison
+  不再阻塞同批及后续窗口”，不能声称端到端 poison、重复投递或调度重叠都已闭环。
+- **过度设计判断。**功能当前默认关闭，且没有真实失败率、重复率或扫描耗时证据。现在引入
+  attempts/dead-letter、per-target delivery 状态、claim/lease 或 scheduler single-flight 会把
+  一个局部循环修复扩成跨服务状态机。它们应作为正式启用前或监控达到阈值后的治理项，而不是
+  本次 P2-7 的必要代码。
 
 #### P2-8. Student verification method labels miss school_email_otp and school_sso, so the review queue renders the raw i18n key
 
@@ -2766,6 +2817,7 @@ STUHELPER_REDIS_INTEGRATION
 | P2-1 | Guard/toolchain 文件变化不触发消费它们的 CI 门禁 | Codex 已完成实现：新增 guards 分类，并把 docs hygiene、Vue UI contract、Semgrep 与 Node pin 精确接到实际消费 job；两个 Node 版本文件必须同步。CI wiring contract、Bash 语法、actionlint 与文档卫生通过。随独立修复提交入库，真实 GitHub paths-filter 调度待验收 |
 | P2-2 | Dockerfile/Koishi 输入可绕过只在 infra job 中运行的供应链合约 | Codex 已完成实现：Dockerfile/CI wiring 两个静态合约改为 always-on Required 依赖，Koishi package contract 接入已有 Koishi build/test job；没有扩大为所有机器人变更跑全套 infra。三个定向合约、actionlint 与全部 76 个 infra contracts 通过。随独立修复提交入库，真实 GitHub runner 待验收 |
 | P2-6 | Console listeners 不随插件作用域释放，停用后仍可能调用特权动作 | Codex 已完成实现：Group Guard 改为 required console 子作用域；Core 与 Group Guard listeners 均由 `ctx.effect` 管理，并以 registration identity 保护服务重载后的新注册，authority 固定为 4。build、contracts、595 unit、startup 与 package contract 通过；WebUI E2E 首轮无关用例 45/46，立即复跑 46/46。随独立修复提交入库；真实 Console 热重载/插件卸载待验收 |
+| P2-7 | 单个不可转发的新生材料阻塞后续队列 | Codex 已完成 Koishi delivery 阶段修复：单项 delivery failure 记录后继续，健康项 ACK，批末保持失败信号；ACK failure 分相并 fail-fast。poison→healthy、ACK failure 及既有多群语义测试通过，完整 Koishi build/contracts/597 unit/startup/46 E2E 与 package contract 通过。随独立修复提交入库；功能默认关闭，真实启用验收及服务端 URL 批构建边界仍待处理 |
 | X-1 | 无 scope 的 school_admin 全量可见 | Codex 已证伪；现有 capability 展开和 admin Entry 在 Handler 前返回 403，不按 P1 修复 |
 | X-2 | env 模板差集 | Codex 判定部分成立；改为分类治理，不执行 21 项全量入模板/严格集合相等方案 |
 | 其余条目 | — | 不再用“其余 41 项待修”概括；按 Codex 逐项表和四批实施顺序处置 |
