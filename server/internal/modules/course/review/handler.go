@@ -113,7 +113,7 @@ func (h *Handler) RegisterRoutes(
 	r.POST("/reviews/:reviewID/reports", authMiddleware, middleware.EndpointRateLimitMiddleware(h.reportLimiter, "report"), h.ReportReview)
 
 	// 回复
-	r.GET("/reviews/:reviewID/replies", h.GetReplies)
+	r.GET("/reviews/:reviewID/replies", optionalAuthMiddleware, middleware.RequireHealthyOptionalAuth(), h.GetReplies)
 	r.POST("/reviews/:reviewID/replies", authMiddleware, middleware.EndpointRateLimitMiddleware(h.replyLimiter, "reply"), h.CreateReply)
 	r.DELETE("/replies/:replyID", authMiddleware, middleware.EndpointRateLimitMiddleware(h.writeLimiter, "delete-reply"), h.DeleteReply)
 

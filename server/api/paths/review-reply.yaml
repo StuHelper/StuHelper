@@ -3,7 +3,10 @@
     tags: [Review]
     operationId: getReplies
     summary: 获取回复列表
-    security: []
+    security:
+      - {}
+      - cookieAuth: []
+      - bearerAuth: []
     parameters:
       - $ref: '../components/parameters/common.yaml#/ReviewIDPath'
       - $ref: '../components/parameters/common.yaml#/PageParam'
@@ -30,6 +33,8 @@
                         total:
                           type: integer
       '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '503':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '500':
         $ref: '../components/responses/common.yaml#/ErrorResponse'

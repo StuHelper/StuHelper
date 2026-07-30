@@ -8623,6 +8623,7 @@ export interface operations {
             };
             400: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     createReply: {

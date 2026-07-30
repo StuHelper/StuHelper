@@ -4149,7 +4149,10 @@ paths:
         - Review
       operationId: getReplies
       summary: 获取回复列表
-      security: []
+      security:
+        - {}
+        - cookieAuth: []
+        - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/ReviewIDPath'
         - $ref: '#/components/parameters/PageParam'
@@ -4181,6 +4184,8 @@ paths:
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '500':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
           $ref: '#/components/responses/ErrorResponse'
     post:
       tags:
