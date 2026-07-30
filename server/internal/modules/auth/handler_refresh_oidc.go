@@ -22,6 +22,7 @@ var errOIDCRefreshTokenNotRotated = errors.New("oidc refresh token was not rotat
 
 type oidcRefreshPayload struct {
 	rawIDToken           string
+	providerAccessToken  string
 	refreshToken         string
 	userID               string
 	accessTokenExpiresAt int64
@@ -52,7 +53,15 @@ func (h *Handler) refreshOIDCToken(c *gin.Context, refreshTokenStr string, inclu
 	}
 	csrfToken, ok := h.prepareTokenCookies(c, sessionID)
 	if !ok {
-		h.revokeIssuedProviderRefreshToken(c, appKey, sessionID, refreshTokenStr, payload.refreshToken, "cookie preparation failed")
+		h.revokeIssuedProviderTokenFamily(
+			c,
+			appKey,
+			sessionID,
+			refreshTokenStr,
+			payload.providerAccessToken,
+			payload.refreshToken,
+			"cookie preparation failed",
+		)
 		return false
 	}
 
@@ -104,10 +113,19 @@ func (h *Handler) fetchOIDCRefreshPayload(c *gin.Context, appKey, oldRefreshToke
 		response.Unauthorized(c, "failed to refresh token", errs.ErrRefreshTokenInvalid)
 		return oidcRefreshPayload{}, false
 	}
+	issuedAccessToken := newToken.AccessToken
 	revokeUncommittedRefresh := true
 	defer func() {
 		if revokeUncommittedRefresh {
-			h.revokeIssuedProviderRefreshToken(c, appKey, "", oldRefreshToken, newToken.RefreshToken, "provider refresh validation failed")
+			h.revokeIssuedProviderTokenFamily(
+				c,
+				appKey,
+				"",
+				oldRefreshToken,
+				issuedAccessToken,
+				newToken.RefreshToken,
+				"provider refresh validation failed",
+			)
 		}
 	}()
 
@@ -135,6 +153,7 @@ func (h *Handler) fetchOIDCRefreshPayload(c *gin.Context, appKey, oldRefreshToke
 	revokeUncommittedRefresh = false
 	return oidcRefreshPayload{
 		rawIDToken:           rawIDToken,
+		providerAccessToken:  issuedAccessToken,
 		refreshToken:         newToken.RefreshToken,
 		userID:               newClaims.GetUserID(),
 		accessTokenExpiresAt: newClaims.ExpiresAt,
@@ -157,11 +176,12 @@ func (h *Handler) syncOIDCRefreshUser(
 	payload oidcRefreshPayload,
 ) bool {
 	if err := h.svc.SyncOIDCUser(c.Request.Context(), payload.userSync); err != nil {
-		h.revokeIssuedProviderRefreshToken(
+		h.revokeIssuedProviderTokenFamily(
 			c,
 			appKey,
 			sessionID,
 			oldRefreshToken,
+			payload.providerAccessToken,
 			payload.refreshToken,
 			"user sync failed",
 		)
@@ -184,6 +204,7 @@ func (h *Handler) rotateOIDCSession(c *gin.Context, rotation oidcSessionRotation
 		rotation.oldRefreshToken,
 		rotation.payload.rawIDToken,
 		rotation.payload.accessTokenExpiresAt,
+		rotation.payload.providerAccessToken,
 		rotation.payload.refreshToken,
 	)
 	if err == nil {
@@ -198,11 +219,12 @@ func (h *Handler) rotateOIDCSession(c *gin.Context, rotation oidcSessionRotation
 		return true
 	}
 
-	h.revokeIssuedProviderRefreshToken(
+	h.revokeIssuedProviderTokenFamily(
 		c,
 		rotation.appKey,
 		rotation.sessionID,
 		rotation.oldRefreshToken,
+		rotation.payload.providerAccessToken,
 		rotation.payload.refreshToken,
 		"local session rotation failed before commit",
 	)
@@ -220,11 +242,12 @@ func (h *Handler) rotateOIDCSession(c *gin.Context, rotation oidcSessionRotation
 	return false
 }
 
-func (h *Handler) revokeIssuedProviderRefreshToken(
+func (h *Handler) revokeIssuedProviderTokenFamily(
 	c *gin.Context,
 	appKey,
 	sessionID,
 	oldRefreshToken,
+	newAccessToken,
 	newRefreshToken,
 	reason string,
 ) {
@@ -233,8 +256,13 @@ func (h *Handler) revokeIssuedProviderRefreshToken(
 	}
 	revokeCtx, cancel := ctxutil.DetachedTimeout(c.Request.Context(), providerRefreshCompensationTimeout)
 	defer cancel()
-	if err := h.svc.revokeRawProviderRefreshToken(revokeCtx, appKey, newRefreshToken); err != nil {
-		logger.FromGin(c).Error("failed to revoke uncommitted provider refresh token",
+	if err := h.svc.revokeRawProviderTokenFamily(
+		revokeCtx,
+		appKey,
+		newAccessToken,
+		newRefreshToken,
+	); err != nil {
+		logger.FromGin(c).Error("failed to revoke uncommitted provider token family",
 			zap.Bool("session_present", sessionID != ""),
 			zap.String("provider_app_key", appKey),
 			zap.String("reason", reason),

@@ -30,10 +30,11 @@ import (
 // ARGV[2] = new access token hash (empty string == keep current)
 // ARGV[3] = new access token expiry unix timestamp (required with ARGV[2])
 // ARGV[4] = new refresh token hash (empty string == keep current)
-// ARGV[5] = provider refresh token ciphertext (empty string == keep current)
-// ARGV[6] = provider app key (empty string == keep current)
-// ARGV[7] = TTL seconds
-// ARGV[8] = user session set prefix
+// ARGV[5] = provider access token ciphertext (empty string == keep current)
+// ARGV[6] = provider refresh token ciphertext (empty string == keep current)
+// ARGV[7] = provider app key (empty string == keep current)
+// ARGV[8] = TTL seconds
+// ARGV[9] = user session set prefix
 //
 // KEYS[2] = refresh token ref key for ARGV[4] (ignored when ARGV[4] is empty)
 //
@@ -52,20 +53,23 @@ end
 if ARGV[4] ~= '' then
     data['refreshTokenHash'] = ARGV[4]
     local ref = {sessionID=data['sessionID'], userID=data['userID']}
-	    redis.call('SET', KEYS[2], cjson.encode(ref), 'EX', tonumber(ARGV[7]))
+	    redis.call('SET', KEYS[2], cjson.encode(ref), 'EX', tonumber(ARGV[8]))
 end
 if ARGV[5] ~= '' then
-    data['providerRefreshTokenEnc'] = ARGV[5]
+    data['providerAccessTokenEnc'] = ARGV[5]
 end
 if ARGV[6] ~= '' then
-    data['providerAppKey'] = ARGV[6]
+    data['providerRefreshTokenEnc'] = ARGV[6]
+end
+if ARGV[7] ~= '' then
+    data['providerAppKey'] = ARGV[7]
 end
 if data['userID'] and data['sessionID'] then
-    local userKey = ARGV[8] .. data['userID']
+    local userKey = ARGV[9] .. data['userID']
     redis.call('SADD', userKey, data['sessionID'])
-    redis.call('EXPIRE', userKey, tonumber(ARGV[7]))
+    redis.call('EXPIRE', userKey, tonumber(ARGV[8]))
 end
-redis.call('SET', KEYS[1], cjson.encode(data), 'EX', tonumber(ARGV[7]))
+redis.call('SET', KEYS[1], cjson.encode(data), 'EX', tonumber(ARGV[8]))
 return 1
 `
 
@@ -93,6 +97,9 @@ type SessionData struct {
 	// Zero is accepted only for sessions created before this field existed.
 	AccessTokenExpiresAt int64  `json:"accessTokenExpiresAt,omitempty"`
 	RefreshTokenHash     string `json:"refreshTokenHash,omitempty"`
+	// ProviderAccessTokenEnc stores an encrypted provider access token for the
+	// Casdoor token-family logout contract. It is never sent to clients again.
+	ProviderAccessTokenEnc string `json:"providerAccessTokenEnc,omitempty"`
 	// ProviderRefreshTokenEnc stores an encrypted provider refresh token.
 	ProviderRefreshTokenEnc string `json:"providerRefreshTokenEnc,omitempty"`
 	// ProviderAppKey records which OIDC application owns provider token ops.
@@ -107,6 +114,7 @@ type SessionTouchUpdate struct {
 	AccessTokenHash         string
 	AccessTokenExpiresAt    int64
 	RefreshTokenHash        string
+	ProviderAccessTokenEnc  string
 	ProviderRefreshTokenEnc string
 	ProviderAppKey          string
 }
@@ -219,6 +227,7 @@ func (s *SessionStore) Touch(ctx context.Context, sessionID string, update Sessi
 		update.AccessTokenHash,
 		update.AccessTokenExpiresAt,
 		update.RefreshTokenHash,
+		update.ProviderAccessTokenEnc,
 		update.ProviderRefreshTokenEnc,
 		update.ProviderAppKey,
 		int(s.sessionTTL.Seconds()),

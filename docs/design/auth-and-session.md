@@ -51,7 +51,7 @@ StuHelper 个人中心仍可以承载手机号补绑 / 更换 UI，但写路径�
 |-------------|------------|------|------|
 | Casdoor ID Token（StuHelper access credential） | provider `exp` 是自然失效真值；仓库托管的 Casdoor application 默认 1 小时 | HttpOnly Cookie 或 native 安全存储 | API 访问 |
 | Access Cookie / `expiresIn` 策略 | `TOKEN_ACCESS_TTL` 默认 300 s；这是客户端刷新/持有策略，不会改写 provider `exp` | HttpOnly Cookie / 响应字段 | 缩短浏览器持有窗口、提示客户端刷新 |
-| Provider Refresh Token | 仓库托管的 Casdoor application 默认 24 小时；本地 session / cookie lease 由 `TOKEN_REFRESH_TTL` 控制，默认 7 天 | Path `/api/v1/auth` HttpOnly Cookie；服务端 session 保存加密副本 | 续期 |
+| Provider Access / Refresh Token | access 的 provider `exp` 默认 1 小时，refresh 默认 24 小时；本地 session / cookie lease 由 `TOKEN_REFRESH_TTL` 控制，默认 7 天 | refresh 位于 Path `/api/v1/auth` HttpOnly Cookie；服务端 session 分别保存加密的 provider access/refresh 副本 | 续期与 provider token-family 撤销 |
 | CSRF Token | 随本地 refresh/session lease | 普通 Cookie | 写请求防 CSRF |
 
 Casdoor token 通过 provider `tokenType` 区分 access / refresh；遗留 StuHelper 自签 token
@@ -70,10 +70,14 @@ Casdoor token 通过 provider `tokenType` 区分 access / refresh；遗留 StuHe
   - 响应体返回 `accessToken`、`refreshToken`、`expiresIn`
 - refresh token 来源必须唯一：原生 JSON body 与浏览器认证/session cookie 不能混用；请求体存在时必须是合法 JSON，不能静默回退到 cookie。
 - session 定位来源必须唯一：`X-Stuhelper-Session-ID` 必须是单个非空 header，且不能与浏览器 `session_id` cookie 同时出现。
-- OIDC refresh token 由 StuHelper session store 代持：
-  - `oidc` / `oidc-native` session 会把 provider refresh token 加密后写入 Redis session；
-  - refresh 在同一个 Redis Lua 操作中更新 access token hash、已验证 `exp`、refresh token hash 和 session lease，避免 hash 与 expiry 分离；
-  - `logout` / `logout-all` 会撤销本地 session 和 token blacklist，并尝试执行 provider refresh-token 清理；当前固定 Casdoor 版本的 provider 撤销契约仍须按审计项 N-1 独立修复/验收，不能只因 HTTP 2xx 宣称 provider token family 已撤销；
+- OIDC provider token 由 StuHelper session store 加密代持：
+  - `oidc` / `oidc-native` session 分别保存 provider access 与 refresh token 密文；客户端 access credential 的 hash/`exp` 仍独立保存，不能把可逆密文当认证索引；
+  - refresh 在同一个 Redis Lua 操作中更新客户端 access token hash、已验证 `exp`、refresh token hash、两份 provider token 密文和 session lease，避免新旧 family 字段混合；
+  - 固定 Casdoor 镜像只发布 `/api/logout` 作为 `end_session_endpoint`，没有 RFC 7009 `revocation_endpoint`。StuHelper 只对与 discovery issuer 同源且路径精确为 `/api/logout` 的 endpoint 使用 Casdoor adapter：发送 `id_token_hint=<provider access token>` 与对应 `client_id`，并要求 HTTP 2xx **且** JSON `status=ok`；跨源 endpoint、`status=error`、空响应或畸形 JSON 都算撤销失败；
+  - 若未来 discovery 提供真正的 `revocation_endpoint`，该独立路径仍按 RFC 7009 发送 `token=<refresh>` 与 `token_type_hint=refresh_token`，不会把任意 end-session URL 当作 revocation endpoint；
+  - Casdoor refresh grant 会删除旧 token row 并创建新 row，故正常 refresh 成功后不再对已不存在的旧 access token 重复调用 `/api/logout`；只有新 family 尚未提交到本地 session 时，才用新 provider access token 做补偿撤销；
+  - 滚动升级前的 session 没有 provider access 密文。固定 Casdoor 在当前授权码/refresh 流中令 `id_token` 与 `access_token` 同值，因此当前设备 logout 可复用已经与 session hash 匹配的原始 access token；logout-all 则用加密 refresh token 先执行一次 Casdoor rotation，再立即撤销替代 family。`invalid_grant` 表示旧 row 已不存在或 `expires_in <= 0`，可视为已失效；其他 4xx、5xx、网络或业务状态错误不能伪装成成功；
+  - `logout` / `logout-all` 先完成本地 session/blacklist 撤销，再调用 provider；provider 失败时请求整体返回失败且不能记录成功审计，但不会恢复本地 session。旧 session 若 provider access/refresh 凭据都缺失也必须明确失败，不能伪装成 provider 已撤销；
   - 当前公开登录链路全部是 OIDC provider session，不存在 StuHelper 自签 phone-login refresh token；遗留自签 refresh token 会被 `/api/v1/auth/refresh` 拒绝，遗留自签 access cookie 也不会被认证中间件接受。
 
 ### 浏览器 access token 校验模型
@@ -109,7 +113,7 @@ Casdoor token 通过 provider `tokenType` 区分 access / refresh；遗留 StuHe
 - 成功响应：`{ accessToken, refreshToken, sessionID, expiresIn }`
 - 原生 OIDC refresh 必须通过 `X-Stuhelper-Session-ID` 回传 `sessionID`；缺失或不匹配时拒绝 refresh。
 - refresh 会对旧 refresh token 做 blacklist，并在 session store 内原子更新新 access
-  hash、已验证 `exp`、新 refresh hash 和加密后的 provider refresh token。
+  hash、已验证 `exp`、新 refresh hash 和加密后的 provider access/refresh token。
 - 旧 refresh token 再次提交会触发 reuse detection：吊销该用户全部 session 并记录审计。
 
 ## Shadow User
@@ -141,6 +145,6 @@ OIDC 用户同步到本地 `users` 表：`casdoor_subject`、`username`、`email
 | Auth Handler | `server/internal/modules/auth/` |
 | OIDC 客户端 | `server/internal/pkg/oidc/` |
 | Token 服务 | `server/internal/pkg/token/` |
-| Provider refresh token revoke | `server/internal/modules/auth/service_provider_tokens.go` + `server/internal/pkg/oidc/revoke.go` |
+| Provider token-family revoke | `server/internal/modules/auth/service_provider_tokens.go` + `server/internal/pkg/oidc/revoke.go` |
 | 用户同步 | `server/internal/modules/auth/user_sync.go` |
 | 手机号资料写入 | `server/internal/modules/user/service_phone.go` + `server/internal/platform/casdoor/user_profile.go` |

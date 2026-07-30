@@ -323,6 +323,7 @@ func TestRefreshToken_BlacklistedRefreshReuseRevokesAllSessionsAfterOldRefTTLWas
 		oldRefresh,
 		"new-access-token",
 		futureAccessTokenExpiryUnix(),
+		"new-access-token",
 		"new-refresh-token",
 	)
 	require.NoError(t, err)

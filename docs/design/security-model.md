@@ -22,7 +22,7 @@ last-verified: 2026-07-31
 |-------------|----------|------|------|
 | Casdoor ID Token（access credential） | 以已验证 provider `exp` 为真值；托管 application 默认 1 小时 | HttpOnly Cookie / native 安全存储 | API 访问 |
 | Access Cookie / `expiresIn` 策略 | `TOKEN_ACCESS_TTL` 默认 300 s，不改变 provider `exp` | HttpOnly Cookie / 响应字段 | 缩短客户端持有与刷新窗口 |
-| Provider Refresh Token / 本地 session | Casdoor 默认 24 小时；本地 session lease 默认 7 天 | Path `/api/v1/auth` HttpOnly Cookie + Redis 加密副本 | 续期 |
+| Provider Access / Refresh Token / 本地 session | access 默认 1 小时、refresh 默认 24 小时；本地 session lease 默认 7 天 | refresh 位于 Path `/api/v1/auth` HttpOnly Cookie；Redis 分别保存两份 provider token 密文 | 续期与 provider token-family 撤销 |
 | CSRF Token | 随本地 refresh/session lease | 普通 Cookie | 前端读取后放 `X-CSRF-Token` |
 
 Casdoor access / refresh 由 provider `tokenType` 区分；遗留 StuHelper 自签 token 才使用
@@ -33,9 +33,22 @@ Casdoor access / refresh 由 provider `tokenType` 区分；遗留 StuHelper 自�
 - Redis 黑名单用于紧急吊销
 - `logout` 撤销当前设备
 - `logout-all` 撤销全部已跟踪 token
-- OIDC provider refresh token 由后端加密代持；本地 session/blacklist 撤销与 provider
-  token-family 撤销是两层边界。固定 Casdoor 版本的 provider 撤销适配仍是独立审计项
-  N-1，HTTP 2xx 不能单独证明 refresh grant 已失效。
+- OIDC provider access/refresh token 由后端分别加密代持；本地 session/blacklist 撤销与
+  provider token-family 撤销是两层边界。
+- 固定 Casdoor 镜像没有 RFC 7009 `revocation_endpoint`。只有 discovery 中与 issuer
+  同源且路径精确为 `/api/logout` 的 endpoint 才进入 Casdoor adapter：服务端发送
+  `id_token_hint=<provider access token>`，并同时校验 HTTP 状态与 JSON
+  `status=ok`。旧的 `token=<refresh>&token_type_hint=refresh_token` 对该 endpoint
+  是无浏览器 session 时的 HTTP 200 no-op，禁止恢复。
+- Casdoor logout 把 access/refresh 所属同一 token row 的 `expires_in` 置零，因此成功后
+  access introspection 与 refresh grant 必须同时失效。正常 refresh 已删除旧 row，不重复
+  logout；尚未提交的新 family 才补偿撤销。
+- 旧 session 缺 provider access 密文时，固定 Casdoor 当前返回同值的 `id_token` /
+  `access_token`，故当前设备可使用已经匹配 session hash 的原始 access；
+  logout-all 用加密 refresh 先 rotation、再立即撤销替代 family。只有 Casdoor
+  `invalid_grant` 可判为 family 已失效，配置错误、其他 4xx、5xx、网络失败或业务
+  `status=error` 均 fail-closed；两种 provider 凭据都缺失也不能静默成功。logout-all
+  在外部调用前先完成本地 session/blacklist 撤销，避免 provider 延迟耗尽本地清理预算。
 - 浏览器 Cookie 中的 Casdoor JWT access credential 会先查 blacklist 和 tracked session
   hash，再做本地 JWKS / audience / `exp` 验证；Bearer 继续走 provider introspection，
   不新增每请求 session 绑定。

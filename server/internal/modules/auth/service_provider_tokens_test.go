@@ -18,63 +18,42 @@ import (
 	"github.com/StuHelper/StuHelper/server/internal/testutil/redisfixture"
 )
 
-type fakeProviderRefreshRevoker struct {
-	tokens []string
-	err    error
-	ctxErr error
-}
-
-func (f *fakeProviderRefreshRevoker) RevokeRefreshToken(ctx context.Context, refreshToken string) error {
-	f.ctxErr = ctx.Err()
-	f.tokens = append(f.tokens, refreshToken)
-	return f.err
-}
-
-type providerRefreshRevokerFunc func(ctx context.Context, refreshToken string) error
-
-func (f providerRefreshRevokerFunc) RevokeRefreshToken(ctx context.Context, refreshToken string) error {
-	return f(ctx, refreshToken)
-}
-
-type providerRefreshTokenRevokeCall struct {
+type providerTokenFamilyRevokeCall struct {
 	appKey       string
+	accessToken  string
 	refreshToken string
 }
 
-type fakeApplicationProviderRefreshRevoker struct {
-	calls    []providerRefreshTokenRevokeCall
-	err      error
-	ctxErr   error
-	onRevoke func(ctx context.Context, appKey, refreshToken string)
+type fakeProviderTokenFamilyRevoker struct {
+	calls         []providerTokenFamilyRevokeCall
+	err           error
+	requireAccess bool
+	ctxErr        error
+	onRevoke      func(ctx context.Context, appKey, accessToken, refreshToken string)
 }
 
-func (f *fakeApplicationProviderRefreshRevoker) RevokeRefreshToken(ctx context.Context, refreshToken string) error {
+func (f *fakeProviderTokenFamilyRevoker) RevokeTokenFamilyForApplication(
+	ctx context.Context,
+	appKey, accessToken, refreshToken string,
+) error {
 	f.ctxErr = ctx.Err()
 	if f.onRevoke != nil {
-		f.onRevoke(ctx, oidc.ApplicationWeb, refreshToken)
+		f.onRevoke(ctx, appKey, accessToken, refreshToken)
 	}
-	f.calls = append(f.calls, providerRefreshTokenRevokeCall{
-		appKey:       oidc.ApplicationWeb,
-		refreshToken: refreshToken,
-	})
-	return f.err
-}
-
-func (f *fakeApplicationProviderRefreshRevoker) RevokeRefreshTokenForApplication(ctx context.Context, appKey, refreshToken string) error {
-	f.ctxErr = ctx.Err()
-	if f.onRevoke != nil {
-		f.onRevoke(ctx, appKey, refreshToken)
-	}
-	f.calls = append(f.calls, providerRefreshTokenRevokeCall{
+	f.calls = append(f.calls, providerTokenFamilyRevokeCall{
 		appKey:       appKey,
+		accessToken:  accessToken,
 		refreshToken: refreshToken,
 	})
+	if f.requireAccess && accessToken == "" {
+		return errors.New("provider access token is required")
+	}
 	return f.err
 }
 
 func newAuthServiceWithProviderRevoker(
 	t *testing.T,
-	revoker ProviderRefreshTokenRevoker,
+	revoker ProviderTokenFamilyRevoker,
 ) (*Service, *token.Service) {
 	t.Helper()
 	fixture := redisfixture.Start(t)
@@ -85,63 +64,76 @@ func newAuthServiceWithProviderRevoker(
 	cipher, err := pii.NewCipher(1, map[uint8][]byte{1: []byte("0123456789abcdef0123456789abcdef")})
 	require.NoError(t, err)
 	tokenCfg := config.TokenConfig{AccessTokenTTL: 300, RefreshTokenTTL: 600}
-	svc := NewService(tokenCfg, tokenSvc, &fakeUserSyncRepo{}, WithProviderRefreshTokenRevocation(revoker, cipher))
+	svc := NewService(tokenCfg, tokenSvc, &fakeUserSyncRepo{}, WithProviderTokenFamilyRevocation(revoker, cipher))
 	return svc, tokenSvc
 }
 
-func TestProviderRefreshTokenRevokedOnSessionLifecycle(t *testing.T) {
-	revoker := &fakeProviderRefreshRevoker{}
+func TestProviderTokenFamilyRevokedOnSessionLifecycle(t *testing.T) {
+	revoker := &fakeProviderTokenFamilyRevoker{}
 	svc, tokenSvc := newAuthServiceWithProviderRevoker(t, revoker)
 
 	_, err := svc.CreateSession(t.Context(), "sid-oidc", "user-1", "old-access", "old-refresh", "oidc", "browser")
 	require.NoError(t, err)
 	session := requireSession(t, tokenSvc, "sid-oidc")
+	assert.NotEmpty(t, session.ProviderAccessTokenEnc)
 	assert.NotEmpty(t, session.ProviderRefreshTokenEnc)
+	assert.NotContains(t, session.ProviderAccessTokenEnc, "old-access")
 	assert.NotContains(t, session.ProviderRefreshTokenEnc, "old-refresh")
 
-	err = svc.RotateSession(t.Context(), "sid-oidc", "user-1", "old-refresh", "new-access", futureAccessTokenExpiryUnix(), "new-refresh")
+	err = svc.RotateSession(
+		t.Context(),
+		"sid-oidc",
+		"user-1",
+		"old-refresh",
+		"new-access",
+		futureAccessTokenExpiryUnix(),
+		"new-provider-access",
+		"new-refresh",
+	)
 	require.NoError(t, err)
-	assert.Equal(t, []string{"old-refresh"}, revoker.tokens)
+	assert.Empty(t, revoker.calls)
+
+	session = requireSession(t, tokenSvc, "sid-oidc")
+	rawProviderAccess, err := svc.decryptProviderToken(session.ProviderAccessTokenEnc)
+	require.NoError(t, err)
+	assert.Equal(t, "new-provider-access", rawProviderAccess)
+	rawProviderRefresh, err := svc.decryptProviderToken(session.ProviderRefreshTokenEnc)
+	require.NoError(t, err)
+	assert.Equal(t, "new-refresh", rawProviderRefresh)
 
 	err = svc.RevokeSession(t.Context(), "sid-oidc", "user-1", "new-access", "new-refresh", futureAccessTokenExpiry())
 	require.NoError(t, err)
-	assert.Equal(t, []string{"old-refresh", "new-refresh"}, revoker.tokens)
+	assert.Equal(t, []providerTokenFamilyRevokeCall{{
+		appKey:       oidc.ApplicationWeb,
+		accessToken:  "new-provider-access",
+		refreshToken: "new-refresh",
+	}}, revoker.calls)
 	assert.Nil(t, requireSession(t, tokenSvc, "sid-oidc"))
 }
 
-func TestProviderRefreshTokenRevokedAfterSessionTouch(t *testing.T) {
-	var tokenSvc *token.Service
-	revoker := providerRefreshRevokerFunc(func(ctx context.Context, refreshToken string) error {
-		assert.Equal(t, "old-refresh", refreshToken)
-		session := requireSession(t, tokenSvc, "sid-provider-order")
-		newRefreshHash, err := hashTokenForSession("new-refresh")
-		require.NoError(t, err)
-		assert.Equal(t, newRefreshHash, session.RefreshTokenHash)
-		return nil
-	})
-	svc, tokenSvc := newAuthServiceWithProviderRevoker(t, revoker)
-
-	_, err := svc.CreateSession(t.Context(), "sid-provider-order", "user-1", "old-access", "old-refresh", "oidc", "browser")
-	require.NoError(t, err)
-
-	err = svc.RotateSession(t.Context(), "sid-provider-order", "user-1", "old-refresh", "new-access", futureAccessTokenExpiryUnix(), "new-refresh")
-	require.NoError(t, err)
-}
-
-func TestProviderRefreshTokenNotRevokedWhenRotationValidationFails(t *testing.T) {
-	revoker := &fakeProviderRefreshRevoker{}
+func TestProviderTokenFamilyNotRevokedWhenRotationValidationFails(t *testing.T) {
+	revoker := &fakeProviderTokenFamilyRevoker{}
 	svc, _ := newAuthServiceWithProviderRevoker(t, revoker)
 
 	_, err := svc.CreateSession(t.Context(), "sid-oidc-mismatch", "user-1", "old-access", "old-refresh", "oidc", "browser")
 	require.NoError(t, err)
 
-	err = svc.RotateSession(t.Context(), "sid-oidc-mismatch", "user-1", "other-refresh", "new-access", futureAccessTokenExpiryUnix(), "new-refresh")
+	err = svc.RotateSession(
+		t.Context(),
+		"sid-oidc-mismatch",
+		"user-1",
+		"other-refresh",
+		"new-access",
+		futureAccessTokenExpiryUnix(),
+		"new-provider-access",
+		"new-refresh",
+	)
 	require.ErrorIs(t, err, errSessionRefreshTokenMismatch)
-	assert.Empty(t, revoker.tokens)
+	assert.Empty(t, revoker.calls)
 }
 
-func TestProviderRefreshTokenInputsAreNormalized(t *testing.T) {
-	revoker := &fakeApplicationProviderRefreshRevoker{}
+func TestProviderTokenFamilyInputsAreNormalized(t *testing.T) {
+	revoker := &fakeProviderTokenFamilyRevoker{}
 	svc, tokenSvc := newAuthServiceWithProviderRevoker(t, revoker)
 
 	_, err := svc.CreateSessionForApplication(
@@ -150,6 +142,7 @@ func TestProviderRefreshTokenInputsAreNormalized(t *testing.T) {
 		"user-1",
 		"access-token",
 		futureAccessTokenExpiryUnix(),
+		" \tprovider-access\n ",
 		" \tprovider-refresh\n ",
 		"oidc-native",
 		" \t"+oidc.ApplicationUniapp+"\n ",
@@ -158,10 +151,14 @@ func TestProviderRefreshTokenInputsAreNormalized(t *testing.T) {
 	require.NoError(t, err)
 
 	session := requireSession(t, tokenSvc, "sid-provider-trim")
+	require.NotEmpty(t, session.ProviderAccessTokenEnc)
 	require.NotEmpty(t, session.ProviderRefreshTokenEnc)
 	assert.Equal(t, oidc.ApplicationUniapp, session.ProviderAppKey)
 
-	rawProviderRefresh, err := svc.decryptProviderRefreshToken(session.ProviderRefreshTokenEnc)
+	rawProviderAccess, err := svc.decryptProviderToken(session.ProviderAccessTokenEnc)
+	require.NoError(t, err)
+	assert.Equal(t, "provider-access", rawProviderAccess)
+	rawProviderRefresh, err := svc.decryptProviderToken(session.ProviderRefreshTokenEnc)
 	require.NoError(t, err)
 	assert.Equal(t, "provider-refresh", rawProviderRefresh)
 
@@ -171,13 +168,72 @@ func TestProviderRefreshTokenInputsAreNormalized(t *testing.T) {
 
 	err = svc.RevokeSession(t.Context(), "sid-provider-trim", "user-1", "access-token", " \tprovider-refresh\n ", futureAccessTokenExpiry())
 	require.NoError(t, err)
-	assert.Equal(t, []providerRefreshTokenRevokeCall{
-		{appKey: oidc.ApplicationUniapp, refreshToken: "provider-refresh"},
+	assert.Equal(t, []providerTokenFamilyRevokeCall{
+		{appKey: oidc.ApplicationUniapp, accessToken: "provider-access", refreshToken: "provider-refresh"},
 	}, revoker.calls)
 }
 
-func TestProviderRefreshTokenWhitespaceOnlySkipped(t *testing.T) {
-	revoker := &fakeApplicationProviderRefreshRevoker{}
+func TestProviderSessionRequiresProviderAccessToken(t *testing.T) {
+	revoker := &fakeProviderTokenFamilyRevoker{}
+	svc, tokenSvc := newAuthServiceWithProviderRevoker(t, revoker)
+
+	_, err := svc.CreateSessionForApplication(
+		t.Context(),
+		"sid-provider-access-required",
+		"user-1",
+		"client-access-token",
+		futureAccessTokenExpiryUnix(),
+		" \t\n ",
+		"provider-refresh-token",
+		"oidc",
+		oidc.ApplicationWeb,
+		"browser",
+	)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "provider access token is required")
+	assert.Nil(t, requireSession(t, tokenSvc, "sid-provider-access-required"))
+}
+
+func TestProviderSessionRotationRequiresProviderAccessTokenBeforeTouch(t *testing.T) {
+	revoker := &fakeProviderTokenFamilyRevoker{}
+	svc, tokenSvc := newAuthServiceWithProviderRevoker(t, revoker)
+	_, err := svc.CreateSession(
+		t.Context(),
+		"sid-provider-rotation-access-required",
+		"user-1",
+		"old-access",
+		"old-refresh",
+		"oidc",
+		"browser",
+	)
+	require.NoError(t, err)
+
+	err = svc.RotateSession(
+		t.Context(),
+		"sid-provider-rotation-access-required",
+		"user-1",
+		"old-refresh",
+		"new-client-access",
+		futureAccessTokenExpiryUnix(),
+		" \t\n ",
+		"new-refresh",
+	)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "provider access token is required")
+	session := requireSession(t, tokenSvc, "sid-provider-rotation-access-required")
+	oldAccessHash, hashErr := hashTokenForSession("old-access")
+	require.NoError(t, hashErr)
+	oldRefreshHash, hashErr := hashTokenForSession("old-refresh")
+	require.NoError(t, hashErr)
+	assert.Equal(t, oldAccessHash, session.AccessTokenHash)
+	assert.Equal(t, oldRefreshHash, session.RefreshTokenHash)
+	assert.Empty(t, revoker.calls)
+}
+
+func TestProviderTokenFamilyRevokesAccessWhenRefreshTokenIsBlank(t *testing.T) {
+	revoker := &fakeProviderTokenFamilyRevoker{}
 	svc, tokenSvc := newAuthServiceWithProviderRevoker(t, revoker)
 
 	_, err := svc.CreateSessionForApplication(
@@ -186,6 +242,7 @@ func TestProviderRefreshTokenWhitespaceOnlySkipped(t *testing.T) {
 		"user-1",
 		"access-token",
 		futureAccessTokenExpiryUnix(),
+		"access-token",
 		" \t\n ",
 		"oidc-native",
 		" \t\n ",
@@ -194,31 +251,78 @@ func TestProviderRefreshTokenWhitespaceOnlySkipped(t *testing.T) {
 	require.NoError(t, err)
 
 	session := requireSession(t, tokenSvc, "sid-provider-blank")
+	assert.NotEmpty(t, session.ProviderAccessTokenEnc)
 	assert.Empty(t, session.ProviderRefreshTokenEnc)
 	assert.Equal(t, oidc.ApplicationUniapp, session.ProviderAppKey)
 
 	err = svc.RevokeSession(t.Context(), "sid-provider-blank", "user-1", "access-token", " \t\n ", futureAccessTokenExpiry())
 	require.NoError(t, err)
-	assert.Empty(t, revoker.calls)
+	assert.Equal(t, []providerTokenFamilyRevokeCall{{
+		appKey:      oidc.ApplicationUniapp,
+		accessToken: "access-token",
+	}}, revoker.calls)
 }
 
-func TestRevokeRawProviderRefreshTokenNormalizesInputs(t *testing.T) {
-	revoker := &fakeApplicationProviderRefreshRevoker{}
+func TestCurrentDeviceLogoutUsesVerifiedAccessTokenForLegacyProviderSession(t *testing.T) {
+	revoker := &fakeProviderTokenFamilyRevoker{requireAccess: true}
+	svc, tokenSvc := newAuthServiceWithProviderRevoker(t, revoker)
+
+	accessHash, err := hashTokenForSession("legacy-access")
+	require.NoError(t, err)
+	refreshHash, err := hashTokenForSession("legacy-refresh")
+	require.NoError(t, err)
+	providerRefreshEnc, err := svc.encryptProviderToken("oidc", "legacy-refresh")
+	require.NoError(t, err)
+	require.NoError(t, tokenSvc.GetSessionStore().Create(t.Context(), token.SessionData{
+		SessionID:               "sid-provider-legacy",
+		UserID:                  "user-provider-legacy",
+		AccessTokenHash:         accessHash,
+		RefreshTokenHash:        refreshHash,
+		ProviderRefreshTokenEnc: providerRefreshEnc,
+		ProviderAppKey:          oidc.ApplicationWeb,
+		LoginMethod:             "oidc",
+	}))
+
+	err = svc.RevokeSession(
+		t.Context(),
+		"sid-provider-legacy",
+		"user-provider-legacy",
+		"legacy-access",
+		"legacy-refresh",
+		futureAccessTokenExpiry(),
+	)
+
+	require.NoError(t, err)
+	assert.Equal(t, []providerTokenFamilyRevokeCall{{
+		appKey:       oidc.ApplicationWeb,
+		accessToken:  "legacy-access",
+		refreshToken: "legacy-refresh",
+	}}, revoker.calls)
+}
+
+func TestRevokeRawProviderTokenFamilyNormalizesInputs(t *testing.T) {
+	revoker := &fakeProviderTokenFamilyRevoker{}
 	svc, _ := newAuthServiceWithProviderRevoker(t, revoker)
 
-	err := svc.revokeRawProviderRefreshToken(t.Context(), " \t"+oidc.ApplicationUniapp+"\n ", " \tprovider-refresh\n ")
+	err := svc.revokeRawProviderTokenFamily(
+		t.Context(),
+		" \t"+oidc.ApplicationUniapp+"\n ",
+		" \tprovider-access\n ",
+		" \tprovider-refresh\n ",
+	)
 	require.NoError(t, err)
-	assert.Equal(t, []providerRefreshTokenRevokeCall{
-		{appKey: oidc.ApplicationUniapp, refreshToken: "provider-refresh"},
+	assert.Equal(t, []providerTokenFamilyRevokeCall{
+		{appKey: oidc.ApplicationUniapp, accessToken: "provider-access", refreshToken: "provider-refresh"},
 	}, revoker.calls)
 
-	err = svc.revokeRawProviderRefreshToken(t.Context(), oidc.ApplicationWeb, " \t\n ")
-	require.NoError(t, err)
+	err = svc.revokeRawProviderTokenFamily(t.Context(), oidc.ApplicationWeb, " \t\n ", " \t\n ")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "provider credentials are required")
 	assert.Len(t, revoker.calls, 1)
 }
 
-func TestRevokeAllSessionsRevokesProviderRefreshTokens(t *testing.T) {
-	revoker := &fakeProviderRefreshRevoker{}
+func TestRevokeAllSessionsRevokesProviderTokenFamilies(t *testing.T) {
+	revoker := &fakeProviderTokenFamilyRevoker{}
 	svc, tokenSvc := newAuthServiceWithProviderRevoker(t, revoker)
 
 	createTrackedSession(t, svc, trackedSessionSeed{
@@ -230,18 +334,34 @@ func TestRevokeAllSessionsRevokesProviderRefreshTokens(t *testing.T) {
 	createTrackedSession(t, svc, trackedSessionSeed{
 		SessionID: "sid-phone", UserID: "user-1", RefreshToken: "self-refresh", LoginMethod: "phone",
 	})
+	revoker.onRevoke = func(_ context.Context, _, _, _ string) {
+		sessions, listErr := tokenSvc.GetSessionStore().ListUserSessions(t.Context(), "user-1")
+		require.NoError(t, listErr)
+		assert.Empty(t, sessions, "local sessions must be revoked before provider calls")
+	}
 
 	err := svc.RevokeAllSessions(t.Context(), "user-1")
 
 	require.NoError(t, err)
-	assert.ElementsMatch(t, []string{"provider-refresh-a", "provider-refresh-b"}, revoker.tokens)
+	assert.ElementsMatch(t, []providerTokenFamilyRevokeCall{
+		{
+			appKey:       oidc.ApplicationWeb,
+			accessToken:  "access-sid-a",
+			refreshToken: "provider-refresh-a",
+		},
+		{
+			appKey:       oidc.ApplicationUniapp,
+			accessToken:  "access-sid-b",
+			refreshToken: "provider-refresh-b",
+		},
+	}, revoker.calls)
 	sessions, err := tokenSvc.GetSessionStore().ListUserSessions(t.Context(), "user-1")
 	require.NoError(t, err)
 	assert.Empty(t, sessions)
 }
 
 func TestRevokeAllSessionsRevokesLocalSessionsWhenProviderRevokeFails(t *testing.T) {
-	revoker := &fakeProviderRefreshRevoker{err: errors.New("provider revoke failed")}
+	revoker := &fakeProviderTokenFamilyRevoker{err: errors.New("provider revoke failed")}
 	svc, tokenSvc := newAuthServiceWithProviderRevoker(t, revoker)
 	createTrackedSession(t, svc, trackedSessionSeed{
 		SessionID: "sid-a", UserID: "user-1", RefreshToken: "provider-refresh-a", LoginMethod: "oidc",
@@ -254,8 +374,33 @@ func TestRevokeAllSessionsRevokesLocalSessionsWhenProviderRevokeFails(t *testing
 	assert.Nil(t, requireSession(t, tokenSvc, "sid-a"))
 }
 
+func TestRevokeAllSessionsFailsClosedWhenLegacyProviderCredentialsAreMissing(t *testing.T) {
+	revoker := &fakeProviderTokenFamilyRevoker{}
+	svc, tokenSvc := newAuthServiceWithProviderRevoker(t, revoker)
+	accessHash, err := hashTokenForSession("legacy-access")
+	require.NoError(t, err)
+	refreshHash, err := hashTokenForSession("legacy-refresh")
+	require.NoError(t, err)
+	require.NoError(t, tokenSvc.GetSessionStore().Create(t.Context(), token.SessionData{
+		SessionID:            "sid-provider-credentials-missing",
+		UserID:               "user-provider-credentials-missing",
+		AccessTokenHash:      accessHash,
+		AccessTokenExpiresAt: futureAccessTokenExpiryUnix(),
+		RefreshTokenHash:     refreshHash,
+		ProviderAppKey:       oidc.ApplicationWeb,
+		LoginMethod:          "oidc",
+	}))
+
+	err = svc.RevokeAllSessions(t.Context(), "user-provider-credentials-missing")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "provider credentials are required")
+	assert.Empty(t, revoker.calls)
+	assert.Nil(t, requireSession(t, tokenSvc, "sid-provider-credentials-missing"))
+}
+
 func TestRevokeSessionRevokesLocalSessionWhenProviderRevokeFails(t *testing.T) {
-	revoker := &fakeProviderRefreshRevoker{err: errors.New("provider revoke failed")}
+	revoker := &fakeProviderTokenFamilyRevoker{err: errors.New("provider revoke failed")}
 	svc, tokenSvc := newAuthServiceWithProviderRevoker(t, revoker)
 	createTrackedSession(t, svc, trackedSessionSeed{
 		SessionID: "sid-a", UserID: "user-1", RefreshToken: "provider-refresh-a", LoginMethod: "oidc",
@@ -268,9 +413,9 @@ func TestRevokeSessionRevokesLocalSessionWhenProviderRevokeFails(t *testing.T) {
 	assert.Nil(t, requireSession(t, tokenSvc, "sid-a"))
 }
 
-func TestRotateOIDCSessionRevokesNewProviderRefreshOnLocalFailure(t *testing.T) {
+func TestRotateOIDCSessionRevokesNewProviderTokenFamilyOnLocalFailure(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	revoker := &fakeProviderRefreshRevoker{}
+	revoker := &fakeProviderTokenFamilyRevoker{}
 	svc, _ := newAuthServiceWithProviderRevoker(t, revoker)
 	createTrackedSession(t, svc, trackedSessionSeed{
 		SessionID: "sid-local-failure", UserID: "other-user", RefreshToken: "old-provider-refresh", LoginMethod: "oidc",
@@ -287,21 +432,26 @@ func TestRotateOIDCSessionRevokesNewProviderRefreshOnLocalFailure(t *testing.T) 
 		userID:          "oidc-user-1",
 		oldRefreshToken: "old-provider-refresh",
 		payload: oidcRefreshPayload{
-			rawIDToken:   "new-id-token",
-			refreshToken: "new-provider-refresh",
-			userID:       "oidc-user-1",
+			rawIDToken:          "new-id-token",
+			providerAccessToken: "new-provider-access",
+			refreshToken:        "new-provider-refresh",
+			userID:              "oidc-user-1",
 		},
 	})
 
 	require.False(t, ok)
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
-	assert.Equal(t, []string{"new-provider-refresh"}, revoker.tokens)
+	assert.Equal(t, []providerTokenFamilyRevokeCall{{
+		appKey:       oidc.ApplicationWeb,
+		accessToken:  "new-provider-access",
+		refreshToken: "new-provider-refresh",
+	}}, revoker.calls)
 	assertNoIssuedTokenCookies(t, w)
 }
 
-func TestRotateOIDCSessionProviderRefreshCompensationSurvivesRequestCancellation(t *testing.T) {
+func TestRotateOIDCSessionProviderTokenFamilyCompensationSurvivesRequestCancellation(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	revoker := &fakeProviderRefreshRevoker{}
+	revoker := &fakeProviderTokenFamilyRevoker{}
 	svc, _ := newAuthServiceWithProviderRevoker(t, revoker)
 	createTrackedSession(t, svc, trackedSessionSeed{
 		SessionID: "sid-canceled-rotation", UserID: "oidc-user-1", RefreshToken: "old-provider-refresh", LoginMethod: "oidc",
@@ -320,15 +470,20 @@ func TestRotateOIDCSessionProviderRefreshCompensationSurvivesRequestCancellation
 		userID:          "oidc-user-1",
 		oldRefreshToken: "old-provider-refresh",
 		payload: oidcRefreshPayload{
-			rawIDToken:   "new-id-token",
-			refreshToken: "new-provider-refresh",
-			userID:       "oidc-user-1",
+			rawIDToken:          "new-id-token",
+			providerAccessToken: "new-provider-access",
+			refreshToken:        "new-provider-refresh",
+			userID:              "oidc-user-1",
 		},
 	})
 
 	require.False(t, ok)
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
-	assert.Equal(t, []string{"new-provider-refresh"}, revoker.tokens)
+	assert.Equal(t, []providerTokenFamilyRevokeCall{{
+		appKey:       oidc.ApplicationWeb,
+		accessToken:  "new-provider-access",
+		refreshToken: "new-provider-refresh",
+	}}, revoker.calls)
 	assert.NoError(t, revoker.ctxErr)
 }
 

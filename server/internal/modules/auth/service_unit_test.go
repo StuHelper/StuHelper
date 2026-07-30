@@ -136,6 +136,7 @@ func TestCreateSessionForApplicationRequiresAndStoresVerifiedExpiry(t *testing.T
 		"user-provider-expiry",
 		"provider-access-token",
 		0,
+		"provider-access-token",
 		"provider-refresh-token",
 		"oidc",
 		"web",
@@ -150,6 +151,7 @@ func TestCreateSessionForApplicationRequiresAndStoresVerifiedExpiry(t *testing.T
 		"user-provider-expiry",
 		"provider-access-token",
 		expiresAt,
+		"provider-access-token",
 		"provider-refresh-token",
 		"oidc",
 		"web",
@@ -171,7 +173,16 @@ func TestRotateSession_BlacklistsOldRefreshAndTouchesSession(t *testing.T) {
 	_, err := svc.CreateSession(ctx, "sid-1", "user-1", "old-access", "old-refresh", "oidc", "browser")
 	require.NoError(t, err)
 
-	err = svc.RotateSession(ctx, "sid-1", "user-1", "old-refresh", "new-access", newAccessExpiry, "new-refresh")
+	err = svc.RotateSession(
+		ctx,
+		"sid-1",
+		"user-1",
+		"old-refresh",
+		"new-access",
+		newAccessExpiry,
+		"new-access",
+		"new-refresh",
+	)
 	require.NoError(t, err)
 
 	blacklisted, err := tokenSvc.GetBlacklist().IsBlacklisted(ctx, "old-refresh")
@@ -203,7 +214,16 @@ func TestRotateSession_ExtendsOldRefreshRefTTLToBlacklistTTL(t *testing.T) {
 	oldRefKey := refreshTokenRefKeyForTest(oldRefreshHash)
 	require.NoError(t, fixture.Client.PExpire(ctx, oldRefKey, 50*time.Millisecond).Err())
 
-	err = svc.RotateSession(ctx, "sid-ttl", "user-ttl", oldRefresh, "new-access", futureAccessTokenExpiryUnix(), "new-refresh")
+	err = svc.RotateSession(
+		ctx,
+		"sid-ttl",
+		"user-ttl",
+		oldRefresh,
+		"new-access",
+		futureAccessTokenExpiryUnix(),
+		"new-access",
+		"new-refresh",
+	)
 	require.NoError(t, err)
 
 	ref, err := tokenSvc.GetSessionStore().LookupRefreshTokenHash(ctx, oldRefreshHash)
@@ -225,7 +245,16 @@ func TestSessionLifecycleRejectsMissingUserIDBeforeStateChanges(t *testing.T) {
 	_, err := svc.CreateSession(ctx, "sid-missing-user", "user-1", "access-1", "refresh-1", "oidc", "browser")
 	require.NoError(t, err)
 
-	err = svc.RotateSession(ctx, "sid-missing-user", "   ", "refresh-1", "new-access", futureAccessTokenExpiryUnix(), "new-refresh")
+	err = svc.RotateSession(
+		ctx,
+		"sid-missing-user",
+		"   ",
+		"refresh-1",
+		"new-access",
+		futureAccessTokenExpiryUnix(),
+		"new-access",
+		"new-refresh",
+	)
 	require.ErrorIs(t, err, errSessionUserRequired)
 	blacklisted, err := tokenSvc.GetBlacklist().IsBlacklisted(ctx, "refresh-1")
 	require.NoError(t, err)
@@ -251,11 +280,29 @@ func TestRotateSession_RejectsTrackedSessionMismatch(t *testing.T) {
 	_, err := svc.CreateSession(ctx, "sid-1", "user-1", "old-access", "old-refresh", "oidc", "browser")
 	require.NoError(t, err)
 
-	err = svc.RotateSession(ctx, "sid-1", "user-2", "old-refresh", "new-access", futureAccessTokenExpiryUnix(), "new-refresh")
+	err = svc.RotateSession(
+		ctx,
+		"sid-1",
+		"user-2",
+		"old-refresh",
+		"new-access",
+		futureAccessTokenExpiryUnix(),
+		"new-access",
+		"new-refresh",
+	)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, errSessionUserMismatch)
 
-	err = svc.RotateSession(ctx, "sid-1", "user-1", "other-refresh", "new-access", futureAccessTokenExpiryUnix(), "new-refresh")
+	err = svc.RotateSession(
+		ctx,
+		"sid-1",
+		"user-1",
+		"other-refresh",
+		"new-access",
+		futureAccessTokenExpiryUnix(),
+		"new-access",
+		"new-refresh",
+	)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, errSessionRefreshTokenMismatch)
 
@@ -272,7 +319,16 @@ func TestRotateSession_WithoutSessionIDRejectsRequestWithoutBlacklistingOldRefre
 	svc, tokenSvc := newAuthServiceForTest(t)
 	ctx := context.Background()
 
-	err := svc.RotateSession(ctx, "", "user-1", "old-refresh", "new-access", futureAccessTokenExpiryUnix(), "new-refresh")
+	err := svc.RotateSession(
+		ctx,
+		"",
+		"user-1",
+		"old-refresh",
+		"new-access",
+		futureAccessTokenExpiryUnix(),
+		"new-access",
+		"new-refresh",
+	)
 	require.ErrorIs(t, err, errSessionIDRequired)
 
 	blacklisted, err := tokenSvc.GetBlacklist().IsBlacklisted(ctx, "old-refresh")
@@ -284,7 +340,16 @@ func TestRotateSession_WithBlankSessionIDRejectsRequestWithoutBlacklistingOldRef
 	svc, tokenSvc := newAuthServiceForTest(t)
 	ctx := context.Background()
 
-	err := svc.RotateSession(ctx, " \t\n ", "user-1", "blank-sid-refresh", "new-access", futureAccessTokenExpiryUnix(), "new-refresh")
+	err := svc.RotateSession(
+		ctx,
+		" \t\n ",
+		"user-1",
+		"blank-sid-refresh",
+		"new-access",
+		futureAccessTokenExpiryUnix(),
+		"new-access",
+		"new-refresh",
+	)
 	require.ErrorIs(t, err, errSessionIDRequired)
 
 	blacklisted, err := tokenSvc.GetBlacklist().IsBlacklisted(ctx, "blank-sid-refresh")
@@ -331,6 +396,7 @@ func TestRevokeSessionKeepsTrackedAccessRevokedUntilProviderExpiry(t *testing.T)
 		"user-provider-revoke-expiry",
 		"provider-access-expiry",
 		expiresAt.Unix(),
+		"provider-access-expiry",
 		"provider-refresh-expiry",
 		"oidc",
 		"web",
@@ -381,7 +447,16 @@ func TestRotateSession_ContextCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	err := svc.RotateSession(ctx, "sid-canceled", "user-1", "old-refresh", "new-access", futureAccessTokenExpiryUnix(), "new-refresh")
+	err := svc.RotateSession(
+		ctx,
+		"sid-canceled",
+		"user-1",
+		"old-refresh",
+		"new-access",
+		futureAccessTokenExpiryUnix(),
+		"new-access",
+		"new-refresh",
+	)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "load session")
 }

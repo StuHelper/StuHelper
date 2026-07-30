@@ -96,19 +96,23 @@ func TestSessionStore_Touch(t *testing.T) {
 	ctx := context.Background()
 
 	data := SessionData{
-		SessionID:        "sess-002",
-		UserID:           "user-002",
-		AccessTokenHash:  "old-acc",
-		RefreshTokenHash: "old-ref",
+		SessionID:               "sess-002",
+		UserID:                  "user-002",
+		AccessTokenHash:         "old-acc",
+		RefreshTokenHash:        "old-ref",
+		ProviderAccessTokenEnc:  "old-provider-access",
+		ProviderRefreshTokenEnc: "old-provider-refresh",
 	}
 	require.NoError(t, store.Create(ctx, data))
 
 	time.Sleep(10 * time.Millisecond)
 	newAccessExpiry := time.Now().Add(5 * time.Minute).Unix()
 	err := store.Touch(ctx, "sess-002", SessionTouchUpdate{
-		AccessTokenHash:      "new-acc",
-		AccessTokenExpiresAt: newAccessExpiry,
-		RefreshTokenHash:     "new-ref",
+		AccessTokenHash:         "new-acc",
+		AccessTokenExpiresAt:    newAccessExpiry,
+		RefreshTokenHash:        "new-ref",
+		ProviderAccessTokenEnc:  "new-provider-access",
+		ProviderRefreshTokenEnc: "new-provider-refresh",
 	})
 	require.NoError(t, err)
 
@@ -117,6 +121,8 @@ func TestSessionStore_Touch(t *testing.T) {
 	assert.Equal(t, "new-acc", got.AccessTokenHash)
 	assert.Equal(t, newAccessExpiry, got.AccessTokenExpiresAt)
 	assert.Equal(t, "new-ref", got.RefreshTokenHash)
+	assert.Equal(t, "new-provider-access", got.ProviderAccessTokenEnc)
+	assert.Equal(t, "new-provider-refresh", got.ProviderRefreshTokenEnc)
 	assert.GreaterOrEqual(t, got.LastActiveAt, got.CreatedAt)
 
 	oldRef, err := store.LookupRefreshTokenHash(ctx, "old-ref")
