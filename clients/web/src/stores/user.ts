@@ -79,6 +79,21 @@ function readInteger(
     return value;
 }
 
+function readNullableInteger(
+    record: Record<string, unknown>,
+    key: string,
+    message: string,
+): number | null {
+    const value = record[key];
+    if (value === null) {
+        return null;
+    }
+    if (typeof value !== "number" || !Number.isInteger(value)) {
+        throw new Error(message);
+    }
+    return value;
+}
+
 function readOptionalInteger(
     record: Record<string, unknown>,
     key: string,
@@ -94,12 +109,15 @@ function readOptionalInteger(
     return value;
 }
 
-function readNumber(
+function readNullableNumber(
     record: Record<string, unknown>,
     key: string,
     message: string,
-): number {
+): number | null {
     const value = record[key];
+    if (value === null) {
+        return null;
+    }
     if (typeof value !== "number" || !Number.isFinite(value)) {
         throw new Error(message);
     }
@@ -130,11 +148,11 @@ function readFavoriteCourse(payload: unknown): FavoriteCourse {
     return {
         id: readInteger(payload, "id", message),
         schoolID: readOptionalInteger(payload, "schoolID", message),
-        departmentID: readInteger(payload, "departmentID", message),
+        departmentID: readNullableInteger(payload, "departmentID", message),
         departmentName: readOptionalString(payload, "departmentName", message),
         code: readOptionalString(payload, "code", message),
         name: readString(payload, "name", message),
-        credits: readNumber(payload, "credits", message),
+        credits: readNullableNumber(payload, "credits", message),
         category: readOptionalString(payload, "category", message),
         reviewCount: readInteger(payload, "reviewCount", message),
         isFavorited: readOptionalBoolean(payload, "isFavorited", message),

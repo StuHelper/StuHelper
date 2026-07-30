@@ -68,12 +68,17 @@ onShow(() => {
       >
         <text class="title">{{ course.name }}</text>
         <text class="meta">
-          {{ course.departmentName || t('common.departmentFallback', { id: course.departmentID }) }}
+          {{
+            course.departmentName ||
+            (course.departmentID === null
+              ? t('common.unclassifiedDepartment')
+              : t('common.departmentFallback', { id: course.departmentID }))
+          }}
           · {{ t('common.reviewCount', { count: course.reviewCount }) }}
           · {{ t('common.favoritedAt', { value: formatDateTime(course.favoritedAt) }) }}
         </text>
         <text class="content">
-          {{ t('common.creditValue', { value: course.credits }) }} ·
+          {{ course.credits === null ? t('common.unavailableCredits') : t('common.creditValue', { value: course.credits }) }} ·
           {{ course.category || t('common.unclassified') }}
         </text>
       </A11yButton>

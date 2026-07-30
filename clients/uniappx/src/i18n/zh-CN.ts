@@ -16,6 +16,7 @@ export const zhCNMessages = {
   'common.unclassifiedDepartment': '未分类院系',
   'common.unclassified': '未分类',
   'common.creditValue': '{value} 学分',
+  'common.unavailableCredits': '学分未提供',
   'common.reviewCount': '{count} 条评课',
   'common.ratingCount': '{count} 次评分',
   'common.favoritedAt': '收藏于 {value}',

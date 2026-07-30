@@ -3599,13 +3599,19 @@ export interface components {
             id: number;
             /** Format: int64 */
             schoolID?: number;
-            /** Format: int64 */
-            departmentID: number;
+            /**
+             * Format: int64
+             * @description 课程尚未归类到院系时为 null。
+             */
+            departmentID: number | null;
             departmentName?: string;
             code?: string;
             name: string;
-            /** Format: double */
-            credits: number;
+            /**
+             * Format: double
+             * @description 数据源未提供学分时为 null，不得以 0 代替未知值。
+             */
+            credits: number | null;
             category?: string;
             reviewCount: number;
             /** @description 当前登录用户是否已收藏（未登录时不返回此字段） */
@@ -3645,9 +3651,13 @@ export interface components {
             departmentCount: number;
         };
         DepartmentGroup: {
-            /** Format: int64 */
-            departmentID: number;
-            departmentName: string;
+            /**
+             * Format: int64
+             * @description 未分类课程分组为 null。
+             */
+            departmentID: number | null;
+            /** @description 未分类课程分组为 null。 */
+            departmentName: string | null;
             courses: components["schemas"]["Course"][];
         };
         Review: {

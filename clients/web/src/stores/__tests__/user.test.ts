@@ -51,6 +51,26 @@ describe('useUserStore', () => {
     expect(store.favoriteStatus[101]).toBe(true)
   })
 
+  it('preserves unknown department and credit metadata in favorites', async () => {
+    const nullableFavorite = {
+      ...favoriteCourse,
+      departmentID: null,
+      departmentName: undefined,
+      code: undefined,
+      credits: null,
+    }
+    mockGetMyFavorites.mockResolvedValue({
+      data: { data: { list: [nullableFavorite], total: 1 } },
+    })
+
+    const store = useUserStore()
+    await store.fetchMyFavorites()
+
+    expect(store.myFavorites).toEqual([nullableFavorite])
+    expect(store.myFavorites[0]?.departmentID).toBeNull()
+    expect(store.myFavorites[0]?.credits).toBeNull()
+  })
+
   it('fails closed when favorites response is missing page data', async () => {
     mockGetMyFavorites
       .mockResolvedValueOnce({

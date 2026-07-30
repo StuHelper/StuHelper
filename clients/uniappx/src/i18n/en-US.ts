@@ -16,6 +16,7 @@ export const enUSMessages = {
   'common.unclassifiedDepartment': 'Uncategorized department',
   'common.unclassified': 'Uncategorized',
   'common.creditValue': '{value} credits',
+  'common.unavailableCredits': 'Credits unavailable',
   'common.reviewCount': '{count} reviews',
   'common.ratingCount': '{count} ratings',
   'common.favoritedAt': 'Favorited {value}',

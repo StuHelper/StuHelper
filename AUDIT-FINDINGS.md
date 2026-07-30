@@ -102,7 +102,7 @@ Web / Admin / UniAppX+Koishi UI / Koishi / 基础设施 / 代码质量与文档)
 | P2-13 | 确认，已完成主因最小修复与真实 PostgreSQL 状态机回归 | P2 | 主路径已修复，待发布；补偿失败与 dead-letter replay 为显式残余边界 | claim 后每批加载一次上下文；批量查询失败或 caller cancel 时，用独立 5 秒 context 一次性归还所有未公开 lease；缺 policy 等确定性单行 preparation failure 只消耗本行 attempt，stale/failure/abandon 均按 claimed attempt fenced，健康行继续返回。补偿写也失败时仍会保留 attempt；Admission 尚无 dead-letter replay API，不能宣称所有故障下都不会耗尽预算或 terminal 行已可运营恢复。 |
 | P2-14 | 确认，属于 P2-13 的性能放大器；已合并修复 | 单独看 P3 | 已修复，待发布 | policy/failure contexts 已从逐行 `2N` 查询改为每批固定 2 条；真实 PostgreSQL 对 1 行与 8 行均测得 3 次 pool acquisition（1 次 claim 事务 + 2 次查询）。默认批是 50，修复前约 100 次额外查询，不是原文按 server 上限 200 推算的常态 400 次。 |
 | P2-15 | 事实重复，已随 P2-14 覆盖 | 与 P2-14 重复 | 不单独立项/提交 | 与 P2-14 是同两个逐行 context query，不是第二个根因；保留原始记录用于追溯，不计入唯一问题数，也不建设第二套实现。 |
-| P2-16 | 确认 | P2 | 决策后必须 | 先盘点 NULL 数据和产品语义：非法则回填后 migration 加 NOT NULL；合法则 Go/OpenAPI 改 nullable 并生成。默认 `COALESCE` 为 0/空串会伪造数据，不能采用。 |
+| P2-16 | 确认，已完成 nullable 语义修复与真实 PostgreSQL 回归 | P2 | 已修复，待发布 | migration 明确保留 `department_id`/`code`/`credits` 可空，客户端已有未分类/未提供语义，因此 NULL 是合法未知值；Go model、OpenAPI、生成契约和客户端按 nullable 收敛，学分排序 NULLS LAST。隔离 PostgreSQL 覆盖 detail/list/search/grouped/favorites，未用 `COALESCE(0/'')` 伪造事实，也未增加无依据的回填 migration。 |
 | P2-17 | 确认两个配置当前未生效，但行为可能是刻意安全收紧 | P2 → P3/P4 | 决策 | 优先决定是否废弃 content preview knobs，并把 title knob 说明改成锁定首行 teaser；若恢复，只对已认证非 full tier 接线并保持 guest 收紧。直接“恢复配置生效”可能削弱访问控制。 |
 | P2-18 | 确认，已完成单实例最小修复与真实 PostgreSQL 回归 | P2 | 已修复，待发布 | create/update/delete 只有在 Repository 成功后才调用进程内 `Filter.Invalidate()`；下一次内容检查重载 DB，失败继续映射 `ErrModerationUnavailable`，不会用旧词表放行。`Invalidate` 与 `Refresh` 共享一把窄 mutex，避免 mutation 与在途刷新交错后旧结果重新获得 5 分钟 freshness；matcher 读锁不覆盖 DB 查询。真实数据库覆盖已预热快照上的新增、改词/改级别、删除、失败 mutation 不失效和 reload failure fail-closed。当前 Compose 是单 app，不引入 Redis version/pub/sub；多副本前置要求已写入安全文档。 |
 | P2-19 | 确认 | P2 → P3 | 应改 | 先为语义唯一的 dangerous/too-short/rating-required/invalid-rating 映射专用 code；共享的 content-too-long 需先拆 sentinel。不要把所有共享错误一刀切成 review code。 |
@@ -184,7 +184,8 @@ P2 唯一根因应按以下修复簇合并，避免重复设计：
    均已完成隔离、全量/状态机回归和独立提交。
 5. P2-21/P2-22 breaker 分类、R-8 Redis 错误分类与 P3-9 cache version unavailable
    均已完成最小修复和故障回归。
-6. P2-9 Ansible 路径和 P2-18 filter invalidation 已完成修复；继续 P2-16 NULL 语义决策。
+6. P2-9 Ansible 路径、P2-18 filter invalidation 与 P2-16 nullable course metadata
+   均已完成修复；继续 P3-7 敏感导出审计。
 
 #### 第三批：可测量的性能与一致性
 
@@ -360,7 +361,8 @@ P3-1 至 P3-6、P3-8、R-5 至 R-7、R-14、R-15、R-17。X-2 的配置分类治
 - 不为 P2-10 伪造空 `sfzjh_enc`、用 `COALESCE` 模糊两列所有权，或在没有需求、密钥分发和
   审计设计时顺带新增完整身份证导入 API/CLI。当前正确边界是普通 importer 完全不拥有这两列；
   将来若确需导入，必须从同一明文原子生成 AES-GCM envelope 与 HMAC，并单独完成安全审计。
-- 不用 `COALESCE('', 0)` 隐藏 P2-16 的 NULL 数据语义。
+- 不用 `COALESCE('', 0)` 隐藏 P2-16 的 NULL 数据语义；schema 与客户端语义确认这些值可未知，
+  应通过 nullable contract 传递。当前开发库 23 行虽没有 NULL，也不能据此收紧历史/未来导入约束。
 - 不在当前单副本部署为 P2-18 先建 Redis pub/sub/version 系统。
 - 不为 P2-23 增加无限自动 supervisor；panic 必须进入现有 retry/dead-letter。
 - 不在无真实 connector、无规模证据时为 P2-3/P2-4/R-16 建完整管理 UI、聚合平台或 bulk framework。
@@ -827,6 +829,13 @@ live rating bar 已完成可达表面的最小修复。优先做一处根因、�
   course/review 调用方 race、全服务端 `make test`（`-race -p 1 ./...`）、Casdoor boundary、
   `golangci-lint`、静态 build 和文档卫生均通过。未引入 detached 200ms loader；首 caller
   取消时其他 singleflight waiter 同样 bypass 只影响缓存命中率，不再允许陈旧 `v0` 数据复活。
+- P2-16 对运行中的开发 PostgreSQL 只读统计 23 门课程，当前 nullable 三列均为 0 个 NULL；
+  该结果只证明当前样本干净。隔离 PostgreSQL 18 另插入三列均为 NULL 的课程，真实执行
+  detail/list/search/grouped/favorites，全部保留 nil 并成功返回；HTTP 详情明确为
+  `departmentID:null`/`credits:null`。OpenAPI 完整 generate 后 Go/TS nullable 类型一致，
+  Web 正向/null/错误类型/负数解析、UniAppX 58 unit、三前端类型检查、两业务包与全服务端 race、
+  spec/drift、`golangci-lint`、静态 build 和文档卫生均通过。没有写生产数据、migration、
+  `COALESCE(0/'')` 或伪造“未分类院系”记录。
 
 测试通过只说明现有正向契约未被破坏，不能覆盖报告指出的所有负向场景。以下仍需在真正处置时
 单独验收：
@@ -886,6 +895,7 @@ live rating bar 已完成可达表面的最小修复。优先做一处根因、�
 | P2-23 | 已修复，待发布；生产告警与 poison replay 待验收 | per-job recover 将 handler panic 转为带 stack 的普通失败，沿既有 attempt/dead-letter/terminal metric 路径处理；同批健康 job 继续。真实 PostgreSQL 18 验证 poison=`dead_letter`、healthy=`completed`，定向/全服务端 race、lint/build/docs 通过；未增加 runtime supervisor，未覆盖 Admission 手写 expiry loop | `fix(outbox): isolate panicking job handlers` |
 | R-8 | 已修复，待发布；生产 Redis 故障注入待验收 | 两条 OTP reserve 只有真实 NX miss 才返回 cooldown/429，transport error 包装现有 unavailable/503 并保留 cause；miniredis socket 关闭与 HTTP 映射回归通过。Admission request-otp 补 503 后完整生成，两个业务包/全服务端 race、lint/build/spec/codegen stability/docs 通过 | `fix(otp): distinguish Redis outages from cooldowns` |
 | P3-9 | 已修复，待发布；生产 Redis 故障注入待验收 | 版本 key 缺失仍为合法 `v0`；transport error/caller cancel 改为 unknown，`BuildVersionedKey` 返回空 key，版本化 get miss、set no-op且不写本地版本缓存。真实 miniredis 关闭/重启验证故障阶段不读写 `v0`、恢复后立即读到预存 `v7`；缓存全包 race、调用方两包 race、全服务端 race、lint/build/docs 通过 | `fix(cache): bypass versioned data when Redis is unavailable` |
+| P2-16 | 已修复，待发布；目标库 NULL 分布与同批发布待验收 | 可空课程元数据使用指针/nullable contract，必有的 departmentID/credits 明确为 null，code/departmentName 缺失时省略；未分类 group 保留 null，credits sort NULLS LAST。开发库只读 23/0 NULL 盘点，隔离 PostgreSQL 覆盖五条读取路径；Go/TS generate、Web nullable parser、UniAppX fallback、三前端 type-check、两包/全服务端 race、spec/drift/lint/build/docs 通过 | `fix(course): preserve unknown catalog metadata` |
 
 ## Claude 原审计的确认问题分布（保留原始记录）
 
@@ -2475,6 +2485,42 @@ Normalize NULLs in SQL (do NOT switch to pointer types — that breaks the gener
 
 3. `server/internal/modules/course/model.go:23` — drop `omitempty` from `Credits float64 \`json:"credits,omitempty"\`` → `json:"credits"`. Required because `server/api/components/schemas/course.yaml:3` marks `credits` as **required**; COALESCEing NULL→0 with `omitempty` still present would silently drop a required field and produce a response that violates the OpenAPI contract (`api.gen.ts:3608` types it `credits: number`). `DepartmentID` already lacks `omi
 
+#### Codex 对 P2-16 的最终复核与实施记录（2026-07-31）
+
+**最终结论**
+
+扫描崩溃真实存在，但 Claude 的 `COALESCE(department_id, 0)` / `COALESCE(credits, 0)` 方案不应
+实施。权威 migration 从初始 schema 起就把 `courses.department_id`、`code`、`credits` 定义为
+可空，后续 18 个 migration 没有收紧；Web/UniAppX 也已经存在“未分类院系”“未提供课程代码”
+展示。开发库只读聚合盘点为 23 行、三列当前均无 NULL，说明样本干净，不足以把数据库明确允许
+的未知元数据重新解释成非法。`0` 不是合法院系 ID，`0` 学分也可能是一个真实值，强行
+COALESCE 会让“未知”和“已知为零”不可区分。
+
+**已实施的最小语义修复**
+
+1. `Course` 与 `FavoriteCourse` 对可空数据库列使用指针扫描；`code`/`departmentName` 继续是
+   可选字段，`departmentID`/`credits` 保持响应必有但值可为 JSON `null`。未分类
+   `DepartmentGroup` 的 ID/name 同样可为 null，Repository 用 `(present,id)` 作为内部分组键，
+   没有把 null 借用成业务 ID 0。
+2. OpenAPI 3.1 真源把 `departmentID`、`credits` 及未分类 group 元数据声明为 nullable，
+   完整 generate 后 Go 类型为 `*int64`/`*float64`，共享 TypeScript 类型为
+   `number | null`；没有手改生成文件。
+3. Web payload reader 只接受 null 或原有合法数值，仍拒绝 department ID 0、负学分和错误类型；
+   收藏 reader 同步。UniAppX 对 null 显示“未分类院系/学分未提供”，不会把 null 插值成
+   `Department #null` 或 `null 学分`。
+4. 按学分降序改为 `NULLS LAST`，使未知值不抢占已知高学分课程；其余过滤、分页和排序不变。
+   没有创建“未分类院系”伪记录、猜测学分、回填数据或增加 migration。
+
+**交叉验证**
+
+- 隔离 PostgreSQL 18 插入一门三列均为 NULL 的课程，detail/list/search/grouped 四条真实
+  Repository/Service 路径全部成功；HTTP 详情返回 200，包含
+  `"departmentID":null`、`"credits":null` 且不输出可选 `code`。
+- 独立收藏 Repository 回归确认同一课程可被列出且四项可空元数据均保持 nil，不再 Scan 500。
+- Web nullable/负向 payload 测试、UniAppX 58 个 unit、Web/Shared/UniAppX type-check、
+  OpenAPI lint/drift、course/review 两包与全服务端 race、lint/build/docs 均通过。当前开发库
+  盘点不是生产数据验收；发布前仍应对目标库只读统计 NULL 分布并确认旧客户端与服务端同批发布。
+
 #### P2-17. review_preview_content_chars / review_preview_content_percent are validated, parsed and cached but never applied; content previews are truncated with the title budget
 
 - **位置**：`server/internal/modules/course/review/access.go:241`
@@ -3500,6 +3546,7 @@ STUHELPER_REDIS_INTEGRATION
 | P2-21/P2-22 | caller cancellation 与单条坏数据错误污染 Oracle 共享 breaker | Codex 已完成合并修复：parent cancellation/deadline 和 invalid/ambiguous row 统一为 neutral 并释放 half-open probe；内部 query timeout、backend failure 和 bind identity mismatch 保持 failure。未采用会重置既有失败的 `RecordSuccess` 方案。固定 integrity metric 与现有 503 adapter 契约有专项回归，全服务端 race/lint/build/docs 通过；真实 Oracle/生产指标仍待发布验收 |
 | P2-23 | 任一 outbox handler panic 永久杀死 polling worker | Codex 已完成最小修复：只在共享 outbox per-job 边界 recover，panic 带 stack 进入原 retry/dead-letter/metric 路径并继续健康 job。真实 PostgreSQL 18 验证 poison dead-letter 与 healthy completed；原文所列真实共享调用面是 5 个，不包括两个 Admission expiry 手写循环。未增加会形成 panic loop 的 runtime supervisor；生产告警/replay 与外部副作用幂等仍待验收 |
 | P3-9 | Redis 版本读取故障被本地缓存成 `v0`，使失效数据可重新出现 | Codex 已完成最小修复：只有 `redis.Nil` 使用初始 `v0`，transport error/caller cancel 返回 unknown；空版本 key 的 get 为 miss、set 为 no-op，且故障结果不进入本地版本缓存。真实 miniredis 关闭/重启覆盖故障绕过与 `v7` 恢复；未引入只改善命中率的 detached loader |
+| P2-16 | 可空课程元数据扫描到非空 Go 字段导致课程读取 500 | Codex 已确认 NULL 是合法未知值并完成 nullable contract：四条课程读取与收藏列表使用指针扫描，未分类 group 保留 null，学分排序 NULLS LAST；OpenAPI/Go/TS 与 Web/UniAppX 同步，隔离 PostgreSQL 五路径回归通过。原 `COALESCE(0/'')` 建议会伪造事实，未采用 |
 | X-1 | 无 scope 的 school_admin 全量可见 | Codex 已证伪；现有 capability 展开和 admin Entry 在 Handler 前返回 403，不按 P1 修复 |
 | X-2 | env 模板差集 | Codex 判定部分成立；改为分类治理，不执行 21 项全量入模板/严格集合相等方案 |
 | 其余条目 | — | 不再用“其余 41 项待修”概括；按 Codex 逐项表和四批实施顺序处置 |

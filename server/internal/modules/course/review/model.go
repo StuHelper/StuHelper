@@ -142,8 +142,8 @@ type FavoriteCourse struct {
 	ID             int64     `json:"id"`
 	Name           string    `json:"name"`
 	Code           *string   `json:"code,omitempty"`
-	Credits        float64   `json:"credits"`
-	DepartmentID   int64     `json:"departmentID"`
+	Credits        *float64  `json:"credits"`
+	DepartmentID   *int64    `json:"departmentID"`
 	DepartmentName *string   `json:"departmentName,omitempty"`
 	ReviewCount    int       `json:"reviewCount"`
 	FavoritedAt    time.Time `json:"favoritedAt"`

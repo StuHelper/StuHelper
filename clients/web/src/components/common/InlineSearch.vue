@@ -106,7 +106,7 @@ import type { Course } from '@stuhelper/shared/course'
 interface RecentItem {
   id: number
   name: string
-  credits: number
+  credits: number | null
   departmentName: string
   reviewCount: number
 }

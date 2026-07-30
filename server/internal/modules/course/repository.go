@@ -121,7 +121,7 @@ func (r *Repository) ListCourses(ctx context.Context, query string, departmentID
 	orderBy := "c.name ASC"
 	switch sort {
 	case CourseSortCredits:
-		orderBy = "c.credits DESC, c.name ASC"
+		orderBy = "c.credits DESC NULLS LAST, c.name ASC"
 	case CourseSortReviewCount:
 		orderBy = "c.review_count DESC, c.name ASC"
 	}
@@ -291,8 +291,12 @@ func (r *Repository) ListCoursesGroupedByDepartment(ctx context.Context) ([]Depa
 	}
 	defer rows.Close()
 
+	type departmentGroupKey struct {
+		id      int64
+		present bool
+	}
 	var groups []DepartmentGroup
-	groupIndex := make(map[int64]int) // departmentID → groups 下标
+	groupIndex := make(map[departmentGroupKey]int) // nullable departmentID → groups 下标
 
 	for rows.Next() {
 		var item Course
@@ -303,10 +307,15 @@ func (r *Repository) ListCoursesGroupedByDepartment(ctx context.Context) ([]Depa
 			return nil, fmt.Errorf("ListCoursesGroupedByDepartment scan: %w", err)
 		}
 
-		idx, exists := groupIndex[item.DepartmentID]
+		key := departmentGroupKey{}
+		if item.DepartmentID != nil {
+			key.id = *item.DepartmentID
+			key.present = true
+		}
+		idx, exists := groupIndex[key]
 		if !exists {
 			idx = len(groups)
-			groupIndex[item.DepartmentID] = idx
+			groupIndex[key] = idx
 			groups = append(groups, DepartmentGroup{
 				DepartmentID:   item.DepartmentID,
 				DepartmentName: item.DepartmentName,
