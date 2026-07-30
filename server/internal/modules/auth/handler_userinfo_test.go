@@ -203,11 +203,12 @@ func TestGetCurrentUser_SyncsLocalUser(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 	avatarURL := "https://cdn.example.com/avatar.png"
 	assert.Equal(t, UserSyncInput{
-		CasdoorSubject: "oidc-user-1",
-		Username:       "alice",
-		Email:          "alice@example.com",
-		AvatarURL:      &avatarURL,
-		Roles:          []string{"school_admin"},
+		CasdoorSubject:     "oidc-user-1",
+		Username:           "alice",
+		Email:              "alice@example.com",
+		AvatarURL:          &avatarURL,
+		Roles:              []string{"school_admin"},
+		RolesAuthoritative: false,
 	}, repo.upsertInput)
 }
 

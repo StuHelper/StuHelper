@@ -173,6 +173,15 @@ func (c *Client) WriteTuples(ctx context.Context, tuples []Tuple) error {
 
 // DeleteTuples 批量删除授权关系
 func (c *Client) DeleteTuples(ctx context.Context, tuples []Tuple) error {
+	return c.deleteTuples(ctx, tuples, false)
+}
+
+// DeleteTuplesIgnoringMissing 批量删除授权关系，已不存在的 tuple 视为幂等成功。
+func (c *Client) DeleteTuplesIgnoringMissing(ctx context.Context, tuples []Tuple) error {
+	return c.deleteTuples(ctx, tuples, true)
+}
+
+func (c *Client) deleteTuples(ctx context.Context, tuples []Tuple, ignoreMissing bool) error {
 	if len(tuples) == 0 {
 		return nil
 	}
@@ -202,7 +211,15 @@ func (c *Client) DeleteTuples(ctx context.Context, tuples []Tuple) error {
 	body := client.ClientWriteRequest{
 		Deletes: deletes,
 	}
-	_, err := c.fga.Write(ctx).Body(body).Execute()
+	request := c.fga.Write(ctx).Body(body)
+	if ignoreMissing {
+		request = request.Options(client.ClientWriteOptions{
+			Conflict: client.ClientWriteConflictOptions{
+				OnMissingDeletes: client.CLIENT_WRITE_REQUEST_ON_MISSING_DELETES_IGNORE,
+			},
+		})
+	}
+	_, err := request.Execute()
 	metrics.ObserveExternalRequest("openfga", "delete_tuples", start, err)
 	if err != nil {
 		recordSpanError(span, err)
@@ -244,6 +261,56 @@ func (c *Client) ReadTuples(ctx context.Context, object, relation string) ([]Tup
 		})
 	}
 	return result, nil
+}
+
+// TupleExists 精确读取一个 direct tuple 是否存在。
+// 该方法不使用 Check，避免把模型中的 computed userset 误判成待删除的 direct tuple。
+func (c *Client) TupleExists(ctx context.Context, tuple Tuple) (bool, error) {
+	if err := validateTupleField(tuple.User, "user"); err != nil {
+		return false, err
+	}
+	if err := validateTupleField(tuple.Relation, "relation"); err != nil {
+		return false, err
+	}
+	if err := validateTupleField(tuple.Object, "object"); err != nil {
+		return false, err
+	}
+
+	start := time.Now()
+	ctx, span := c.startSpan(ctx, "read_exact", tuple.Relation, tuple.Object)
+	defer span.End()
+
+	body := client.ClientReadRequest{
+		User:     openfga.PtrString(tuple.User),
+		Relation: openfga.PtrString(tuple.Relation),
+		Object:   openfga.PtrString(tuple.Object),
+	}
+	resp, err := c.fga.Read(ctx).
+		Body(body).
+		Options(client.ClientReadOptions{
+			Consistency: openfga.CONSISTENCYPREFERENCE_HIGHER_CONSISTENCY.Ptr(),
+		}).
+		Execute()
+	metrics.ObserveExternalRequest("openfga", "read_tuple", start, err)
+	if err != nil {
+		recordSpanError(span, err)
+		return false, fmt.Errorf(
+			"fga: read tuple failed for %s#%s@%s: %w",
+			tuple.Object,
+			tuple.Relation,
+			tuple.User,
+			err,
+		)
+	}
+
+	for _, existing := range resp.Tuples {
+		if existing.Key.GetUser() == tuple.User &&
+			existing.Key.GetRelation() == tuple.Relation &&
+			existing.Key.GetObject() == tuple.Object {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (c *Client) startSpan(ctx context.Context, operation, relation, object string) (context.Context, trace.Span) {

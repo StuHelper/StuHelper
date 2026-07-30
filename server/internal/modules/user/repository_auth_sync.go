@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/StuHelper/StuHelper/server/internal/pkg/audit"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/crypto"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/db"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/fga"
@@ -15,6 +16,8 @@ const superAdminRoleName = "super_admin"
 
 type roleFGAClient interface {
 	WriteMissingTuples(ctx context.Context, desired []fga.Tuple) error
+	TupleExists(ctx context.Context, tuple fga.Tuple) (bool, error)
+	DeleteTuplesIgnoringMissing(ctx context.Context, tuples []fga.Tuple) error
 }
 
 // AuthSyncInput 认证同步输入，别名到 usersync.Input。
@@ -68,25 +71,63 @@ func (r *UserSyncRepository) UpsertUser(ctx context.Context, input AuthSyncInput
 	if err != nil {
 		return fmt.Errorf("UpsertUser: %w", err)
 	}
-	return r.syncGlobalRoleRelations(ctx, userID, input.Roles)
+	return r.syncGlobalRoleRelations(ctx, userID, input.Roles, input.RolesAuthoritative)
 }
 
-func (r *UserSyncRepository) syncGlobalRoleRelations(ctx context.Context, userID int64, roles []string) error {
-	if r.roleFGA == nil || !hasSyncRole(roles, superAdminRoleName) {
+func (r *UserSyncRepository) syncGlobalRoleRelations(
+	ctx context.Context,
+	userID int64,
+	roles []string,
+	rolesAuthoritative bool,
+) error {
+	if r.roleFGA == nil || !rolesAuthoritative {
 		return nil
 	}
 	if userID <= 0 {
 		return fmt.Errorf("sync global role relations: userID is required")
 	}
-	err := r.roleFGA.WriteMissingTuples(ctx, []fga.Tuple{{
+	tuple := fga.Tuple{
 		User:     "user:" + strconv.FormatInt(userID, 10),
 		Relation: superAdminRoleName,
 		Object:   "ecosystem:stuhelper",
-	}})
-	if err != nil {
-		return fmt.Errorf("sync global role relations: %w", err)
 	}
+
+	if hasSyncRole(roles, superAdminRoleName) {
+		if err := r.roleFGA.WriteMissingTuples(ctx, []fga.Tuple{tuple}); err != nil {
+			return fmt.Errorf("sync global role relations: write super_admin tuple: %w", err)
+		}
+		return nil
+	}
+
+	exists, err := r.roleFGA.TupleExists(ctx, tuple)
+	if err != nil {
+		return fmt.Errorf("sync global role relations: read super_admin tuple: %w", err)
+	}
+	if !exists {
+		return nil
+	}
+	if err := r.roleFGA.DeleteTuplesIgnoringMissing(ctx, []fga.Tuple{tuple}); err != nil {
+		return fmt.Errorf("sync global role relations: delete super_admin tuple: %w", err)
+	}
+	audit.LogContext(ctx, globalRoleRevocationAuditEvent(userID))
 	return nil
+}
+
+func globalRoleRevocationAuditEvent(userID int64) audit.Event {
+	return audit.Event{
+		Type:         audit.EventType("iam.role.revoke"),
+		Category:     "authorization",
+		ActorType:    "system",
+		ResourceType: "iam.role",
+		ResourceID:   "user:" + strconv.FormatInt(userID, 10),
+		Action:       "revoke",
+		Result:       "success",
+		Details: map[string]any{
+			"role":             superAdminRoleName,
+			"object":           "ecosystem:stuhelper",
+			"authority_source": "fresh_oidc_roles_claim",
+		},
+	}
 }
 
 func hasSyncRole(roles []string, expected string) bool {

@@ -1,6 +1,7 @@
 package oidc
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -25,6 +26,10 @@ type Claims struct {
 
 	// 解析后的角色列表（如 ["school_admin", "verified_student"]）
 	Roles []string `json:"-"`
+
+	// RolesClaimPresent 仅在配置的 roles claim 明确存在且结构解析成功时为 true。
+	// 它只记录 claim provenance；调用方仍须判断当前 token 是否足够新、可作为角色投影权威。
+	RolesClaimPresent bool `json:"-"`
 
 	// OrgScopedRoles 是 StuHelper 内部的 school-scope grant 载体：roleName → schoolID 列表。
 	// Casdoor roles claim 保持扁平；学校作用域必须来自 DB/OpenFGA 投影，不能从 role 名嵌入解析。
@@ -92,30 +97,40 @@ func ParseProviderRolesFromRaw(rawJSON []byte, rolesClaim string) ([]string, err
 }
 
 func parseFlatRolesClaim(rawJSON []byte, rolesClaim string) ([]string, error) {
+	roles, _, err := parseFlatRolesProjection(rawJSON, rolesClaim)
+	return roles, err
+}
+
+func parseFlatRolesProjection(rawJSON []byte, rolesClaim string) ([]string, bool, error) {
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal(rawJSON, &raw); err != nil {
-		return nil, fmt.Errorf("unmarshal raw claims: %w", err)
+		return nil, false, fmt.Errorf("unmarshal raw claims: %w", err)
 	}
 	roleData, ok := raw[rolesClaim]
 	if !ok {
-		return nil, nil
+		return nil, false, nil
 	}
 	roles, err := parseRoleNames(roleData, rolesClaim)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	sort.Strings(roles)
-	return roles, nil
+	return roles, true, nil
 }
 
 func parseRoleNames(roleData json.RawMessage, rolesClaim string) ([]string, error) {
+	trimmedRoleData := bytes.TrimSpace(roleData)
+	if len(trimmedRoleData) == 0 || trimmedRoleData[0] != '[' {
+		return nil, fmt.Errorf("roles claim %q must be a string array or role object array", rolesClaim)
+	}
+
 	var list []string
-	if err := json.Unmarshal(roleData, &list); err == nil {
+	if err := json.Unmarshal(trimmedRoleData, &list); err == nil {
 		return dedupeRoles(list), nil
 	}
 
 	var anyList []any
-	if err := json.Unmarshal(roleData, &anyList); err == nil {
+	if err := json.Unmarshal(trimmedRoleData, &anyList); err == nil {
 		roles, err := rolesFromClaimItems(anyList, rolesClaim)
 		if err != nil {
 			return nil, err

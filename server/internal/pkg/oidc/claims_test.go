@@ -82,6 +82,80 @@ func TestParseProviderRolesFromRaw_MissingRolesClaim(t *testing.T) {
 	assert.Empty(t, roles)
 }
 
+func TestParseFlatRolesProjectionTracksValidClaimPresence(t *testing.T) {
+	tests := []struct {
+		name        string
+		raw         string
+		wantRoles   []string
+		wantPresent bool
+		wantErr     bool
+	}{
+		{
+			name:        "populated claim",
+			raw:         `{"roles":["super_admin","user"]}`,
+			wantRoles:   []string{"super_admin", "user"},
+			wantPresent: true,
+		},
+		{
+			name:        "valid empty claim",
+			raw:         `{"roles":[]}`,
+			wantRoles:   []string{},
+			wantPresent: true,
+		},
+		{
+			name: "missing claim",
+			raw:  `{"sub":"user-1"}`,
+		},
+		{
+			name:    "null is not an authoritative role projection",
+			raw:     `{"roles":null}`,
+			wantErr: true,
+		},
+		{
+			name:    "malformed shape is not authoritative",
+			raw:     `{"roles":"super_admin"}`,
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			roles, present, err := parseFlatRolesProjection([]byte(tt.raw), "roles")
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.False(t, present)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantRoles, roles)
+			assert.Equal(t, tt.wantPresent, present)
+		})
+	}
+}
+
+func TestDecorateIDTokenClaimsRecordsRoleClaimProvenance(t *testing.T) {
+	client := &Client{rolesClaim: "roles"}
+
+	withRoles := &Claims{}
+	client.decorateIDTokenClaims([]byte(`{"roles":["school_admin"]}`), withRoles)
+	assert.Equal(t, []string{"school_admin"}, withRoles.Roles)
+	assert.True(t, withRoles.RolesClaimPresent)
+
+	withoutRoles := &Claims{}
+	client.decorateIDTokenClaims([]byte(`{"sub":"user-1"}`), withoutRoles)
+	assert.Empty(t, withoutRoles.Roles)
+	assert.False(t, withoutRoles.RolesClaimPresent)
+
+	invalidRoles := &Claims{}
+	client.decorateIDTokenClaims([]byte(`{"roles":null}`), invalidRoles)
+	assert.Empty(t, invalidRoles.Roles)
+	assert.False(t, invalidRoles.RolesClaimPresent)
+
+	client.decorateIDTokenClaims([]byte(`{"roles":null}`), withRoles)
+	assert.Empty(t, withRoles.Roles)
+	assert.False(t, withRoles.RolesClaimPresent)
+}
+
 func TestClaimsUnmarshalIgnoresInternalRoleFields(t *testing.T) {
 	raw := []byte(`{
 		"sub": "user-1",

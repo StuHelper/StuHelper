@@ -66,6 +66,9 @@ func (h *Handler) syncCurrentUser(
 		Email:          email,
 		AvatarURL:      avatarURL,
 		Roles:          roles,
+		// /auth/me 可能由较旧的 access token 驱动，只同步 shadow profile，
+		// 不得据此重新授予或撤销平台级 OpenFGA role tuple。
+		RolesAuthoritative: false,
 	}); err != nil {
 		logger.FromGin(c).Error("failed to sync current user",
 			zap.String("user_id", userID),

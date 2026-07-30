@@ -424,7 +424,7 @@ Claude 新生成的 `AUDIT-REPORT.md` 是一份新的汇总快照，不是对本
 | 8 | 部分确认，已完成实现前深挖 | P2 | 只影响创建资源的 POST；metadata PATCH 不上传内容。浏览器声明 MIME 与服务端 sniffed MIME 严格相等，确会误拒绝 OOXML/legacy Office、CSV/Markdown/JSON 等常见 container/text refinement，但不是“每种文件都必然失败”。服务端应返回并持久化兼容后的 effective MIME，仅接受精确枚举的 ZIP/Office/OLE/text refinement；不得信任任意 `text/*`、`vnd.*`、`*+zip` 或把任意 `application/octet-stream` 声明当安全依据，也不应扩散到身份/准入图片链路。 |
 | 9 | 确认，已完成本地修复与回归验证 | P1 | review parser 已按 OpenAPI 的 `like`/`dislike` enum 保留可选 `userVote`，非法值继续 fail-closed；针对两种投票和非法值的定向回归通过。没有为了一个字段建设反射式“全 DTO 自动对齐”框架。 |
 | 11 | 确认，修正失败后果 | P1 | 仓库没有受支持、可审计的 school/section admin tuple 发放与撤销流程；运维可手写 OpenFGA tuple，所以不是物理上“无法写入”。实际后果是 scoped role 默认 fail-closed、角色不可用，不是自动获得全局权限。应先确定 Casdoor、业务库或运维清单中的权威来源，再实现最小 grant/revoke/reconcile/audit；在权威来源未定前一次性建设 DB、outbox、API、CLI 和 MFA 全套流程属于过度设计。 |
-| 17 | 确认 | P1 | `super_admin` tuple 只增不减，角色降级后 OpenFGA 全局权力可能残留。同步器应做 reconcile；只有当 roles claim 明确存在且被认定为权威时才允许删除，claim 缺失/解析失败不能被当成撤权信号。 |
+| 17 | 确认，已完成本地修复、真实 OpenFGA 协议与回归验证 | P1 | `super_admin` tuple 原先只增不减，角色降级后 OpenFGA 全局权力会残留。现在只有 Web/native login 与 refresh 新签发、已验签且显式包含结构合法 roles claim 的 ID token 才设置 `RolesAuthoritative` 并执行 reconcile；`/auth/me` 的旧 access token、claim 缺失、`null` 或解析失败均不能增删 tuple。撤权使用 higher-consistency 的完整 direct tuple 精确读取，再以 `on_missing=ignore` 幂等删除并写 `iam.role.revoke` 审计；读取/删除失败时认证同步 fail-closed。真实 OpenFGA v1.18.1 临时 store 验证写入后为 1、首次和重复删除均为 200、最终为 0，store 已删除。没有顺手建设 #11 的 scoped provisioning 平台，也没有让 introspection 每请求写 OpenFGA。 |
 | 18 | 确认，原时长与兼容方案需要纠正 | P1 | blacklist TTL 不取 token 自身 `exp` 的问题真实。仓库 bootstrap 默认 Casdoor access=1h、provider refresh=24h，本地 blacklist/cookie policy=5m、session lease=7d，故刚登录后 logout 的默认残余窗口约 55 分钟，不是原文的 168h；生产实际值仍须核验。应从已验签 claims 保存 access expiry，并在 refresh 时把 hash+expiry 原子更新；每个 session 按真实剩余寿命吊销。超过 hard cap 不能静默向下截断；旧 session 的 logout-all 无法从 hash 还原 expiry，必须以真实 provider TTL 不超过 session lease 的发布前检查作为保守 PTTL 回退前提，否则 fail-closed/强制重新认证。每个 bearer 立即绑定新 session ID 仍属于第二阶段设计。深挖还确认了下方 N-1 provider 撤销 no-op，须独立修复，不能混入本项假装一次解决。 |
 | 28 | 确认，已完成实现前深挖 | P2 | 页面保存的是 7 个逻辑域，而非固定“7 次请求”：实际 mutation 数是 `6 + D` 次关键词删除 + `N` 次关键词 upsert。失败会形成部分落地，当前又继续展示旧 baseline。最小修复是逐域记录 confirmed/unconfirmed/not-run、仅对确认成功的 slice 更新 baseline、失败后提供带确认的服务端 reload，并让“已不存在”的关键词删除幂等；前端跨 HTTP 伪造 transaction/rollback、`Promise.all` 并发冲击、2PC 或 saga 都是过度设计。 |
 | 30 | 部分确认，已完成实现前深挖 | P2 | Admission runtime 确实加载全部 active records 后按 deadline 静默截断为 100 条，页面同时显示未截断统计和“100 条”却无解释；但“其余记录在整个 Console 不可达、只能等待前 100 条老化”不成立。处置中心可检索全部 active records 并放行/拒绝/延期，群内授权命令可查询/重发/重新生成/跳过，backend-sync 与 time-code 扫描也不受 UI cap 影响；deadline 到期本身不会让记录退出 active。应先基于同一 guild scope 显示 `shown / total / truncated` 和替代操作说明，并用 `(deadlineAt,id)` 稳定排序；只有遥测证明队列经常持续超过 100、替代路径不足或全量加载产生 SLO 问题时，才做数据库级 scoped cursor pagination/search。 |
@@ -567,7 +567,7 @@ bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复
 |-----------------|----------|--------------------------------|
 | WF01/WF19：#3 + #4 | 两项均为真实 P1，已修复；首次实现复核因残留全局运行态读取判 FAIL，补齐后最终 PASS | Core service 暴露既有 resolver；global settings 写入前 `assertGlobal`；页面先 scope filter 再统计/排序/limit；mutation 在副作用前断言 guild。最终把所有 bot-wide 字段收拢为仅 global scope 返回的 `globalRuntime`，scoped 分支不加载、不下发且 UI 不渲染。继续把过滤下推 Repository 只在真实规模/延迟需要时做；不搬迁整套 RBAC helper，不与 #30 队列 UX 混改。 |
 | WF02：#44 | 真实 P1，已修复 | Casdoor active introspection 不能只看 `active` 或相信 hint；运行时已强制 3 段 JWT、`tokenType=access-token`、registered app 和非空 subject。没有增加每请求第二套 JWKS 验签。 |
-| WF03：#17 | 真实 P1 | 只有 roles claim **明确存在、结构有效且被调用链标记为权威**时才能删除残留 `super_admin` tuple；Web/native login、refresh 的新 token 可作为权威输入，使用可能陈旧 access token 的 `/userinfo` 不能触发撤权或重新加权。先做 claim provenance + exact tuple reconcile，不顺手实现 #11 的全套 provisioning 平台。 |
+| WF03：#17 | 真实 P1，已修复；协议假设经真实 OpenFGA 纠正 | `RolesClaimPresent` 只表示 claim 明确存在且结构有效，Web/native login 与 refresh 才把新 token 提升为 `RolesAuthoritative`；`/auth/me` 明确保持 false。精确 direct tuple 使用 higher-consistency Read，存在时通过 SDK `on_missing=ignore` 删除，避免并发 refresh 的 read/delete 竞态把已撤权状态误报为失败；实际删除后记录 `iam.role.revoke`。Claude 所引 `client_edge_test.go` 只证明空列表 no-op，并未证明缺失 tuple 默认幂等；真实 v1.18.1 验证确认必须显式使用 ignore。没有实现 #11 的 DB/outbox/API/CLI provisioning 平台。 |
 | WF04：#9 | 真实 P1，已修复 | 所有 `readReviewPagePayload` consumer 都经过同一 parser；保留 `like/dislike` enum、缺失可选、非法 fail-closed 足够，不建设反射式 DTO 自动同步框架。 |
 | WF05/WF10：U-1 | MFA 缺口真实；“缺通用 admin-entry”证伪；交叉审查从 FAIL 修到 PASS | 三条 `/admin/academics` route 已复用现有 admin MFA chain。反向复核发现共享 RBAC step-up 曾返回 428、与 OpenAPI/管理端 412 契约冲突，已中央对齐 412并扩展真实链路断言；非 MFA 的 Open Platform 428 未被机械替换。精确 global capability 已比 admin-entry 更严格，无需重复 gate。 |
 | WF06：#18 + N-1 | #18 真实 P1；同时把 provider revoke 从“风险”提升为已证实 no-op P1 | 保存已验签 expiry、原子轮换 hash+expiry、逐 session 计算剩余 TTL；legacy logout-all 迁移必须有 provider TTL invariant，不能用 30 天向下 clamp。N-1 独立实现 Casdoor adapter，避免把会话迁移、blacklist 和 provider 协议揉成一次 IAM 重写。 |
@@ -605,6 +605,12 @@ bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复
   均通过。独立代理第一次复核发现 scoped response 仍携带 bot-wide 配置/Bot inventory 而判
   FAIL；改为 `globalRuntime: null`、scoped 分支不加载全局 store 且客户端不渲染后，第二次复核
   PASS。提交为 `7b448809`。
+- #17 修复的 OIDC claim provenance、Web/native/refresh 权威输入、`/auth/me` 非权威输入、
+  exact tuple higher-consistency Read、幂等删除、FGA 故障 fail-closed 和撤权审计均有负向测试；
+  `oidc`、`fga`、`auth`、`user` 四包定向与 race、全服务端 `make test`（`-race -p 1 ./...`）、
+  Casdoor 边界检查、`golangci-lint` 和 build 均通过。真实 OpenFGA v1.18.1 一次性独立 store
+  验证写入 200、精确读取 `1`、首次删除 200、重复删除 200、最终读取 `0`；store 以 204 删除并
+  确认不存在。没有读取或修改现有业务 store。
 - #30 通过源码链路确认 100 条上限只存在于 Admission runtime payload；处置中心、群内命令和
   两类后台扫描不受该 cap 影响。尚未用真实生产数据证明队列经常超过 100。
 - #34 用真实 Chromium 观察 GSAP global timeline：初始 50，跨帧 resize 后逐批增加，离开首页
@@ -617,6 +623,8 @@ bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复
 单独验收：
 
 - 生产 Casdoor 的实际 access/refresh TTL、introspection、logout/revocation 和 JWKS 故障行为；
+- 生产 Casdoor 实际降级 `super_admin` 后的新 ID token、OpenFGA tuple 撤权、审计落库以及各
+  school/resource 权限立即失效的端到端验收；
 - 真实 scoped Console operator 的跨群读写、插件重载与全局设置权限；
 - 微信开发者工具/真机 mp-weixin 包、原生 SSO redirect 和浏览器 storage 受限模式；
 - 超过 100 条的真实 restricted-member 队列、生产 Redis p95/p99 与 breaker 行为；
@@ -628,6 +636,7 @@ bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复
 |----------|------|----------|------|
 | 3 + 4 | 已修复，待发布；真实 scoped Console 操作员验收待补 | Canonical scope resolver、global settings fail-closed、scoped records/stats/filter-before-limit、foreign action side-effect=0、scoped `globalRuntime=null` 和全局 loader=0 均有负向测试；22 定向、602 全量 unit、双插件 typecheck、contracts、build、startup 与 46 UI smoke 通过；独立复核经历 FAIL→修正→PASS | `7b448809` `fix(koishi): enforce admission console guild scope` |
 | 9 | 已修复，待发布 | Web review payload reader 保留 `like`/`dislike`，缺失字段保持可选，非法 enum fail-closed；定向 payload/voting 回归、Web 类型检查与相关静态检查通过 | `59322589` `fix(review): preserve current user vote state` |
+| 17 | 已修复，待发布；生产 Casdoor 降级与 OpenFGA 撤权待验收 | 新 ID token 的合法 roles claim 才能触发 reconcile，`/auth/me`/缺失/畸形 claim 均不 mutation；exact direct tuple higher-consistency Read、`on_missing=ignore` 删除、失败关闭和 `iam.role.revoke` 有负向测试。四包定向/race、全服务端 race、lint/build 与真实 OpenFGA v1.18.1 临时 store 写入/重复撤权/清理验证通过 | `fix(auth): reconcile authoritative super admin roles` |
 | 44 | 已修复，待发布 | active introspection 只接受 Casdoor `access-token` purpose，refresh/missing/malformed/opaque token 均拒绝；Bearer 用户路径拒绝空白 subject，provider unavailable 与 inactive 分类保持不变；OIDC、middleware、app/auth 定向回归与服务端静态检查通过 | `3d12d259` `fix(auth): reject refresh tokens on bearer paths` |
 | U-1 | 已修复，待发布 | 三个 academics admin operation 消费现有 admin MFA middlewares；共享 step-up 响应从错误的 428 对齐既有 412 契约，OpenAPI/生成物同步；blocking route contract、真实 MFA chain、相关包/全量 Go 回归、race、spec/drift、lint/build 与文档检查通过 | `4b2f520b` `fix(academics): require MFA for import administration` |
 

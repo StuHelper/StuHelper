@@ -73,14 +73,16 @@ func TestClient_HTTPWrappers(t *testing.T) {
 	require.NoError(t, client.WriteReviewRelations(context.Background(), "legacy", "", "s1"))
 	require.NoError(t, client.WriteReportRelations(context.Background(), "rep1", "s1"))
 	require.NoError(t, client.DeleteTuples(context.Background(), []Tuple{{User: "user:u1", Relation: "author", Object: "review:r1"}}))
+	require.NoError(t, client.DeleteTuplesIgnoringMissing(context.Background(), []Tuple{{User: "user:u2", Relation: "author", Object: "review:r2"}}))
 
 	mu.Lock()
 	defer mu.Unlock()
-	require.Len(t, writes, 4)
+	require.Len(t, writes, 5)
 	assert.Contains(t, writes[0], "writes")
 	assert.Contains(t, writes[1], "writes")
 	assert.Contains(t, writes[2], "writes")
 	assert.Contains(t, writes[3], "deletes")
+	assert.Contains(t, writes[4], "deletes")
 
 	firstJSON, err := json.Marshal(writes[0])
 	require.NoError(t, err)
@@ -99,6 +101,65 @@ func TestClient_HTTPWrappers(t *testing.T) {
 	deleteJSON, err := json.Marshal(writes[3])
 	require.NoError(t, err)
 	assert.Contains(t, string(deleteJSON), "deletes")
+
+	idempotentDeleteJSON, err := json.Marshal(writes[4])
+	require.NoError(t, err)
+	assert.Contains(t, string(idempotentDeleteJSON), `"on_missing":"ignore"`)
+}
+
+func TestTupleExistsUsesExactDirectTupleRead(t *testing.T) {
+	var requestBodies []map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.True(t, strings.HasSuffix(r.URL.Path, "/read"))
+		require.Equal(t, http.MethodPost, r.Method)
+		w.Header().Set("Content-Type", "application/json")
+
+		var body map[string]any
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		assert.Equal(t, "HIGHER_CONSISTENCY", body["consistency"])
+		tupleKey, ok := body["tuple_key"].(map[string]any)
+		require.True(t, ok)
+		requestBodies = append(requestBodies, tupleKey)
+
+		responseBody := openfga.ReadResponse{ContinuationToken: ""}
+		if tupleKey["user"] == "user:42" {
+			responseBody.Tuples = []openfga.Tuple{{
+				Key: openfga.TupleKey{
+					User:     "user:42",
+					Relation: "super_admin",
+					Object:   "ecosystem:stuhelper",
+				},
+				Timestamp: time.Now(),
+			}}
+		}
+		require.NoError(t, json.NewEncoder(w).Encode(responseBody))
+	}))
+	defer server.Close()
+
+	client, err := NewClient(config.OpenFGAConfig{
+		APIUrl:               server.URL,
+		StoreID:              "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+		AuthorizationModelID: "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+	})
+	require.NoError(t, err)
+
+	tuple := Tuple{User: "user:42", Relation: "super_admin", Object: "ecosystem:stuhelper"}
+	exists, err := client.TupleExists(t.Context(), tuple)
+	require.NoError(t, err)
+	assert.True(t, exists)
+
+	tuple.User = "user:43"
+	exists, err = client.TupleExists(t.Context(), tuple)
+	require.NoError(t, err)
+	assert.False(t, exists)
+
+	require.Len(t, requestBodies, 2)
+	assert.Equal(t, map[string]any{
+		"user":     "user:42",
+		"relation": "super_admin",
+		"object":   "ecosystem:stuhelper",
+	}, requestBodies[0])
+	assert.Equal(t, "user:43", requestBodies[1]["user"])
 }
 
 func TestRecordSpanError_NoPanicOnNil(t *testing.T) {

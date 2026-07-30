@@ -2,8 +2,8 @@
 type: design
 audience: backend-dev, ops
 status: current
-authoritative-source: server/internal/modules/auth/ + server/internal/pkg/outbox/ + server/internal/pkg/audit/
-last-verified: 2026-05-24
+authoritative-source: server/internal/modules/auth/ + server/internal/modules/user/repository_auth_sync.go + server/internal/pkg/fga/ + server/internal/pkg/outbox/ + server/internal/pkg/audit/
+last-verified: 2026-07-31
 ---
 
 # IAM 实施守卫
@@ -18,6 +18,24 @@ last-verified: 2026-05-24
 - provider refresh token revoke / rotation 失败时，不得向客户端承诺成功；
 - 本地 session 更新失败时，不得把新 access / refresh token 写入 `Set-Cookie` 或响应体；
 - 失败注入测试必须覆盖 provider refresh 成功但本地 session rotate 失败的场景。
+
+## 平台角色 OpenFGA 投影
+
+Casdoor 的扁平 `super_admin` role 投影到 `ecosystem:stuhelper#super_admin` 时，必须区分角色
+内容与角色来源。只有刚签发、完成验签、且明确包含结构合法 `roles` claim 的 ID token 才能
+作为增删平台级 tuple 的权威输入。
+
+- Web 登录、原生登录和 provider refresh 返回的新 ID token 可以触发 reconcile；
+- `/auth/me`、旧 access token、`/userinfo` 或 introspection 结果只能参与当前请求授权和
+  shadow profile 更新，不得重新授予或撤销平台级 tuple；
+- claim 缺失、`null`、结构畸形或解析失败时必须跳过 tuple mutation，不能把空角色切片误当成
+  撤权信号；
+- 撤权前必须按完整 `user + relation + object` 精确读取 direct tuple，不能用可能包含 computed
+  userset 的 `Check` 代替；安全撤权读取使用 higher consistency；
+- 删除必须显式使用 OpenFGA `on_missing=ignore` 保持并发与重试幂等，OpenFGA 读取或写入失败时
+  认证同步 fail-closed；实际撤权记录 `iam.role.revoke` 审计事件；
+- 本规则只适用于平台级扁平角色；school/section scope 继续以 StuHelper DB / OpenFGA 业务投影
+  为权威，不得从 Casdoor role 名推导。
 
 ## 后台任务生命周期
 
