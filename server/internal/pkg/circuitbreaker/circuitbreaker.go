@@ -239,6 +239,21 @@ func (cb *CircuitBreaker) RecordFailure() {
 	cb.updateGauges()
 }
 
+// RecordNeutral completes an allowed operation without treating its outcome as
+// backend success or failure. This is used for caller-driven cancellation: it
+// must not affect health counters, but a half-open probe reservation still has
+// to be released so a later recovery probe can run.
+func (cb *CircuitBreaker) RecordNeutral() {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+
+	cb.ensureStateTransition()
+	if cb.state == StateHalfOpen {
+		cb.halfOpenInFlight = false
+	}
+	cb.updateGauges()
+}
+
 // updateGauges 更新 Prometheus failure/success gauges（需持有锁）
 func (cb *CircuitBreaker) updateGauges() {
 	cbFailuresGauge.WithLabelValues(cb.name).Set(float64(cb.failures))

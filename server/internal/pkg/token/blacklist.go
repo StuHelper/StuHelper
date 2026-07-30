@@ -136,7 +136,7 @@ func (b *Blacklist) AddByHash(ctx context.Context, tokenHash string, expiry time
 
 	key := blacklistPrefix + tokenHash
 	if err := b.rdb.Set(ctx, key, "1", expiry).Err(); err != nil {
-		b.cb.RecordFailure()
+		b.recordBackendError(err)
 		return fmt.Errorf("failed to add token hash to blacklist: %w", err)
 	}
 	b.cb.RecordSuccess()
@@ -184,7 +184,7 @@ func (b *Blacklist) Add(ctx context.Context, token string, expiry time.Duration)
 
 	key := blacklistPrefix + hash
 	if err := b.rdb.Set(ctx, key, "1", expiry).Err(); err != nil {
-		b.cb.RecordFailure()
+		b.recordBackendError(err)
 		return fmt.Errorf("failed to add token to blacklist: %w", err)
 	}
 	b.cb.RecordSuccess()
@@ -254,7 +254,7 @@ func (b *Blacklist) TryConsumeRefreshToken(ctx context.Context, token string, ex
 		return false, nil
 	}
 	if err != nil {
-		b.cb.RecordFailure()
+		b.recordBackendError(err)
 		return false, fmt.Errorf("failed to mark refresh token consumed: %w", err)
 	}
 	b.cb.RecordSuccess()
@@ -283,7 +283,7 @@ func (b *Blacklist) ReleaseConsumedRefreshToken(ctx context.Context, token strin
 	}
 
 	if err := b.rdb.Del(ctx, refreshConsumedPrefix+hash).Err(); err != nil {
-		b.cb.RecordFailure()
+		b.recordBackendError(err)
 		return fmt.Errorf("failed to release refresh token consume mark: %w", err)
 	}
 	b.cb.RecordSuccess()
@@ -326,18 +326,25 @@ func (b *Blacklist) IsBlacklisted(ctx context.Context, token string) (bool, erro
 
 	exists, err := b.rdb.Exists(ctx, blacklistPrefix+hash).Result()
 	if err != nil {
-		b.cb.RecordFailure()
-		logger.L().Warn("redis unavailable for blacklist check",
-			zap.String("operation", "IsBlacklisted"),
-			zap.String("circuit_state", b.cb.State().String()),
-		)
+		b.recordBackendError(err)
+		if errors.Is(err, context.Canceled) {
+			logger.L().Debug("blacklist check canceled by caller",
+				zap.String("operation", "IsBlacklisted"),
+				zap.String("circuit_state", b.cb.State().String()),
+			)
+		} else {
+			logger.L().Warn("redis unavailable for blacklist check",
+				zap.String("operation", "IsBlacklisted"),
+				zap.String("circuit_state", b.cb.State().String()),
+			)
+		}
 
 		if blacklisted, ok := b.cachedRevocation(hash); ok {
 			return blacklisted, nil
 		}
 
 		// 安全优先：无缓存时拒绝请求
-		return true, fmt.Errorf("blacklist service unavailable")
+		return true, fmt.Errorf("blacklist service unavailable: %w", err)
 	}
 
 	b.cb.RecordSuccess()
@@ -350,6 +357,14 @@ func (b *Blacklist) IsBlacklisted(ctx context.Context, token string) (bool, erro
 	}
 
 	return blacklisted, nil
+}
+
+func (b *Blacklist) recordBackendError(err error) {
+	if errors.Is(err, context.Canceled) {
+		b.cb.RecordNeutral()
+		return
+	}
+	b.cb.RecordFailure()
 }
 
 func (b *Blacklist) cacheRevocation(hash string) {

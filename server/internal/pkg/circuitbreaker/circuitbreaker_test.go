@@ -81,3 +81,30 @@ func TestCircuitBreakerAllowsOneConcurrentHalfOpenProbe(t *testing.T) {
 
 	assert.Equal(t, int32(1), allowed.Load())
 }
+
+func TestCircuitBreakerNeutralOutcomePreservesHealthAndReleasesProbe(t *testing.T) {
+	cb := NewNamed("neutral_outcome_test", Config{
+		FailureThreshold: 2,
+		SuccessThreshold: 1,
+		Timeout:          time.Nanosecond,
+	})
+
+	require.True(t, cb.Allow())
+	cb.RecordFailure()
+	assert.Equal(t, StateClosed, cb.State())
+	cb.RecordNeutral()
+	assert.Equal(t, 1, cb.Metrics()["failures"])
+
+	require.True(t, cb.Allow())
+	cb.RecordFailure()
+	assert.Equal(t, StateHalfOpen, cb.State())
+	require.True(t, cb.Allow())
+	assert.False(t, cb.Allow(), "half-open probe must be reserved")
+
+	cb.RecordNeutral()
+	metrics := cb.Metrics()
+	assert.Equal(t, StateHalfOpen.String(), metrics["state"])
+	assert.Equal(t, 0, metrics["failures"])
+	assert.Equal(t, false, metrics["probe_in_flight"])
+	assert.True(t, cb.Allow(), "neutral outcome must release the half-open probe")
+}

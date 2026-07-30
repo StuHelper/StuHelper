@@ -2,9 +2,12 @@ package token
 
 import (
 	"context"
+	"errors"
+	"net"
 	"testing"
 	"time"
 
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -104,6 +107,45 @@ func TestBlacklist_IsBlacklisted(t *testing.T) {
 	isBlacklisted, err = bl.IsBlacklisted(ctx, "blacklisted-token")
 	assert.NoError(t, err)
 	assert.True(t, isBlacklisted)
+}
+
+func TestBlacklist_IsBlacklistedClassifiesCallerCancellationAsNeutral(t *testing.T) {
+	require.NoError(t, crypto.InitHMACKey("test-blacklist-cancellation-secret", false))
+
+	backendErr := errors.New("test redis backend unavailable")
+	rdb := redis.NewClient(&redis.Options{
+		Addr:       "unused:6379",
+		MaxRetries: -1,
+		Dialer: func(ctx context.Context, _, _ string) (net.Conn, error) {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			return nil, backendErr
+		},
+	})
+	t.Cleanup(func() { require.NoError(t, rdb.Close()) })
+	bl := NewBlacklist(rdb)
+	t.Cleanup(bl.Close)
+
+	canceledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+	blacklisted, err := bl.IsBlacklisted(canceledCtx, "caller-canceled-token")
+	require.ErrorIs(t, err, context.Canceled)
+	assert.True(t, blacklisted, "canceled lookup must remain fail-closed")
+	assert.Equal(t, 0, bl.CircuitBreakerMetrics()["failures"])
+	assert.Equal(t, circuitbreaker.StateClosed.String(), bl.CircuitBreakerMetrics()["state"])
+
+	deadlineCtx, deadlineCancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	defer deadlineCancel()
+	blacklisted, err = bl.IsBlacklisted(deadlineCtx, "deadline-exceeded-token")
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.True(t, blacklisted, "deadline exceeded must remain fail-closed")
+	assert.Equal(t, 1, bl.CircuitBreakerMetrics()["failures"])
+
+	blacklisted, err = bl.IsBlacklisted(context.Background(), "backend-failure-token")
+	require.ErrorIs(t, err, backendErr)
+	assert.True(t, blacklisted, "backend failure must remain fail-closed")
+	assert.Equal(t, 2, bl.CircuitBreakerMetrics()["failures"])
 }
 
 func TestBlacklist_TryConsumeRefreshToken(t *testing.T) {

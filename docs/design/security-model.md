@@ -62,6 +62,11 @@ Casdoor access / refresh 由 provider `tokenType` 区分；遗留 StuHelper 自�
 - 新 access token 的剩余寿命必须不大于 session lease。旧 session 缺少 expiry 时，只在
   托管 Casdoor access TTL 不超过 session lease 的发布约束下使用实际 Redis PTTL；无 TTL
   的旧 session 撤销 fail-closed。
+- 每请求 blacklist 查询使用保留 request values、忽略客户端取消的 50 ms 有界 context。
+  `context.Canceled` 是 neutral outcome：当前调用仍 fail-closed，但不增加共享 breaker 的
+  失败数，并必须释放 half-open probe；内部 deadline exceeded 与真实 Redis 错误仍记作
+  backend failure。没有生产 Redis 延迟和 breaker 遥测证据时，不调整该 budget、失败阈值
+  或 30 秒 open window。
 
 ## 手机号与 SMS
 

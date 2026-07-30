@@ -147,7 +147,7 @@ func TestAuthMiddleware_RevokedToken(t *testing.T) {
 	assert.Contains(t, w.Body.String(), string(errs.ErrTokenRevoked))
 }
 
-func TestOptionalAuthMiddleware_BackendFailureMarksDiagnostic(t *testing.T) {
+func TestOptionalAuthMiddleware_CanceledRequestDoesNotPoisonBlacklistBreaker(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	tokenSvc := newTokenServiceForMiddlewareTest(t)
 	accessToken := mustSignAccessToken(t, token.JWTTokenTypeAccess)
@@ -169,8 +169,9 @@ func TestOptionalAuthMiddleware_BackendFailureMarksDiagnostic(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Contains(t, w.Body.String(), `"backendFailure":true`)
+	assert.Contains(t, w.Body.String(), `"backendFailure":false`)
 	assert.Contains(t, w.Body.String(), `"userID":""`)
+	assert.Equal(t, 0, tokenSvc.GetBlacklist().CircuitBreakerMetrics()["failures"])
 }
 
 func TestRequireHealthyOptionalAuth_RejectsBackendFailure(t *testing.T) {

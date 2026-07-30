@@ -438,7 +438,7 @@ Claude 新生成的 `AUDIT-REPORT.md` 是一份新的汇总快照，不是对本
 | 40 | 部分确认 | P3 | SearchPage 确实忽略 `ReviewCard` emits，但当前可达的是 `moderated`；deleted/updated 控件并未启用。只接线 moderation 后 refetch/局部更新，避免为不可达事件建设通用同步总线。 |
 | 41 | 确认 | P3 | teacher profile 的 load-more 失败会用错误面板替换已加载 review。区分 initial 与 append error，保留已有列表并提供重试当前页即可。 |
 | 42 | 部分确认 | P2 | fresh store 的 status fetch 失败会把依赖验证状态的字段呈现为 false negative；并非所有 email/base info 都必然受影响，已有 cache 时也可能保留。应显式建 loading/ready/error/retry 状态，在成功前不展示“未验证”结论。 |
-| 43 | 确认 | P2 | caller cancellation 和 50ms lookup deadline 都会记作全局 breaker failure，连续 5 次可使鉴权 fail-closed 30 秒。应把 caller cancellation 分类为 neutral，并为必要查询使用有界 detached context；没有指标前武断改成 200ms/3s 只是参数猜测。 |
+| 43 | 确认，已完成本地修复与回归验证 | P2 | 每请求 blacklist 查询现在用保留 request values、忽略客户端取消的 50 ms bounded detached context。进一步复核发现同一全局 breaker 还被 revoke 写入、refresh reservation/release 共用，因此 5 个 Redis error 分支统一分类：`context.Canceled` 调用 `RecordNeutral`，不增加失败数但释放 half-open probe；内部 deadline exceeded 与真实 Redis 错误仍计 failure，所有错误路径仍 fail-closed。永久回归覆盖 closed/half-open neutral、直接 caller cancellation、deadline、真实 backend error 和 canceled Gin request。没有无遥测依据地把 50 ms 改成 200 ms，也没有把 30 秒 open window 猜成 3 秒。 |
 | 44 | 确认，已完成本地修复与回归验证 | P1 | Bearer introspection 现在发送 `token_type_hint=access_token`，并在 active 后对同一原始 JWT 强制校验 Casdoor `tokenType == "access-token"`；refresh、claim 缺失、opaque 和 malformed token 均 fail-closed。用户认证还要求已登记应用和非空 `sub`。没有信任 response 的通用 `token_type=Bearer`，也没有为每个 Bearer 请求再建一套 JWKS 验签。 |
 | 45 | 确认，已完成本地修复与回归验证；影响面比报告列举更广 | P2 | 实际有 5 条 admission `:token` 路由；raw path 原先不只进入 RequestLogger/Recovery，还进入两条请求体超限告警，共 4 类日志点。现在全部复用单一 `requestLogRoute`：匹配路由只记录 `c.FullPath()` 模板，404/405 固定记录 `unmatched`，绝不回退 raw URL。永久测试证明全局 middleware 在 handler 前后都能得到不含 credential 的模板，并覆盖 404/405；静态扫描确认 4 个旧 raw-path 日志点均消失。保留既有 query masking，没有枚举敏感 path 参数、遍历 Params 或做字符串替换。 |
 | 51 | 部分确认，已完成本地修复与回归验证 | P2 | browser cookie 场景存在 logout 与在途 refresh 竞争，原实现会仅凭历史 attribution 误判 reuse 并撤销整个 family；native 常在更早的 tracked-session 检查失败。现在加载 referenced session，只有 session 存在、当前 refresh hash 非空且与提交 token hash 不同时才判定真 reuse；session 缺失或 hash 相同只返回 revoked，不撤销其他设备、不增加 reuse metric、也不记录虚假 reuse 审计。测试覆盖成功轮换、logout 已完成、blacklist→delete 竞争窗口和无 attribution 四种状态。没有新增 revoke reason schema。 |
@@ -548,7 +548,7 @@ fail-closed 语义和撤权测试，再做局部实现。
 #### 第二批：隐私、可靠性和核心前进性
 
 1. #45 path credential 日志脱敏（已完成本地修复），#51 refresh reuse 误判（已完成本地修复），#57 scoped grant 的 public-content 边界（已完成本地修复）。
-2. #39 projection polling、#43 breaker cancellation、U-2 JWKS 缓存策略。
+2. #39 projection polling、#43 breaker cancellation（已完成本地修复）、U-2 JWKS 缓存策略。
 3. #5 的 H5 资产产物契约；mp-weixin 假绿另做“实现真实平台 build 或明确不支持”的产品决策。
 4. #6、#7、#28、#30、#38、#42 等会让用户状态错误、流程卡死或操作结果不可信的问题。
 
@@ -644,6 +644,12 @@ bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复
   grant 则保留完整两行。评课模块定向 race 和包含真实 PostgreSQL fixture 的全包 race
   均通过；全服务端 race、lint、build、文档卫生与差异检查也通过。四类公共 repository
   查询仍只选择 `published`，且没有为修复增加逐行 scope DTO/SQL。
+- #43 的 deterministic Redis dialer 依次返回 caller cancellation、deadline exceeded 和
+  backend error：三条调用都保持 fail-closed，breaker failure 计数分别为 0、1、2。
+  CircuitBreaker 回归进一步把 breaker 推到 half-open，证明 neutral 不改变成功/失败计数且
+  会释放单一 probe；取消 Gin request 的 optional-auth 回归则证明 blacklist 查询使用
+  detached 预算后 failure 仍为 0。`circuitbreaker`、`token`、`middleware`、`auth` 四包
+  全量 race、全服务端 race、lint、build、文档卫生与差异检查均通过。
 - #51 的永久 handler 回归分别制造四种 Redis 状态：成功 rotation 后旧 hash 与当前 hash
   不同，判定真 reuse 并撤销全部 session；logout 完成后 referenced session 不存在；
   logout 的 blacklist→delete 竞争窗口仍保留相同当前 hash；以及历史 attribution 缺失。
@@ -689,6 +695,7 @@ bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复
 | 45 | 已修复，待发布 | 5 条 admission token route 的 RequestLogger、Recovery 与两类 body-limit 告警统一记录 route template；404/405 固定 `unmatched`。handler 前后/未匹配负向测试与 raw-path logger 静态扫描通过；middleware 定向/全包 race、全服务端 race、lint/build/docs/diff 检查均通过 | `fix(logging): keep dynamic path credentials out of logs` |
 | 51 | 已修复，待发布 | blacklisted token 只有在 referenced session 存在、当前 refresh hash 非空且与提交 hash 不同时才是真 reuse；session 缺失、hash 相同或 attribution 缺失只返回 revoked。rotated/logout-complete/blacklist-before-delete/missing-ref 回归验证其他设备和 metric 语义；auth 全包/race、全服务端 race、lint/build/docs 通过 | `fix(auth): distinguish revoked refresh tokens from reuse` |
 | 57 | 已修复，待发布 | 公共评课访问事实同时接收完整与 global capability 集合，只有 global `admin:reviews:manage` 能推出平台级管理/全文；普通学生能力不变。school scope、section scope、global grant 的正文裁剪回归、评课全包 race、全服务端 race、lint/build/docs/diff 均通过，未扩 DTO/SQL | `fix(authz): preserve scoped review access boundaries` |
+| 43 | 已修复，待发布 | blacklist lookup 使用 50 ms detached context；5 个共享 breaker Redis error 分支将 caller cancellation 记为 neutral 并释放 half-open probe，deadline/backend error 仍计 failure 且 fail-closed。closed/half-open、canceled/deadline/backend、Gin request 负向测试、四包与全服务端 race、lint/build/docs/diff 均通过；未猜测修改预算/阈值/window | `fix(auth): classify blacklist cancellations as neutral` |
 | 44 | 已修复，待发布 | active introspection 只接受 Casdoor `access-token` purpose，refresh/missing/malformed/opaque token 均拒绝；Bearer 用户路径拒绝空白 subject，provider unavailable 与 inactive 分类保持不变；OIDC、middleware、app/auth 定向回归与服务端静态检查通过 | `3d12d259` `fix(auth): reject refresh tokens on bearer paths` |
 | U-1 | 已修复，待发布 | 三个 academics admin operation 消费现有 admin MFA middlewares；共享 step-up 响应从错误的 428 对齐既有 412 契约，OpenAPI/生成物同步；blocking route contract、真实 MFA chain、相关包/全量 Go 回归、race、spec/drift、lint/build 与文档检查通过 | `4b2f520b` `fix(academics): require MFA for import administration` |
 

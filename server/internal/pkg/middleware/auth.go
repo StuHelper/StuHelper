@@ -11,6 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/StuHelper/StuHelper/server/internal/pkg/ctxutil"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/errs"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/logger"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/metrics"
@@ -57,7 +58,7 @@ func resolveToken(c *gin.Context, oidcClient *oidc.Client, tokenService *token.S
 	}
 
 	// 检查 token 是否在应用级黑名单中（紧急吊销，两种来源都检查）
-	blacklistCtx, cancel := context.WithTimeout(c.Request.Context(), authBlacklistLookupTimeout)
+	blacklistCtx, cancel := ctxutil.DetachedTimeout(c.Request.Context(), authBlacklistLookupTimeout)
 	defer cancel()
 	isBlacklisted, err := tokenService.GetBlacklist().IsBlacklisted(blacklistCtx, tokenString)
 	if err != nil {
