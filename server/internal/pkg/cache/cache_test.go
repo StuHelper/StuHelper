@@ -255,6 +255,50 @@ func TestBuildVersionedKey(t *testing.T) {
 	assert.Equal(t, "reviews:v1:course:123", key)
 }
 
+func TestVersionedCache_RedisTransportFailureBypassesWithoutMemoizingV0(t *testing.T) {
+	client, fixture := setupTestRedis(t)
+	h := NewHelper(client)
+	ctx := context.Background()
+	versionKey := VersionKey("reviews")
+
+	require.NoError(t, client.Set(ctx, versionKey, "7", time.Minute).Err())
+	fixture.Server.Close()
+
+	assert.Empty(t, h.GetVersion(ctx, "reviews"))
+	assert.Empty(t, h.BuildVersionedKey(ctx, "reviews", "course:123"))
+
+	h.vmu.RLock()
+	_, memoized := h.versions[versionKey]
+	h.vmu.RUnlock()
+	assert.False(t, memoized, "transport failures must not be memoized as version zero")
+
+	_, rawHit := h.GetRaw(ctx, "")
+	assert.False(t, rawHit)
+	_, typedHit := GetAs[testPayload](h, ctx, "")
+	assert.False(t, typedHit)
+	require.NoError(t, h.Set(ctx, "", testPayload{Name: "must-not-write"}, time.Minute))
+
+	require.NoError(t, fixture.Server.Restart())
+	require.Eventually(t, func() bool {
+		return h.GetVersion(ctx, "reviews") == "7"
+	}, time.Second, 10*time.Millisecond)
+	assert.Equal(t, "reviews:v7:course:123", h.BuildVersionedKey(ctx, "reviews", "course:123"))
+}
+
+func TestVersionedCache_CanceledContextBypassesWithoutMemoizingV0(t *testing.T) {
+	client, _ := setupTestRedis(t)
+	h := NewHelper(client)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	assert.Empty(t, h.GetVersion(ctx, "reviews"))
+	assert.Empty(t, h.BuildVersionedKey(ctx, "reviews", "course:123"))
+
+	h.vmu.RLock()
+	defer h.vmu.RUnlock()
+	assert.NotContains(t, h.versions, VersionKey("reviews"))
+}
+
 // ---------------------------------------------------------------------------
 // GetVersion local-cache eviction (maxVersionEntries)
 // ---------------------------------------------------------------------------

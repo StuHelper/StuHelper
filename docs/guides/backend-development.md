@@ -3,7 +3,7 @@ type: guide
 audience: backend-dev
 status: current
 authoritative-source: server/api/openapi.yaml + server/internal/
-last-verified: 2026-04-19
+last-verified: 2026-07-31
 ---
 
 # 后端开发规范
@@ -97,6 +97,15 @@ server/
 | OpenFGA | 资源关系授权 |
 | Tencent SMS | 手机 OTP（仅当 `SMS_ENABLED=true`） |
 | OpenTelemetry | trace / metrics / logs |
+
+### 版本化业务缓存的故障语义
+
+- Redis 中不存在版本 key 时，版本化缓存可以使用初始版本 `v0`。
+- Redis 连接、超时或请求取消导致版本无法确认时，必须把版本视为“未知”：缓存读取按 miss
+  处理、缓存写入按 no-op 处理，并回源 PostgreSQL；不得把依赖故障伪装成 `v0`，也不得把
+  这个结果写入本地版本缓存。
+- `cache.Helper.BuildVersionedKey` 以空 key 表示版本未知；`GetRaw`、`GetAs` 和 `Set`
+  对空 key 分别执行 miss、miss 和 no-op。业务 Handler 不应自行拼接版本化 key 或绕过这组语义。
 
 ## 日志和错误
 

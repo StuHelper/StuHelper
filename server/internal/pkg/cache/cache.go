@@ -127,7 +127,7 @@ func (h *Helper) Namespace() string {
 // 相比 Get，它避免了重复反序列化以及 float64 精度丢失问题。
 // 返回的 json.RawMessage 可直接传给 response.Success。
 func (h *Helper) GetRaw(ctx context.Context, key string) (json.RawMessage, bool) {
-	if h.disabled() {
+	if h.disabled() || key == "" {
 		return nil, false
 	}
 	start := time.Now()
@@ -144,7 +144,7 @@ func (h *Helper) GetRaw(ctx context.Context, key string) (json.RawMessage, bool)
 // GetAs 获取缓存值并反序列化为指定类型（泛型版本，避免 any 类型丢失问题）
 func GetAs[T any](h *Helper, ctx context.Context, key string) (T, bool) {
 	var zero T
-	if h.disabled() {
+	if h.disabled() || key == "" {
 		return zero, false
 	}
 	start := time.Now()
@@ -164,7 +164,7 @@ func GetAs[T any](h *Helper, ctx context.Context, key string) (T, bool) {
 
 // Set 设置缓存值
 func (h *Helper) Set(ctx context.Context, key string, value any, ttl time.Duration) error {
-	if h.disabled() {
+	if h.disabled() || key == "" {
 		return nil
 	}
 	data, err := json.Marshal(value)
@@ -221,8 +221,10 @@ func VersionKey(prefix string) string {
 	return "cache:version:" + prefix
 }
 
-// GetVersion 获取缓存版本号（带本地短时缓存，减少 Redis 往返）
-// 使用 singleflight 去重并发 Redis 查询
+// GetVersion 获取缓存版本号（带本地短时缓存，减少 Redis 往返）。
+// Redis 中不存在版本 key 时返回初始版本 "0"；Redis 不可用或请求已取消时返回空字符串，
+// 表示版本未知。未知版本不会写入本地缓存，调用方必须绕过版本化缓存。
+// 使用 singleflight 去重并发 Redis 查询。
 func (h *Helper) GetVersion(ctx context.Context, prefix string) string {
 	if h.disabled() {
 		return "0"
@@ -231,7 +233,7 @@ func (h *Helper) GetVersion(ctx context.Context, prefix string) string {
 	// 快速检查 context 是否已取消，避免向 Redis 发送无意义请求
 	select {
 	case <-ctx.Done():
-		return "0"
+		return ""
 	default:
 	}
 
@@ -260,17 +262,17 @@ func (h *Helper) GetVersion(ctx context.Context, prefix string) string {
 			if errors.Is(err, redis.Nil) {
 				return "0", nil
 			}
-			// 非 key-not-found 错误，记录日志并返回默认值
+			// 只有 key 不存在才表示初始版本；传输故障不能降级到可读写的 v0 namespace。
 			logger.L().Warn("failed to get cache version from redis",
 				zap.String("key", vk),
 				zap.Error(err),
 			)
-			return "0", nil
+			return "", err
 		}
 		return version, nil
 	})
 	if err != nil {
-		return "0"
+		return ""
 	}
 	if version == "" {
 		version = "0"
@@ -293,6 +295,9 @@ func (h *Helper) GetVersion(ctx context.Context, prefix string) string {
 // BuildVersionedKey 构建带版本号的缓存 key
 func (h *Helper) BuildVersionedKey(ctx context.Context, prefix, key string) string {
 	version := h.GetVersion(ctx, prefix)
+	if version == "" {
+		return ""
+	}
 	return prefix + ":v" + version + ":" + key
 }
 

@@ -44,10 +44,9 @@ Web / Admin / UniAppX+Koishi UI / Koishi / 基础设施 / 代码质量与文档)
   实际启动恢复后的 PostgreSQL 18.4 base backup 并读回探针数据，但没有登录生产主机、
   检查生产备份目录或用生产 WAL 执行目标时间点恢复，也没有观察生产锁等待或真实大表延迟。
   因此“生产已经丢失 PITR”“生产已经 OOM/死锁/永久停更”等说法仍不得当作已证实事实。
-- 当前工作树在复核开始前已经有未提交修改。Codex 对 P0-1、P1-1、P1-2、P1-3、P1-4、
-  P1-5、P1-6、P1-7、P1-8、P1-9、P1-10、P2-1、P2-2、P2-6、P2-7、P2-10，以及合并根因
-  P2-13/P2-14 的修复，已经按问题或根因分别独立提交（提交见下方进度表），但均未合并或发布；
-  P2-15 是重复标签，没有制造第二个提交；原有其他工作树修改没有混入这些提交。
+- 当前工作树在复核开始前已经有未提交修改。Codex 已完成的修复均按问题或唯一根因独立提交，
+  完整范围与验证证据见下方两张修复进度表；P2-15 等重复标签没有制造第二个提交。所有这些
+  提交都尚未合并或发布，原有其他工作树修改没有混入修复提交。
 - 原报告大量“修复方案”和全部 18 条驳回长文在句中截断。例如 P0-1 结尾是
   `only surface the 4`，P1-1 结尾是 `Promise.resolve<string[]>(`，P1-3 结尾是
   `both loc`；P3-1 至 P3-9 的方案也全部半句结束。第 1 条驳回理由还重复了两次。
@@ -130,7 +129,7 @@ P2 唯一根因应按以下修复簇合并，避免重复设计：
 | P3-6 | 确认 | P3 | 应改 | 以 OpenAPI 为真源修 school SSO login/callback 和 mobile handoff 的 security/401/403，generate 后加路由契约测试；不要机械枚举未实现状态。 |
 | P3-7 | 确认 | P3 → P2 | 必须 | 每次敏感批量导出写一个 success/failure 审计事件及 row count，让 stream 返回 `(count, error)`。CSV 不含 moderation_reason，风险描述应保持准确。 |
 | P3-8 | 确认 | P3 | 应改 | 三个 Handler 改为真正的 204 No Content，保持 OpenAPI 真源；历史提交也表明 204 是有意契约，不应反向把 spec 改成 200。 |
-| P3-9 | 确认 | P3 → P2 | 必须 | Redis `Nil` 才映射 v0；transport unavailable 必须 bypass cache，不能本地 memoize。unknown key 的 get 为 miss、set 为 no-op并补故障测试；200ms detached loader/兼容 wrapper 可后续再做。 |
+| P3-9 | 确认，已完成最小修复与真实 Redis 故障回归 | P3 → P2 | 已修复，待发布 | 只有 Redis `Nil` 映射 `v0`；transport error/caller cancel 返回 unknown，版本化 get 为 miss、set 为 no-op且不本地 memoize。关闭并重启 miniredis 验证故障期不生成 `v0`、恢复后立即读取真实版本。没有引入 detached loader 或新 wrapper；singleflight 等待者在首 caller 取消时共同 bypass 属于可用性边界，不再是陈旧数据风险。 |
 
 ### 对原“被证伪”18 项的再复核
 
@@ -183,7 +182,8 @@ P2 唯一根因应按以下修复簇合并，避免重复设计：
    服务热重载/插件卸载仍是发布环境验收项。
 4. P2-7 Koishi 转发 poison、P2-13/14/15 claimed batch 与 P2-23 outbox handler panic
    均已完成隔离、全量/状态机回归和独立提交。
-5. P2-21/P2-22 breaker 分类与 R-8 Redis 错误分类已完成；继续 P3-9 cache version unavailable。
+5. P2-21/P2-22 breaker 分类、R-8 Redis 错误分类与 P3-9 cache version unavailable
+   均已完成最小修复和故障回归。
 6. P2-9 Ansible 路径和 P2-18 filter invalidation 已完成修复；继续 P2-16 NULL 语义决策。
 
 #### 第三批：可测量的性能与一致性
@@ -307,8 +307,9 @@ P3-1 至 P3-6、P3-8、R-5 至 R-7、R-14、R-15、R-17。X-2 的配置分类治
   caller cancellation、内部 timeout、half-open probe 和完整性分类专项回归。其余绿灯仍不覆盖
   panic-continuation、真实 Oracle 驱动/生产数据、真实 DB pair 与大表场景。
 - P3/驳回项：Admin 相关 Vitest 9/9、Koishi reminder 7/7、externaldata、OTP、cache、
-  review projection 定向 Go 测试通过；R-8 已补真实 Redis transport error；仍缺 cache v0 故障、
-  min-width override、reviewed-row action 和 lock-wait 测试。
+  review projection 定向 Go 测试通过；R-8 与 P3-9 已分别补真实 Redis transport error，
+  P3-9 另覆盖恢复后读取真实版本与 caller cancel bypass；仍缺 min-width override、
+  reviewed-row action 和 lock-wait 测试。
 - P2-11 对 `openapi-fetch` 的实测确认数组被序列化为重复 `courseIDs` 参数。
 - P2-9 后续已在隔离 venv 安装固定 `ansible-core==2.20.2`，补齐真实 controller 复现、
   三 playbook syntax check 和修复后 bundle task 执行；仅远端 SSH 上传/部署仍 pending。
@@ -819,6 +820,13 @@ live rating bar 已完成可达表面的最小修复。优先做一处根因、�
   两包完整 race、全服务端 `make test`（`-race -p 1 ./...`）、spec lint、Casdoor boundary、
   `golangci-lint`、静态 build 和文档卫生均通过。没有改变 Redis key、60 秒 cooldown、
   endpoint limiter 或 OTP 状态机；生产 Redis 故障注入仍待发布验收。
+- P3-9 先向 miniredis 写入真实 cache version `7`，再关闭 socket，确认 `GetVersion` 和
+  `BuildVersionedKey` 返回 unknown/空 key，而不是 `v0`；本地版本 map 不产生条目，raw/typed
+  get 均为 miss，set 在 Redis 已关闭时仍为 no-op。重启同一 miniredis 后立即读取真实 `v7`，
+  证明故障结果没有被本地 memoize；预取消 context 也覆盖同一安全降级。cache 全包与
+  course/review 调用方 race、全服务端 `make test`（`-race -p 1 ./...`）、Casdoor boundary、
+  `golangci-lint`、静态 build 和文档卫生均通过。未引入 detached 200ms loader；首 caller
+  取消时其他 singleflight waiter 同样 bypass 只影响缓存命中率，不再允许陈旧 `v0` 数据复活。
 
 测试通过只说明现有正向契约未被破坏，不能覆盖报告指出的所有负向场景。以下仍需在真正处置时
 单独验收：
@@ -877,6 +885,7 @@ live rating bar 已完成可达表面的最小修复。优先做一处根因、�
 | P2-21/P2-22 | 已修复，待发布；真实 Oracle 与生产指标/告警待验收 | parent cancel/deadline 和 invalid/ambiguous row 均记 neutral，不增加或重置 failure，并释放 half-open probe；内部 query timeout、backend failure 与 bind identity mismatch 仍计 failure。三类固定 integrity counter、typed error 与既有 503 adapter 契约均有回归；三包定向 race、全服务端 race、lint/build/docs 通过 | `fix(externaldata): classify Oracle source outcomes` |
 | P2-23 | 已修复，待发布；生产告警与 poison replay 待验收 | per-job recover 将 handler panic 转为带 stack 的普通失败，沿既有 attempt/dead-letter/terminal metric 路径处理；同批健康 job 继续。真实 PostgreSQL 18 验证 poison=`dead_letter`、healthy=`completed`，定向/全服务端 race、lint/build/docs 通过；未增加 runtime supervisor，未覆盖 Admission 手写 expiry loop | `fix(outbox): isolate panicking job handlers` |
 | R-8 | 已修复，待发布；生产 Redis 故障注入待验收 | 两条 OTP reserve 只有真实 NX miss 才返回 cooldown/429，transport error 包装现有 unavailable/503 并保留 cause；miniredis socket 关闭与 HTTP 映射回归通过。Admission request-otp 补 503 后完整生成，两个业务包/全服务端 race、lint/build/spec/codegen stability/docs 通过 | `fix(otp): distinguish Redis outages from cooldowns` |
+| P3-9 | 已修复，待发布；生产 Redis 故障注入待验收 | 版本 key 缺失仍为合法 `v0`；transport error/caller cancel 改为 unknown，`BuildVersionedKey` 返回空 key，版本化 get miss、set no-op且不写本地版本缓存。真实 miniredis 关闭/重启验证故障阶段不读写 `v0`、恢复后立即读到预存 `v7`；缓存全包 race、调用方两包 race、全服务端 race、lint/build/docs 通过 | `fix(cache): bypass versioned data when Redis is unavailable` |
 
 ## Claude 原审计的确认问题分布（保留原始记录）
 
@@ -3115,6 +3124,22 @@ Apply in server/internal/pkg/cache/cache.go, cheapest-first:
 
 3. Make "unknown version" bypass the cache instead of aliasing the live v0 namespace. Have GetVersion expose an ok/err form (e.g. add `GetVersionOK(ctx, prefix) (string, bool)`; keep GetVersion as a thin wrapper for the existing tests) and have BuildVersionedKey return `""` when the version is unknown. Add an empty-key guard at the top of GetRaw (cache.go:129), GetAs (cache.go:145) and Set (cache.go:166) so an empty key is a miss / no-op. That makes all five production call sites — cours
 
+**Codex 复核与处置（2026-07-31）**
+
+核心问题确认存在，且因失效后的旧内容可能重新出现，优先级从原报告 P3 调整为 P2。最终实现
+保持现有 API 和初始 `v0` 语义：只有 `redis.Nil` 表示版本 key 尚未创建；Redis transport
+error 或 caller context 已取消时，`GetVersion` 返回空字符串且不写 1 秒本地版本缓存，
+`BuildVersionedKey` 传播为空 key，`GetRaw`/`GetAs` 把空 key 当 miss，`Set` 把空 key 当
+no-op。因此五个生产调用点都会在该请求中回源权威数据库，但不会读取或重新写入孤立的
+`prefix:v0:*` namespace。
+
+故障回归先把真实版本 `7` 写入 miniredis，再关闭 socket：版本读取与 key 构建均返回 unknown，
+本地版本 map 没有该条目，空 key 的 raw/typed get 为 miss、set 在 Redis 已关闭时仍安全 no-op；
+重启同一 miniredis 后立即恢复为 `reviews:v7:course:123`。独立用例还覆盖预取消 context，
+证明它不会被 memoize 为 `v0`。未采用原方案第 1 步的 200ms detached loader：这只能改善
+singleflight 中首 caller 取消时其他等待者的命中率，不是消除陈旧数据所必需；当前等待者共同
+bypass 并回源数据库是安全降级，等有 Redis/DB 延迟指标证明需要后再单独优化。
+
 
 ## Claude 原审计列为“被证伪”的发现（保留原始记录）
 
@@ -3474,6 +3499,7 @@ STUHELPER_REDIS_INTEGRATION
 | P2-13/P2-14/P2-15 | claimed bot action 批次被单行错误丢弃，且逐行重复查询上下文 | Codex 已完成主因合并修复：上下文查询从 `2N` 固定为每批 2 条；补偿可写时，批量查询失败/caller cancel 用 detached context 归还未公开 lease；确定性 poison 只消耗本行 attempt，stale/failure/abandon 使用 attempt fence。真实 PostgreSQL 覆盖固定查询数、故障/取消 cleanup、旧 lease fence、poison 隔离及第 5 次单独 dead-letter；Admission 全包 `-race`、lint/build 和文档检查通过。补偿写同时失败仍可能保留 attempt，Admission dead-letter replay API 尚不存在，已明确保留为残余边界。P2-15 与 P2-14 重复，不单独计数或提交。随独立修复提交入库，尚未发布 |
 | P2-21/P2-22 | caller cancellation 与单条坏数据错误污染 Oracle 共享 breaker | Codex 已完成合并修复：parent cancellation/deadline 和 invalid/ambiguous row 统一为 neutral 并释放 half-open probe；内部 query timeout、backend failure 和 bind identity mismatch 保持 failure。未采用会重置既有失败的 `RecordSuccess` 方案。固定 integrity metric 与现有 503 adapter 契约有专项回归，全服务端 race/lint/build/docs 通过；真实 Oracle/生产指标仍待发布验收 |
 | P2-23 | 任一 outbox handler panic 永久杀死 polling worker | Codex 已完成最小修复：只在共享 outbox per-job 边界 recover，panic 带 stack 进入原 retry/dead-letter/metric 路径并继续健康 job。真实 PostgreSQL 18 验证 poison dead-letter 与 healthy completed；原文所列真实共享调用面是 5 个，不包括两个 Admission expiry 手写循环。未增加会形成 panic loop 的 runtime supervisor；生产告警/replay 与外部副作用幂等仍待验收 |
+| P3-9 | Redis 版本读取故障被本地缓存成 `v0`，使失效数据可重新出现 | Codex 已完成最小修复：只有 `redis.Nil` 使用初始 `v0`，transport error/caller cancel 返回 unknown；空版本 key 的 get 为 miss、set 为 no-op，且故障结果不进入本地版本缓存。真实 miniredis 关闭/重启覆盖故障绕过与 `v7` 恢复；未引入只改善命中率的 detached loader |
 | X-1 | 无 scope 的 school_admin 全量可见 | Codex 已证伪；现有 capability 展开和 admin Entry 在 Handler 前返回 403，不按 P1 修复 |
 | X-2 | env 模板差集 | Codex 判定部分成立；改为分类治理，不执行 21 项全量入模板/严格集合相等方案 |
 | 其余条目 | — | 不再用“其余 41 项待修”概括；按 Codex 逐项表和四批实施顺序处置 |
