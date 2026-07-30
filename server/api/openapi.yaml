@@ -538,7 +538,7 @@ paths:
               properties:
                 kind:
                   type: string
-                  enum: [error, unhandledrejection]
+                  enum: [error, unhandledrejection, vue-error]
       responses:
         "204":
           description: Accepted

@@ -3,7 +3,7 @@ type: guide
 audience: ops
 status: current
 authoritative-source: this file
-last-verified: 2026-07-29
+last-verified: 2026-07-31
 ---
 
 # 可观测性运行手册
@@ -142,6 +142,19 @@ target 均为 1。这样可以区分“exporter 进程活着”与“exporter �
 - 证件审核 / SSE 队列积压
 
 设置值班升级链路。
+
+## 前端运行时错误
+
+主站通过 `/api/v1/metrics/frontend-errors` 上报三类有限枚举：
+`error`、`unhandledrejection` 和 `vue-error`。其中 `vue-error` 同时覆盖全局
+`ErrorBoundary` 捕获的组件异常，以及边界外进入 Vue 全局 error handler 的异常。
+ErrorBoundary 保持 fallback UI 所有权，阻止同一异常继续向上传播并重复计数。
+
+后端当前只读取 `kind` 并增加 `frontend_errors_total{kind=...}`，不存储浏览器提交的
+message、stack、组件 props 或用户输入。组件错误因此只上报 `{"kind":"vue-error"}`；
+原始异常仅在开发环境控制台输出。未执行 `initObservability` 的页面（例如 E2E API stub，
+以及没有 API base 的受限 join host）调用 reporter 时必须 no-op，错误上报自身也不得抛出
+第二个应用错误。
 
 ## 发布后必做检查
 

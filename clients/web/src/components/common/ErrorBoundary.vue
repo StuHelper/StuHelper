@@ -21,6 +21,7 @@ import { ref, onErrorCaptured, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { AlertTriangle } from 'lucide-vue-next'
+import { reportFrontendError } from '@/utils/observability'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -38,6 +39,7 @@ onErrorCaptured((err: Error) => {
   if (import.meta.env.DEV) {
     console.error('[ErrorBoundary] Captured error:', err)
   }
+  reportFrontendError('vue-error')
   error.value = err
   // 返回 false 阻止错误继续向上传播
   return false

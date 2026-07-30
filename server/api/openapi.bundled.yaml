@@ -8830,6 +8830,7 @@ paths:
                   enum:
                     - error
                     - unhandledrejection
+                    - vue-error
       responses:
         '204':
           description: Accepted

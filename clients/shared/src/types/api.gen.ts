@@ -12235,7 +12235,7 @@ export interface operations {
             content: {
                 "application/json": {
                     /** @enum {string} */
-                    kind: "error" | "unhandledrejection";
+                    kind: "error" | "unhandledrejection" | "vue-error";
                 };
             };
         };
