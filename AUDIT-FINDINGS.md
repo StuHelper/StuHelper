@@ -422,7 +422,7 @@ Claude 新生成的 `AUDIT-REPORT.md` 是一份新的汇总快照，不是对本
 | 6 | 确认，纠正一项描述 | P2 | 单份 draft 没有核对 `courseID`，会在另一课程页面恢复并可能提交给错误课程。当前代码只在成功后删除 draft，原文“失败也删除”不成立。最小修复是只恢复匹配课程或可识别的 legacy draft，并保留不匹配草稿。 |
 | 7 | 确认 | P2 | OAuth profile-completion 指向只读的 `/account/profile`，用户无法补齐缺失资料；代码已有 `accountSettingsUrl` 可复用。开放平台 GA 前应改成可编辑入口或给出明确链接，不需要先重构后端 profile service/config。 |
 | 8 | 部分确认 | P2 | 浏览器声明 MIME 与服务端 sniffed MIME 严格相等，确会误拒绝常见 Office/container/text refinement，但不是“每种文件都必然失败”。应维护窄的兼容映射并保留内容 sniffing；直接信任 `application/octet-stream` 或任意 `text/*` 会削弱安全边界。 |
-| 9 | 确认 | P1 | review parser 丢弃 `userVote`，会把已投票状态渲染成未投票并触发反向操作。应补 enum 解析和针对 up/down/none 的回归测试；为了一个字段建设反射式“全 DTO 自动对齐”框架是过度设计。 |
+| 9 | 确认，已完成本地修复与回归验证 | P1 | review parser 已按 OpenAPI 的 `like`/`dislike` enum 保留可选 `userVote`，非法值继续 fail-closed；针对两种投票和非法值的定向回归通过。没有为了一个字段建设反射式“全 DTO 自动对齐”框架。 |
 | 11 | 确认，修正失败后果 | P1 | 仓库没有受支持、可审计的 school/section admin tuple 发放与撤销流程；运维可手写 OpenFGA tuple，所以不是物理上“无法写入”。实际后果是 scoped role 默认 fail-closed、角色不可用，不是自动获得全局权限。应先确定 Casdoor、业务库或运维清单中的权威来源，再实现最小 grant/revoke/reconcile/audit；在权威来源未定前一次性建设 DB、outbox、API、CLI 和 MFA 全套流程属于过度设计。 |
 | 17 | 确认 | P1 | `super_admin` tuple 只增不减，角色降级后 OpenFGA 全局权力可能残留。同步器应做 reconcile；只有当 roles claim 明确存在且被认定为权威时才允许删除，claim 缺失/解析失败不能被当成撤权信号。 |
 | 18 | 部分确认，原时长错误 | P1 | blacklist TTL 不取 token 自身 `exp` 的问题真实，但当前仓库默认链是 access 1h、refresh 24h、本地 blacklist 5m，不是原文的 168h；理论残余窗口约 55 分钟，生产实际配置尚未核验。应按 token `exp + skew` 保存 blacklist。要求每个 bearer 立即绑定 session ID 属于第二阶段设计。另有相邻的 Casdoor logout 契约风险：当前兼容路径可能把 `end_session_endpoint` 当 RFC 7009 revocation 调用，需要按真实 provider 契约验证。 |
@@ -554,6 +554,12 @@ bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复
 - 微信开发者工具/真机 mp-weixin 包、原生 SSO redirect 和浏览器 storage 受限模式；
 - 超过 100 条的真实 restricted-member 队列、生产 Redis p95/p99 与 breaker 行为；
 - 任何真实部署、生产数据迁移或生产 OpenFGA tuple reconcile。
+
+### Codex 第二轮修复进度
+
+| 报告编号 | 状态 | 验证证据 | 提交 |
+|----------|------|----------|------|
+| 9 | 已修复，待发布 | Web review payload reader 保留 `like`/`dislike`，缺失字段保持可选，非法 enum fail-closed；定向 payload/voting 回归、Web 类型检查与相关静态检查通过 | `fix(review): preserve current user vote state` |
 
 ## Claude 原审计的确认问题分布（保留原始记录）
 
