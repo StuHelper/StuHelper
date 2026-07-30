@@ -67,7 +67,7 @@ Web / Admin / UniAppX+Koishi UI / Koishi / 基础设施 / 代码质量与文档)
 
 | 编号 | Codex 结论 | 调整级别 | 必要性 | 最小处置与过度设计判断 |
 |------|------------|----------|--------|------------------------|
-| P0-1 | 确认，当前工作树已覆盖正常首次落地路径 | P0 → P1 | 必须完成交付 | 从可访问路由/菜单推导首页是正确方向；当前 `router/guard.ts` 类型检查通过，但仍需补死 redirect/越权 redirect 的安全回退和角色级回归测试。不得写成“已发布”，也不应放宽 dashboard 权限。 |
+| P0-1 | 确认，已完成本地修复与回归验证 | P0 → P1 | 已修复，待发布 | 守卫复用 capability 过滤后的 `accessibleRoutes`/`accessibleMenus` 推导首页，并只接受确实命中可访问路由的内部 redirect；未知、已过滤、核心登录、外部、scheme-relative 和坏编码路径均回退首页。没有放宽 dashboard 权限，也没有建立第二套 capability 判断。 |
 | P1-1 | 确认 | P1 | 必须 | 私聊或缺 guild 时必须拒绝群管理命令；`群审复核` 必须在授权 guild 内查询。补 DM、空参数、显式 guild 越权测试。无需重写整套命令权限框架。 |
 | P1-2 | 确认 | P1 | 必须 | 文档让维护者修改 `000001_initial_schema`，对已迁移数据库不会生效。改为始终新增递增 migration，并同步 Make 帮助与迁移指南。不要普遍加入 `IF NOT EXISTS` 来追求“可重跑”，那会掩盖脏迁移和 schema drift。 |
 | P1-3 | 确认代码缺陷；生产状态未验证 | P1 | 必须 | 当前固定镜像对 `tar + gzip + wal-method=stream + pgdata=-` 明确报错；改用可工作的 WAL 模式，在同步目录外写 staging/`.partial`，验证后原子移入，并让同步器显式排除临时产物；补物理备份 freshness/evidence，之后在隔离环境做恢复演练。`fetch` 模式不能搭配 replication slot；不能仅凭仓库断言生产“从未有 PITR”。 |
@@ -168,7 +168,7 @@ P2 唯一根因应按以下修复簇合并，避免重复设计：
 
 #### 第二批：发布、运行前进性与核心契约
 
-1. 完成并交付 P0-1、P1-4 当前工作树修复；处理 P1-5 可审计回滚例外。
+1. P0-1 已完成实现和本地验证；继续完成 P1-4 的独立交付，并处理 P1-5 可审计回滚例外。
 2. P1-2 migration 指南、P1-6 SSE shutdown。
 3. P2-1/P2-2 CI 门禁，P2-6 privileged listener 生命周期。
 4. P2-7 转发 poison、P2-13/14/15 claimed batch、P2-23 outbox panic。
@@ -189,7 +189,9 @@ R-14、R-15、R-17，以及 X-2 的配置分类治理。
 
 ### 本轮执行的验证
 
-- Admin：`vue-tsc --noEmit` 通过；相关 Vitest 9/9 通过。P0-1 仍缺角色落地/redirect 行为回归。
+- Admin：P0-1 的 capability-filtered 首页、可访问 redirect 和 6 类危险/无效 redirect
+  定向 Vitest 10/10 通过；Admin 全量 Vitest 31 files / 153 tests 通过；`vue-tsc --noEmit
+  --skipLibCheck`、Node 侧 `tsc`、`oxfmt --check`、`oxlint` 和 production build 均通过。
 - 部署包：`infra/ops/tests/deploy-bundle-contract.sh` 通过；当前修复仍未提交/发布。
 - PostgreSQL：固定镜像实测原 `pg_basebackup` 参数在解析阶段失败；换
   `--wal-method=fetch` 后通过参数校验并进入连接阶段。
@@ -203,6 +205,12 @@ R-14、R-15、R-17，以及 X-2 的配置分类治理。
   min-width override、reviewed-row action 和 lock-wait 测试。
 - P2-11 对 `openapi-fetch` 的实测确认数组被序列化为重复 `courseIDs` 参数。
 - P2-9 因当前环境未安装 `ansible-playbook`，只有静态确认，运行验收仍是 pending。
+
+### Codex 修复进度
+
+| 编号 | 状态 | 实现与验证 | 独立提交 |
+|------|------|------------|----------|
+| P0-1 | 已修复，未发布 | 按已过滤路由推导首页；redirect 必须命中可访问路由，否则回退。定向 Vitest 10/10、Admin 全量 153 tests、两段 TypeScript 检查、格式、静态检查和 production build 通过 | `fix(admin): route users to an accessible home` |
 
 ### 明确不建议实施的“修复”
 
@@ -2412,7 +2420,7 @@ STUHELPER_REDIS_INTEGRATION
 
 | 编号 | 问题 | 状态 |
 |------|------|------|
-| P0-1 | Admin 落地页 404 循环 | 当前未提交工作树已修正常首次落地，`vue-tsc` 通过；redirect 安全回退和角色级行为测试仍缺，未合并、未发布 |
+| P0-1 | Admin 落地页 404 循环 | Codex 已完成实现：按 capability-filtered route/menu 推导首页，并对 redirect 做可访问路由校验；定向测试 10/10、Admin 全量 153 tests、类型、格式、静态检查和 production build 通过。随独立修复提交入库，尚未发布 |
 | P1-4 | 部署包丢失 env 模板 | 当前未提交工作树已改为 `git archive` + 断言，契约测试通过；未合并、未执行真实部署/回滚 |
 | X-1 | 无 scope 的 school_admin 全量可见 | Codex 已证伪；现有 capability 展开和 admin Entry 在 Handler 前返回 403，不按 P1 修复 |
 | X-2 | env 模板差集 | Codex 判定部分成立；改为分类治理，不执行 21 项全量入模板/严格集合相等方案 |

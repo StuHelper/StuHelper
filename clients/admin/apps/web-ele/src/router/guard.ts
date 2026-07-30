@@ -1,4 +1,4 @@
-import type { Router, RouteRecordRaw } from 'vue-router';
+import type { Router } from 'vue-router';
 
 import { LOGIN_PATH } from '@vben/constants';
 import { preferences } from '@vben/preferences';
@@ -10,6 +10,11 @@ import { accessRoutes, coreRouteNames } from '#/router/routes';
 import { useAuthStore } from '#/store';
 
 import { generateAccess } from './access';
+import {
+  collectAbsoluteRoutePaths,
+  resolveAccessibleRedirect,
+  resolveHomePath,
+} from './route-resolution';
 
 const fallbackNotFoundRouteName = 'FallbackNotFound';
 
@@ -18,32 +23,6 @@ function normalizeRoutePath(path: string) {
     return '/';
   }
   return path.endsWith('/') ? path.slice(0, -1) : path;
-}
-
-function resolveRoutePath(parentPath: string, routePath: string) {
-  if (routePath.startsWith('/')) {
-    return normalizeRoutePath(routePath);
-  }
-  if (!parentPath || parentPath === '/') {
-    return normalizeRoutePath(`/${routePath}`);
-  }
-  return normalizeRoutePath(`${parentPath}/${routePath}`);
-}
-
-function collectAbsoluteRoutePaths(routes: RouteRecordRaw[]) {
-  const paths = new Set<string>();
-
-  function visit(route: RouteRecordRaw, parentPath = '') {
-    let currentPath = parentPath;
-    if (typeof route.path === 'string') {
-      currentPath = resolveRoutePath(parentPath, route.path);
-      paths.add(currentPath);
-    }
-    route.children?.forEach((child) => visit(child, currentPath));
-  }
-
-  routes.forEach((route) => visit(route));
-  return paths;
 }
 
 const protectedRoutePaths = collectAbsoluteRoutePaths(accessRoutes);
@@ -175,13 +154,27 @@ function setupAccessGuard(router: Router) {
     accessStore.setAccessRoutes(accessibleRoutes);
     accessStore.setIsAccessChecked(true);
 
-    const redirectPath = (from.query.redirect ??
-      (to.path === preferences.app.defaultHomePath
-        ? userInfo.homePath || preferences.app.defaultHomePath
-        : to.fullPath)) as string;
+    const homePath = resolveHomePath(
+      accessibleRoutes,
+      accessibleMenus,
+      preferences.app.defaultHomePath,
+    );
+    if (userInfo.homePath !== homePath) {
+      userStore.setUserInfo({ ...userInfo, homePath });
+    }
+
+    const redirectCandidate =
+      from.query.redirect ??
+      (to.path === preferences.app.defaultHomePath ? homePath : to.fullPath);
+    const redirect = resolveAccessibleRedirect(
+      router,
+      redirectCandidate,
+      accessibleRoutes,
+      homePath,
+    );
 
     return {
-      ...router.resolve(decodeURIComponent(redirectPath)),
+      ...redirect,
       replace: true,
     };
   });
