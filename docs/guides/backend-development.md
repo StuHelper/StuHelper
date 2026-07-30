@@ -70,8 +70,11 @@ server/
 
 ## 数据库规则
 
-- 结构变更直接更新 `server/migrations/000001_initial_schema.up.sql`
-- `server/migrations/000001_initial_schema.up.sql` 是唯一 schema 权威来源
+- `server/migrations/` 中按版本顺序应用的完整 migration 集合是 schema 权威来源
+- `000001_initial_schema.*.sql` 是不可变初始基线；任何结构或数据演进都新增递增编号的
+  `.up.sql` / `.down.sql` 文件对，禁止修改已有编号向已迁移环境发布变更
+- 迁移、回退、dirty state 和生产演练要求见
+  [数据库迁移运行手册](database-migrations.md)
 - 参数化查询，禁止拼接
 - 动态排序使用白名单
 - 分页优先 `COUNT(*) OVER()`

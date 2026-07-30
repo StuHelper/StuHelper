@@ -235,7 +235,7 @@ jobs:
           GRANT USAGE, CREATE ON SCHEMA public TO stuhelper_app;
           SQL
 
-      - name: Apply the database baseline
+      - name: Apply pending database migrations
         working-directory: server
         run: make migrate-up
 
