@@ -433,7 +433,7 @@ Claude 新生成的 `AUDIT-REPORT.md` 是一份新的汇总快照，不是对本
 | 35 | 确认，已完成实现前深挖 | P2（偏低） | `/user/reviews` 的 own-review 垃圾桶首击即发送 DELETE；后端是 soft delete，正文仍在库中，但用户和管理员都没有受支持的 restore 路径，且用户可重新发布造成旧状态恢复语义复杂。应在 `ReviewCard` 复用本地两阶段确认或既有可访问 Dialog，并给 in-flight 增加 single-flight；不要把无 focus trap 的 inline panel 标成 `alertdialog`。新增 undelete API、migration、延时队列、undo 基础设施、服务端 `confirm=true` 或全站确认框架都不是本项必要修复。 |
 | 36 | 确认 | P2 | `ErrorBoundary` 阻止异常继续传播，production 又不输出或上报，现有 frontend error telemetry 因而收不到组件错误。复用现有 telemetry 并做脱敏即可；当前无需新增第二个 `/vue-error` OpenAPI。 |
 | 37 | 确认 | P2 | AppShell 没有 skip-to-content，违反 WCAG 2.4.1 A 的 bypass blocks 要求。增加 skip link、稳定的 `main` id 和焦点样式；原文“所有页恰好 11 个 tab stop”不是成立所必需，也不应硬编码。 |
-| 38 | 确认 | P2 | toast 状态是全局的，但组件卸载 cleanup 只取消 timer、不移除全局 toast，能留下永久提示。删除错误作用域的 timer cleanup 或让 store 自主管理生命周期即可，不需要重写为新的 singleton 系统。 |
+| 38 | 确认，已完成本地修复与跨作用域回归验证 | P2 | toast 状态是全局的，但组件卸载 cleanup 原先只取消 timer、不移除全局 toast，能留下永久提示。现在删除错误的组件作用域 timer cleanup，让现有模块级 timer 在页面卸载后仍按原 duration 关闭；显式 `remove`/`clearAll` 继续同步取消 timer。没有把已有模块级状态重写成新 store/singleton，也没有在卸载时立即删掉用户尚未看见的成功提示。 |
 | 39 | 确认，已完成本地修复与回归验证 | P2 | projection polling 原先遇到一次瞬时 `/auth/me` 失败即终止，且 `fetchUser` 会把任意非网络 ApiError（包括 5xx/403）当成登出并清空用户，最终把已验证用户送进不可恢复错误页。现在 `fetchUser` 只在 HTTP 401 明确拒绝会话时清本地身份，页面同时切换登录态；403、5xx、网络、超时和未知 refresh 错误保留当前用户并继续消耗既有 1/2/4/8/16 秒有限预算，耗尽后仍停在 `projectionPending` 且可手动重试。Abort 立即终止，capability predicate 的程序错误不被重试层吞掉。没有把 403 宽泛当作失效会话，也没有新增重试框架、无限轮询或放宽服务端授权。 |
 | 40 | 部分确认 | P3 | SearchPage 确实忽略 `ReviewCard` emits，但当前可达的是 `moderated`；deleted/updated 控件并未启用。只接线 moderation 后 refetch/局部更新，避免为不可达事件建设通用同步总线。 |
 | 41 | 确认 | P3 | teacher profile 的 load-more 失败会用错误面板替换已加载 review。区分 initial 与 append error，保留已有列表并提供重试当前页即可。 |
@@ -550,7 +550,7 @@ fail-closed 语义和撤权测试，再做局部实现。
 1. #45 path credential 日志脱敏（已完成本地修复），#51 refresh reuse 误判（已完成本地修复），#57 scoped grant 的 public-content 边界（已完成本地修复）。
 2. #39 projection polling（已完成本地修复）、#43 breaker cancellation（已完成本地修复）、U-2 JWKS 缓存策略（已完成代码与守卫文档修复；用户架构稿旧段待收敛）。
 3. #5 的 H5 资产产物契约（已完成本地修复）；mp-weixin 假绿另做“实现真实平台 build 或明确不支持”的产品决策。
-4. #6、#7、#8、#28、#30（均已完成本地修复）、#38、#42 等会让用户状态错误、流程卡死或操作结果不可信的问题。
+4. #6、#7、#8、#28、#30、#38（均已完成本地修复）、#42 等会让用户状态错误、流程卡死或操作结果不可信的问题。
 
 #### 第三批：局部 UX、可访问性、契约和文档
 
@@ -586,6 +586,7 @@ bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复
 | WF16：#30 | 部分确认 P2，已完成本地修复与回归；100 条静默窗口真实，但全系统不可处理和等待老化叙事被证伪 | API 和页面已显示同一授权 scope 下 `shown/total/limit/truncated`，以 `(deadlineAt,id)` 稳定选取窗口并链接处置中心；103 条同 deadline 回归固定 100 条边界。处置中心、群内命令、backend-sync/time-code 仍覆盖窗口外记录；没有在缺乏规模/SLO 证据时建设 Repository cursor pagination/search。 |
 | WF17：#34 | 真实 P2，Chromium 证明旧无限 tween 在 resize 和卸载后仍推进 | 在 `createParticles()` 丢弃当前 targets 前 kill；保留现有 rAF 合并与 unmount 清理。无需 GSAP context 重构、Tween handle registry、ResizeObserver、Worker 或全局 animation manager。 |
 | WF18：#35 | 真实但偏低端 P2；用户删除是 soft delete，却没有受支持的用户/管理员恢复 | 在 `ReviewCard` 做局部两阶段确认或复用已有可访问 Dialog，并用 single-flight 防重复提交；失败时保留重试状态。不要为确认框顺带新增 restore schema/API、延时删除、undo 平台或全站 modal manager。 |
+| WF22：#38 | 真实 P2，已完成最小修复与组件卸载交叉验证 | Toast 列表、timer map 与 ID 本来就是模块级状态，唯一错误是创建组件销毁时取消 timer 却保留列表项。删除该 dispose hook 后，timer 闭包仍安全调用既有 `remove`；永久 Node 回归用 `effectScope.stop()` 固定跨作用域自动关闭，Claude 的 jsdom mount/unmount 探针也转为通过。无需把函数整体提升重写成第二套 singleton/store，也不能在卸载时立即移除提示。 |
 
 ### 本轮交叉验证与尚未验证边界
 
@@ -596,7 +597,8 @@ bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复
   `token`/`oidc`/`auth` 基线、#45 的 `middleware`/`metrics` 基线以及 #57 的
   `course/review`/`capability` 基线均通过；这些现有正向测试本身不覆盖已确认的负向场景。
 - Web：第一组 2 files / 7 tests、补充组 5 files / 20 tests 均通过；专门的 jsdom probe
-  复现了 #38 的永久 toast。现有绿色测试没有覆盖该负向生命周期。
+  在修复前复现了 #38 的永久 toast。修复后新增 Node 环境永久回归覆盖创建作用域销毁、
+  原定时长边界、显式移除和持久提示清理；同一 jsdom mount/unmount 探针也转为通过。
 - Koishi、Web、UniAppX 初始定向回归分别为 34/34、54/54、36/36。#6 修复后 UniAppX
   Vitest 8 files / 58 tests、类型检查、四类草稿边界的桌面/移动 Playwright 8/8、
   完整跟踪版 H5 E2E 72/72 和 monorepo 正式 build 均通过。永久负向用例证明 foreign-course
@@ -699,6 +701,11 @@ bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复
   startup smoke、46/46 Chromium UI smoke 与 package contract 通过；浏览器 smoke 只证明
   既有 Admission 页面/真实动作未回归，未伪称以生产规模浏览器数据验证了截断提示。处置中心、
   群内命令和两类后台扫描不受 100 条窗口影响；尚无生产数据证明队列经常超过 100。
+- #38 的永久回归在 Vue `effectScope` 中创建 3 秒 Toast，销毁创建作用域后于 2999 ms 仍
+  可见、3000 ms 准时消失，并验证显式 `remove` 不影响 duration=0 的持久提示、
+  `clearAll` 可确定清空。全部 78 个已跟踪 Web unit 文件 505/505、type-check、定向 ESLint、
+  production build 与文档卫生通过；用户未跟踪的 jsdom 组件卸载探针也单独 1/1 通过，
+  但未修改、未提交、未计入正式 505 个用例。
 - #34 用真实 Chromium 观察 GSAP global timeline：初始 50，跨帧 resize 后逐批增加，离开首页
   只清除最后一批且旧 target 仍变化；在丢弃数组前 kill 的对照探针始终稳定 50、卸载归零。
   探针只修改 HTTP 响应中的临时 bundle，没有写工作树。
@@ -746,6 +753,7 @@ bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复
 | 8 | 已修复，待发布 | 资源创建对精确 ZIP/OLE/text refinement 返回并持久化有效 MIME；OLE/JSON 增加内容验证，未知 octet-stream、任意文本/ZIP 派生和真实冲突继续拒绝。23 个媒体边界子测试、真实 PostgreSQL 持久化、资源全包 race、OpenAPI spec/drift、全服务端 race/lint/build/docs 通过 | `fix(resource): preserve verified upload media types` |
 | 28 | 已修复，待发布；跨请求原子性仍不承诺 | 逐域状态机和关键词部分成功 baseline 负向测试通过；missing delete 幂等、existing foreign rule 无副作用；Koishi build、UI contracts、606 unit、startup 与 46 Chromium UI smoke 通过。失败后可按剩余差异重试或确认 reload，未引入并发 fan-out/rollback/2PC/saga | `fix(koishi): preserve partial settings save results` |
 | 30 | 已修复，待发布；生产持续截断率仍待观测 | 同 scope 103 条等 deadline 逆序数据稳定返回前 100 条及完整窗口元数据；foreign records 不污染 scoped total。客户端排序/提示/导航契约、Koishi build、609 unit、startup、46 UI smoke 与 package contract 通过。未新增分页/search，生产队列规模与 SLO 尚未验证 | `fix(koishi): disclose truncated admission queues` |
+| 38 | 已修复，待发布 | 删除与全局 Toast 生命周期冲突的组件 scope timer cleanup；创建 scope 销毁后仍于原 duration 自动关闭，显式 remove/clearAll 语义保持。永久 Node 回归 2/2、用户 jsdom 卸载探针 1/1、全部已跟踪 Web unit 505/505、type-check、ESLint、production build 与 docs 通过 | `fix(web): keep toast dismissal across navigation` |
 
 ## Claude 原审计的确认问题分布（保留原始记录）
 

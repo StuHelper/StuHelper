@@ -2,7 +2,7 @@
  * Toast 通知系统
  * 轻量级消息提示
  */
-import { ref, onScopeDispose, type Ref } from 'vue'
+import { ref, type Ref } from 'vue'
 
 export type ToastType = 'success' | 'error' | 'info' | 'warning'
 
@@ -30,9 +30,6 @@ export interface UseToastReturn {
 }
 
 export function useToast(): UseToastReturn {
-  // 跟踪当前实例创建的 toast ID，unmount 时清理
-  const instanceTimerIDs: number[] = []
-
   function show(message: string, type: ToastType = 'info', duration = 3000) {
     const id = ++nextID
     toasts.value = [...toasts.value, { id, type, message, duration }]
@@ -43,7 +40,6 @@ export function useToast(): UseToastReturn {
         remove(id)
       }, duration)
       timers.set(id, timer)
-      instanceTimerIDs.push(id)
     }
 
     return id
@@ -83,17 +79,6 @@ export function useToast(): UseToastReturn {
   function warning(message: string, duration?: number) {
     return show(message, 'warning', duration)
   }
-
-  // scope 销毁时清理当前实例创建的 timer
-  onScopeDispose(() => {
-    for (const id of instanceTimerIDs) {
-      const timer = timers.get(id)
-      if (timer) {
-        clearTimeout(timer)
-        timers.delete(id)
-      }
-    }
-  })
 
   return {
     toasts,
