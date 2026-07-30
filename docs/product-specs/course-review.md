@@ -52,9 +52,9 @@ last-verified: 2026-07-31
 | `/api/v1/course/review/courses/{courseID}/favorites` | GET | 收藏状态 |
 | `/api/v1/course/review/courses/{courseID}/favorites` | POST | 添加收藏 |
 | `/api/v1/course/review/courses/{courseID}/favorites` | DELETE | 取消收藏 |
+| `/api/v1/course/review/drafts` | GET | 获取当前用户的单槽草稿；不存在时返回 `data: null` |
 | `/api/v1/course/review/drafts` | POST | 保存草稿 |
-| `/api/v1/course/review/drafts/{courseID}` | GET | 获取草稿 |
-| `/api/v1/course/review/drafts/{courseID}` | DELETE | 删除草稿 |
+| `/api/v1/course/review/drafts` | DELETE | 删除当前用户的单槽草稿 |
 | `/api/v1/course/review/content/check` | POST | 内容敏感词检查 |
 
 ### 用户中心（需要认证）
@@ -114,7 +114,7 @@ last-verified: 2026-07-31
 | 投票 | like / dislike，支持切换和取消 |
 | 回复 | 楼中楼，经过净化和敏感词检查 |
 | 收藏 | 按课程收藏 |
-| 草稿 | 每用户每课程一份，支持自动保存 |
+| 草稿 | 每用户一个服务端单槽，可选绑定课程；Web 支持自动保存，固定课程发布入口只能在课程匹配或未绑定时恢复，发布成功后不得删除其他课程的槽内容 |
 | 举报 | 每用户每评课一次 |
 
 ## 内容审核
