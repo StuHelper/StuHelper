@@ -360,6 +360,201 @@ P3-1 至 P3-6、P3-8、R-5 至 R-7、R-14、R-15、R-17，以及 X-2 的配置�
 - 不在无真实 connector、无规模证据时为 P2-3/P2-4/R-16 建完整管理 UI、聚合平台或 bulk framework。
 - 不把已明确有文档和测试的 R-12 产品行为改成失败。
 
+## Codex 对 `AUDIT-REPORT.md` 第二轮的独立复核（2026-07-30）
+
+### 复核范围、完整性与口径
+
+Claude 新生成的 `AUDIT-REPORT.md` 是一份新的汇总快照，不是对本文件的替换或严格超集：
+
+- 报告所称“确认 82 条”由**第一轮 43 条**和**第二轮 39 条**相加而来，不代表又新增了
+  82 条问题。第一轮的 43 个确认标签、18 个驳回标签以及 X-1/X-2，已经在本文件上方完成
+  逐项复核。
+- 在本节写入前，`AUDIT-FINDINGS.md` 与当前 `HEAD`（`81f4b62e`）中的版本逐字节一致，
+  SHA-256 均为
+  `8e6273a687a17cc18ee22104a61f1aa678efb045e4ed67bf5d5f9cf3d9717f0f`。因此此前 Codex
+  写入的复核、修复进度和“不建议实施的修复”没有被 Claude 的新报告覆盖或丢失。
+- 本轮没有只复核 Claude 列为“确认”的 39 条，而是覆盖了第二轮全部 **56 个原始标签**：
+  39 个确认候选、14 个驳回候选和 3 个未完成验证候选。两条 `/admin/stats` MFA 记录是
+  同一根因的重复标签，故合并后为 **55 个唯一根因**。
+- 结论以当前源码、OpenAPI、迁移、配置、测试和本地构建行为为准。`AUDIT-REPORT.md`
+  中 Claude 的原始取证保留用于追溯；若其严重度、影响范围或修复方案与本节冲突，以本节为准。
+
+本节使用以下结论口径：
+
+| 结论 | 含义 |
+|------|------|
+| 确认 | 存在当前可达缺陷或明确违反已声明契约；建议进入待办 |
+| 部分确认 | 机制或较窄问题真实，但原报告夸大了影响、引用了错误路径，或修复前需要产品/安全决策 |
+| 证伪 | 当前攻击链/失败场景不可达，或行为是有文档和测试锁定的设计；不按原问题修改 |
+
+### 第二轮总结果
+
+| Claude 第二轮分组 | 原始标签 | 唯一根因 | Codex 确认 | Codex 部分确认 | Codex 证伪 |
+|--------------------|----------|----------|------------|----------------|------------|
+| Claude 列为确认 | 39 | 39 | 30 | 9 | 0 |
+| Claude 列为驳回 | 14 | 13 | 1 | 4 | 8 |
+| Claude 未完成验证 | 3 | 3 | 2 | 1 | 0 |
+| **合计** | **56** | **55** | **33** | **14** | **8** |
+
+因此第二轮有 **47 个唯一根因需要处置或明确决策**，不是可以不加区分地照单全收的
+“39 个新增确认问题”。按本轮重新校准后的处置级别统计：
+
+| 级别 | 唯一根因数 | 说明 |
+|------|------------|------|
+| P0 | 0 | 没有证据支持立即全局阻断或已发生灾难性后果 |
+| P1 | 8 | 授权边界、令牌语义、撤权一致性或核心管理链路 |
+| P2 | 21 | 明确的发布正确性、可靠性、隐私日志、可用性和重要 UX |
+| P3 | 18 | 局部 UX、可访问性、契约/文档和治理加固 |
+
+严重度表示修复优先级，不表示当前生产已经发生相应后果。尚未执行真实生产 Casdoor、
+真实 Console 操作员、微信开发者工具/真机、原生 SSO、超过 100 条真实队列或生产 Redis
+延迟验收，不能把静态机制直接写成生产事故。
+
+### 对 Claude 第二轮 39 个“确认问题”的逐项复核
+
+下表编号沿用 `AUDIT-REPORT.md` 的全报告编号，便于在两份文件之间交叉定位。
+
+| 报告编号 | Codex 结论 | 调整级别 | 必要性与最小处置；不建议的过度设计 |
+|----------|------------|----------|--------------------------------------|
+| 3 | 确认 | P1 | Koishi 的 bot-wide runtime settings 只校验 `authority >= 4`，没有 global/guild scope 判断。应复用或暴露现有 scope resolver，并对全局写操作做 `assertGlobal`、失败时 fail-closed。为此搬迁整套 shared helper 或先建设通用 Console 权限框架没有必要。 |
+| 4 | 确认 | P1 | Admission runtime 页面、成员列表和 mutation 可跨 guild 读取/操作。读取必须按可管理 guild 过滤，mutation 必须在写入前校验目标 guild；可与 #3 作为同一 Console 授权修复簇实施，但两个影响面都要测试。 |
+| 5 | 确认 | P2 | `pages.json` 引用的 4 组、共 8 个 tabBar 图标路径位于 uni-app 输入树之外，当前 H5 产物不包含它们。应移入 `src/static` 并补产物契约。UniAppX 当前是实验性客户端，因此不升为 P1。 |
+| 6 | 确认，纠正一项描述 | P2 | 单份 draft 没有核对 `courseID`，会在另一课程页面恢复并可能提交给错误课程。当前代码只在成功后删除 draft，原文“失败也删除”不成立。最小修复是只恢复匹配课程或可识别的 legacy draft，并保留不匹配草稿。 |
+| 7 | 确认 | P2 | OAuth profile-completion 指向只读的 `/account/profile`，用户无法补齐缺失资料；代码已有 `accountSettingsUrl` 可复用。开放平台 GA 前应改成可编辑入口或给出明确链接，不需要先重构后端 profile service/config。 |
+| 8 | 部分确认 | P2 | 浏览器声明 MIME 与服务端 sniffed MIME 严格相等，确会误拒绝常见 Office/container/text refinement，但不是“每种文件都必然失败”。应维护窄的兼容映射并保留内容 sniffing；直接信任 `application/octet-stream` 或任意 `text/*` 会削弱安全边界。 |
+| 9 | 确认 | P1 | review parser 丢弃 `userVote`，会把已投票状态渲染成未投票并触发反向操作。应补 enum 解析和针对 up/down/none 的回归测试；为了一个字段建设反射式“全 DTO 自动对齐”框架是过度设计。 |
+| 11 | 确认，修正失败后果 | P1 | 仓库没有受支持、可审计的 school/section admin tuple 发放与撤销流程；运维可手写 OpenFGA tuple，所以不是物理上“无法写入”。实际后果是 scoped role 默认 fail-closed、角色不可用，不是自动获得全局权限。应先确定 Casdoor、业务库或运维清单中的权威来源，再实现最小 grant/revoke/reconcile/audit；在权威来源未定前一次性建设 DB、outbox、API、CLI 和 MFA 全套流程属于过度设计。 |
+| 17 | 确认 | P1 | `super_admin` tuple 只增不减，角色降级后 OpenFGA 全局权力可能残留。同步器应做 reconcile；只有当 roles claim 明确存在且被认定为权威时才允许删除，claim 缺失/解析失败不能被当成撤权信号。 |
+| 18 | 部分确认，原时长错误 | P1 | blacklist TTL 不取 token 自身 `exp` 的问题真实，但当前仓库默认链是 access 1h、refresh 24h、本地 blacklist 5m，不是原文的 168h；理论残余窗口约 55 分钟，生产实际配置尚未核验。应按 token `exp + skew` 保存 blacklist。要求每个 bearer 立即绑定 session ID 属于第二阶段设计。另有相邻的 Casdoor logout 契约风险：当前兼容路径可能把 `end_session_endpoint` 当 RFC 7009 revocation 调用，需要按真实 provider 契约验证。 |
+| 28 | 确认 | P2 | settings save 串行调用 7 个 endpoint，失败后既可能部分落地，又继续展示旧 baseline。应显示分步结果、提供 reload，并让 keyword 删除幂等；HTTP 间不存在可伪造的前端“事务”，也不需要先引入分布式事务。 |
+| 30 | 部分确认 | P2 | restricted-member 队列静默截断到 100 条真实，但这些记录并非在全系统中绝对无法处理。应先显示 `shown/total/truncated` 和告警；只有真实规模常超过 100 时再做分页/搜索。 |
+| 33 | 部分确认 | P3 | custom navigation 没有通用安全区处理，首页风险明确；仅凭静态代码不足以断言 login/callback 在所有设备都重叠。可恢复 native navigation，或按平台 status bar/capsule 做正确间距，并用微信真机验收。 |
+| 34 | 确认 | P2 | `ParticleBackground` resize 时清空引用却不 kill 旧的无限 GSAP tween，持续累积。重建前 kill 旧实例并测试即可，不需要重写动画架构。 |
+| 35 | 确认 | P2 | 用户删除自己的 review 是单击立即执行，soft-delete 也没有用户侧恢复入口。增加就地确认即可；完整 undo/回收站系统不是本项必要条件。 |
+| 36 | 确认 | P2 | `ErrorBoundary` 阻止异常继续传播，production 又不输出或上报，现有 frontend error telemetry 因而收不到组件错误。复用现有 telemetry 并做脱敏即可；当前无需新增第二个 `/vue-error` OpenAPI。 |
+| 37 | 确认 | P2 | AppShell 没有 skip-to-content，违反 WCAG 2.4.1 A 的 bypass blocks 要求。增加 skip link、稳定的 `main` id 和焦点样式；原文“所有页恰好 11 个 tab stop”不是成立所必需，也不应硬编码。 |
+| 38 | 确认 | P2 | toast 状态是全局的，但组件卸载 cleanup 只取消 timer、不移除全局 toast，能留下永久提示。删除错误作用域的 timer cleanup 或让 store 自主管理生命周期即可，不需要重写为新的 singleton 系统。 |
+| 39 | 确认 | P2 | projection polling 遇到一次瞬时 `/auth/me` 失败即终止，且 `fetchUser` 对宽泛 5xx 清空 auth，刚验证用户会落入不可恢复错误页。瞬时错误应继续有界重试，只有明确认证失败才清本地身份。 |
+| 40 | 部分确认 | P3 | SearchPage 确实忽略 `ReviewCard` emits，但当前可达的是 `moderated`；deleted/updated 控件并未启用。只接线 moderation 后 refetch/局部更新，避免为不可达事件建设通用同步总线。 |
+| 41 | 确认 | P3 | teacher profile 的 load-more 失败会用错误面板替换已加载 review。区分 initial 与 append error，保留已有列表并提供重试当前页即可。 |
+| 42 | 部分确认 | P2 | fresh store 的 status fetch 失败会把依赖验证状态的字段呈现为 false negative；并非所有 email/base info 都必然受影响，已有 cache 时也可能保留。应显式建 loading/ready/error/retry 状态，在成功前不展示“未验证”结论。 |
+| 43 | 确认 | P2 | caller cancellation 和 50ms lookup deadline 都会记作全局 breaker failure，连续 5 次可使鉴权 fail-closed 30 秒。应把 caller cancellation 分类为 neutral，并为必要查询使用有界 detached context；没有指标前武断改成 200ms/3s 只是参数猜测。 |
+| 44 | 确认 | P1 | 当前固定 Casdoor 版本的 introspection 对 refresh token 也可返回 active，而 middleware 只看 active/app ID，没有校验原始 JWT 的 token type 或非空 `sub`。最小修复是发送 `token_type_hint=access_token`，同时要求已由 provider 验证的原 JWT claim `tokenType == "access-token"` 且 `sub` 非空；introspection response 的 `token_type=Bearer` 不能区分两者。再次自建整套 JWKS 验签不是这个根因的必要条件。 |
+| 45 | 确认 | P2 | RequestLogger/Recovery 记录 raw path，path parameter 中的一次性 bearer 会进入日志。路由匹配后优先记录 `c.FullPath()`，无模板时使用统一的安全 fallback；逐个 token 做脆弱的字符串替换不可取。 |
+| 51 | 部分确认 | P2 | browser cookie 场景存在 logout 与在途 refresh 竞争，可被误判为 reuse 并撤销整个 family；native 常在更早的 tracked-session 检查失败。应加载 referenced session：缺失或 hash 相同视为已撤销，不触发 family revoke；与当前 hash 不同才是真 reuse。无需先新增一套 revoke reason schema。 |
+| 57 | 确认 | P2 | public feed/search 把 scoped `admin:reviews:manage` 当全局 full-content 标志，合法的 scoped admin 可在范围外看到 full 而非 brief 内容。公共路径只接受 global grant；scoped admin 使用已有 scoped admin 路由。为了在公共列表做“范围内 full”而给所有 DTO/SQL 增加 `SchoolID` 是另一个产品增强，不是最小修复。 |
+| 58 | 部分确认 | P3 | `admin:reports:manage` 未被直接使用，moderation route 仍按 role gate；但当前 raw-role 集合与 capability catalog 等价，下游 scope 也仍检查，所以尚无可利用的授权漂移。可逐步改用已有非全局 capability 并保留 scope，不需要新建 content-edit capability 或一次性重写全部 RBAC。 |
+| 66 | 确认 | P3 | 本地 alg pre-check 接受 ES256，而实际 go-oidc verifier 默认只接受 RS256，配置/行为不一致。显式把本地允许集收窄为 RS256，或明确配置 verifier 支持经决策允许的 ES256；不要无界信任 discovery 返回的任意算法。 |
+| 68 | 确认 | P3 | `ReadTuples` 只读取第一页，忽略 continuation token，后续 `WriteMissingTuples` 可能重写已存在 tuple 并失败。循环分页即可；改成对每条 tuple 单独 `hasTuple` 会把问题变成 N 次网络调用。 |
+| 69 | 确认 | P3 | Native SSO 丢失登录前 redirect，成功后固定跳 profile。以 best-effort 方式保存经校验的内部 redirect，callback 消费后清除并保留安全 fallback。 |
+| 70 | 部分确认 | P3 | 通用列表 payload 不含 ownership，相关控件无法可靠显示；但 “My Reviews” 自有页面可用，原文“整个模块全死”过度。通过 OpenAPI 真源增加 `isOwner`，服务端用 optional-auth context 计算；是否禁止 self-report 是独立产品决策。 |
+| 71 | 确认 | P3 | inline edit 只检查非空，与 API 10–5000 字符规则不一致。共享常量/校验并设置 maxlength，避免提交后才收到通用 400。 |
+| 72 | 确认 | P3 | admission login/signup/re-login 没有 single-flight，连续点击可轮换 OIDC state。组件内 busy guard 和禁用按钮足够；全局 OAuth 调度器可后置。 |
+| 73 | 确认 | P3 | resend 忽略 `cooldownSeconds` 且直接展示英文错误。接入倒计时和已有本地化错误映射，不需要重写 OTP 状态机。 |
+| 74 | 确认 | P3 | QQ bind 每 3 秒无限 polling，不考虑 token expiry 或 document visibility。增加 deadline、隐藏页暂停和终态停止。 |
+| 75 | 确认 | P3 | `sessionStorage` 不可用会阻断登录，尽管受支持部署中的后端 state/cookie 才是权威。前端副本改为 best-effort，同时保留 SPA callback 的校验逻辑。 |
+| 76 | 确认 | P3 | 3 个 public handoff route 继承 OpenAPI 全局鉴权，与运行时匿名访问矛盾。给 operation 显式 `security: []` 后按规范 regenerate；已有全局/IP/body/single-use 控制，新增每 token limiter 可另立加固项。 |
+| 78 | 确认 | P3 | authorization 文档漏 `freshman_provisional`、引用错误映射文件，也没有解释 `section_reviewer` 当前无能力。修正文档即可；“typical capabilities” 本来就不是机器可比对的完整 catalog，不应为此强建全量文档 parser。 |
+
+这 39 个标签经重新分级后为 **P1 × 7、P2 × 17、P3 × 15**。其中 9 条是部分确认，
+意味着应处理较窄根因，不能直接采用原报告中更宽的故障叙事或重构方案。
+
+### 对 Claude 第二轮 14 个“驳回标签”的反向复核
+
+Claude 的两条 `/admin/stats` 记录是同一位置、同一 middleware 顺序和同一影响，合并为一个
+唯一根因。以下按 13 个唯一根因给出最终结论：
+
+| 原驳回发现简称 | Codex 最终结论 | 级别 | 必要性与建议 |
+|----------------|-----------------|------|----------------|
+| A11yButton 键盘触发两次 | 维持证伪 | 不立项 | H5 probe 与 Playwright 均只触发一次 action。最多增加 `defaultPrevented`/key repeat 防御，不能按“控件无法打开”修复。 |
+| mp-weixin 无可达 SSO | **重新确认** | P2 | `package.json`、manifest 和 README 都宣称支持 mp-weixin，但实际 build 虽返回 0，却只产出 H5 `index.html/assets`，没有小程序必须的 `app.json/wxml/wxss`；即使修好构建，login 也只有 `plus`/`window` 分支。必须做产品决策：实现真实 MP build/auth、CI 与开发者工具/真机验收，或明确移除/标记不支持。当前“构建成功”是 false positive。 |
+| `/admin/stats` 跳过 MFA（两个重复标签） | **部分重新确认** | P3 | 跳过 5 分钟 step-up freshness 是有提交和测试锁定的刻意 carve-out，不能直接把整个 group middleware 移上去；但该独立 route 也绕过基础 MFA context/enrollment，而 IAM 文档要求 `super_admin` 使用 MFA。应明确记录例外，或只补基础 MFA proof/enrollment gate、不要求 freshness。 |
+| academics 使用 `UserSchool*` capability | 维持证伪 | 不立项 | 路由调用 `RequireGlobalCapability`，scoped school admin 不会通过；当前与 `UserSystem*` 的主体集合相同，仅是命名债务。 |
+| `/internal/sms/send` 无 `/api/v1` limiter | 维持证伪 | 不按公网漏洞立项 | shipped ingress 不暴露 `/internal`，服务绑定 loopback 且需要 internal key。可在部署加固中验证私网 ingress 和 Casdoor 侧预算，但不应把内部 route 机械搬进 public API/global limiter。 |
+| 非法 FGA section 让该用户请求 503 | **部分重新确认** | P2 | 非法/陈旧的手工 tuple 会毒化持有对应 scoped role 的那个用户，不是“所有用户”。对解析失败的 granted scope 应 fail-closed 地忽略、记录 metric/log 并触发 reconcile；合法 scope 继续工作，只有非法 scope 时得到零 scoped grant；真正 FGA 查询错误仍返回 503。 |
+| section school 从 synthetic ID 解析 | 维持证伪 | 不立项 | 应用从同一 schoolID 同时生成 section ID 与 tuple，原报告所述不一致无法由当前写路径产生。可在 provisioning/reconcile 时做完整性检查，不应在每次请求额外读 tuple。 |
+| GetAdminStats 无 school scope/cache key | 维持证伪 | 不立项 | route 只允许 global dashboard grant，全局聚合和 scope-free cache 与授权语义一致。 |
+| RatingBar 无无障碍文本 | **部分重新确认，纠正位置** | P2 | 被引用的 `RatingBar/DimensionBars` 是 dead code，但真实 `CourseDetailPage` 中的可视化 bars 同样只靠宽度/颜色传递定性信息。给 live surface 增加定性 `aria-label`/`role=img` 并隐藏纯视觉层；产品测试明确不展示精确评分，不应借无障碍修复泄露精确数值。 |
+| OtpCodeInput 非数字残留 | 维持证伪 | 不立项 | Vue 会强制同步 input `value`，且组件当前无生产使用。可补测试，不按运行时故障改。 |
+| admission hostname 不可配置 | 维持证伪 | 不立项 | 固定 join domain 是文档与 smoke test 锁定的安全/部署契约；改成任意 env host 反而会破坏负向隔离。 |
+| “继续入群认证”未强制 reauth | 维持证伪 | 不立项 | wrong-account 会被服务端拒绝，页面已有 switch-account；每次强制登录会回归正常续办。可增加更显眼的切换账号入口。 |
+| Developer Connect issuer fallback | **部分重新确认** | P3 | 支持的正式 build 都注入 issuer，故没有已证实生产故障；但 `configured -> current web origin -> default SSO` 的 fallback 顺序在 Web/SSO 分域模型中确实错误，并让安全默认值不可达。改为 configured issuer、已知 SSO 默认值或明确配置错误，不需要动态 discovery framework。 |
+
+这 14 个标签对应 13 个唯一根因：**1 个确认、4 个部分确认、8 个维持证伪**。因此
+`AUDIT-REPORT.md` 中“以下条目不应修改”的总括语不再准确。
+
+### 补齐 Claude 未完成验证的 3 项
+
+`AUDIT-REPORT.md` 只记录了“3 条未完成验证”，没有保留标题。Codex 从本轮审计执行记录中
+恢复候选项，并回到当前代码逐项验证：
+
+| 编号 | 候选问题 | Codex 结论 | 级别 | 最小处置与边界 |
+|------|----------|------------|------|----------------|
+| U-1 | `/admin/academics` 缺少 privileged MFA/admin-entry | 部分确认 | P1 | MFA 缺口真实：独立 group 只有 auth + global capability，可触发 import；当前该 global capability 只给 super_admin，而 IAM 要求 super_admin 使用 MFA。缺少通用 admin-entry 没有额外影响，因为具体 global capability 更严格。把现有 admin MFA chain 传给该 group 或统一注册方式，不要再建第二套 MFA。 |
+| U-2 | 每 5 分钟丢弃 JWKS `RemoteKeySet` 缓存 | 确认，需要策略决策 | P2 | 当前 wrapper 会销毁 go-oidc 已缓存的 key，TTL 后即使是已知 kid 也必须访问 IdP；IdP 短暂不可用会 503。文档同时存在“已知 key 可离线继续”和“5 分钟后必须 fail”的冲突。必须选择并写清：复用长生命周期 RemoteKeySet 以保可用性，或保留 TTL 后 fail-closed 并修正文档、监控和测试。只随意延长 TTL 不能解决策略矛盾。 |
+| U-3 | StudentVerificationPanel 学籍邮箱流程硬编码中文 | 确认 | P3 | 标签、placeholder、状态和错误均有硬编码中文，英文 locale 会混合显示。增加 scoped 中英文 key，并按稳定状态/错误码映射；不需要引入 CMS 或新 i18n 引擎。 |
+
+### 对新版报告 I-1、I-2、I-3 的复核
+
+| 报告项 | Codex 结论 |
+|--------|------------|
+| I-1 无 scope 的 `school_admin` 全量可见 | 不是新问题，与本文件 X-1 相同，维持证伪。`ExpandRoleGrants` 对无 scope 角色不给 capability，admin Entry 在 Handler 前返回 403。#11 的真实问题是“缺少受支持的 scoped tuple provisioning，角色 fail-closed 不可用”；#57 的真实问题是“已有合法 scoped grant 被 public content path 错当全局 full-content grant”。两者都不能证明 I-1 的默认全局泄漏。 |
+| I-2 21 个 env 变量缺模板 | 不是新问题，与 X-2 相同，维持“部分确认”。当前复核口径是 runtime key 181 个、主模板缺 17 个；另 4 个分别属于 bootstrap/FGA 工具、`GIN_MODE` 和 Redis integration test。应做分类 allowlist，不要求所有 `getenv` 与两个模板严格相等。 |
+| I-3 契约测试锁死 deploy bundle 缺陷 | 不是新问题，是旧 P1-4 的测试反模式补充；相关修复和本地验证已在上方进度表记录。新版报告第 7 节刻意不判断当前实现状态，所以不能据其原始正文把已修复项重新标成“未处理”。 |
+
+新版报告的 #47/#48/#49 也分别重列了旧 P2-13/P2-14/P2-15。当前 `HEAD` 已包含
+P2-13/P2-14 的合并修复和回归记录，P2-15 是同一逐行上下文查询根因的重复标签；保留报告条目
+用于历史追溯，不应重新创建三个待办或覆盖本文件已有实施状态。
+
+### 建议实施顺序与过度设计边界
+
+#### 第一批：授权、令牌和撤权一致性
+
+1. #3 + #4：Koishi Console 全局/群 scope 和跨群数据隔离。
+2. #44：access/refresh token 类型边界与非空 subject。
+3. #17：`super_admin` tuple 的权威 reconcile；#11 先确定 scoped tuple 的权威来源。
+4. #18：按 token 自身 `exp` 计算 blacklist，并单独验证真实 Casdoor logout/revocation 契约。
+5. U-1：academics import 补复用现有 MFA chain。
+6. #9：恢复 `userVote` 契约，避免用户动作语义反转。
+
+不要把这些问题合成一个“重写 IAM/Casdoor/OpenFGA”的大型项目。每项都应先固定权威输入、
+fail-closed 语义和撤权测试，再做局部实现。
+
+#### 第二批：隐私、可靠性和核心前进性
+
+1. #45 path credential 日志脱敏，#51 refresh reuse 误判，#57 scoped grant 的 public-content 边界。
+2. #39 projection polling、#43 breaker cancellation、U-2 JWKS 缓存策略。
+3. #5 的真实 MP/H5 产物契约，以及“实现 mp-weixin 或明确不支持”的产品决策。
+4. #6、#7、#28、#30、#38、#42 等会让用户状态错误、流程卡死或操作结果不可信的问题。
+
+#### 第三批：局部 UX、可访问性、契约和文档
+
+#33 至 #37、#40/#41、#58、#66、#68 至 #78，以及反向复核中重新进入待办的 live rating
+bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复；不先建设动画框架、全局事件总线、
+通用 OAuth 调度器、动态 OIDC discovery 平台或文档全量 parser。
+
+### 本轮交叉验证与尚未验证边界
+
+本轮并行代理均以只读复审为主，主代理对关键链路再次交叉检查。执行结果：
+
+- 后端：`go test` 覆盖 `middleware`、`auth`、`course/review`、`fga`、`oidc`、
+  `authorization`、`user`、`academics`、`app`、`sms` 等相关包，均通过。
+- Web：第一组 2 files / 7 tests、补充组 5 files / 20 tests 均通过；专门的 jsdom probe
+  复现了 #38 的永久 toast。现有绿色测试没有覆盖该负向生命周期。
+- Koishi、Web、UniAppX 定向回归分别为 34/34、54/54、36/36；H5 Playwright 的
+  A11yButton 键盘 probe 1/1 通过，支持维持证伪“双触发”。
+- 实际执行 mp-weixin build 时命令错误地以 0 退出，却只生成 H5 结构，没有小程序入口和
+  模板产物；审计临时产物已移出工作树，未把生成物写入仓库。
+
+测试通过只说明现有正向契约未被破坏，不能覆盖报告指出的所有负向场景。以下仍需在真正处置时
+单独验收：
+
+- 生产 Casdoor 的实际 access/refresh TTL、introspection、logout/revocation 和 JWKS 故障行为；
+- 真实 scoped Console operator 的跨群读写、插件重载与全局设置权限；
+- 微信开发者工具/真机 mp-weixin 包、原生 SSO redirect 和浏览器 storage 受限模式；
+- 超过 100 条的真实 restricted-member 队列、生产 Redis p95/p99 与 breaker 行为；
+- 任何真实部署、生产数据迁移或生产 OpenFGA tuple reconcile。
+
 ## Claude 原审计的确认问题分布（保留原始记录）
 
 > 本节及后续“确认问题明细”是 Claude 的原始分类与取证草稿，不代表 Codex 复核后的级别、
