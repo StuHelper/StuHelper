@@ -3,7 +3,7 @@ type: product-spec
 audience: product, backend-dev
 status: current
 authoritative-source: server/api/openapi.yaml
-last-verified: 2026-07-30
+last-verified: 2026-07-31
 ---
 
 # 用户系统
@@ -102,6 +102,13 @@ last-verified: 2026-07-30
 实名认证列表不返回材料 key 或签名 URL。审核员必须先通过全局 `user:identity:read` capability 和 step-up MFA，再调用详情端点按需获取短时签名 URL；每次成功查看都会写入材料访问审计。批准操作要求 `user:identity:review` capability、step-up MFA，以及完整且可从对象存储验证的正面照和手持/自拍照。
 
 审核通过后更新应用数据库，必要时同步 Casdoor 角色投影。
+
+## 账号资料状态呈现
+
+`/account/profile` 的基础账号资料和邮箱来自当前已认证用户信息；手机号、QQ、实名与学生认证
+状态则必须以验证状态接口成功返回为准。首次加载完成前不得把未知状态显示成“未验证”或
+“未绑定”；请求失败时保留可靠的账号/邮箱信息，隐藏未经确认的负面结论，并显示可重试的
+错误状态。只有一次完整状态读取成功后，页面才可展示“未验证”“未绑定”等确定性结果。
 
 ## 端点
 

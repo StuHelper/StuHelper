@@ -437,7 +437,7 @@ Claude 新生成的 `AUDIT-REPORT.md` 是一份新的汇总快照，不是对本
 | 39 | 确认，已完成本地修复与回归验证 | P2 | projection polling 原先遇到一次瞬时 `/auth/me` 失败即终止，且 `fetchUser` 会把任意非网络 ApiError（包括 5xx/403）当成登出并清空用户，最终把已验证用户送进不可恢复错误页。现在 `fetchUser` 只在 HTTP 401 明确拒绝会话时清本地身份，页面同时切换登录态；403、5xx、网络、超时和未知 refresh 错误保留当前用户并继续消耗既有 1/2/4/8/16 秒有限预算，耗尽后仍停在 `projectionPending` 且可手动重试。Abort 立即终止，capability predicate 的程序错误不被重试层吞掉。没有把 403 宽泛当作失效会话，也没有新增重试框架、无限轮询或放宽服务端授权。 |
 | 40 | 部分确认 | P3 | SearchPage 确实忽略 `ReviewCard` emits，但当前可达的是 `moderated`；deleted/updated 控件并未启用。只接线 moderation 后 refetch/局部更新，避免为不可达事件建设通用同步总线。 |
 | 41 | 确认 | P3 | teacher profile 的 load-more 失败会用错误面板替换已加载 review。区分 initial 与 append error，保留已有列表并提供重试当前页即可。 |
-| 42 | 部分确认 | P2 | fresh store 的 status fetch 失败会把依赖验证状态的字段呈现为 false negative；并非所有 email/base info 都必然受影响，已有 cache 时也可能保留。应显式建 loading/ready/error/retry 状态，在成功前不展示“未验证”结论。 |
+| 42 | 部分确认，已完成本地修复与失败重试回归 | P2 | fresh store 的 status fetch 失败原先会把 phone、QQ、实名、学籍及对应披露状态呈现为 false negative；Claude 所称邮箱和全部 base info 也必然受影响不成立，它们来自当前已认证用户。现在页面显式区分 loading/ready/error：保留可靠账号与邮箱，完整状态读取成功前不渲染“未验证/未绑定/缺失”结论，失败提供内联重试，成功后才展示服务端确认的正负状态。没有给整个 verification store 增加第二套状态机或全局重试框架。 |
 | 43 | 确认，已完成本地修复与回归验证 | P2 | 每请求 blacklist 查询现在用保留 request values、忽略客户端取消的 50 ms bounded detached context。进一步复核发现同一全局 breaker 还被 revoke 写入、refresh reservation/release 共用，因此 5 个 Redis error 分支统一分类：`context.Canceled` 调用 `RecordNeutral`，不增加失败数但释放 half-open probe；内部 deadline exceeded 与真实 Redis 错误仍计 failure，所有错误路径仍 fail-closed。永久回归覆盖 closed/half-open neutral、直接 caller cancellation、deadline、真实 backend error 和 canceled Gin request。没有无遥测依据地把 50 ms 改成 200 ms，也没有把 30 秒 open window 猜成 3 秒。 |
 | 44 | 确认，已完成本地修复与回归验证 | P1 | Bearer introspection 现在发送 `token_type_hint=access_token`，并在 active 后对同一原始 JWT 强制校验 Casdoor `tokenType == "access-token"`；refresh、claim 缺失、opaque 和 malformed token 均 fail-closed。用户认证还要求已登记应用和非空 `sub`。没有信任 response 的通用 `token_type=Bearer`，也没有为每个 Bearer 请求再建一套 JWKS 验签。 |
 | 45 | 确认，已完成本地修复与回归验证；影响面比报告列举更广 | P2 | 实际有 5 条 admission `:token` 路由；raw path 原先不只进入 RequestLogger/Recovery，还进入两条请求体超限告警，共 4 类日志点。现在全部复用单一 `requestLogRoute`：匹配路由只记录 `c.FullPath()` 模板，404/405 固定记录 `unmatched`，绝不回退 raw URL。永久测试证明全局 middleware 在 handler 前后都能得到不含 credential 的模板，并覆盖 404/405；静态扫描确认 4 个旧 raw-path 日志点均消失。保留既有 query masking，没有枚举敏感 path 参数、遍历 Params 或做字符串替换。 |
@@ -550,7 +550,7 @@ fail-closed 语义和撤权测试，再做局部实现。
 1. #45 path credential 日志脱敏（已完成本地修复），#51 refresh reuse 误判（已完成本地修复），#57 scoped grant 的 public-content 边界（已完成本地修复）。
 2. #39 projection polling（已完成本地修复）、#43 breaker cancellation（已完成本地修复）、U-2 JWKS 缓存策略（已完成代码与守卫文档修复；用户架构稿旧段待收敛）。
 3. #5 的 H5 资产产物契约（已完成本地修复）；mp-weixin 假绿另做“实现真实平台 build 或明确不支持”的产品决策。
-4. #6、#7、#8、#28、#30、#38（均已完成本地修复）、#42 等会让用户状态错误、流程卡死或操作结果不可信的问题。
+4. #6、#7、#8、#28、#30、#38、#42（均已完成本地修复）等会让用户状态错误、流程卡死或操作结果不可信的问题。
 
 #### 第三批：局部 UX、可访问性、契约和文档
 
@@ -587,6 +587,7 @@ bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复
 | WF17：#34 | 真实 P2，Chromium 证明旧无限 tween 在 resize 和卸载后仍推进 | 在 `createParticles()` 丢弃当前 targets 前 kill；保留现有 rAF 合并与 unmount 清理。无需 GSAP context 重构、Tween handle registry、ResizeObserver、Worker 或全局 animation manager。 |
 | WF18：#35 | 真实但偏低端 P2；用户删除是 soft delete，却没有受支持的用户/管理员恢复 | 在 `ReviewCard` 做局部两阶段确认或复用已有可访问 Dialog，并用 single-flight 防重复提交；失败时保留重试状态。不要为确认框顺带新增 restore schema/API、延时删除、undo 平台或全站 modal manager。 |
 | WF22：#38 | 真实 P2，已完成最小修复与组件卸载交叉验证 | Toast 列表、timer map 与 ID 本来就是模块级状态，唯一错误是创建组件销毁时取消 timer 却保留列表项。删除该 dispose hook 后，timer 闭包仍安全调用既有 `remove`；永久 Node 回归用 `effectScope.stop()` 固定跨作用域自动关闭，Claude 的 jsdom mount/unmount 探针也转为通过。无需把函数整体提升重写成第二套 singleton/store，也不能在卸载时立即移除提示。 |
+| WF23：#42 | 部分真实 P2，已完成最小页面状态修复与失败重试验证 | `/auth/me` 的账号/邮箱与三条 verification 状态请求不是同一事实来源；只保护 phone、QQ、实名、学籍和相关披露字段。页面本地状态在 ready 前隐藏未知负面结论，pending 显示轻量 loading，失败保留可靠字段并提供 single-flight 重试。无需修改共享 store 数据模型、添加全局 error bus，或在一次子请求失败后清空已有 store 投影。 |
 
 ### 本轮交叉验证与尚未验证边界
 
@@ -706,6 +707,12 @@ bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复
   `clearAll` 可确定清空。全部 78 个已跟踪 Web unit 文件 505/505、type-check、定向 ESLint、
   production build 与文档卫生通过；用户未跟踪的 jsdom 组件卸载探针也单独 1/1 通过，
   但未修改、未提交、未计入正式 505 个用例。
+- #42 的组件回归先让 verification 请求保持 pending，确认账号邮箱仍可见而 phone/QQ/
+  实名/学籍的“未验证、未绑定、缺失”均不出现；随后制造首次请求失败，确认内联 error/retry
+  保留可靠字段，第二次成功后恢复 verified/bound 状态。另一路成功空响应证明真正未认证用户
+  只有在完整读取完成后才显示负面状态。全部 79 个已跟踪 Web unit 文件 507/507、
+  type-check、定向 ESLint、production build 与文档卫生通过；未改 verification store、
+  OpenAPI 或后端状态语义。
 - #34 用真实 Chromium 观察 GSAP global timeline：初始 50，跨帧 resize 后逐批增加，离开首页
   只清除最后一批且旧 target 仍变化；在丢弃数组前 kill 的对照探针始终稳定 50、卸载归零。
   探针只修改 HTTP 响应中的临时 bundle，没有写工作树。
@@ -754,6 +761,7 @@ bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复
 | 28 | 已修复，待发布；跨请求原子性仍不承诺 | 逐域状态机和关键词部分成功 baseline 负向测试通过；missing delete 幂等、existing foreign rule 无副作用；Koishi build、UI contracts、606 unit、startup 与 46 Chromium UI smoke 通过。失败后可按剩余差异重试或确认 reload，未引入并发 fan-out/rollback/2PC/saga | `fix(koishi): preserve partial settings save results` |
 | 30 | 已修复，待发布；生产持续截断率仍待观测 | 同 scope 103 条等 deadline 逆序数据稳定返回前 100 条及完整窗口元数据；foreign records 不污染 scoped total。客户端排序/提示/导航契约、Koishi build、609 unit、startup、46 UI smoke 与 package contract 通过。未新增分页/search，生产队列规模与 SLO 尚未验证 | `fix(koishi): disclose truncated admission queues` |
 | 38 | 已修复，待发布 | 删除与全局 Toast 生命周期冲突的组件 scope timer cleanup；创建 scope 销毁后仍于原 duration 自动关闭，显式 remove/clearAll 语义保持。永久 Node 回归 2/2、用户 jsdom 卸载探针 1/1、全部已跟踪 Web unit 505/505、type-check、ESLint、production build 与 docs 通过 | `fix(web): keep toast dismissal across navigation` |
+| 42 | 已修复，待发布 | 资料页本地 `loading/ready/error` 只保护 verification 来源字段；账号和邮箱在失败时保留，状态成功前不显示未知的未验证/未绑定结论，内联重试成功后恢复真实状态。组件负向/重试 2/2、全部已跟踪 Web unit 507/507、type-check、ESLint、production build 与 docs 通过 | `fix(web): distinguish unknown profile verification state` |
 
 ## Claude 原审计的确认问题分布（保留原始记录）
 
