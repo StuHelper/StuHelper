@@ -851,32 +851,45 @@ func TestVerifyIDTokenNormalizesInputs(t *testing.T) {
 	assert.Equal(t, clientID, claims.GetAppID())
 }
 
-func TestProviderUnavailableKeySetExpiresCachedJWKS(t *testing.T) {
+func TestProviderUnavailableKeySetKeepsKnownKeysDuringOutage(t *testing.T) {
 	privateKey, err := rsa.GenerateKey(crand.Reader, 2048)
 	require.NoError(t, err)
-	jwk := jose.JSONWebKey{Key: &privateKey.PublicKey, KeyID: "kid-ttl", Algorithm: string(jose.RS256), Use: "sig"}
+	unknownKey, err := rsa.GenerateKey(crand.Reader, 2048)
+	require.NoError(t, err)
+	jwk := jose.JSONWebKey{Key: &privateKey.PublicKey, KeyID: "kid-known", Algorithm: string(jose.RS256), Use: "sig"}
 	var keyRequests int64
+	var keysAvailable atomic.Bool
+	keysAvailable.Store(true)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/keys", func(w http.ResponseWriter, _ *http.Request) {
 		atomic.AddInt64(&keyRequests, 1)
+		if !keysAvailable.Load() {
+			http.Error(w, "jwks unavailable", http.StatusServiceUnavailable)
+			return
+		}
 		_ = json.NewEncoder(w).Encode(jose.JSONWebKeySet{Keys: []jose.JSONWebKey{jwk}})
 	})
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	now := time.Date(2026, 5, 2, 0, 0, 0, 0, time.UTC)
-	keySet := newProviderUnavailableKeySet(context.Background(), srv.URL+"/keys", time.Minute)
-	keySet.now = func() time.Time { return now }
-	token := issueSignedJWT(t, privateKey, jwk.KeyID, map[string]any{"sub": "user-1"})
+	keySet := newProviderUnavailableKeySet(context.Background(), srv.URL+"/keys")
+	knownToken := issueSignedJWT(t, privateKey, jwk.KeyID, map[string]any{"sub": "user-1"})
+	unknownToken := issueSignedJWT(t, unknownKey, "kid-unknown", map[string]any{"sub": "user-1"})
 
-	_, err = keySet.VerifySignature(context.Background(), token)
-	require.NoError(t, err)
-	_, err = keySet.VerifySignature(context.Background(), token)
+	_, err = keySet.VerifySignature(context.Background(), knownToken)
 	require.NoError(t, err)
 	assert.Equal(t, int64(1), atomic.LoadInt64(&keyRequests))
 
-	now = now.Add(time.Minute + time.Second)
-	_, err = keySet.VerifySignature(context.Background(), token)
+	keysAvailable.Store(false)
+	_, err = keySet.VerifySignature(context.Background(), knownToken)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), atomic.LoadInt64(&keyRequests))
+
+	_, err = keySet.VerifySignature(context.Background(), unknownToken)
+	require.ErrorIs(t, err, ErrProviderUnavailable)
+	assert.Equal(t, int64(2), atomic.LoadInt64(&keyRequests))
+
+	_, err = keySet.VerifySignature(context.Background(), knownToken)
 	require.NoError(t, err)
 	assert.Equal(t, int64(2), atomic.LoadInt64(&keyRequests))
 }

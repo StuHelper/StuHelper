@@ -19,6 +19,20 @@ last-verified: 2026-07-31
 - 本地 session 更新失败时，不得把新 access / refresh token 写入 `Set-Cookie` 或响应体；
 - 失败注入测试必须覆盖 provider refresh 成功但本地 session rotate 失败的场景。
 
+## OIDC JWKS 缓存
+
+每个 provider verifier 必须复用一个进程生命周期的 `go-oidc` `RemoteKeySet`，不得用固定
+时间 TTL 周期性销毁并重建它。
+
+- 已缓存且签名有效的已知 `kid` 在 Casdoor 短暂不可用时继续本地验签；token 的 `iss`、
+  `aud`、`exp`、session hash 和 blacklist 等其他门禁仍照常执行；
+- 未知 `kid` 必须触发 `RemoteKeySet` 的一次回源；回源失败映射为 provider unavailable，
+  当前请求 fail-closed，不能用任意已知 key 或陈旧 claim 猜测通过；
+- 未知 `kid` 回源失败不能清空已有 key cache，恢复后仍可重新拉取；
+- Casdoor 轮换签名 key 必须至少覆盖现存 token 的最大有效期，同时发布新旧 key。若需要紧急
+  移除已泄漏的已知 key，先在 provider 撤下该 key、撤销受影响 session，再滚动重启 API
+  verifier；不要靠任意分钟数的应用侧 TTL 猜测撤权窗口。
+
 ## 平台角色 OpenFGA 投影
 
 Casdoor 的扁平 `super_admin` role 投影到 `ecosystem:stuhelper#super_admin` 时，必须区分角色

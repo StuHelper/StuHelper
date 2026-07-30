@@ -84,6 +84,10 @@ Casdoor token 通过 provider `tokenType` 区分 access / refresh；遗留 StuHe
 
 - 浏览器 Cookie access token 先查 Redis blacklist，再按 `session_id` 读取 session，校验
   provider application、user 和 access token hash，最后做本地 JWKS / audience / `exp` 验证。
+- JWKS verifier 在进程生命周期内复用 go-oidc `RemoteKeySet`：已缓存的已知 `kid` 不因固定
+  5 分钟 TTL 被强制回源，所以 Casdoor 短暂不可用时，已签发且未过期、session/hash/blacklist
+  均有效的 token 仍可本地验证。未知 `kid` 会立即单次回源；拉取失败返回 provider
+  unavailable，不能借用旧 key 或陈旧 claim 放行，且失败不会清空已有 key cache。
 - 新登录把已验证的 provider `exp` 与 access token hash 一起保存；refresh 原子替换二者。
   新 token 的剩余寿命不得大于本地 session lease，也不得超过 blacklist 30 天硬上限。
 - `logout` / `logout-all` 对每个 session 按其 access token 的真实剩余寿命写 blacklist。

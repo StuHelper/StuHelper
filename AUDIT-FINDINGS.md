@@ -491,7 +491,7 @@ Claude 的两条 `/admin/stats` 记录是同一位置、同一 middleware 顺序
 | 编号 | 候选问题 | Codex 结论 | 级别 | 最小处置与边界 |
 |------|----------|------------|------|----------------|
 | U-1 | `/admin/academics` 缺少 privileged MFA/admin-entry | 部分确认，MFA 缺口已完成本地修复与回归验证 | P1 | `/admin/academics` 三个 operation 已复用现有 production/prod-parity MFA context + privileged MFA chain，并保留精确 global capability gate；development 的既有 no-op 语义不变。独立复核还发现共享 step-up middleware 实际返回 428、而 OpenAPI/错误码/管理端约定 412；现已在共享 RBAC 边界统一为 412，并更新所有真实 step-up 断言。缺少通用 admin-entry 没有额外影响，因此没有增加重复 entry gate或建设第二套 MFA。 |
-| U-2 | 每 5 分钟丢弃 JWKS `RemoteKeySet` 缓存 | 确认，需要策略决策 | P2 | 当前 wrapper 会销毁 go-oidc 已缓存的 key，TTL 后即使是已知 kid 也必须访问 IdP；IdP 短暂不可用会 503。文档同时存在“已知 key 可离线继续”和“5 分钟后必须 fail”的冲突。必须选择并写清：复用长生命周期 RemoteKeySet 以保可用性，或保留 TTL 后 fail-closed 并修正文档、监控和测试。只随意延长 TTL 不能解决策略矛盾。 |
+| U-2 | 每 5 分钟丢弃 JWKS `RemoteKeySet` 缓存 | 确认，已完成代码、守卫文档与回归修复；用户工作中的架构稿旧段待收敛 | P2 | 固定 go-oidc v3.17.0 的 `RemoteKeySet` 本身就是 long-lived cache：已知 `kid` 本地验签，未知 `kid` 才立即回源，回源失败不清旧 cache。外层 5 分钟 wrapper 反而销毁这些 key，令 Casdoor 短暂不可用时已知 token 也 503。现在 verifier 进程内只复用一个 `RemoteKeySet`，薄包装仅保留 remote-fetch → provider-unavailable 分类；未知 `kid` 失败仍 fail-closed，已知 key 不做 stale claim 降级，Cookie 路径的 session hash/blacklist/iss/aud/exp 均不变。没有把 TTL 猜成另一个数字或自建缓存。`docs/design/iam-implementation-guardrails.md` 与 `auth-and-session.md` 已固定此语义；当前用户暂存重命名且继续编辑的 `docs/design/iam-architecture.md` 仍含旧“5 分钟重建”段，本次为避免吞入用户改动未触碰，合并该稿前必须去掉冲突。 |
 | U-3 | StudentVerificationPanel 学籍邮箱流程硬编码中文 | 确认 | P3 | 标签、placeholder、状态和错误均有硬编码中文，英文 locale 会混合显示。增加 scoped 中英文 key，并按稳定状态/错误码映射；不需要引入 CMS 或新 i18n 引擎。 |
 
 ### 深挖复核新增的独立问题
@@ -548,7 +548,7 @@ fail-closed 语义和撤权测试，再做局部实现。
 #### 第二批：隐私、可靠性和核心前进性
 
 1. #45 path credential 日志脱敏（已完成本地修复），#51 refresh reuse 误判（已完成本地修复），#57 scoped grant 的 public-content 边界（已完成本地修复）。
-2. #39 projection polling（已完成本地修复）、#43 breaker cancellation（已完成本地修复）、U-2 JWKS 缓存策略。
+2. #39 projection polling（已完成本地修复）、#43 breaker cancellation（已完成本地修复）、U-2 JWKS 缓存策略（已完成代码与守卫文档修复；用户架构稿旧段待收敛）。
 3. #5 的 H5 资产产物契约；mp-weixin 假绿另做“实现真实平台 build 或明确不支持”的产品决策。
 4. #6、#7、#28、#30、#38、#42 等会让用户状态错误、流程卡死或操作结果不可信的问题。
 
@@ -577,6 +577,7 @@ bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复
 | WF08：#57 | 真实 P2，已完成本地修复；原报告的 hidden-row 与 `Review.SchoolID` 证据不成立 | Handler 将完整与 global capability 分开传给统一 access facts；public full-content 的管理 entitlement 只接受 global grant，普通学生能力保持原语义。school/section/global 三类回归通过；未改 capability producer、管理路由、Review DTO/OpenAPI/SQL，也未实现新的“scope 内 public full”产品语义。 |
 | WF09：#45 | 真实 P2，已完成本地修复；报告漏掉 1 条 token route 和 2 类 body-limit 日志 | RequestLogger、Recovery 和两类 body-limit 告警统一走 `requestLogRoute`：匹配路由用 `FullPath()`，未匹配 404/405 固定 `unmatched`；永久回归验证 handler 前后模板和负向路由，静态扫描无旧 raw-path logger。保留 query masking，未维护敏感参数黑名单或 token 字符串替换器。 |
 | WF20：#39 | 真实 P2，已完成本地修复；原报告把 403 与 401 一并视为 hard auth failure 的建议过宽 | `fetchUser` 只在 `/auth/me` 返回 401 时清身份；403/5xx/网络/超时均保留已有用户但继续向调用方抛错。投影轮询只捕获 refresh request 失败，非 401 在原五次预算内继续，Abort/401 立即停止；耗尽后页面保留 `projectionPending` 与手动重试。服务端 capability/OpenFGA 仍是授权真值，不增加轮询次数、全局 retry abstraction 或客户端授权降级。 |
+| WF21：U-2 | 真实 P2，已完成实现与回归；用户工作中的架构稿仍有旧 TTL 文案 | 选择仓库已声明的“已知 key 离线验证、未知 kid 回源失败 503”策略，直接复用固定 go-oidc 的 long-lived `RemoteKeySet`；薄包装只做错误分类。测试证明初次加载只请求一次，provider 下线后已知 key 不回源、未知 key 返回 provider unavailable，失败后已知 key 仍可验签。紧急移除已泄漏 known key 通过 provider 撤 key、撤 session 与滚动重启 verifier 明确处置，不用任意 TTL 猜窗口。 |
 | WF11：#5 | H5 缺图真实 P2；mp-weixin 缺图硬失败未验证，真实相邻问题是 mp build 假绿 | 移动 `static` 到 `src/static` 并补从 `pages.json` 派生的产物断言；保留现有公共 URL。mp 先决定支持与否，再补真实平台 compiler/app.json/WXML 门禁，不能把 H5 假产物当微信验证。 |
 | WF12：#6 | 真实 P2；“create 失败也删除”证伪 | 只恢复匹配或未绑定课程草稿，未绑定不恢复 teacher；显式记录当前页是否消费/保存服务端单槽，create 成功后才有条件清理。不改 DB/OpenAPI 为多草稿，也不在本项解决跨设备 CAS/If-Match。 |
 | WF13：#7 | 真实 P2；provider-owned 三个字段的 action 落到只读摘要，其他四类字段路径正确 | Profile Completion 对 username/email/avatar 优先使用 `/auth/me` 已给出的绝对 `accountSettingsUrl`，phone/identity/student/school 保留后端本地 route。避免为静态 catalog 注入整套 config/service、复制 issuer fallback 或把本地只读资料页改造成第二个身份提供方编辑器。 |
@@ -657,6 +658,14 @@ bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复
   保留 cached user、401 清空。三组定向 52 tests、全部 76 个已跟踪 Web unit 文件
   493 tests、Web type-check、定向 ESLint、production build 和文档卫生均通过；用户未跟踪的
   `zzToastScope.tmp.test.ts` 因缺 jsdom 单独失败，未修改、未计入本项回归。
+- U-2 先对固定 go-oidc v3.17.0 源码交叉验证：`RemoteKeySet` 文档要求复用 long-lived
+  verifier，已知 `kid` 先读 cache，只有不匹配才回源，remote failure 不替换
+  `cachedKeys`。永久 httptest 依次证明首次 known key 请求一次、provider 下线后 known
+  key 零回源、unknown key 返回 `ErrProviderUnavailable` 且请求数加一、随后 known key
+  仍可验证。OIDC 包普通/race、middleware+auth race、app、全服务端
+  `go test -race -p 1 ./...`、Casdoor boundary、golangci-lint、build 与文档卫生均通过。
+  尚未用生产 Casdoor 故障演练验证运行实例；用户暂存的 `iam-architecture.md` 冲突段也未
+  纳入本提交。
 - #51 的永久 handler 回归分别制造四种 Redis 状态：成功 rotation 后旧 hash 与当前 hash
   不同，判定真 reuse 并撤销全部 session；logout 完成后 referenced session 不存在；
   logout 的 blacklist→delete 竞争窗口仍保留相同当前 hash；以及历史 attribution 缺失。
@@ -706,6 +715,7 @@ bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复
 | 39 | 已修复，待发布 | `fetchUser` 对 `/auth/me` 只有 401 清本地身份；403/5xx/网络/超时保留用户并由投影轮询在既有五次预算内继续。耗尽后页面仍可手动重试，Abort/401 提前停止。定向 52、全部已跟踪 Web unit 493、type-check、ESLint、production build 与文档卫生通过；未跟踪临时探针不在提交/回归范围 | `fix(web): keep admission projection polling recoverable` |
 | 44 | 已修复，待发布 | active introspection 只接受 Casdoor `access-token` purpose，refresh/missing/malformed/opaque token 均拒绝；Bearer 用户路径拒绝空白 subject，provider unavailable 与 inactive 分类保持不变；OIDC、middleware、app/auth 定向回归与服务端静态检查通过 | `3d12d259` `fix(auth): reject refresh tokens on bearer paths` |
 | U-1 | 已修复，待发布 | 三个 academics admin operation 消费现有 admin MFA middlewares；共享 step-up 响应从错误的 428 对齐既有 412 契约，OpenAPI/生成物同步；blocking route contract、真实 MFA chain、相关包/全量 Go 回归、race、spec/drift、lint/build 与文档检查通过 | `4b2f520b` `fix(academics): require MFA for import administration` |
+| U-2 | 已修复，待发布；用户架构稿旧 TTL 段待收敛 | verifier 复用单一 long-lived go-oidc `RemoteKeySet`，known key 离线验证、unknown kid 单次回源失败 503，失败不清旧 cache；session/blacklist/claims 门禁不变。OIDC 普通/race、middleware+auth race、app、全服务端 race、lint/build/docs 通过；生产故障演练待发布验收 | `fix(auth): preserve cached JWKS during provider outages` |
 
 ## Claude 原审计的确认问题分布（保留原始记录）
 
