@@ -1,8 +1,8 @@
 import type {
   LocationQueryValue,
   RouteLocationResolved,
-  RouteRecordRaw,
   Router,
+  RouteRecordRaw,
 } from 'vue-router';
 
 type NavigableMenu = { children?: NavigableMenu[]; path?: string };
@@ -47,10 +47,10 @@ function collectRouteNames(routes: RouteRecordRaw[]) {
     if (route.name !== undefined && route.name !== null) {
       names.add(String(route.name));
     }
-    route.children?.forEach(visit);
+    route.children?.forEach((child) => visit(child));
   }
 
-  routes.forEach(visit);
+  routes.forEach((route) => visit(route));
   return names;
 }
 

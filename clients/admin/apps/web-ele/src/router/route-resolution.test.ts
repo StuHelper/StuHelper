@@ -1,7 +1,8 @@
 import type { RouteRecordRaw } from 'vue-router';
 
-import { generateRoutesByFrontend } from '@vben/utils';
 import { createMemoryHistory, createRouter } from 'vue-router';
+
+import { cloneDeep, generateRoutesByFrontend } from '@vben/utils';
 
 import { describe, expect, it, vi } from 'vitest';
 
@@ -47,10 +48,8 @@ function dashboardRoutes(): RouteRecordRaw[] {
   ];
 }
 
-function cloneRoleRoutes() {
-  return JSON.parse(
-    JSON.stringify([...dashboardRouteRecords, ...contentRouteRecords]),
-  ) as RouteRecordRaw[];
+function cloneRoleRoutes(): RouteRecordRaw[] {
+  return cloneDeep([...dashboardRouteRecords, ...contentRouteRecords]);
 }
 
 function testRouter(accessibleRoutes: RouteRecordRaw[]) {
