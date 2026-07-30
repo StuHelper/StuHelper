@@ -98,7 +98,7 @@ Web / Admin / UniAppX+Koishi UI / Koishi / 基础设施 / 代码质量与文档)
 | P2-9 | 核心确认、原故障机理部分错误；已完成本地修复与真实 controller 回归 | P2 | 已修复，待 CI/远端发布验收 | Ansible Core 2.20.2 的 localhost connection 会把 cwd 设为 playbook basedir，因此旧脚本路径本身能找到；真正失败是相对输出参数进入脚本后，内部 `git -C` 再改变 `archive --output` 的解析基准。干净隔离仓库以旧任务真实复现 `could not open '../../generated/deploy/...'`。现改为 `playbook_dir` 绝对脚本 `argv`、脚本默认仓库绝对输出和同一绝对 upload src；固定 controller 版本、内置 default callback 的 YAML result format、三 playbook syntax check、窄路径契约和独立 bundle tag smoke 已接入 CI。没有写通用 command/shell scanner或重构远端部署；真实 SSH 上传/部署仍待验收。 |
 | P2-10 | 确认，已完成最小修复、真实 PostgreSQL 语义验证与全量 infra 回归 | P2 | 已修复，待发布 | 普通 importer 已拒绝 `sfzjh_enc`/`sfzjh_hash`，并从 normalize、临时表、copy、insert 和 conflict update 全链路移除两列：新行得到 `NULL/NULL`，重导保留既有 pair。当前仓库没有完整 pair 导入入口；在没有真实需求和密钥治理设计前不新增 CLI/API，也不能伪造空 `enc` 绕过约束。 |
 | P2-11 | 确认潜在契约缺陷 | P2 → P3 | 应改 | 统一为 `explode: true`，Handler 用 `QueryArray` 并兼容旧逗号格式，重新生成；修正或删除未使用的 Web grouped adapter。OpenAPI 与 Handler 当前都按逗号语义，真正不兼容的是默认客户端，原文“三端各不兼容”不准确。 |
-| P2-12 | 确认 | P2 | 必须 | 对会调用外部 Oracle 的 academic-match/request-otp 增加鉴权后的 Redis per-user 共享预算；测 429、用户隔离与 Redis 策略。现有全局/IP limiter 不等于完全无限流，但不足以保护昂贵 fan-out。 |
+| P2-12 | 确认，已完成共享用户预算与真实 PostgreSQL/Redis 回归 | P2 | 已修复，待发布 | academic-match/request-otp 在 auth 后共用同一 Redis per-user 预算（合计 5/min），第 6 次 429 且不调用 Oracle；另一用户独立。Redis outage 在 handler 前 fail-closed 503。verify-otp 不访问 Oracle，未纳入预算。OpenAPI 为 academic-match 补真实 429/503 并完整生成。 |
 | P2-13 | 确认，已完成主因最小修复与真实 PostgreSQL 状态机回归 | P2 | 主路径已修复，待发布；补偿失败与 dead-letter replay 为显式残余边界 | claim 后每批加载一次上下文；批量查询失败或 caller cancel 时，用独立 5 秒 context 一次性归还所有未公开 lease；缺 policy 等确定性单行 preparation failure 只消耗本行 attempt，stale/failure/abandon 均按 claimed attempt fenced，健康行继续返回。补偿写也失败时仍会保留 attempt；Admission 尚无 dead-letter replay API，不能宣称所有故障下都不会耗尽预算或 terminal 行已可运营恢复。 |
 | P2-14 | 确认，属于 P2-13 的性能放大器；已合并修复 | 单独看 P3 | 已修复，待发布 | policy/failure contexts 已从逐行 `2N` 查询改为每批固定 2 条；真实 PostgreSQL 对 1 行与 8 行均测得 3 次 pool acquisition（1 次 claim 事务 + 2 次查询）。默认批是 50，修复前约 100 次额外查询，不是原文按 server 上限 200 推算的常态 400 次。 |
 | P2-15 | 事实重复，已随 P2-14 覆盖 | 与 P2-14 重复 | 不单独立项/提交 | 与 P2-14 是同两个逐行 context query，不是第二个根因；保留原始记录用于追溯，不计入唯一问题数，也不建设第二套实现。 |
@@ -184,8 +184,8 @@ P2 唯一根因应按以下修复簇合并，避免重复设计：
    均已完成隔离、全量/状态机回归和独立提交。
 5. P2-21/P2-22 breaker 分类、R-8 Redis 错误分类与 P3-9 cache version unavailable
    均已完成最小修复和故障回归。
-6. P2-9 Ansible 路径、P2-18 filter invalidation、P2-16 nullable course metadata 与
-   P3-7 敏感导出审计均已完成修复；继续 P2-12 外部 Oracle 用户级预算。
+6. P2-9 Ansible 路径、P2-18 filter invalidation、P2-16 nullable course metadata、
+   P3-7 敏感导出审计与 P2-12 外部 Oracle 用户级预算均已完成修复；第二批本地修复收口。
 
 #### 第三批：可测量的性能与一致性
 
@@ -842,6 +842,14 @@ live rating bar 已完成可达表面的最小修复。优先做一处根因、�
   请求没有完成标记，但审计通过 `context.WithoutCancel` 成功持久化。评课包与全服务端 race、
   `golangci-lint`、静态 build 和文档卫生均通过。没有双写 `h.logAdminOp`、新增表/队列，或把
   `row_count` 误称为客户端可靠接收证明。
+- P2-12 在隔离 PostgreSQL 18 与 miniredis 中，让同一认证 subject 连续执行 4 次
+  academic-match + 1 次 request-otp，真实 academic gateway 调用合计 5 次；第 6 次跨回
+  academic-match 返回 429、带 `Retry-After: 60`，gateway 计数不变，证明两路由共享一个
+  budget。第二个 subject 立即成功且只增加一次，证明用户隔离。关闭 miniredis 后，匿名请求
+  先被 auth 拒绝为 401，认证请求在 handler/Oracle 前 503，gateway 为 0。Admission/app
+  定向与全服务端 race、OpenAPI lint/drift、生成稳定、共享 TS type-check、`golangci-lint`、
+  静态 build 和文档卫生均通过；没有限制不查 Oracle 的 verify-otp、重排 OTP cooldown，
+  或引入第二个 limiter 实现。
 
 测试通过只说明现有正向契约未被破坏，不能覆盖报告指出的所有负向场景。以下仍需在真正处置时
 单独验收：
@@ -903,6 +911,7 @@ live rating bar 已完成可达表面的最小修复。优先做一处根因、�
 | P3-9 | 已修复，待发布；生产 Redis 故障注入待验收 | 版本 key 缺失仍为合法 `v0`；transport error/caller cancel 改为 unknown，`BuildVersionedKey` 返回空 key，版本化 get miss、set no-op且不写本地版本缓存。真实 miniredis 关闭/重启验证故障阶段不读写 `v0`、恢复后立即读到预存 `v7`；缓存全包 race、调用方两包 race、全服务端 race、lint/build/docs 通过 | `fix(cache): bypass versioned data when Redis is unavailable` |
 | P2-16 | 已修复，待发布；目标库 NULL 分布与同批发布待验收 | 可空课程元数据使用指针/nullable contract，必有的 departmentID/credits 明确为 null，code/departmentName 缺失时省略；未分类 group 保留 null，credits sort NULLS LAST。开发库只读 23/0 NULL 盘点，隔离 PostgreSQL 覆盖五条读取路径；Go/TS generate、Web nullable parser、UniAppX fallback、三前端 type-check、两包/全服务端 race、spec/drift/lint/build/docs 通过 | `fix(course): preserve unknown catalog metadata` |
 | P3-7 | 已修复，待发布；生产审计查询/留存待验收 | NDJSON/CSV 成功与请求取消各 1 次，真实 PostgreSQL 验证每个 request_id 恰好一条 `data.export`，包含 actor、normalized filter、row_count/row_limit 和 success/failure；取消后仍持久化。评课/全服务端 race、lint/build/docs 通过；未双写 operation log 或新增异步审计系统 | `fix(audit): record review export outcomes` |
+| P2-12 | 已修复，待发布；真实 Oracle 池与生产限流指标待验收 | 两个 Oracle fan-out route 同一 subject 合计 5/min，第 6 次 429 且 gateway 计数不变；第二 subject 独立。miniredis outage 下 auth 先于 limiter，认证请求 503 且 gateway=0。academic-match 429/503 进入真源并完整生成；Admission/app/全服务端 race、spec/drift/type/lint/build/docs 通过 | `fix(admission): bound academic email lookups per user` |
 
 ## Claude 原审计的确认问题分布（保留原始记录）
 
@@ -2233,6 +2242,45 @@ Apply the limiter half only; drop the cooldown reorder.
    - Keep `authMW` first so `GetUserID(c)` is populated and the limiter keys per-user rather than falling back to per-IP.
 
 2. `server/internal/app/modules.go:199-204` — pass `admission.WithSchoolEmailRateLimiter(middleware.NewRedisRateLimiter(rt.redisClient.GetClient(), 5, time.Minute))`, matching `verifyRateLimitPerMinute = 5` in `user/handler.go:46`. Define the constant in the admission package (e.g. `schoolEmailRateLimitPerMinute = 5`) rather than hardcoding it at t
+
+#### Codex 对 P2-12 的最终复核与实施记录（2026-07-31）
+
+**最终结论**
+
+缺少昂贵查询的用户级限流真实存在。全局 10,000/min、IP 100/min 以及 user 200/min 只能限制
+一般流量；`academic-match` 每次查询一次外部学籍源，`request-otp` 也在 60 秒 OTP cooldown
+之前查询，因此 cooldown 不能保护 Oracle。报告把系统描述成“完全无限”不准确，但单账号可在
+现有通用预算内持续占用默认 4 个 Oracle 连接，P2 级依赖保护是必要的。
+
+Claude 建议给三条邮箱路由不同 key，其中 `verify-otp` 不访问 Oracle，而两个昂贵路由使用不同
+key 又会把总查询预算翻倍。最终按风险根因只限制 `academic-match` 与 `request-otp`，并让它们
+在同一认证 subject 下共用 `admission-school-email-academic-lookup` key，合计 5 次/分钟。
+
+**已实施的最小修复**
+
+1. Admission Handler option 从既有 Redis client 构造一个 5/min sliding-window limiter；
+   runtime 显式接线。两条昂贵路由均保持 `authMW` 在前、同一 endpoint key 在后，因此不会
+   匿名回退到 IP key，也不会被两条路由各自获得 5 次。
+2. limiter 满额返回现有 429 与 `Retry-After`；Redis/entropy/context 故障沿用现有
+   fail-closed 503，不进入 handler，也不访问 Oracle。没有修改全局/IP/user 默认预算、Oracle
+   breaker、连接池或 OTP cooldown/attempt 状态机。
+3. `verify-otp` 只读 Redis OTP 记录并写验证结果，不访问学籍源，因此保持原路由，不为了表面
+   一致性额外消耗 Oracle 查询预算。
+4. OpenAPI 真源为 academic-match 增加实际可能的 429/503，完整 generate 后 bundle、嵌入 Go
+   spec 与共享 TypeScript 响应联合类型一致；没有手改生成文件。
+
+**交叉验证**
+
+- 同一认证用户依次执行 4 次 academic-match 和 1 次 request-otp，真实 PostgreSQL admission
+  session/config 与 counting academic gateway 证明恰好 5 次外部调用；第 6 次回到另一条昂贵
+  路由仍为 429，gateway 不增加。
+- 第二个认证 subject 在第一用户满额后仍可成功，证明 Redis key 以已认证 subject 隔离。
+- miniredis socket 关闭后，匿名请求先由 auth 返回 401；认证请求由 limiter 返回 503，handler
+  未执行且 gateway 调用为 0。该测试验证了 middleware 顺序与故障策略，不把 Redis outage
+  当作额外额度。
+- 当前测试使用真实 PostgreSQL/miniredis 和受控 gateway，不等同于生产 Oracle 连接池、DBA
+  查询量或限流指标验收；发布后仍需受控账号验证 429/503，并观察 Oracle p95、pool wait 和
+  breaker 指标。
 
 #### P2-13. One failing row discards the whole claimed bot-action batch, permanently dead-lettering kick/release actions
 
@@ -3589,6 +3637,7 @@ STUHELPER_REDIS_INTEGRATION
 | P3-9 | Redis 版本读取故障被本地缓存成 `v0`，使失效数据可重新出现 | Codex 已完成最小修复：只有 `redis.Nil` 使用初始 `v0`，transport error/caller cancel 返回 unknown；空版本 key 的 get 为 miss、set 为 no-op，且故障结果不进入本地版本缓存。真实 miniredis 关闭/重启覆盖故障绕过与 `v7` 恢复；未引入只改善命中率的 detached loader |
 | P2-16 | 可空课程元数据扫描到非空 Go 字段导致课程读取 500 | Codex 已确认 NULL 是合法未知值并完成 nullable contract：四条课程读取与收藏列表使用指针扫描，未分类 group 保留 null，学分排序 NULLS LAST；OpenAPI/Go/TS 与 Web/UniAppX 同步，隔离 PostgreSQL 五路径回归通过。原 `COALESCE(0/'')` 建议会伪造事实，未采用 |
 | P3-7 | 敏感批量评课导出没有审计事件 | Codex 已完成最小修复：NDJSON/CSV 每次请求只写一条 `data.export`，记录 success/failure、已处理行数、规范化筛选和既有上限；真实 PostgreSQL 验证成功及请求取消失败后审计仍落库。CSV 不含 moderation reason，原风险描述已纠正 |
+| P2-12 | Admission 学校邮箱两条路由可持续调用 Oracle 且无用户级预算 | Codex 已完成最小修复：academic-match/request-otp 在鉴权后共享每用户 5/min Redis key，第 6 次 429 且不进 gateway，用户间隔离，Redis outage 503；不查 Oracle 的 verify-otp 不纳入。OpenAPI 429/503 与生成契约同步 |
 | X-1 | 无 scope 的 school_admin 全量可见 | Codex 已证伪；现有 capability 展开和 admin Entry 在 Handler 前返回 403，不按 P1 修复 |
 | X-2 | env 模板差集 | Codex 判定部分成立；改为分类治理，不执行 21 项全量入模板/严格集合相等方案 |
 | 其余条目 | — | 不再用“其余 41 项待修”概括；按 Codex 逐项表和四批实施顺序处置 |

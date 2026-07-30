@@ -2,12 +2,19 @@ package admission
 
 import (
 	"context"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/StuHelper/StuHelper/server/internal/pkg/botcredential"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/httputil"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/middleware"
+)
+
+const (
+	schoolEmailLookupRateLimitPerMinute = 5
+	schoolEmailLookupRateLimitKey       = "admission-school-email-academic-lookup"
 )
 
 type BotCredentialVerifier interface {
@@ -18,6 +25,7 @@ type Handler struct {
 	service                *Service
 	internalUserIDResolver middleware.InternalUserIDResolver
 	botCredentialVerifier  BotCredentialVerifier
+	schoolEmailLimiter     *middleware.RedisRateLimiter
 	adminAuthorizers       AdminAuthorizers
 	streamStop             <-chan struct{}
 }
@@ -38,6 +46,20 @@ type HandlerOption func(*Handler)
 func WithAdminAuthorizers(authorizers AdminAuthorizers) HandlerOption {
 	return func(h *Handler) {
 		h.adminAuthorizers = authorizers
+	}
+}
+
+// WithSchoolEmailRateLimiter protects the two admission school-email routes
+// that query the external academic source with one shared per-user budget.
+func WithSchoolEmailRateLimiter(rdb *redis.Client) HandlerOption {
+	return func(h *Handler) {
+		if rdb != nil {
+			h.schoolEmailLimiter = middleware.NewRedisRateLimiter(
+				rdb,
+				schoolEmailLookupRateLimitPerMinute,
+				time.Minute,
+			)
+		}
 	}
 }
 
@@ -89,8 +111,23 @@ func (h *Handler) RegisterRoutes(api *gin.RouterGroup, authMW gin.HandlerFunc) {
 	admission.GET("/freshman/mobile-camera-handoffs/:token", h.handlePreviewFreshmanCameraHandoff)
 	admission.POST("/freshman/mobile-camera-handoffs/:token/camera-capture", h.handleUploadFreshmanCameraHandoffCapture)
 	admission.POST("/freshman/mobile-camera-handoffs/:token/continue", h.handleChooseFreshmanCameraHandoffContinuation)
-	admission.POST("/school-email/academic-match", authMW, h.handleMatchSchoolEmailAcademicStudent)
-	admission.POST("/school-email/request-otp", authMW, h.handleRequestSchoolEmailOTP)
+	if h.schoolEmailLimiter != nil {
+		admission.POST(
+			"/school-email/academic-match",
+			authMW,
+			middleware.EndpointRateLimitMiddleware(h.schoolEmailLimiter, schoolEmailLookupRateLimitKey),
+			h.handleMatchSchoolEmailAcademicStudent,
+		)
+		admission.POST(
+			"/school-email/request-otp",
+			authMW,
+			middleware.EndpointRateLimitMiddleware(h.schoolEmailLimiter, schoolEmailLookupRateLimitKey),
+			h.handleRequestSchoolEmailOTP,
+		)
+	} else {
+		admission.POST("/school-email/academic-match", authMW, h.handleMatchSchoolEmailAcademicStudent)
+		admission.POST("/school-email/request-otp", authMW, h.handleRequestSchoolEmailOTP)
+	}
 	admission.POST("/school-email/verify-otp", authMW, h.handleVerifySchoolEmailOTP)
 	admission.GET("/school-sso/:schoolCode/login", authMW, h.handleStartSchoolSSO)
 	admission.GET("/school-sso/:schoolCode/callback", authMW, h.handleCompleteSchoolSSO)
