@@ -44,8 +44,9 @@ Web / Admin / UniAppX+Koishi UI / Koishi / 基础设施 / 代码质量与文档)
   实际启动恢复后的 PostgreSQL 18.4 base backup 并读回探针数据，但没有登录生产主机、
   检查生产备份目录或用生产 WAL 执行目标时间点恢复，也没有观察生产锁等待或真实大表延迟。
   因此“生产已经丢失 PITR”“生产已经 OOM/死锁/永久停更”等说法仍不得当作已证实事实。
-- 当前工作树在复核开始前已经有未提交修改。Codex 对 P0-1、P1-1、P1-2、P1-3、P1-4
-  与 P1-8 的修复已经按问题独立提交，但均未合并或发布；原有其他工作树修改没有混入这些提交。
+- 当前工作树在复核开始前已经有未提交修改。Codex 对 P0-1、P1-1、P1-2、P1-3、P1-4、
+  P1-5 与 P1-8 的修复已经按问题独立提交，但均未合并或发布；原有其他工作树修改没有混入
+  这些提交。
 - 原报告大量“修复方案”和全部 18 条驳回长文在句中截断。例如 P0-1 结尾是
   `only surface the 4`，P1-1 结尾是 `Promise.resolve<string[]>(`，P1-3 结尾是
   `both loc`；P3-1 至 P3-9 的方案也全部半句结束。第 1 条驳回理由还重复了两次。
@@ -73,7 +74,7 @@ Web / Admin / UniAppX+Koishi UI / Koishi / 基础设施 / 代码质量与文档)
 | P1-2 | 确认，已完成本地修复与真实迁移验证 | P1 | 已修复，待发布 | 已将权威来源纠正为完整有序 migration 集合，明确 `000001` 是不可变初始基线、后续变更必须新增递增 `.up/.down` 文件，并同步 Make 帮助、数据库参考与 CI 步骤名。未普遍加入 `IF NOT EXISTS`，避免掩盖脏迁移和 schema drift；隔离 PostgreSQL 18 上按 CI 非超级用户权限实际完成 19 版 `up → down 1 → up`，最终 `dirty=false`。 |
 | P1-3 | 确认，已完成本地修复与真实隔离恢复；生产状态未验证 | P1 | 已修复，待发布；生产 PITR 待演练 | 已改为 staging 内 `plain + wal-method=stream`，使用临时 replication slot 和 `pg_verifybackup`，压缩后经 `.partial` 原子发布；同步器排除临时工件，evidence 同时验证本地/取回的逻辑与物理备份、SHA256、可读性和新鲜度。固定 PostgreSQL 18.4 客户端真实生成并校验备份，无网络恢复实例成功读回探针，临时 slot/容器/卷/网络均已清理。没有引入持久 slot、备份平台或通用编排层；仍不能据此宣称生产 WAL 连续性/PITR 已验收。 |
 | P1-4 | 确认，已完成本地修复与真实干净 worktree 打包验证 | P1 | 已修复，待发布 | 部署包改为只取 Git `HEAD` 跟踪文件，脏工作树在创建输出前拒绝；打包后断言根目录恰好包含 `.env.example`、`.env.prod.example`，不存在其他根 env 文件。临时干净仓库实测忽略的 secret/`node_modules` 不入包、两个模板存在、未跟踪文件会阻断。没有维护第二份易漂移 exclude 清单或引入新发布系统；仍需 CI 和真实远端部署/回滚验收。 |
-| P1-5 | 部分确认；首次过期失败日为 2026-08-06 | P1/P2 边界 | 必须修规则 | 新版本生产部署应继续硬校验当前 image review；对“曾批准且 digest 不变”的紧急回滚设计窄范围、环境相关、可审计的豁免，并由定时 CI 提前告警。把所有生产 deploy/rollback 一律改成 report-only 会削弱供应链门禁，属于错误优化。 |
+| P1-5 | 部分确认，已完成窄范围修复；真实远端回滚未验证 | P1/P2 边界 | 已修复，待发布与远端演练 | 普通生产部署继续按当天 fail-closed。仅同环境成功发布记录、目标 tag、三个应用 digest、当时有效的完整 policy、当前生产基础镜像、操作人和理由全部匹配时，才复用原部署日审核窗口并写 0600 JSONL 审计。GitHub 回滚用当前 workflow SHA 的最小控制器覆盖旧 release 中的旧 validator；每日门禁提前 3 天告警。没有全局 report-only，也不允许未部署版本或镜像漂移绕过。 |
 | P1-6 | 确认，但只在存在活跃 SSE 时触发 | P1 | 必须 | 将进程 shutdown context 传入 bot-action 与 camera SSE 的 `select`，使长连接主动退出并加关闭测试。“每次 SIGTERM 都失败”措辞过度；强制所有流 10 分钟重连与本缺陷无关。 |
 | P1-7 | 确认 | P1 → P2 | 应改 | 先改 OpenAPI 的 optional auth，再生成契约、接可选认证中间件并测 owner/non-owner。它造成刷新后删除按钮消失，是 UX/契约缺陷，不是 P1 级安全事件。 |
 | P1-8 | 确认，已完成本地修复与真实 PostgreSQL 回归验证 | P1 | 已修复，待发布 | `ProcessReport` 对非删除态复用现有管理员转换白名单；作者已删除的 review 保持终态，只结案历史 report。缺失 review 统一映射 404。没有改 schema、增加新状态或在 Repository 注入静默 no-op。真实数据库覆盖 `hide`/`delete`、重复非法转换、计数和时间戳不变；评课包全量与定向 race 测试通过。 |
@@ -171,7 +172,8 @@ P2 唯一根因应按以下修复簇合并，避免重复设计：
 
 #### 第二批：发布、运行前进性与核心契约
 
-1. P0-1 与 P1-4 已完成修复、验证和独立提交；继续处理 P1-5 可审计回滚例外。
+1. P0-1、P1-4 与 P1-5 已完成修复、验证和独立提交；P1-5 仍需在受保护
+   GitHub environment 与真实目标机执行一次带审计记录的回滚演练。
 2. P1-2 migration 指南已完成修复、真实迁移验证和独立提交；继续 P1-6 SSE shutdown。
 3. P2-1/P2-2 CI 门禁，P2-6 privileged listener 生命周期。
 4. P2-7 转发 poison、P2-13/14/15 claimed batch、P2-23 outbox panic。
@@ -220,6 +222,13 @@ R-14、R-15、R-17，以及 X-2 的配置分类治理。
   review 不可重复 `hide`，事务回滚后 report 仍为 `pending`。定向测试、定向 `-race`、
   `internal/modules/course/review` 全包测试、`go vet`、全服务端 `golangci-lint`（0 issues）
   与文档卫生检查均通过。
+- 回滚 P1-5：用 2026-08-13 复现普通 policy 校验因 2026-08-12 审核窗口过期而失败；同环境
+  2026-07-30 成功发布记录、相同 tag/三个应用 digest、完整历史 policy、执行人、理由和
+  audit UUID 齐备时才通过。替换任一应用 digest 或使用过短理由均失败。隔离回滚控制器测试
+  确认当前 policy 路径不创建例外记录；过期路径生成同一 audit ID、追加 mode 0600 的 JSONL
+  后才调用部署。显式 source worktree 打包仍要求 clean HEAD 且保留 env 模板。ShellCheck、
+  actionlint、文档卫生以及新增后全部 76 个 infra contracts 通过。尚未触发真实 GitHub
+  protected environment、SSH 上传或生产回滚。
 - image policy：2026-07-30 通过，2026-08-06 因 `review_by=2026-08-05` 失败，确认日历门禁。
 - 授权：capability/RBAC/review 定向 Go 测试通过，确认 X-1 在 Handler 前 fail-closed。
 - P2：3 个 infra/import contract 通过；Koishi 定向 29 tests 通过；outbox、externaldata、
@@ -240,6 +249,7 @@ R-14、R-15、R-17，以及 X-2 的配置分类治理。
 | P1-2 | 已修复，未发布 | 迁移权威改为有序 migration 集合；`000001` 锁定为初始基线，后续只新增递增 `.up/.down`；同步 Make/CI/数据库文档。文档与 CI 契约检查通过，隔离 PostgreSQL 18 实际 `up → down 1 → up` 后为 `19, dirty=false` | `docs(database): make migrations append-only` |
 | P1-3 | 已修复，未发布；生产 PITR 待验收 | 物理备份在外部 staging 以 `plain + stream` 生成，经临时 slot、`pg_verifybackup`、SHA256 和 `.partial` 原子发布；同步排除临时工件，evidence 覆盖本地/取回的逻辑与物理备份及新鲜度。真实 18.4 隔离恢复启动并读回探针；ShellCheck、文档卫生和 75 个 infra contracts 通过 | `fix(backup): verify and atomically publish base backups` |
 | P1-4 | 已修复，未发布 | 部署包只取干净 Git `HEAD`，生成后断言两个根 env 模板存在且无其他根 env；干净临时仓库实测忽略 secret/依赖不入包、未跟踪文件 fail-closed。ShellCheck、部署包/CI 契约与文档卫生通过 | `fix(deploy): preserve required env templates in bundles` |
+| P1-5 | 已修复，未发布；真实远端回滚待验收 | 普通部署维持当前日硬门禁；历史窗口只对同环境成功记录和完全相同 digest 的审计回滚开放。当前 workflow 控制器兼容旧 release，每日 3 天提前告警。ShellCheck、actionlint、文档卫生及 76 个 infra contracts 通过 | `fix(rollback): audit expired image review exceptions` |
 | P1-8 | 已修复，未发布 | Service 复用统一 review 状态机；作者删除态只结案 report，不改 review。真实 PostgreSQL 覆盖两种动作、重复转换、计数、时间戳和后续 restore；评课包全量、定向 race、vet、全服务端 lint 与文档卫生检查通过 | `fix(review): preserve deleted reviews during report handling` |
 
 ### 明确不建议实施的“修复”
@@ -515,7 +525,37 @@ Split the calendar-freshness control away from the deploy-time immutability cont
 
 3. Keep `enforce` (the default) in `infra/ops/scan-runtime-images.sh:74-77` and `:144-148`, i.e. the CI `runtime-image-security` job stays the hard gate for stale pins.
 
-4. Give CI a chance to catch the lapse before deploy time: add a `schedule: - cron: "0 1 * * *"` trigger to `.github/workflows/ci.yml` and include it in the `if:` at lines 557-560 for `runtime-image-security`, so a window lapsing on the calendar fa
+4. 原方案建议给 CI 增加每日 schedule，使日历窗口失效不再只在部署时暴露；原始英文在此处
+   截断，没有给出完整告警时机和旧提交回滚兼容方案。
+
+**Codex 修复与复验（2026-07-30）**
+
+原方案把 `prod-deploy.sh` 和 `remote-preflight.sh` 一律切到 report-only，会让所有新生产部署
+继续使用已经失效的漏洞例外/VEX，也没有解决 GitHub workflow checkout 旧提交后实际执行旧
+validator 的问题，因此没有采纳。最终实现保持默认和普通生产部署的当前日期硬门禁，只给
+历史成功回滚增加显式证据路径：
+
+- validator 新增 `--minimum-review-days-remaining` 作为定时预警门槛；默认仍为 0，不改变
+  deploy 的 fail-closed 语义。每日独立 workflow 要求至少还剩 3 天，避免为此触发整套 CI。
+- rollback 先按今天正常校验。只有失败后，才读取目标环境
+  `.deploy/releases/<target-tag>.env`；目标 tag、三个应用 digest 和记录必须完全一致，
+  release 的 `DEPLOYED_AT` 必须是过去时间，且完整 policy 在该日有效。当前生产基础镜像仍由
+  `--effective-environment production` 逐字匹配；任何非日历错误在历史日期重验时仍失败。
+- 例外要求合法操作人、12–500 字符理由和控制器生成的 UUID，并在部署前向
+  `.deploy/rollback-review-exceptions.jsonl` 追加 mode 0600 的 JSONL 事件，记录 policy
+  SHA256、目标 tag、三个应用 digest 和当前门禁失败原因。它表示“例外已授权/尝试”，不伪称
+  部署成功；最终成功仍由既有 release record 和 smoke 记录。
+- GitHub workflow 以 `github.workflow_sha` checkout 当前可信控制器，同时把目标 release
+  checkout 到独立目录。最新打包脚本从目标 clean HEAD 创建 bundle；远端只覆盖
+  `prod-rollback.sh` 和 validator 两个控制文件，所以已经发布的旧提交也能获得修复，而不会
+  用当前应用源码替换目标 release。`reason` 是必填输入，并以 base64 安全传到远端 shell。
+- 2026-08-13 普通校验按预期因窗口过期失败；同环境 2026-07-30 成功记录的严格证据路径通过。
+  应用 digest 漂移和无意义理由均失败。隔离控制器测试确认当前 policy 不创建例外记录；
+  过期路径的审计 ID 贯穿到部署子进程且日志权限为 0600。显式历史 source worktree 打包继续
+  拒绝 dirty tree。ShellCheck、actionlint、文档卫生和全部 76 个 infra contracts 通过。
+
+**验证边界**：没有运行真实 GitHub protected environment、SSH/SCP 或生产目标机回滚，故状态
+是“实现已修复、待发布与远端演练”，不能称生产回滚能力已经验收。
 
 #### P1-6. Bot action SSE stream has no shutdown release, so every SIGTERM stalls 30s and the process exits 1
 
@@ -2476,6 +2516,7 @@ STUHELPER_REDIS_INTEGRATION
 | P1-2 | 迁移指南要求修改已执行的初始基线 | Codex 已完成修复：权威来源改为完整有序 migration 集合，后续 schema 变更必须新增递增 `.up/.down`；Make、CI 与数据库文档已同步。文档/契约检查通过，隔离 PostgreSQL 18 按 CI 最小权限实际完成 19 版 `up → down 1 → up`，最终无 dirty 状态。随独立修复提交入库，尚未发布 |
 | P1-3 | 物理备份命令无法生成、半成品可被同步且 evidence 不覆盖物理备份 | Codex 已完成实现：改为外部 staging 的 `plain + stream`、临时 replication slot、`pg_verifybackup`、SHA256 与 `.partial` 原子发布；同步排除临时工件，evidence 覆盖本地/取回的逻辑与物理备份及新鲜度。真实 PostgreSQL 18.4 备份在无网络隔离实例启动并读回探针，75 个 infra contracts 全部通过。随独立修复提交入库，尚未发布；生产对象存储/WAL PITR 仍须单独验收 |
 | P1-4 | 部署包丢失 env 模板 | Codex 已完成实现：部署包只取干净 Git `HEAD`，打包后断言两个根 env 模板存在且无其他根 env。临时干净仓库实测忽略 secret/依赖不入包、未跟踪文件阻断，相关部署/CI 契约通过。随独立修复提交入库，尚未发布；未执行真实远端部署/回滚 |
+| P1-5 | 日历过期的 image review 阻断生产发布和旧版本回滚 | Codex 已完成窄范围实现：普通生产部署仍按当天硬校验；只有同环境成功发布记录、完全相同 digest、当时有效 policy 和完整审计上下文才能复用历史窗口，并写 0600 JSONL。GitHub 用当前 workflow 控制器兼容旧 release，每日提前 3 天告警。ShellCheck、actionlint、文档卫生与 76 个 infra contracts 通过；尚未执行真实远端回滚 |
 | P1-8 | 举报处理可把作者已删除的评课改回隐藏态并再次发布 | Codex 已完成实现：举报入口复用统一状态机，作者删除态只结案 report、不改 review；缺失 review 映射 404。真实 PostgreSQL 覆盖 hide/delete、重复非法转换、计数、时间戳和后续 restore，评课包全量、定向 race、vet、全服务端 lint 与文档卫生检查通过。随独立修复提交入库，尚未发布 |
 | X-1 | 无 scope 的 school_admin 全量可见 | Codex 已证伪；现有 capability 展开和 admin Entry 在 Handler 前返回 403，不按 P1 修复 |
 | X-2 | env 模板差集 | Codex 判定部分成立；改为分类治理，不执行 21 项全量入模板/严格集合相等方案 |

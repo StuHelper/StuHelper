@@ -45,7 +45,8 @@ assert_contains "${BUNDLE_SCRIPT}" 'deployment bundle requires a clean git workt
 # deployment target. A working-tree tar with an exclude list is not acceptable:
 # an over-broad pattern silently drops the env templates that deploy requires,
 # and an under-broad one ships secrets.
-assert_contains "${BUNDLE_SCRIPT}" 'git -C "\$\{REPO_ROOT\}" archive --format=tar\.gz'
+assert_contains "${BUNDLE_SCRIPT}" 'SOURCE_REPO_ROOT="\$\{2:-\$\{REPO_ROOT\}\}"'
+assert_contains "${BUNDLE_SCRIPT}" 'git -C "\$\{SOURCE_REPO_ROOT\}" archive --format=tar\.gz'
 refute_contains "${BUNDLE_SCRIPT}" "--exclude='\\.env"
 
 # The packaging path must prove the env templates survived, not assume it.
@@ -54,7 +55,7 @@ assert_contains "${BUNDLE_SCRIPT}" 'unexpected env files'
 
 clean_check_line="$(line_number 'status --porcelain --untracked-files=all')"
 mkdir_line="$(line_number 'mkdir -p "\$\{OUTPUT_DIR\}"')"
-archive_line="$(line_number 'git -C "\$\{REPO_ROOT\}" archive')"
+archive_line="$(line_number 'git -C "\$\{SOURCE_REPO_ROOT\}" archive')"
 
 if (( clean_check_line >= mkdir_line )); then
   fail "clean worktree check must run before creating generated bundle output"
@@ -68,7 +69,8 @@ fi
 # lib/common.sh fails hard when a template is absent, so a bundle without them
 # breaks every remote deploy and rollback.
 archive_listing="$(mktemp)"
-trap 'rm -f "${archive_listing}"' EXIT
+fixture_root="$(mktemp -d)"
+trap 'rm -f "${archive_listing}"; rm -rf "${fixture_root}"' EXIT
 git -C "${REPO_ROOT}" archive --format=tar.gz HEAD | tar -tz | sed 's|^\./||' >"${archive_listing}"
 
 bundled_env_files="$(grep -E '^\.env' "${archive_listing}" || true)"
@@ -85,5 +87,29 @@ fi
 if grep -qE '(^|/)node_modules/' "${archive_listing}"; then
   fail "bundle must not include node_modules"
 fi
+
+source_repo="${fixture_root}/rollback-release"
+fixture_bundle="${fixture_root}/rollback-release.tgz"
+mkdir -p "${source_repo}"
+git -C "${source_repo}" init -q
+printf 'shared-template\n' >"${source_repo}/.env.example"
+printf 'production-template\n' >"${source_repo}/.env.prod.example"
+printf 'historical-release\n' >"${source_repo}/release-marker.txt"
+git -C "${source_repo}" add .env.example .env.prod.example release-marker.txt
+git -C "${source_repo}" \
+  -c user.name=contract \
+  -c user.email=contract@example.test \
+  commit -qm "fixture"
+
+"${BUNDLE_SCRIPT}" "${fixture_bundle}" "${source_repo}" >/dev/null
+tar -tzf "${fixture_bundle}" | grep -qxF 'release-marker.txt' ||
+  fail "an explicit source worktree must be archived instead of the controller worktree"
+
+printf 'dirty\n' >"${source_repo}/untracked.txt"
+if "${BUNDLE_SCRIPT}" "${fixture_root}/dirty.tgz" "${source_repo}" >/dev/null 2>&1; then
+  fail "an explicit source worktree must still fail closed when dirty"
+fi
+[[ ! -e "${fixture_root}/dirty.tgz" ]] ||
+  fail "a rejected explicit source worktree must not publish a bundle"
 
 echo "[deploy-bundle-contract] all assertions passed"

@@ -9,12 +9,14 @@ require_cmd git
 require_cmd tar
 
 OUTPUT_FILE="${1:-${REPO_ROOT}/infra/generated/deploy/stuhelper-deploy-bundle.tar.gz}"
+SOURCE_REPO_ROOT="${2:-${REPO_ROOT}}"
 OUTPUT_DIR="$(dirname "${OUTPUT_FILE}")"
 
-if ! git -C "${REPO_ROOT}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+if ! git -C "${SOURCE_REPO_ROOT}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   die "deployment bundle must be built from a Git worktree"
 fi
-if [[ -n "$(git -C "${REPO_ROOT}" status --porcelain --untracked-files=all)" ]]; then
+SOURCE_REPO_ROOT="$(cd "${SOURCE_REPO_ROOT}" && pwd)"
+if [[ -n "$(git -C "${SOURCE_REPO_ROOT}" status --porcelain --untracked-files=all)" ]]; then
   die "deployment bundle requires a clean git worktree; commit or remove local changes before packaging"
 fi
 
@@ -27,7 +29,7 @@ trap 'rm -f "${tmpfile}"' EXIT
 # index rather than the working tree makes it impossible for an ignored file
 # (local secrets, build output, generated env) to reach a deployment target,
 # and the clean-worktree gate above guarantees HEAD matches what was tested.
-git -C "${REPO_ROOT}" archive --format=tar.gz --output="${tmpfile}" HEAD
+git -C "${SOURCE_REPO_ROOT}" archive --format=tar.gz --output="${tmpfile}" HEAD
 
 # Deployment and rollback both call ensure_env_file(), which fails when the env
 # templates are absent. Assert their presence rather than trusting the packaging

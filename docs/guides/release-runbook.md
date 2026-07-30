@@ -270,11 +270,12 @@ make prod-rollback
 
 ```text
 commit_sha=<previous-release-full-40-character-commit-sha>
+reason=<incident-or-change-record-and-rollback-rationale>
 ```
 
 回滚 Job 会：
 
-1. 校验目标环境、SSH endpoint 和完整 commit SHA
+1. 校验目标环境、SSH endpoint、完整 commit SHA 和回滚原因
 2. 把 GHCR 中三个 `<full-sha>` tag 解析成 digest，并验证发布 provenance
 3. SSH 到远端部署机，并只传递已校验的 digest 引用
 4. 读取目标机 `.deploy/remote.env`，执行回滚
@@ -282,6 +283,40 @@ commit_sha=<previous-release-full-40-character-commit-sha>
 
 GitHub `Rollback` 不接受 `latest`、短 SHA 或任意业务 tag。仓库本地的 `make prod-rollback`
 仍可按上节规则读取上一条成功发布记录，二者不要混淆。
+
+回滚 workflow 使用两份 side-by-side checkout：目标提交只提供待回滚的发布内容；实际校验、
+打包和日历例外控制器来自正在执行的 workflow 对应提交。这样即使目标提交早于当前回滚修复，
+也不会重新启用旧的、已经修复过的发布控制逻辑。传输到目标机的控制器覆盖面刻意限制为
+`prod-rollback.sh` 与 `validate-runtime-image-scan.py`，应用镜像仍必须由目标完整 commit SHA
+解析并通过 provenance 校验。
+
+正常部署和回滚默认都按执行当天硬校验 runtime-image review window。只有当前日期校验失败时，
+回滚才会尝试以下窄范围例外，而且条件必须全部成立：
+
+1. 目标环境存在 `.deploy/releases/<target-tag>.env`，证明该版本曾在**同一环境**成功部署；
+2. `TAG`、`ROLLBACK_TAG` 和发布记录完全相同；
+3. backend、frontend、admin 三个引用都是 digest，且与成功发布记录逐字相同；
+4. 目标提交的完整 runtime-image policy 在原 `DEPLOYED_AT` 日期确实有效，当前生产基础镜像
+   仍与该 policy 完全一致；
+5. 操作人和 12–500 字符的回滚原因已明确提供。
+
+满足这些条件时，脚本只复用该版本原成功部署日期的审核窗口，并把授权尝试写到权限为 0600 的
+`.deploy/rollback-review-exceptions.jsonl`，其中包括 audit ID、操作人、原因、目标 tag、
+policy SHA256 和三个应用镜像 digest。镜像漂移、没有同环境成功记录、policy 结构错误或缺少
+审计上下文仍会 fail-closed；该例外不会放宽普通 `prod-deploy`。
+
+本地在审核窗口已经过期时回滚，需显式提供审计上下文：
+
+```bash
+export ROLLBACK_TAG=<previous-stable-tag>
+export ROLLBACK_REVIEW_ACTOR=<operator-or-change-owner>
+export ROLLBACK_REVIEW_REASON='关联事故或变更单，并说明为何必须回到该成功版本'
+make prod-rollback
+```
+
+GitHub `Rollback` workflow 的 `reason` 输入承担同一作用。另有每日
+`Runtime image review deadlines` workflow，在任一审核窗口剩余不足 3 天时失败告警；
+它只是提前告警，不替代按期更新镜像扫描证据和 policy。
 
 ### 应用 + 数据库回滚（存在破坏性迁移）
 
