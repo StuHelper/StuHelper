@@ -39,6 +39,7 @@ type Filter struct {
 	warnMatchers   []wordMatcher
 	reviewMatchers []wordMatcher
 	mu             sync.RWMutex
+	refreshMu      sync.Mutex
 	lastRefresh    time.Time
 	refreshTTL     time.Duration
 	sf             singleflight.Group // 去重并发刷新调用
@@ -70,6 +71,9 @@ func buildMatcher(word string) wordMatcher {
 
 // Refresh 刷新敏感词列表
 func (f *Filter) Refresh(ctx context.Context) error {
+	f.refreshMu.Lock()
+	defer f.refreshMu.Unlock()
+
 	words, err := f.repo.ListActiveSensitiveWords(ctx)
 	if err != nil {
 		return err
@@ -77,6 +81,20 @@ func (f *Filter) Refresh(ctx context.Context) error {
 
 	f.applyWords(words)
 	return nil
+}
+
+// Invalidate 将当前进程的敏感词快照标记为过期。
+//
+// 与 Refresh 共用 refreshMu，避免管理端 mutation 与正在进行的刷新交错时，
+// 旧查询结果重新把快照标记为 5 分钟有效。已经开始的内容检查允许完成；
+// mutation 返回后发起的下一次检查会重新加载数据库词表。
+func (f *Filter) Invalidate() {
+	f.refreshMu.Lock()
+	defer f.refreshMu.Unlock()
+
+	f.mu.Lock()
+	f.lastRefresh = time.Time{}
+	f.mu.Unlock()
 }
 
 func (f *Filter) applyWords(words []SensitiveWord) {
@@ -131,14 +149,13 @@ func (f *Filter) ensureFresh(ctx context.Context) error {
 		refreshCtx, cancel := detachedRefreshContext(ctx, 10*time.Second)
 		defer cancel()
 
-		// 在锁外执行 DB 查询，避免阻塞所有读操作
-		words, err := f.repo.ListActiveSensitiveWords(refreshCtx)
-		if err != nil {
+		// Refresh 仅与管理端 invalidation 串行；数据库查询期间不会持有
+		// matcher 读写锁，因此已加载快照的并发读不会被阻塞。
+		if err := f.Refresh(refreshCtx); err != nil {
 			logger.L().Warn("failed to refresh sensitive words", zap.Error(err))
 			return err
 		}
 
-		f.applyWords(words)
 		return nil
 	})
 	if err != nil {

@@ -694,6 +694,7 @@ func (s *Service) CreateSensitiveWord(ctx context.Context, word, category, level
 	if err != nil {
 		return SensitiveWord{}, fmt.Errorf("create sensitive word: %w", err)
 	}
+	s.filter.Invalidate()
 	return sw, nil
 }
 
@@ -723,6 +724,7 @@ func (s *Service) UpdateSensitiveWord(ctx context.Context, wordID string, word, 
 	if err := s.repo.UpdateSensitiveWord(ctx, wordID, word, category, level, isActive); err != nil {
 		return fmt.Errorf("update sensitive word %s: %w", wordID, err)
 	}
+	s.filter.Invalidate()
 	return nil
 }
 
@@ -730,6 +732,7 @@ func (s *Service) DeleteSensitiveWord(ctx context.Context, wordID string) error 
 	if err := s.repo.DeleteSensitiveWord(ctx, wordID); err != nil {
 		return fmt.Errorf("delete sensitive word %s: %w", wordID, err)
 	}
+	s.filter.Invalidate()
 	return nil
 }
 

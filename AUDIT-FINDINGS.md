@@ -105,7 +105,7 @@ Web / Admin / UniAppX+Koishi UI / Koishi / 基础设施 / 代码质量与文档)
 | P2-15 | 事实重复，已随 P2-14 覆盖 | 与 P2-14 重复 | 不单独立项/提交 | 与 P2-14 是同两个逐行 context query，不是第二个根因；保留原始记录用于追溯，不计入唯一问题数，也不建设第二套实现。 |
 | P2-16 | 确认 | P2 | 决策后必须 | 先盘点 NULL 数据和产品语义：非法则回填后 migration 加 NOT NULL；合法则 Go/OpenAPI 改 nullable 并生成。默认 `COALESCE` 为 0/空串会伪造数据，不能采用。 |
 | P2-17 | 确认两个配置当前未生效，但行为可能是刻意安全收紧 | P2 → P3/P4 | 决策 | 优先决定是否废弃 content preview knobs，并把 title knob 说明改成锁定首行 teaser；若恢复，只对已认证非 full tier 接线并保持 guest 收紧。直接“恢复配置生效”可能削弱访问控制。 |
-| P2-18 | 确认 | P2 | 必须 | 当前单 app 部署只需本地 `Filter.Invalidate()`：mutation 成功后标记过期，使下次检查 reload；测 create/update/delete 和 reload 失败。当前就引入 Redis version/pubsub 是过度设计，等真实多副本需求再做。 |
+| P2-18 | 确认，已完成单实例最小修复与真实 PostgreSQL 回归 | P2 | 已修复，待发布 | create/update/delete 只有在 Repository 成功后才调用进程内 `Filter.Invalidate()`；下一次内容检查重载 DB，失败继续映射 `ErrModerationUnavailable`，不会用旧词表放行。`Invalidate` 与 `Refresh` 共享一把窄 mutex，避免 mutation 与在途刷新交错后旧结果重新获得 5 分钟 freshness；matcher 读锁不覆盖 DB 查询。真实数据库覆盖已预热快照上的新增、改词/改级别、删除、失败 mutation 不失效和 reload failure fail-closed。当前 Compose 是单 app，不引入 Redis version/pub/sub；多副本前置要求已写入安全文档。 |
 | P2-19 | 确认 | P2 → P3 | 应改 | 先为语义唯一的 dangerous/too-short/rating-required/invalid-rating 映射专用 code；共享的 content-too-long 需先拆 sentinel。不要把所有共享错误一刀切成 review code。 |
 | P2-20 | 确认结构风险，生产是否超过 5 秒未验证 | 条件性 P2 | 先测后改 | 给 materialized-view refresh 独立可配置 timeout，继承 parent cancel；增加 duration、projection age、retry 指标。不要抬高全局 DB timeout，也无需先重写所有 shutdown/retry。 |
 | P2-21 | 确认 | P2 | 必须 | 对外部源结果做分类：caller cancellation 为 neutral，内部 source timeout 仍为 failure；half-open 取消必须释放 in-flight probe。只跳过 `RecordFailure` 会让 half-open 永久卡住。 |
@@ -184,7 +184,7 @@ P2 唯一根因应按以下修复簇合并，避免重复设计：
 4. P2-7 Koishi 转发 poison 与 P2-13/14/15 claimed batch 均已完成隔离、全量/状态机回归
    和独立提交；P2-23 outbox panic 留待后续指令继续。
 5. P2-21/P2-22 breaker 分类，R-8 Redis 错误分类，P3-9 cache version unavailable。
-6. P2-9 Ansible 路径已完成修复；继续 P2-16 NULL 语义决策、P2-18 filter invalidation。
+6. P2-9 Ansible 路径和 P2-18 filter invalidation 已完成修复；继续 P2-16 NULL 语义决策。
 
 #### 第三批：可测量的性能与一致性
 
@@ -595,6 +595,7 @@ live rating bar 已完成可达表面的最小修复。优先做一处根因、�
 | WF27：反向复核 / live rating bar | 部分真实 P2，已完成可达表面的定性可访问名称与双视口回归 | Claude 引用的通用 RatingBar 是 dead code，不能靠修改它关闭问题；真实 CourseDetailPage 的维度条改为一个具名图像语义，复用 `normalizeRatingLevel` 和现有 `review.rating.face1..5`。helper 与 policy 测试固定“不含原始 4.6”，桌面/移动 Chromium 读取“教学质量：超赞”且页面找不到精确数值。没有改评分 API、产品显示策略、dead component 或新增 ARIA 数值进度条。 |
 | WF28：X-2 / runtime env 模板差集 | 较窄 P2 真实，已完成 AST 复枚举、分类修复和 CI 接线 | 实施前 config 包有 184 个字面量运行时键、17 个未进入任一模板；Claude 的 187/21 和本文件早先的 181 都不是准确的 config 包计数。13 个 operator-facing 键进入两个模板，`LOG_SERVICE_VERSION` 删除后当前为 183 个；`AWS_CA_BUNDLE` 与两个 `LOG_*` fallback override 用显式理由保留在 3 项 allowlist。Go AST 测试遍历整个 config 包，要求字面量 key、模板/allowlist 覆盖并拒绝陈旧 allowlist；CI backend filter 同时覆盖两个模板。没有扫描或模板化全仓工具/测试变量，也没有建立一套新配置 schema/generator。 |
 | WF29：P2-9 / Ansible bundle path | 真实 P2，已完成故障机理纠正、真实 controller 修复验证和 CI 门禁 | Ansible Core 2.20.2 源码与 cwd probe 都证明 localhost task 从 playbook basedir 执行，所以旧 `../../ops` 可找到脚本；旧任务真实失败在脚本内部 `git -C` 令相对 output 再换基准。干净 clone 先复现 `git archive` 无法打开输出，再以候选改动真实执行唯一 `deploy-bundle` tag 成功，产物含两个 env 模板。实现只使用 `playbook_dir` 绝对 argv、脚本默认输出、同源 copy src 和无用 facts 禁用；固定 requirements、core-compatible callback、syntax/bundle CI 与窄契约覆盖，不扫描其他 shell task。 |
+| WF30：P2-18 / sensitive-word filter invalidation | 真实 P2，已完成并发失效边界和真实 DB 回归 | 预热后的五分钟 snapshot 原先不会感知管理端 mutation。现在成功 create/update/delete 只把本进程 snapshot 标记 stale，下一检查仍复用既有 detached/singleflight reload；失败 mutation 保留当前快照。额外用 refresh/invalidation mutex 防止在途旧刷新覆盖失效标记，但 DB 查询不持有 matcher lock。PostgreSQL 回归从空快照依次验证新增 block 立即命中、更新后旧词消失/新 warn 生效、删除后消失；closed pool 时返回 moderation unavailable。单副本不接 Redis，多副本要求留在安全文档。 |
 
 ### 本轮交叉验证与尚未验证边界
 
@@ -777,6 +778,14 @@ live rating bar 已完成可达表面的最小修复。优先做一处根因、�
   `.env.example` 与 `.env.prod.example`。窄路径 contract、CI/drift、Actionlint、全部 infra
   contracts 和文档卫生通过；没有连接 staging/production SSH，也没有执行 upload、preflight
   或远端 deploy，因此这些仍是发布验收边界。
+- P2-18 的真实 PostgreSQL 状态序列先显式预热空 filter，再创建 `block` 词并由下一次检查立即
+  拦截；随后同一记录更新为新词和 `warn`，旧词不再命中、新词得到 warn；删除后新词也不再命中。
+  create/update/delete 每一步都断言 snapshot 被标记 stale。缺失 ID 的 update/delete 返回错误且
+  `lastRefresh` 不变；失效后关闭连接池则重载返回 `ErrModerationUnavailable`、结果为 nil、快照
+  仍保持 stale。另一个 race 用例固定 `Invalidate` 必须等待 refresh critical section，防止旧
+  refresh 覆盖失效。评课定向 5 项与全包 race、全服务端 `make test`（`-race -p 1 ./...`）、
+  Casdoor boundary、`golangci-lint`、静态 build 和文档卫生均通过。当前没有多 app replica
+  的受支持 Compose 拓扑，因此没有扩展为 Redis version/pub/sub。
 
 测试通过只说明现有正向契约未被破坏，不能覆盖报告指出的所有负向场景。以下仍需在真正处置时
 单独验收：
@@ -831,6 +840,7 @@ live rating bar 已完成可达表面的最小修复。优先做一处根因、�
 | 反向-RatingBar | 已修复，待发布 | 只修改可达 CourseDetailPage：维度条以定性 `role=img` 名称暴露，视觉层隐藏，复用既有 face bucket，精确 avg 不进入辅助文本。helper/policy 10/10、双视口 Chromium 2/2、全部受控 Web unit 516/516、type-check、ESLint、production build 与 docs 通过 | `fix(web): describe course rating bars qualitatively` |
 | X-2 / I-2 | 已修复，待 CI/发布验收 | 实施前 AST 精确枚举 184 runtime keys / 17 missing；13 个 operator-facing 键补入两模板，删除死 `LOG_SERVICE_VERSION`，3 个兼容 override 留在带理由 allowlist。当前 183 runtime keys 全覆盖；全服务端 race/lint/build、Actionlint、docs、dev/prod env 初始化和全部 infra contracts 通过，模板改动已接入 Backend job | `fix(config): keep runtime env templates complete` |
 | P2-9 | 已修复，待 CI/远端发布验收 | 旧任务在干净 clone 的真实 Ansible Core 2.20.2 中找到脚本后，于相对 output + `git -C` 处稳定失败；候选改动三 playbook syntax 通过，`deploy-bundle` tag 1/1 并生成含两个 env 模板的目标 tar。固定 controller requirements、core-compatible callback、窄路径/CI contract、Actionlint、全部 infra contracts 和 docs 通过；未连接远端 | `fix(deploy): anchor Ansible bundle paths` |
+| P2-18 | 已修复，待发布 | 成功敏感词 mutation 使本地快照 stale，失败 mutation 不失效；refresh/invalidation 串行避免旧查询恢复 freshness，重载失败 fail-closed。真实 PostgreSQL 覆盖 create/update/delete 和依赖失败；评课/全服务端 race、lint/build/docs 通过，单 app 范围与多副本前置要求已写入安全文档 | `fix(review): invalidate sensitive-word snapshots` |
 
 ## Claude 原审计的确认问题分布（保留原始记录）
 
