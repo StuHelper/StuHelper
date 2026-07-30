@@ -354,6 +354,11 @@ assert_contains "${capture_file}" '@sha256:[0-9a-f]{64}$'
 assert_contains "${SYNC_BACKUPS}" 'source "\$\{SCRIPT_DIR\}/lib/rclone-object-storage\.sh"'
 assert_contains "${FETCH_BACKUPS}" 'source "\$\{SCRIPT_DIR\}/lib/rclone-object-storage\.sh"'
 assert_contains "${SYNC_BACKUPS}" 'copy /source'
+assert_contains "${SYNC_BACKUPS}" "--exclude '\\*\\.partial'"
+assert_contains "${SYNC_BACKUPS}" "--exclude '\\*\\.partial\\.\\*'"
+assert_contains "${SYNC_BACKUPS}" "--exclude '\\*\\.tmp'"
+assert_contains "${SYNC_BACKUPS}" "--exclude '\\*\\.tmp\\.\\*'"
+assert_contains "${SYNC_BACKUPS}" 'target:\$\{BACKUP_OBJECT_STORAGE_BUCKET\}/\$\{prefix\}/wal.*\\'
 assert_contains "${FETCH_BACKUPS}" 'copy "target:'
 assert_not_contains "${SYNC_BACKUPS}" '(^|[[:space:]])sync([[:space:]]|$)'
 assert_not_contains "${FETCH_BACKUPS}" '(^|[[:space:]])sync([[:space:]]|$)'

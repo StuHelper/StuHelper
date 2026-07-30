@@ -31,8 +31,11 @@ bash -n "${EVIDENCE_SCRIPT}"
 assert_contains "${EVIDENCE_SCRIPT}" 'fetch-postgres-backups\.sh'
 assert_contains "${EVIDENCE_SCRIPT}" 'POSTGRES_BACKUP_EVIDENCE_FILE'
 assert_contains "${EVIDENCE_SCRIPT}" 'POSTGRES_BACKUP_EVIDENCE_FETCH_COMMAND'
+assert_contains "${EVIDENCE_SCRIPT}" 'POSTGRES_BACKUP_EVIDENCE_MAX_BASE_AGE_SECONDS'
 assert_contains "${EVIDENCE_SCRIPT}" 'stuhelper-postgres-dump-backup\.timer'
 assert_contains "${EVIDENCE_SCRIPT}" 'sha256Verified'
+assert_contains "${EVIDENCE_SCRIPT}" 'localBaseBackup'
+assert_contains "${EVIDENCE_SCRIPT}" 'fetchedBaseBackup'
 assert_contains "${EVIDENCE_SCRIPT}" 'infra/generated/postgres-backup-evidence\.json'
 
 tmpdir="$(mktemp -d)"
@@ -41,26 +44,56 @@ generated_env_file="${tmpdir}/.env.generated"
 generated_secret_env_file="${tmpdir}/.env.generated.secrets"
 generated_obs_dir="${tmpdir}/generated/observability"
 logical_dir="${tmpdir}/local-logical"
+base_dir="${tmpdir}/local-base"
 evidence_file="${tmpdir}/evidence/postgres-backup-evidence.json"
 fake_fetch="${tmpdir}/fake-fetch-postgres-backups"
-mkdir -p "${logical_dir}"
+mkdir -p "${logical_dir}" "${base_dir}"
 
 printf 'local logical backup\n' >"${logical_dir}/predeploy-test.dump"
 sha256sum "${logical_dir}/predeploy-test.dump" >"${logical_dir}/predeploy-test.dump.sha256"
 
+local_base_fixture="${tmpdir}/local-base-fixture"
+mkdir -p "${local_base_fixture}/pg_wal"
+printf '18\n' >"${local_base_fixture}/PG_VERSION"
+printf '{"PostgreSQL-Backup-Manifest-Version": 2}\n' \
+  >"${local_base_fixture}/backup_manifest"
+tar -C "${local_base_fixture}" -czf "${base_dir}/predeploy-test.tar.gz" .
+sha256sum "${base_dir}/predeploy-test.tar.gz" \
+  >"${base_dir}/predeploy-test.tar.gz.sha256"
+
 cat >"${fake_fetch}" <<'FETCH'
 #!/usr/bin/env bash
 set -euo pipefail
-[[ "${1:-}" == "logical" ]]
-mkdir -p "${BACKUP_LOGICAL_DIR}"
-printf 'fetched logical backup\n' >"${BACKUP_LOGICAL_DIR}/fetched-test.dump"
-sha256sum "${BACKUP_LOGICAL_DIR}/fetched-test.dump" >"${BACKUP_LOGICAL_DIR}/fetched-test.dump.sha256"
+
+case "${1:-}" in
+  logical)
+    mkdir -p "${BACKUP_LOGICAL_DIR}"
+    printf 'fetched logical backup\n' >"${BACKUP_LOGICAL_DIR}/fetched-test.dump"
+    sha256sum "${BACKUP_LOGICAL_DIR}/fetched-test.dump" \
+      >"${BACKUP_LOGICAL_DIR}/fetched-test.dump.sha256"
+    ;;
+  base)
+    fixture="${BACKUP_BASE_DIR}/.fixture"
+    mkdir -p "${fixture}/pg_wal"
+    printf '18\n' >"${fixture}/PG_VERSION"
+    printf '{"PostgreSQL-Backup-Manifest-Version": 2}\n' \
+      >"${fixture}/backup_manifest"
+    tar -C "${fixture}" -czf "${BACKUP_BASE_DIR}/fetched-test.tar.gz" .
+    rm -rf "${fixture}"
+    sha256sum "${BACKUP_BASE_DIR}/fetched-test.tar.gz" \
+      >"${BACKUP_BASE_DIR}/fetched-test.tar.gz.sha256"
+    ;;
+  *)
+    exit 31
+    ;;
+esac
 FETCH
 chmod +x "${fake_fetch}"
 
 cat >"${env_file}" <<ENV
 APP_ENV=production
 BACKUP_LOGICAL_DIR=${logical_dir}
+BACKUP_BASE_DIR=${base_dir}
 ENV
 
 output="$(
@@ -75,14 +108,49 @@ output="$(
 )"
 
 [[ -f "${evidence_file}" ]] || fail "backup evidence file was not written"
-printf '%s\n' "${output}" | jq -e '
-  .appEnv == "production"
-  and .timers.checked == false
-  and .localLogicalBackup.file == "predeploy-test.dump"
-  and .localLogicalBackup.sha256Verified == true
-  and .fetchedLogicalBackup.file == "fetched-test.dump"
-  and .fetchedLogicalBackup.sha256Verified == true
-' >/dev/null
-jq -e '.localLogicalBackup and .fetchedLogicalBackup' "${evidence_file}" >/dev/null
+OUTPUT_JSON="${output}" python3 - "${evidence_file}" <<'PY'
+import json
+import os
+import sys
+from pathlib import Path
+
+stdout_bundle = json.loads(os.environ["OUTPUT_JSON"])
+file_bundle = json.loads(Path(sys.argv[1]).read_text())
+assert stdout_bundle == file_bundle
+
+assert file_bundle["appEnv"] == "production"
+assert file_bundle["timers"]["checked"] is False
+assert file_bundle["freshnessPolicySeconds"] == {
+    "logical": 129600,
+    "physicalBase": 691200,
+}
+
+expected = {
+    "localLogicalBackup": ("predeploy-test.dump", False),
+    "fetchedLogicalBackup": ("fetched-test.dump", False),
+    "localBaseBackup": ("predeploy-test.tar.gz", True),
+    "fetchedBaseBackup": ("fetched-test.tar.gz", True),
+}
+for key, (filename, physical) in expected.items():
+    item = file_bundle[key]
+    assert item["file"] == filename
+    assert item["sha256Verified"] is True
+    assert item["fresh"] is True
+    if physical:
+        assert item["archiveReadable"] is True
+PY
+
+touch -d '10 days ago' "${base_dir}/predeploy-test.tar.gz"
+if ENV_FILE="${env_file}" \
+  GENERATED_ENV_FILE="${generated_env_file}" \
+  GENERATED_SECRET_ENV_FILE="${generated_secret_env_file}" \
+  GENERATED_OBS_DIR="${generated_obs_dir}" \
+  POSTGRES_BACKUP_EVIDENCE_SKIP_TIMERS=true \
+  POSTGRES_BACKUP_EVIDENCE_MAX_BASE_AGE_SECONDS=60 \
+  POSTGRES_BACKUP_EVIDENCE_FETCH_COMMAND="${fake_fetch}" \
+  POSTGRES_BACKUP_EVIDENCE_FILE="${tmpdir}/evidence/stale.json" \
+  "${EVIDENCE_SCRIPT}" >/dev/null 2>&1; then
+  fail "stale physical backup must fail evidence generation"
+fi
 
 echo "[postgres-backup-evidence-contract] all assertions passed"

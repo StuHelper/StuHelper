@@ -9,9 +9,10 @@ usage() {
   cat <<'USAGE'
 Usage: infra/ops/postgres-backup-evidence.sh
 
-Verifies that a logical PostgreSQL backup exists locally, can be fetched back
-from object storage, and has a matching SHA256 sidecar. The script writes a
-sanitized JSON evidence bundle.
+Verifies that recent logical and physical PostgreSQL backups exist locally,
+can be fetched back from object storage, and have matching SHA256 sidecars.
+The physical archive must also be readable. The script writes a sanitized JSON
+evidence bundle; it does not replace an isolated restore drill.
 
 Required env is inherited from fetch-postgres-backups.sh.
 
@@ -25,6 +26,10 @@ Optional env:
       true to fail when systemd timers cannot be checked. Defaults to false.
   POSTGRES_BACKUP_EVIDENCE_SKIP_TIMERS
       true to skip timer checks.
+  POSTGRES_BACKUP_EVIDENCE_MAX_LOGICAL_AGE_SECONDS
+      Maximum logical backup age. Defaults to 129600 (36 hours).
+  POSTGRES_BACKUP_EVIDENCE_MAX_BASE_AGE_SECONDS
+      Maximum physical base backup age. Defaults to 691200 (8 days).
 USAGE
 }
 
@@ -35,14 +40,33 @@ fi
 
 require_cmd python3
 require_cmd sha256sum
+require_cmd tar
 
 load_env
 
 evidence_file="${POSTGRES_BACKUP_EVIDENCE_FILE:-${REPO_ROOT}/infra/generated/postgres-backup-evidence.json}"
 fetch_command="${POSTGRES_BACKUP_EVIDENCE_FETCH_COMMAND:-${SCRIPT_DIR}/fetch-postgres-backups.sh}"
 logical_dir="${BACKUP_LOGICAL_DIR:-${REPO_ROOT}/backups/postgres/logical}"
+base_dir="${BACKUP_BASE_DIR:-${REPO_ROOT}/backups/postgres/base}"
 timer_required="${POSTGRES_BACKUP_EVIDENCE_TIMER_REQUIRED:-false}"
 skip_timers="${POSTGRES_BACKUP_EVIDENCE_SKIP_TIMERS:-false}"
+max_logical_age_seconds="${POSTGRES_BACKUP_EVIDENCE_MAX_LOGICAL_AGE_SECONDS:-129600}"
+max_base_age_seconds="${POSTGRES_BACKUP_EVIDENCE_MAX_BASE_AGE_SECONDS:-691200}"
+
+require_positive_seconds() {
+  local key="$1"
+  local value="$2"
+  if [[ ! "${value}" =~ ^[0-9]+$ ]] || ((10#${value} <= 0)); then
+    die "${key} must be a positive integer"
+  fi
+}
+
+require_positive_seconds \
+  POSTGRES_BACKUP_EVIDENCE_MAX_LOGICAL_AGE_SECONDS \
+  "${max_logical_age_seconds}"
+require_positive_seconds \
+  POSTGRES_BACKUP_EVIDENCE_MAX_BASE_AGE_SECONDS \
+  "${max_base_age_seconds}"
 
 resolve_command() {
   local command_path="$1"
@@ -83,6 +107,36 @@ verify_sha256_sidecar() {
   actual="$(sha256_value "${file}")"
   expected="$(expected_sha256_value "${sidecar}")"
   [[ "${actual}" == "${expected}" ]] || die "backup sha256 mismatch for ${file}"
+}
+
+verify_base_archive() {
+  local file="$1"
+  tar -tzf "${file}" >/dev/null ||
+    die "physical base backup archive is unreadable: ${file}"
+}
+
+backup_age_seconds() {
+  local file="$1"
+  python3 - "${file}" <<'PY'
+import sys
+import time
+from pathlib import Path
+
+path = Path(sys.argv[1])
+print(max(0, int(time.time() - path.stat().st_mtime)))
+PY
+}
+
+require_fresh_backup() {
+  local file="$1"
+  local max_age_seconds="$2"
+  local label="$3"
+  local age_seconds
+  age_seconds="$(backup_age_seconds "${file}")"
+  if ((10#${age_seconds} > 10#${max_age_seconds})); then
+    die "${label} is stale: age=${age_seconds}s max=${max_age_seconds}s file=${file}"
+  fi
+  printf '%s\n' "${age_seconds}"
 }
 
 timer_units=(
@@ -147,21 +201,39 @@ PY
 
 backup_summary_json() {
   local file="$1"
+  local age_seconds="$2"
+  local max_age_seconds="$3"
+  local archive_readable="$4"
   local sha
   sha="$(sha256_value "${file}")"
-  python3 - "${file}" "${sha}" <<'PY'
+  python3 - \
+    "${file}" \
+    "${sha}" \
+    "${age_seconds}" \
+    "${max_age_seconds}" \
+    "${archive_readable}" <<'PY'
+from datetime import datetime, timezone
 import json
-import os
 import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-print(json.dumps({
+result = {
     "file": path.name,
     "sizeBytes": path.stat().st_size,
     "sha256": sys.argv[2],
     "sha256Verified": True,
-}, separators=(",", ":")))
+    "modifiedAt": datetime.fromtimestamp(
+        path.stat().st_mtime,
+        timezone.utc,
+    ).isoformat().replace("+00:00", "Z"),
+    "ageSeconds": int(sys.argv[3]),
+    "maxAgeSeconds": int(sys.argv[4]),
+    "fresh": int(sys.argv[3]) <= int(sys.argv[4]),
+}
+if sys.argv[5] == "true":
+    result["archiveReadable"] = True
+print(json.dumps(result, separators=(",", ":")))
 PY
 }
 
@@ -170,7 +242,38 @@ check_timers
 local_latest="$(latest_file "${logical_dir}" '*.dump')"
 [[ -n "${local_latest}" ]] || die "no local logical PostgreSQL backup was found in ${logical_dir}"
 verify_sha256_sidecar "${local_latest}"
-local_backup_json="$(backup_summary_json "${local_latest}")"
+local_logical_age="$(
+  require_fresh_backup \
+    "${local_latest}" \
+    "${max_logical_age_seconds}" \
+    "local logical PostgreSQL backup"
+)"
+local_backup_json="$(
+  backup_summary_json \
+    "${local_latest}" \
+    "${local_logical_age}" \
+    "${max_logical_age_seconds}" \
+    false
+)"
+
+local_base_latest="$(latest_file "${base_dir}" '*.tar.gz')"
+[[ -n "${local_base_latest}" ]] ||
+  die "no local physical PostgreSQL base backup was found in ${base_dir}"
+verify_sha256_sidecar "${local_base_latest}"
+verify_base_archive "${local_base_latest}"
+local_base_age="$(
+  require_fresh_backup \
+    "${local_base_latest}" \
+    "${max_base_age_seconds}" \
+    "local physical PostgreSQL base backup"
+)"
+local_base_backup_json="$(
+  backup_summary_json \
+    "${local_base_latest}" \
+    "${local_base_age}" \
+    "${max_base_age_seconds}" \
+    true
+)"
 
 fetch_command_path="$(resolve_command "${fetch_command}")" || die "fetch command was not found or is not executable: ${fetch_command}"
 fetch_root="$(mktemp -d)"
@@ -184,17 +287,61 @@ BACKUP_BASE_DIR="${fetch_root}/base" \
 POSTGRES_WAL_RESTORE_DIR="${fetch_root}/wal" \
   "${fetch_command_path}" logical
 
+log "fetching physical PostgreSQL base backup artifacts from object storage" >&2
+BACKUP_LOGICAL_DIR="${fetched_logical_dir}" \
+BACKUP_BASE_DIR="${fetch_root}/base" \
+POSTGRES_WAL_RESTORE_DIR="${fetch_root}/wal" \
+  "${fetch_command_path}" base
+
 fetched_latest="$(latest_file "${fetched_logical_dir}" '*.dump')"
 [[ -n "${fetched_latest}" ]] || die "no fetched logical PostgreSQL backup was found in ${fetched_logical_dir}"
 verify_sha256_sidecar "${fetched_latest}"
-fetched_backup_json="$(backup_summary_json "${fetched_latest}")"
+fetched_logical_age="$(
+  require_fresh_backup \
+    "${fetched_latest}" \
+    "${max_logical_age_seconds}" \
+    "fetched logical PostgreSQL backup"
+)"
+fetched_backup_json="$(
+  backup_summary_json \
+    "${fetched_latest}" \
+    "${fetched_logical_age}" \
+    "${max_logical_age_seconds}" \
+    false
+)"
+
+fetched_base_latest="$(latest_file "${fetch_root}/base" '*.tar.gz')"
+[[ -n "${fetched_base_latest}" ]] ||
+  die "no fetched physical PostgreSQL base backup was found in ${fetch_root}/base"
+verify_sha256_sidecar "${fetched_base_latest}"
+verify_base_archive "${fetched_base_latest}"
+fetched_base_age="$(
+  require_fresh_backup \
+    "${fetched_base_latest}" \
+    "${max_base_age_seconds}" \
+    "fetched physical PostgreSQL base backup"
+)"
+fetched_base_backup_json="$(
+  backup_summary_json \
+    "${fetched_base_latest}" \
+    "${fetched_base_age}" \
+    "${max_base_age_seconds}" \
+    true
+)"
 
 generated_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 bundle="$(
   TIMER_JSON="${timer_json}" \
   LOCAL_BACKUP_JSON="${local_backup_json}" \
   FETCHED_BACKUP_JSON="${fetched_backup_json}" \
-  python3 - "${generated_at}" "${APP_ENV:-}" "${timer_checked}" <<'PY'
+  LOCAL_BASE_BACKUP_JSON="${local_base_backup_json}" \
+  FETCHED_BASE_BACKUP_JSON="${fetched_base_backup_json}" \
+  python3 - \
+    "${generated_at}" \
+    "${APP_ENV:-}" \
+    "${timer_checked}" \
+    "${max_logical_age_seconds}" \
+    "${max_base_age_seconds}" <<'PY'
 import json
 import os
 import sys
@@ -206,8 +353,14 @@ bundle = {
         "checked": sys.argv[3] == "true",
         "units": json.loads(os.environ["TIMER_JSON"]),
     },
+    "freshnessPolicySeconds": {
+        "logical": int(sys.argv[4]),
+        "physicalBase": int(sys.argv[5]),
+    },
     "localLogicalBackup": json.loads(os.environ["LOCAL_BACKUP_JSON"]),
     "fetchedLogicalBackup": json.loads(os.environ["FETCHED_BACKUP_JSON"]),
+    "localBaseBackup": json.loads(os.environ["LOCAL_BASE_BACKUP_JSON"]),
+    "fetchedBaseBackup": json.loads(os.environ["FETCHED_BASE_BACKUP_JSON"]),
 }
 print(json.dumps(bundle, ensure_ascii=True, indent=2))
 PY

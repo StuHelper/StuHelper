@@ -26,7 +26,13 @@ if [[ ! -f "$backup_file" ]]; then
 fi
 
 if [[ -f "$backup_file.sha256" ]]; then
-  sha256sum -c "$backup_file.sha256"
+  expected_sha256="$(awk 'NR == 1 { print $1 }' "${backup_file}.sha256")"
+  actual_sha256="$(sha256sum "${backup_file}" | awk '{ print $1 }')"
+  if [[ ! "${expected_sha256}" =~ ^[0-9a-fA-F]{64}$ ||
+        "${actual_sha256}" != "${expected_sha256,,}" ]]; then
+    echo "ERROR: logical backup SHA256 verification failed: ${backup_file}" >&2
+    exit 1
+  fi
 fi
 
 echo "[restore] restoring PostgreSQL from $backup_file"

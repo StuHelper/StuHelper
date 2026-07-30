@@ -5,6 +5,7 @@ DEPLOY_USER="${DEPLOY_USER:-stuhelper}"
 DEPLOY_GROUP="${DEPLOY_GROUP:-${DEPLOY_USER}}"
 DEPLOY_APP_DIR="${DEPLOY_APP_DIR:-/opt/stuhelper}"
 SYSTEMD_PREFIX="${SYSTEMD_PREFIX:-stuhelper}"
+BACKUP_STAGING_DIR="${BACKUP_STAGING_DIR:-/var/lib/stuhelper/postgres/backup-staging}"
 
 dump_service="/etc/systemd/system/${SYSTEMD_PREFIX}-postgres-dump-backup.service"
 dump_timer="/etc/systemd/system/${SYSTEMD_PREFIX}-postgres-dump-backup.timer"
@@ -25,6 +26,7 @@ main() {
 
   install -d -o "${DEPLOY_USER}" -g "${DEPLOY_GROUP}" -m 0755 "${DEPLOY_APP_DIR}/backups/postgres/logical"
   install -d -o "${DEPLOY_USER}" -g "${DEPLOY_GROUP}" -m 0755 "${DEPLOY_APP_DIR}/backups/postgres/base"
+  install -d -o "${DEPLOY_USER}" -g "${DEPLOY_GROUP}" -m 0700 "${BACKUP_STAGING_DIR}"
   install -d -o "${DEPLOY_USER}" -g "${DEPLOY_GROUP}" -m 0755 "/var/lib/stuhelper/postgres/wal-restore"
 
   cat >"${dump_service}" <<EOF
@@ -42,6 +44,7 @@ Environment=ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.shared
 Environment=SECRETS_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.secrets
 Environment=GENERATED_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.generated
 Environment=GENERATED_SECRET_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.generated.secrets
+Environment=BACKUP_STAGING_DIR=${BACKUP_STAGING_DIR}
 ExecStart=/bin/bash -lc 'cd "${DEPLOY_APP_DIR}" && ./infra/ops/run-scheduled-backup.sh dump'
 EOF
 
@@ -72,6 +75,7 @@ Environment=ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.shared
 Environment=SECRETS_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.secrets
 Environment=GENERATED_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.generated
 Environment=GENERATED_SECRET_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.generated.secrets
+Environment=BACKUP_STAGING_DIR=${BACKUP_STAGING_DIR}
 ExecStart=/bin/bash -lc 'cd "${DEPLOY_APP_DIR}" && ./infra/ops/run-scheduled-backup.sh basebackup'
 EOF
 

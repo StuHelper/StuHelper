@@ -234,8 +234,10 @@ curl -fsS -o /dev/null -w 'ready=%{http_code}\n' http://127.0.0.1:18080/health/r
 失败诊断只输出 claim 名称、nonce 校验布尔值和 OpenFGA 布尔断言等白名单字段，不输出 raw token、
 client secret 或 probe 密码。
 
-`postgres-backup-evidence.sh` 会验证本地最近逻辑备份和从对象存储取回的逻辑备份都带有效
-`.sha256` sidecar，并写入 `infra/generated/postgres-backup-evidence.json`。
+`postgres-backup-evidence.sh` 会验证本地与从对象存储取回的最近逻辑备份、物理 base backup
+均带有效 `.sha256` sidecar且未超过新鲜度阈值，物理压缩包还必须可完整遍历；结果写入
+`infra/generated/postgres-backup-evidence.json`。这份 evidence 不替代隔离恢复启动和 WAL
+连续性/PITR 演练，未执行后两者时不得宣称生产 PITR 已验收。
 
 `OBS_SMOKE_STRICT=true ./infra/ops/observability-smoke-check.sh` 会写入
 `infra/generated/observability-smoke-evidence.json`，证明 Prometheus targets、数据库 exporter
