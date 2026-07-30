@@ -42,47 +42,60 @@ test('buildAdmissionRuntimeModel exposes admission runtime metrics and switch st
   assert.deepEqual(model.activeMembers[0].availableActions, ['query', 'resend'])
 })
 
+test('buildAdmissionRuntimeModel hides bot-wide controls from guild-scoped page data', () => {
+  const data = createAdmissionRuntimeFixture()
+  data.globalRuntime = null
+
+  const model = buildAdmissionRuntimeModel(data)
+
+  assert.deepEqual(model.switchRows, [])
+  assert.equal(model.metrics[0].value, 2)
+  assert.deepEqual(model.activeMembers.map((member) => member.memberId), ['2001', '2002'])
+})
+
 function createAdmissionRuntimeFixture(): AdmissionRuntimePageData {
   return {
     generatedAt: '2026-06-04T08:00:00.000Z',
-    platform: {
-      baseUrl: 'https://stuhelper.com',
-      serviceTokenConfigured: true,
+    globalRuntime: {
+      platform: {
+        baseUrl: 'https://stuhelper.com',
+        serviceTokenConfigured: true,
+      },
+      scheduler: {
+        fallbackScanEnabled: true,
+        scanIntervalSeconds: 300,
+      },
+      actionStream: {
+        enabled: true,
+        reconnectDelaySeconds: 5,
+      },
+      commands: {
+        publicCommandsRegistered: true,
+        publicCommandsEnabled: false,
+        adminCommandsRegistered: true,
+        adminCommandsEnabled: true,
+        admissionCommandsRegistered: true,
+        admissionCommandsEnabled: true,
+      },
+      moderation: {
+        enabled: false,
+        keywordRuleCount: 0,
+        repeatThreshold: 3,
+        repeatWindowSize: 3,
+        antiRecallNotify: false,
+      },
+      freshmanForward: {
+        enabled: false,
+      },
+      reminderDelivery: {
+        groupEnabled: true,
+        directEnabled: false,
+      },
+      timeCode: {
+        reminderEnabled: true,
+      },
+      bots: [{ platform: 'onebot', selfId: '2118785781', status: 'online' }],
     },
-    scheduler: {
-      fallbackScanEnabled: true,
-      scanIntervalSeconds: 300,
-    },
-    actionStream: {
-      enabled: true,
-      reconnectDelaySeconds: 5,
-    },
-    commands: {
-      publicCommandsRegistered: true,
-      publicCommandsEnabled: false,
-      adminCommandsRegistered: true,
-      adminCommandsEnabled: true,
-      admissionCommandsRegistered: true,
-      admissionCommandsEnabled: true,
-    },
-    moderation: {
-      enabled: false,
-      keywordRuleCount: 0,
-      repeatThreshold: 3,
-      repeatWindowSize: 3,
-      antiRecallNotify: false,
-    },
-    freshmanForward: {
-      enabled: false,
-    },
-    reminderDelivery: {
-      groupEnabled: true,
-      directEnabled: false,
-    },
-    timeCode: {
-      reminderEnabled: true,
-    },
-    bots: [{ platform: 'onebot', selfId: '2118785781', status: 'online' }],
     stats: {
       templateCount: 1,
       bindingCount: 2,

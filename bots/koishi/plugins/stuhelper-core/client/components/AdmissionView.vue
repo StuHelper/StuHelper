@@ -71,7 +71,7 @@
         </article>
       </section>
 
-      <div class="sh-split sh-split--7-5">
+      <div v-if="data.globalRuntime" class="sh-split sh-split--7-5">
         <WorkspaceSection
           title="运行开关"
           description="来自 stuhelper-group-guard 当前实例的实际配置。"
@@ -111,15 +111,15 @@
         >
           <dl class="sh-keylist">
             <dt>平台 API</dt>
-            <dd class="sh-mono">{{ data.platform.baseUrl || '未配置' }}</dd>
+            <dd class="sh-mono">{{ data.globalRuntime.platform.baseUrl || '未配置' }}</dd>
             <dt>服务凭据</dt>
-            <dd>{{ data.platform.serviceTokenConfigured ? '已配置' : '未配置' }}</dd>
+            <dd>{{ data.globalRuntime.platform.serviceTokenConfigured ? '已配置' : '未配置' }}</dd>
             <dt>Bot</dt>
             <dd>
-              <span v-if="data.bots.length === 0">未连接</span>
+              <span v-if="data.globalRuntime.bots.length === 0">未连接</span>
               <template v-else>
                 <span
-                  v-for="bot in data.bots"
+                  v-for="bot in data.globalRuntime.bots"
                   :key="`${bot.platform}:${bot.selfId}`"
                   class="sh-inline-chip sh-mono"
                 >
@@ -130,6 +130,15 @@
           </dl>
         </WorkspaceSection>
       </div>
+      <WorkspaceSection
+        v-else
+        title="全局运行配置"
+        description="仅全局 Console 管理员可查看和修改运行开关、平台地址与 Bot 实例。"
+      >
+        <p class="sh-field__hint">
+          当前账号仅显示可管理群的同步目标、模板、统计与受限成员队列。
+        </p>
+      </WorkspaceSection>
 
       <div class="sh-split sh-split--1-1">
         <WorkspaceSection
