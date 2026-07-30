@@ -473,6 +473,33 @@
 }
 
 /* Utility classes */
+.app-shell-skip-link {
+  position: fixed;
+  top: max(8px, env(safe-area-inset-top));
+  left: max(8px, env(safe-area-inset-left));
+  z-index: var(--z-tooltip);
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--color-bg-card);
+  color: var(--color-text-primary);
+  font-size: 0.875rem;
+  font-weight: 700;
+  box-shadow: var(--shadow-lg);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(calc(-100% - 24px));
+  transition:
+    opacity var(--duration-fast) var(--ease-smooth),
+    transform var(--duration-fast) var(--ease-smooth);
+}
+
+.app-shell-skip-link:focus-visible {
+  color: var(--color-text-primary);
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
 .app-shell-main {
   min-height: 100dvh;
   padding-bottom: max(24px, env(safe-area-inset-bottom));

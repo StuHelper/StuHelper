@@ -93,6 +93,21 @@ test.describe('WCAG A/AA browser baseline', () => {
     await mockPublicShell(page)
   })
 
+  test('keyboard users can bypass the application header', async ({ page }) => {
+    await page.goto('/')
+    await page.waitForLoadState('networkidle')
+
+    const skipLink = page.locator('.app-shell-skip-link')
+    const mainContent = page.locator('#main-content')
+
+    await page.keyboard.press('Tab')
+    await expect(skipLink).toBeFocused()
+    await expect(skipLink).toBeVisible()
+
+    await page.keyboard.press('Enter')
+    await expect(mainContent).toBeFocused()
+  })
+
   for (const scenario of [
     { name: 'home', path: '/' },
     { name: 'about', path: '/about' },

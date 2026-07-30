@@ -7,6 +7,7 @@ export default {
   tagline: 'Campus learning portal',
   identityTagline: 'Account, verification, and Open Platform',
   primary: 'Primary navigation',
+  skipToContent: 'Skip to main content',
   menu: 'Menu',
   home: 'Home',
   review: 'Reviews',

@@ -432,7 +432,7 @@ Claude 新生成的 `AUDIT-REPORT.md` 是一份新的汇总快照，不是对本
 | 34 | 确认，已完成本地修复、真实 Chromium 复现与生命周期回归 | P2 | 每个实际执行的 resize rAF 回调原先会丢弃当前 50 个粒子引用并新建 50 个 `repeat:-1` GSAP tween；同帧 resize 已合并，原报告按每个 event/帧推算的数量不是实测。Chromium 探针确认旧 tween 在离开首页后仍被 global timeline 强引用并继续推进。现在 `createParticles` 在丢弃数组前精确 `killTweensOf` 当前批次；回归固定 resize 合并、旧批先 kill、新批重建和卸载清理。没有增加 animation manager、坐标 clamp、Worker、ResizeObserver 或 Tween handle registry。 |
 | 35 | 确认，已完成本地修复与删除边界回归 | P2（偏低） | `/user/reviews` 的 own-review 垃圾桶原先首击即发送 DELETE；后端是 soft delete，正文仍在库中，但用户和管理员都没有受支持的 restore 路径，且用户可重新发布造成旧状态恢复语义复杂。现在 `ReviewCard` 使用局部两阶段确认：首击/取消零请求，出现时聚焦取消、取消后恢复垃圾桶焦点，确认后才删除；composable 在同步置位后 fail-fast 保持 single-flight。内联块使用非模态 `role=group`，没有伪装成缺 focus trap 的 `alertdialog`。未新增 undelete API、migration、延时队列、undo、服务端 `confirm=true` 或全站确认框架。 |
 | 36 | 确认，已完成本地修复、脱敏边界与退化路径回归 | P2 | `ErrorBoundary` 阻止异常继续传播，production 原先又不输出或上报，现有 frontend error telemetry 因而收不到组件错误。现在复用既有 `/api/v1/metrics/frontend-errors`，只新增固定枚举 `vue-error`；边界内异常由 `ErrorBoundary` 计数，边界外异常由 Vue 全局 handler 计数，前者继续返回 `false`，不会重复上报。组件异常只发送 `{"kind":"vue-error"}`，后端仍只读有限 `kind` 并增加 Prometheus counter，不存储 message、stack、props 或用户输入；未初始化 observability 的受限/E2E host 直接 no-op，transport 抛错也被隔离。没有新增第二个 endpoint、错误存储、全局 error bus 或 Sentry 类平台。 |
-| 37 | 确认 | P2 | AppShell 没有 skip-to-content，违反 WCAG 2.4.1 A 的 bypass blocks 要求。增加 skip link、稳定的 `main` id 和焦点样式；原文“所有页恰好 11 个 tab stop”不是成立所必需，也不应硬编码。 |
+| 37 | 确认，已完成本地修复与双视口真实键盘回归 | P2 | AppShell 原先没有 skip-to-content，键盘用户必须逐项穿过固定导航。现在 DOM 第一个键盘停靠点是本地化的原生 `<a href="#main-content">`；目标为唯一稳定的 `main#main-content[tabindex="-1"]`，链接只在 `:focus-visible` 时出现在 header 之上，并处理顶部/左侧 safe area 与 reduced-motion。桌面和移动 Chromium 都验证首次 Tab 聚焦且显示链接、Enter 后焦点进入 main；同文件 Axe A/AA 基线保持全绿。原文“所有页恰好 11 个 tab stop”不是成立所必需，也未硬编码。没有增加 JS focus manager、路由 hook 或在每个业务页复制锚点。 |
 | 38 | 确认，已完成本地修复与跨作用域回归验证 | P2 | toast 状态是全局的，但组件卸载 cleanup 原先只取消 timer、不移除全局 toast，能留下永久提示。现在删除错误的组件作用域 timer cleanup，让现有模块级 timer 在页面卸载后仍按原 duration 关闭；显式 `remove`/`clearAll` 继续同步取消 timer。没有把已有模块级状态重写成新 store/singleton，也没有在卸载时立即删掉用户尚未看见的成功提示。 |
 | 39 | 确认，已完成本地修复与回归验证 | P2 | projection polling 原先遇到一次瞬时 `/auth/me` 失败即终止，且 `fetchUser` 会把任意非网络 ApiError（包括 5xx/403）当成登出并清空用户，最终把已验证用户送进不可恢复错误页。现在 `fetchUser` 只在 HTTP 401 明确拒绝会话时清本地身份，页面同时切换登录态；403、5xx、网络、超时和未知 refresh 错误保留当前用户并继续消耗既有 1/2/4/8/16 秒有限预算，耗尽后仍停在 `projectionPending` 且可手动重试。Abort 立即终止，capability predicate 的程序错误不被重试层吞掉。没有把 403 宽泛当作失效会话，也没有新增重试框架、无限轮询或放宽服务端授权。 |
 | 40 | 部分确认 | P3 | SearchPage 确实忽略 `ReviewCard` emits，但当前可达的是 `moderated`；deleted/updated 控件并未启用。只接线 moderation 后 refetch/局部更新，避免为不可达事件建设通用同步总线。 |
@@ -550,11 +550,11 @@ fail-closed 语义和撤权测试，再做局部实现。
 1. #45 path credential 日志脱敏（已完成本地修复），#51 refresh reuse 误判（已完成本地修复），#57 scoped grant 的 public-content 边界（已完成本地修复）。
 2. #39 projection polling（已完成本地修复）、#43 breaker cancellation（已完成本地修复）、U-2 JWKS 缓存策略（已完成代码与守卫文档修复；用户架构稿旧段待收敛）。
 3. #5 的 H5 资产产物契约（已完成本地修复）；mp-weixin 假绿另做“实现真实平台 build 或明确不支持”的产品决策。
-4. #6、#7、#8、#28、#30、#34、#35、#36、#38、#42（均已完成本地修复）等会让用户状态错误、流程卡死、异常不可见或操作结果不可信的问题。
+4. #6、#7、#8、#28、#30、#34、#35、#36、#37、#38、#42（均已完成本地修复）等会让用户状态错误、流程卡死、异常不可见、键盘流程受阻或操作结果不可信的问题。
 
 #### 第三批：局部 UX、可访问性、契约和文档
 
-#33、#37、#40/#41、#58、#66、#68 至 #78，以及反向复核中重新进入待办的 live rating
+#33、#40/#41、#58、#66、#68 至 #78，以及反向复核中重新进入待办的 live rating
 bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复；不先建设动画框架、全局事件总线、
 通用 OAuth 调度器、动态 OIDC discovery 平台或文档全量 parser。
 
@@ -589,6 +589,7 @@ bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复
 | WF22：#38 | 真实 P2，已完成最小修复与组件卸载交叉验证 | Toast 列表、timer map 与 ID 本来就是模块级状态，唯一错误是创建组件销毁时取消 timer 却保留列表项。删除该 dispose hook 后，timer 闭包仍安全调用既有 `remove`；永久 Node 回归用 `effectScope.stop()` 固定跨作用域自动关闭，Claude 的 jsdom mount/unmount 探针也转为通过。无需把函数整体提升重写成第二套 singleton/store，也不能在卸载时立即移除提示。 |
 | WF23：#42 | 部分真实 P2，已完成最小页面状态修复与失败重试验证 | `/auth/me` 的账号/邮箱与三条 verification 状态请求不是同一事实来源；只保护 phone、QQ、实名、学籍和相关披露字段。页面本地状态在 ready 前隐藏未知负面结论，pending 显示轻量 loading，失败保留可靠字段并提供 single-flight 重试。无需修改共享 store 数据模型、添加全局 error bus，或在一次子请求失败后清空已有 store 投影。 |
 | WF24：#36 | 真实 P2，已完成既有 telemetry 的最小扩展与隐私边界回归 | `ErrorBoundary` 返回 `false` 后异常不会进入 Vue 全局 handler，所以必须在边界本身调用 reporter；没有边界的组件异常继续由全局 handler 兜底。两处只传固定 `vue-error`，后端沿用现有有限 label counter，不接收为诊断而扩建的 stack/props 存储。reporter 只在既有 bootstrap 明确初始化后生效并吞掉 transport 自身异常；无需第二个 API、错误数据库、全局事件总线或第三方采集平台。 |
+| WF25：#37 | 真实 P2，已完成 AppShell 级最小修复与真实键盘回归 | 按最新 Web Interface Guidelines 复核后，缺口限定为 shell 的 bypass block；skip link 使用原生 anchor 和 fragment，不用 click handler 模拟导航，`main` 只增加稳定 id 与 `tabindex=-1`。样式沿用现有 token、全局 focus-visible 和 reduced-motion，z-index 高于 sticky header。桌面/移动 Chromium 实测首个 Tab 可见、Enter 后 main 获得焦点；无需在各页面复制链接或构建 focus manager。 |
 
 ### 本轮交叉验证与尚未验证边界
 
@@ -734,6 +735,13 @@ bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复
   type-check、production build、metrics race、app、Go lint、spec lint 与文档卫生均通过。
   package 默认 lint 唯一失败来自用户未跟踪的 `zzProbeAdminEditDialog.test.ts` 未使用 import，
   未修改、未计入本项门禁。
+- #37 在 desktop/mobile Chromium 各执行完整 accessibility 文件 7 项，共 14/14：新增用例
+  证明 skip link 是首个 Tab 目标、获得焦点时可见、Enter 后 `main#main-content` 获得焦点；
+  home/about/privacy/terms/404 及 dark home 的 Axe WCAG A/AA 基线仍无可检测违规。全部 82 个
+  受控 Web unit 文件 514/514、type-check、333 个受控 lint 输入（仅 3 个既有 CSS ignore
+  warning）、production build 与文档卫生通过。首次 Playwright 命令使用了仓库不存在的
+  `chromium` project，未启动测试；随后按真实 `desktop-chromium`/`mobile-chromium`
+  完整重跑并通过，未将工具参数错误混作产品失败。
 
 测试通过只说明现有正向契约未被破坏，不能覆盖报告指出的所有负向场景。以下仍需在真正处置时
 单独验收：
@@ -781,6 +789,7 @@ bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复
 | 34 | 已修复，待发布 | `createParticles` 在覆盖 target 数组前 kill 当前 GSAP tweens，保留既有 resize rAF 合并和卸载清理。真实 Chromium 前后对照、永久生命周期回归 1/1、全部已跟踪 Web unit 508/508、type-check、ESLint、production build 与 docs 通过 | `fix(web): release particle tweens before rebuild` |
 | 35 | 已修复，待发布；仍无 restore/undo 产品能力 | own-review 删除改为局部两阶段确认并管理键盘焦点；取消零请求，确认后唯一 DELETE，composable 程序级 single-flight。组件/边界回归 3/3、全部已跟踪 Web unit 511/511、type-check、ESLint、production build 与 docs 通过 | `fix(review): confirm own-review deletion` |
 | 36 | 已修复，待发布；生产 dashboard/告警消费仍待验收 | `ErrorBoundary` 与 Vue 全局 handler 复用既有 kind-only telemetry，固定 `vue-error` label；未初始化时 no-op，transport failure 被隔离，后端不存原始异常。组件/transport/基数负向回归、全部受控 Web unit 514/514、type-check、ESLint、production build、metrics race、app、Go lint、spec/generate stability 与 docs 通过 | `fix(web): report captured Vue component errors` |
+| 37 | 已修复，待发布 | AppShell 首个键盘停靠点增加本地化原生 skip link，唯一 main target 可聚焦；链接 focus-visible 时位于 fixed header 之上并遵守 safe-area/reduced-motion。双视口真实键盘与 Axe 14/14、全部受控 Web unit 514/514、type-check、ESLint、production build 与 docs 通过 | `fix(web): let keyboard users skip application navigation` |
 
 ## Claude 原审计的确认问题分布（保留原始记录）
 

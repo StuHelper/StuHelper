@@ -7,6 +7,7 @@ export default {
   tagline: '校园学习入口',
   identityTagline: '账号、认证与开放平台',
   primary: '主导航',
+  skipToContent: '跳到主要内容',
   menu: '菜单',
   home: '首页',
   review: '评课',
