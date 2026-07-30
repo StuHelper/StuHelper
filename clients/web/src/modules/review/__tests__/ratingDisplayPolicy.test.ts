@@ -46,4 +46,12 @@ describe('review community rating display policy', () => {
     expect(policySources.teacherProfilePage).toContain('<EmojiRating :value="point.avgRating"')
     expect(policySources.teacherProfilePage).not.toContain('formatRating(')
   })
+
+  it('gives live course rating bars qualitative accessible names', () => {
+    expect(policySources.courseDetailPage).toContain('role="img"')
+    expect(policySources.courseDetailPage).toContain(
+      ':aria-label="dimensionRatingBarAriaLabel(dim)"',
+    )
+    expect(policySources.courseDetailPage).toContain('aria-hidden="true"')
+  })
 })

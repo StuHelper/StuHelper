@@ -474,7 +474,7 @@ Claude 的两条 `/admin/stats` 记录是同一位置、同一 middleware 顺序
 | 非法 FGA section 让该用户请求 503 | **部分重新确认，已完成本地修复、告警接线与回归验证** | P2 | 非法/陈旧的手工 tuple 原先会毒化持有对应 scoped role 的那个用户，不是“所有用户”。现在逐项过滤无法按 review-moderation codec 解析的 section：无效 grant 不生成 capability，合法 grant 继续工作，只有无效 grant 时得到零 scoped grant；真正的 OpenFGA 查询错误仍返回 503。每项无效 grant 增加无 label 的 `iam_invalid_role_scope_total` 并记录内部 FGA user、固定 role 与 section ID warning；Prometheus 告警要求人工 reconcile。运行时没有在尚未确定 scoped provisioning 权威来源时擅自删除 tuple。 |
 | section school 从 synthetic ID 解析 | 维持证伪 | 不立项 | 应用从同一 schoolID 同时生成 section ID 与 tuple，原报告所述不一致无法由当前写路径产生。可在 provisioning/reconcile 时做完整性检查，不应在每次请求额外读 tuple。 |
 | GetAdminStats 无 school scope/cache key | 维持证伪 | 不立项 | route 只允许 global dashboard grant，全局聚合和 scope-free cache 与授权语义一致。 |
-| RatingBar 无无障碍文本 | **部分重新确认，纠正位置** | P2 | 被引用的 `RatingBar/DimensionBars` 是 dead code，但真实 `CourseDetailPage` 中的可视化 bars 同样只靠宽度/颜色传递定性信息。给 live surface 增加定性 `aria-label`/`role=img` 并隐藏纯视觉层；产品测试明确不展示精确评分，不应借无障碍修复泄露精确数值。 |
+| RatingBar 无无障碍文本 | **部分重新确认，纠正位置并已完成 live surface 修复/浏览器验证** | P2 | 被引用的 `RatingBar/DimensionBars` 是 dead code，但真实 `CourseDetailPage` 中的可视化 bars 原先同样只靠宽度/颜色传递信息。现在每个可达维度行是具名 `role=img`，名称由“本地化维度 + 既有五级 face 定性文案”组成，纯视觉 bar/dot 对辅助技术隐藏；没有把原始 `avgRating` 写入 aria/title/隐藏文本。桌面/移动 Chromium 对 4.6 的样例只读出“教学质量：超赞”，页面仍无精确数值。未修改 dead component，也未新增第二套阈值。 |
 | OtpCodeInput 非数字残留 | 维持证伪 | 不立项 | Vue 会强制同步 input `value`，且组件当前无生产使用。可补测试，不按运行时故障改。 |
 | admission hostname 不可配置 | 维持证伪 | 不立项 | 固定 join domain 是文档与 smoke test 锁定的安全/部署契约；改成任意 env host 反而会破坏负向隔离。 |
 | “继续入群认证”未强制 reauth | 维持证伪 | 不立项 | wrong-account 会被服务端拒绝，页面已有 switch-account；每次强制登录会回归正常续办。可增加更显眼的切换账号入口。 |
@@ -554,8 +554,8 @@ fail-closed 语义和撤权测试，再做局部实现。
 
 #### 第三批：局部 UX、可访问性、契约和文档
 
-#33、#40/#41、#58、#66、#68 至 #78，以及反向复核中重新进入待办的 live rating
-bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复；不先建设动画框架、全局事件总线、
+#33、#40/#41、#58、#66、#68 至 #78，以及反向复核中重新进入待办的 issuer fallback。
+live rating bar 已完成可达表面的最小修复。优先做一处根因、一组回归测试的窄修复；不先建设动画框架、全局事件总线、
 通用 OAuth 调度器、动态 OIDC discovery 平台或文档全量 parser。
 
 ### 并行实现级深挖复核记录
@@ -591,6 +591,7 @@ bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复
 | WF24：#36 | 真实 P2，已完成既有 telemetry 的最小扩展与隐私边界回归 | `ErrorBoundary` 返回 `false` 后异常不会进入 Vue 全局 handler，所以必须在边界本身调用 reporter；没有边界的组件异常继续由全局 handler 兜底。两处只传固定 `vue-error`，后端沿用现有有限 label counter，不接收为诊断而扩建的 stack/props 存储。reporter 只在既有 bootstrap 明确初始化后生效并吞掉 transport 自身异常；无需第二个 API、错误数据库、全局事件总线或第三方采集平台。 |
 | WF25：#37 | 真实 P2，已完成 AppShell 级最小修复与真实键盘回归 | 按最新 Web Interface Guidelines 复核后，缺口限定为 shell 的 bypass block；skip link 使用原生 anchor 和 fragment，不用 click handler 模拟导航，`main` 只增加稳定 id 与 `tabindex=-1`。样式沿用现有 token、全局 focus-visible 和 reduced-motion，z-index 高于 sticky header。桌面/移动 Chromium 实测首个 Tab 可见、Enter 后 main 获得焦点；无需在各页面复制链接或构建 focus manager。 |
 | WF26：反向复核 / 非法 FGA section | 部分真实 P2，已完成单 grant 隔离、可观测性与失败关闭回归 | `ListObjects` 成功返回的每个 section ID 独立经过既有 codec；解析失败项不再把 resolver 整体变成 dependency error，但也绝不进入 `orgScopedRoles`。混合列表保留合法 scope，纯无效列表展开为零 capability；OpenFGA transport/server error 在过滤前返回，继续映射 503。无效项用无 label counter 控制基数、结构化 warning 定位，并由告警要求人工 reconcile；由于 #11 的权威来源尚未决定，读路径不自动删除 tuple。 |
+| WF27：反向复核 / live rating bar | 部分真实 P2，已完成可达表面的定性可访问名称与双视口回归 | Claude 引用的通用 RatingBar 是 dead code，不能靠修改它关闭问题；真实 CourseDetailPage 的维度条改为一个具名图像语义，复用 `normalizeRatingLevel` 和现有 `review.rating.face1..5`。helper 与 policy 测试固定“不含原始 4.6”，桌面/移动 Chromium 读取“教学质量：超赞”且页面找不到精确数值。没有改评分 API、产品显示策略、dead component 或新增 ARIA 数值进度条。 |
 
 ### 本轮交叉验证与尚未验证边界
 
@@ -749,6 +750,13 @@ bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复
   全服务端 `make test`（`-race -p 1 ./...`）、Casdoor boundary、`golangci-lint`、静态 build、
   全部 infra contracts、告警 contract 与文档卫生均通过。指标没有外部 ID label，日志不含
   Casdoor subject；没有自动删除 tuple 或把依赖故障降级成零权限。
+- 反向复核的 live rating bar 用纯 helper 与显示策略测试固定本地化维度、五级 face 归一化和
+  不泄露 4.6 的约束；真实 CourseDetailPage mock 在 desktop/mobile Chromium 2/2 中得到
+  `role=img` accessible name“教学质量：超赞”，精确 `4.6` 文本计数为 0。定向 2 files /
+  10 tests、隔离基线 2 files / 10 tests、最终单独执行的全部 82 个受控 Web unit 文件
+  516/516、type-check、受控 ESLint、production build 和文档卫生均通过。第一次把全量 unit
+  与 build 并行时 3 个无关基线测试因 5 秒 timeout/级联状态失败；隔离及无资源争用全量复跑
+  均通过，未放宽 timeout、未修改 locale/observability。
 
 测试通过只说明现有正向契约未被破坏，不能覆盖报告指出的所有负向场景。以下仍需在真正处置时
 单独验收：
@@ -800,6 +808,7 @@ bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复
 | 36 | 已修复，待发布；生产 dashboard/告警消费仍待验收 | `ErrorBoundary` 与 Vue 全局 handler 复用既有 kind-only telemetry，固定 `vue-error` label；未初始化时 no-op，transport failure 被隔离，后端不存原始异常。组件/transport/基数负向回归、全部受控 Web unit 514/514、type-check、ESLint、production build、metrics race、app、Go lint、spec/generate stability 与 docs 通过 | `fix(web): report captured Vue component errors` |
 | 37 | 已修复，待发布 | AppShell 首个键盘停靠点增加本地化原生 skip link，唯一 main target 可聚焦；链接 focus-visible 时位于 fixed header 之上并遵守 safe-area/reduced-motion。双视口真实键盘与 Axe 14/14、全部受控 Web unit 514/514、type-check、ESLint、production build 与 docs 通过 | `fix(web): let keyboard users skip application navigation` |
 | 反向-FGA | 已修复，待发布；生产告警投递与人工 tuple reconcile 待验收 | 无效 section grant 独立忽略、计数并 warning，合法 grant 保留，纯无效得到零 scope，真实 OpenFGA error 仍失败关闭；Prometheus warning alert 已接线。定向 race、全服务端 race、lint/build、全部 infra contracts 与 docs 通过 | `fix(authz): isolate invalid OpenFGA role scopes` |
+| 反向-RatingBar | 已修复，待发布 | 只修改可达 CourseDetailPage：维度条以定性 `role=img` 名称暴露，视觉层隐藏，复用既有 face bucket，精确 avg 不进入辅助文本。helper/policy 10/10、双视口 Chromium 2/2、全部受控 Web unit 516/516、type-check、ESLint、production build 与 docs 通过 | `fix(web): describe course rating bars qualitatively` |
 
 ## Claude 原审计的确认问题分布（保留原始记录）
 

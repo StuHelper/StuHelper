@@ -1,13 +1,21 @@
 import type { RatingDimension, TermRatingStats } from '@stuhelper/shared/course'
 import type { Review } from '@stuhelper/shared/review'
 import { getRatingColor } from '@/design-system/rating'
+import { normalizeRatingLevel } from '@/modules/review/ratingFaces'
 
-type Translate = (key: string) => string
+type Translate = (
+  key: string,
+  params?: Record<string, number | string>,
+) => string
 
 interface DimensionTextOptions {
   key: string
   t: Translate
   fallback?: string | null
+}
+
+interface RatingBarTextOptions extends DimensionTextOptions {
+  avgRating: number
 }
 
 const DIMENSION_LABEL_KEYS: Readonly<Record<string, string>> = {
@@ -86,6 +94,14 @@ export function localizeRatingDimension(
 
 export function ratingBarColor(avg: number): string {
   return getRatingColor(Math.round(avg))
+}
+
+export function ratingBarAriaLabel(options: RatingBarTextOptions): string {
+  const dimension = ratingDimensionLabel(options)
+  const level = options.t(
+    `review.rating.face${normalizeRatingLevel(options.avgRating)}`,
+  )
+  return options.t('review.detail.ratingBarAria', { dimension, level })
 }
 
 export function termReviewCount(term: TermRatingStats): number {

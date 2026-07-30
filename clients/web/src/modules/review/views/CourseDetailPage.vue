@@ -119,11 +119,20 @@
 
               <!-- Rating bars (4 dimensions) -->
               <div v-if="term.dimensions && term.dimensions.length > 0" class="flex flex-col gap-2.5">
-                <div v-for="dim in term.dimensions" :key="dim.key" class="flex items-center gap-2">
+                <div
+                  v-for="dim in term.dimensions"
+                  :key="dim.key"
+                  class="flex items-center gap-2"
+                  role="img"
+                  :aria-label="dimensionRatingBarAriaLabel(dim)"
+                >
                   <span class="text-xs w-16 shrink-0 text-right text-text-secondary">
                     {{ dimensionLabel(dim.key, dim.name) }}
                   </span>
-                  <div class="flex-1 h-2 bg-bg-secondary rounded-full overflow-hidden">
+                  <div
+                    class="flex-1 h-2 bg-bg-secondary rounded-full overflow-hidden"
+                    aria-hidden="true"
+                  >
                     <div
                       class="h-full rounded-full transition-all duration-slow"
                       :style="{
@@ -503,6 +512,7 @@ import { useVerificationStore } from '@/stores/verification'
 import { canListFullReviews } from '@/utils/adminAccess'
 import { accountCenterURLWithRedirect } from '@/utils/redirect'
 import {
+  ratingBarAriaLabel,
   ratingBarColor,
   ratingDimensionLabel,
   reviewCardBorderClass,
@@ -654,6 +664,17 @@ const isReviewContentLocked = computed(() =>
 
 function dimensionLabel(key: string, fallback?: string): string {
   return ratingDimensionLabel({ key, fallback, t })
+}
+
+function dimensionRatingBarAriaLabel(
+  dimension: CourseRatingStatsResponse['overall']['dimensions'][number],
+): string {
+  return ratingBarAriaLabel({
+    key: dimension.key,
+    fallback: dimension.name,
+    avgRating: dimension.avgRating,
+    t,
+  })
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

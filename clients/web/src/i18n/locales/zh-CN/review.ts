@@ -319,6 +319,7 @@ export default {
     insufficientHint: '过少的数据没有统计代表性。',
     noReviewsForTeacher: '没有找到 {teacher} 的测评',
     noReviewsYet: '暂无测评内容',
+    ratingBarAria: '{dimension}：{level}',
     recommend: '推荐指数',
     contentQuality: '内容质量',
     workload: '工作量',

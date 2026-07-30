@@ -319,6 +319,7 @@ export default {
     insufficientHint: 'Too little data to provide representative statistics.',
     noReviewsForTeacher: 'No reviews found for {teacher}',
     noReviewsYet: 'No reviews yet',
+    ratingBarAria: '{dimension}: {level}',
     recommend: 'Recommendation',
     contentQuality: 'Content Quality',
     workload: 'Workload',
