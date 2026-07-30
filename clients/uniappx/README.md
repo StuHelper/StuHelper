@@ -25,6 +25,7 @@ src/
 ├── api/            # API 请求
 ├── composables/    # 组合式函数
 ├── utils/          # 工具函数
+├── static/         # pages.json 引用并随构建复制的静态资源
 ├── App.vue         # 应用入口
 ├── main.ts         # 主入口
 ├── pages.json      # 页面配置
@@ -46,6 +47,11 @@ pnpm build:h5
 # 构建微信小程序
 pnpm build:mp-weixin
 ```
+
+`build:h5` 会在编译后从 `src/pages.json` 读取 tabBar 的 `iconPath` /
+`selectedIconPath`，并同时检查 `src/` 输入树和 `dist/build/h5/` 产物中的每个文件。
+tabBar 资源必须放在 `src/static/`；不要改成 `/src/static/...` URL，也不要在项目根目录
+或额外 `publicDir` 中维护第二份副本。
 
 ## 当前状态
 
