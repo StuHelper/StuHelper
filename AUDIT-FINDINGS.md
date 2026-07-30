@@ -434,7 +434,7 @@ Claude 新生成的 `AUDIT-REPORT.md` 是一份新的汇总快照，不是对本
 | 36 | 确认 | P2 | `ErrorBoundary` 阻止异常继续传播，production 又不输出或上报，现有 frontend error telemetry 因而收不到组件错误。复用现有 telemetry 并做脱敏即可；当前无需新增第二个 `/vue-error` OpenAPI。 |
 | 37 | 确认 | P2 | AppShell 没有 skip-to-content，违反 WCAG 2.4.1 A 的 bypass blocks 要求。增加 skip link、稳定的 `main` id 和焦点样式；原文“所有页恰好 11 个 tab stop”不是成立所必需，也不应硬编码。 |
 | 38 | 确认 | P2 | toast 状态是全局的，但组件卸载 cleanup 只取消 timer、不移除全局 toast，能留下永久提示。删除错误作用域的 timer cleanup 或让 store 自主管理生命周期即可，不需要重写为新的 singleton 系统。 |
-| 39 | 确认 | P2 | projection polling 遇到一次瞬时 `/auth/me` 失败即终止，且 `fetchUser` 对宽泛 5xx 清空 auth，刚验证用户会落入不可恢复错误页。瞬时错误应继续有界重试，只有明确认证失败才清本地身份。 |
+| 39 | 确认，已完成本地修复与回归验证 | P2 | projection polling 原先遇到一次瞬时 `/auth/me` 失败即终止，且 `fetchUser` 会把任意非网络 ApiError（包括 5xx/403）当成登出并清空用户，最终把已验证用户送进不可恢复错误页。现在 `fetchUser` 只在 HTTP 401 明确拒绝会话时清本地身份，页面同时切换登录态；403、5xx、网络、超时和未知 refresh 错误保留当前用户并继续消耗既有 1/2/4/8/16 秒有限预算，耗尽后仍停在 `projectionPending` 且可手动重试。Abort 立即终止，capability predicate 的程序错误不被重试层吞掉。没有把 403 宽泛当作失效会话，也没有新增重试框架、无限轮询或放宽服务端授权。 |
 | 40 | 部分确认 | P3 | SearchPage 确实忽略 `ReviewCard` emits，但当前可达的是 `moderated`；deleted/updated 控件并未启用。只接线 moderation 后 refetch/局部更新，避免为不可达事件建设通用同步总线。 |
 | 41 | 确认 | P3 | teacher profile 的 load-more 失败会用错误面板替换已加载 review。区分 initial 与 append error，保留已有列表并提供重试当前页即可。 |
 | 42 | 部分确认 | P2 | fresh store 的 status fetch 失败会把依赖验证状态的字段呈现为 false negative；并非所有 email/base info 都必然受影响，已有 cache 时也可能保留。应显式建 loading/ready/error/retry 状态，在成功前不展示“未验证”结论。 |
@@ -548,7 +548,7 @@ fail-closed 语义和撤权测试，再做局部实现。
 #### 第二批：隐私、可靠性和核心前进性
 
 1. #45 path credential 日志脱敏（已完成本地修复），#51 refresh reuse 误判（已完成本地修复），#57 scoped grant 的 public-content 边界（已完成本地修复）。
-2. #39 projection polling、#43 breaker cancellation（已完成本地修复）、U-2 JWKS 缓存策略。
+2. #39 projection polling（已完成本地修复）、#43 breaker cancellation（已完成本地修复）、U-2 JWKS 缓存策略。
 3. #5 的 H5 资产产物契约；mp-weixin 假绿另做“实现真实平台 build 或明确不支持”的产品决策。
 4. #6、#7、#28、#30、#38、#42 等会让用户状态错误、流程卡死或操作结果不可信的问题。
 
@@ -576,6 +576,7 @@ bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复
 | WF07：#51 | 较窄 P2 真实，已完成本地修复 | referenced session 存在、当前 refresh hash 非空且与 presented hash **不同**才是真 reuse；session 缺失或 hash 相同是已撤销/并发 logout，只返回 revoked，不触发 family revoke、metric 或 audit。永久回归覆盖 rotated、logout-complete、blacklist-before-delete 与 missing attribution；无需为此新增 revoke-reason schema。 |
 | WF08：#57 | 真实 P2，已完成本地修复；原报告的 hidden-row 与 `Review.SchoolID` 证据不成立 | Handler 将完整与 global capability 分开传给统一 access facts；public full-content 的管理 entitlement 只接受 global grant，普通学生能力保持原语义。school/section/global 三类回归通过；未改 capability producer、管理路由、Review DTO/OpenAPI/SQL，也未实现新的“scope 内 public full”产品语义。 |
 | WF09：#45 | 真实 P2，已完成本地修复；报告漏掉 1 条 token route 和 2 类 body-limit 日志 | RequestLogger、Recovery 和两类 body-limit 告警统一走 `requestLogRoute`：匹配路由用 `FullPath()`，未匹配 404/405 固定 `unmatched`；永久回归验证 handler 前后模板和负向路由，静态扫描无旧 raw-path logger。保留 query masking，未维护敏感参数黑名单或 token 字符串替换器。 |
+| WF20：#39 | 真实 P2，已完成本地修复；原报告把 403 与 401 一并视为 hard auth failure 的建议过宽 | `fetchUser` 只在 `/auth/me` 返回 401 时清身份；403/5xx/网络/超时均保留已有用户但继续向调用方抛错。投影轮询只捕获 refresh request 失败，非 401 在原五次预算内继续，Abort/401 立即停止；耗尽后页面保留 `projectionPending` 与手动重试。服务端 capability/OpenFGA 仍是授权真值，不增加轮询次数、全局 retry abstraction 或客户端授权降级。 |
 | WF11：#5 | H5 缺图真实 P2；mp-weixin 缺图硬失败未验证，真实相邻问题是 mp build 假绿 | 移动 `static` 到 `src/static` 并补从 `pages.json` 派生的产物断言；保留现有公共 URL。mp 先决定支持与否，再补真实平台 compiler/app.json/WXML 门禁，不能把 H5 假产物当微信验证。 |
 | WF12：#6 | 真实 P2；“create 失败也删除”证伪 | 只恢复匹配或未绑定课程草稿，未绑定不恢复 teacher；显式记录当前页是否消费/保存服务端单槽，create 成功后才有条件清理。不改 DB/OpenAPI 为多草稿，也不在本项解决跨设备 CAS/If-Match。 |
 | WF13：#7 | 真实 P2；provider-owned 三个字段的 action 落到只读摘要，其他四类字段路径正确 | Profile Completion 对 username/email/avatar 优先使用 `/auth/me` 已给出的绝对 `accountSettingsUrl`，phone/identity/student/school 保留后端本地 route。避免为静态 catalog 注入整套 config/service、复制 issuer fallback 或把本地只读资料页改造成第二个身份提供方编辑器。 |
@@ -650,6 +651,12 @@ bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复
   会释放单一 probe；取消 Gin request 的 optional-auth 回归则证明 blacklist 查询使用
   detached 预算后 failure 仍为 0。`circuitbreaker`、`token`、`middleware`、`auth` 四包
   全量 race、全服务端 race、lint、build、文档卫生与差异检查均通过。
+- #39 的轮询单测覆盖瞬时 503 后成功、五次网络失败后可恢复超时、401 首次即停止和 Abort
+  不被吞掉；页面状态回归证明瞬时 polling rejection 仍显示 `projectionPending`、超时提示和
+  手动重试，401 则进入 `needsLogin`，两者都不落入通用 error。Store 回归分别验证 503/403
+  保留 cached user、401 清空。三组定向 52 tests、全部 76 个已跟踪 Web unit 文件
+  493 tests、Web type-check、定向 ESLint、production build 和文档卫生均通过；用户未跟踪的
+  `zzToastScope.tmp.test.ts` 因缺 jsdom 单独失败，未修改、未计入本项回归。
 - #51 的永久 handler 回归分别制造四种 Redis 状态：成功 rotation 后旧 hash 与当前 hash
   不同，判定真 reuse 并撤销全部 session；logout 完成后 referenced session 不存在；
   logout 的 blacklist→delete 竞争窗口仍保留相同当前 hash；以及历史 attribution 缺失。
@@ -696,6 +703,7 @@ bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复
 | 51 | 已修复，待发布 | blacklisted token 只有在 referenced session 存在、当前 refresh hash 非空且与提交 hash 不同时才是真 reuse；session 缺失、hash 相同或 attribution 缺失只返回 revoked。rotated/logout-complete/blacklist-before-delete/missing-ref 回归验证其他设备和 metric 语义；auth 全包/race、全服务端 race、lint/build/docs 通过 | `fix(auth): distinguish revoked refresh tokens from reuse` |
 | 57 | 已修复，待发布 | 公共评课访问事实同时接收完整与 global capability 集合，只有 global `admin:reviews:manage` 能推出平台级管理/全文；普通学生能力不变。school scope、section scope、global grant 的正文裁剪回归、评课全包 race、全服务端 race、lint/build/docs/diff 均通过，未扩 DTO/SQL | `fix(authz): preserve scoped review access boundaries` |
 | 43 | 已修复，待发布 | blacklist lookup 使用 50 ms detached context；5 个共享 breaker Redis error 分支将 caller cancellation 记为 neutral 并释放 half-open probe，deadline/backend error 仍计 failure 且 fail-closed。closed/half-open、canceled/deadline/backend、Gin request 负向测试、四包与全服务端 race、lint/build/docs/diff 均通过；未猜测修改预算/阈值/window | `fix(auth): classify blacklist cancellations as neutral` |
+| 39 | 已修复，待发布 | `fetchUser` 对 `/auth/me` 只有 401 清本地身份；403/5xx/网络/超时保留用户并由投影轮询在既有五次预算内继续。耗尽后页面仍可手动重试，Abort/401 提前停止。定向 52、全部已跟踪 Web unit 493、type-check、ESLint、production build 与文档卫生通过；未跟踪临时探针不在提交/回归范围 | `fix(web): keep admission projection polling recoverable` |
 | 44 | 已修复，待发布 | active introspection 只接受 Casdoor `access-token` purpose，refresh/missing/malformed/opaque token 均拒绝；Bearer 用户路径拒绝空白 subject，provider unavailable 与 inactive 分类保持不变；OIDC、middleware、app/auth 定向回归与服务端静态检查通过 | `3d12d259` `fix(auth): reject refresh tokens on bearer paths` |
 | U-1 | 已修复，待发布 | 三个 academics admin operation 消费现有 admin MFA middlewares；共享 step-up 响应从错误的 428 对齐既有 412 契约，OpenAPI/生成物同步；blocking route contract、真实 MFA chain、相关包/全量 Go 回归、race、spec/drift、lint/build 与文档检查通过 | `4b2f520b` `fix(academics): require MFA for import administration` |
 

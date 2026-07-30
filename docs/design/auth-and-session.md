@@ -132,6 +132,18 @@ OIDC 用户同步到本地 `users` 表：`casdoor_subject`、`username`、`email
 - 中间件静态展开为 capabilities；scoped admin 的学校范围不来自 token，而是由运行时 resolver 从 DB/OpenFGA 补全
 - `/api/v1/auth/me` 返回：`roles`、`capabilities`、`globalCapabilities`、`canAccessAdmin`、`displayName`、`isPlatformAdmin`、`capabilityGrants`、`accountSettingsUrl`
 
+### 前端当前用户刷新语义
+
+- 前端通过 `fetchUser` 主动刷新 `/api/v1/auth/me` 时，只有 HTTP 401 能证明当前会话已被
+  服务端拒绝，此时清除本地用户和会话提示。403 还可能来自 CSRF、MFA 或权限条件，5xx、
+  网络错误和超时都不能证明用户已经登出；这些错误必须向调用方返回，但保留已有用户状态
+  以便有界重试。
+- 入群认证完成后的 capability 投影检查沿用 1、2、4、8、16 秒五次有界退避。单次非 401
+  失败不终止整轮检查；全部尝试失败或仍未看到 `review:create` 时继续停留在
+  `projectionPending` 并提供手动重试，不切换成不可恢复的通用错误页。
+- Abort 表示页面离开或新一轮检查取代旧一轮，必须立即停止；HTTP 401 切换到重新登录状态。
+  保留前端缓存不等于授权成功，后端 capability / OpenFGA 门禁仍是所有受保护操作的权威边界。
+
 ## Native App OIDC 登录
 
 原生客户端（iOS / Android / uni-app）无法直接接收 HttpOnly Cookie，因此使用独立的令牌交换端点：

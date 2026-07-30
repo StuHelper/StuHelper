@@ -1,3 +1,5 @@
+import { getErrorStatus } from '@/api/errors'
+
 export const ADMISSION_PROJECTED_CAPABILITY = 'review:create'
 export const ADMISSION_PROJECTION_RETRY_DELAYS_MS = [
   1000,
@@ -31,7 +33,15 @@ export async function waitForAdmissionProjection<TUser extends ProjectionUser>({
     throwIfAborted(signal)
     await wait(delay, signal)
     throwIfAborted(signal)
-    const user = await refreshAuth()
+    let user: TUser
+    try {
+      user = await refreshAuth()
+    } catch (error) {
+      throwIfAborted(signal)
+      if (isAbortError(error) || getErrorStatus(error) === 401) throw error
+      continue
+    }
+    throwIfAborted(signal)
     if (hasProjectedCapability(user)) return true
   }
 
@@ -64,6 +74,10 @@ function waitDelay(delayMs: number, signal?: AbortSignal): Promise<void> {
 function throwIfAborted(signal?: AbortSignal): void {
   if (!signal?.aborted) return
   throw admissionProjectionAbortError()
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === 'AbortError'
 }
 
 function admissionProjectionAbortError(): DOMException {

@@ -533,6 +533,48 @@ describe('AdmissionPage edge states', () => {
     expect(wrapper.text()).toContain('认证已通过')
   })
 
+  it('keeps projection refresh recoverable after a transient polling failure', async () => {
+    mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce({
+      ...sessionWithStatus('verified'),
+      projectionPending: true,
+    })
+    mockWaitForAdmissionProjection.mockRejectedValueOnce(
+      new ApiError({
+        code: 'B0000001',
+        message: 'temporarily unavailable',
+        status: 503,
+      }),
+    )
+
+    const wrapper = await mountAdmissionPage()
+    await settleAdmissionPage(wrapper)
+
+    expect(wrapper.find('[data-state="projectionPending"]').exists()).toBe(true)
+    expect(wrapper.find('[data-projection-timeout]').exists()).toBe(true)
+    expect(wrapper.find('[data-projection-retry]').exists()).toBe(true)
+    expect(wrapper.find('[data-state="error"]').exists()).toBe(false)
+  })
+
+  it('asks the user to log in when projection refresh gets an explicit 401', async () => {
+    mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce({
+      ...sessionWithStatus('verified'),
+      projectionPending: true,
+    })
+    mockWaitForAdmissionProjection.mockRejectedValueOnce(
+      new ApiError({
+        code: 'A0010001',
+        message: 'unauthorized',
+        status: 401,
+      }),
+    )
+
+    const wrapper = await mountAdmissionPage()
+    await settleAdmissionPage(wrapper)
+
+    expect(wrapper.find('[data-state="needsLogin"]').exists()).toBe(true)
+    expect(wrapper.find('[data-state="error"]').exists()).toBe(false)
+  })
+
   it('uses admission me projection state after refreshing linked resources', async () => {
     mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce(
       sessionWithStatus('linked'),

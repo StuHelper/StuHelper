@@ -375,6 +375,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { getErrorStatus } from '@/api/errors'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
@@ -741,7 +742,12 @@ function scheduleProjectionRefresh(): void {
       else projectionRefreshTimedOut.value = true
     })
     .catch((error) => {
-      if (!isAbortError(error)) applyError(error)
+      if (isAbortError(error)) return
+      if (getErrorStatus(error) === 401) {
+        pageState.value = 'needsLogin'
+        return
+      }
+      projectionRefreshTimedOut.value = true
     })
 }
 

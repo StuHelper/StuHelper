@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
+import { ApiError } from '@/api/errors'
+
 import { waitForAdmissionProjection } from '../projectionRefresh'
 
 describe('waitForAdmissionProjection', () => {
@@ -40,6 +42,69 @@ describe('waitForAdmissionProjection', () => {
     expect(ready).toBe(true)
     expect(refreshAuth).toHaveBeenCalledTimes(2)
     expect(waits).toEqual([1000, 2000])
+  })
+
+  it('continues bounded polling after a transient auth refresh failure', async () => {
+    const waits: number[] = []
+    const refreshAuth = vi
+      .fn()
+      .mockRejectedValueOnce(new ApiError({
+        code: 'B0000001',
+        message: 'temporarily unavailable',
+        status: 503,
+      }))
+      .mockResolvedValueOnce({ capabilities: ['review:create'] })
+
+    const ready = await waitForAdmissionProjection({
+      refreshAuth,
+      wait: async (delay) => {
+        waits.push(delay)
+      },
+    })
+
+    expect(ready).toBe(true)
+    expect(refreshAuth).toHaveBeenCalledTimes(2)
+    expect(waits).toEqual([1000, 2000])
+  })
+
+  it('returns a recoverable timeout after all transient refresh attempts fail', async () => {
+    const refreshAuth = vi.fn().mockRejectedValue(new ApiError({
+      code: 'NETWORK_ERROR',
+      message: 'network unavailable',
+      status: 0,
+    }))
+
+    await expect(waitForAdmissionProjection({
+      refreshAuth,
+      wait: async () => {},
+    })).resolves.toBe(false)
+    expect(refreshAuth).toHaveBeenCalledTimes(5)
+  })
+
+  it('stops immediately when auth/me explicitly rejects the session', async () => {
+    const refreshAuth = vi.fn().mockRejectedValue(new ApiError({
+      code: 'A0010001',
+      message: 'unauthorized',
+      status: 401,
+    }))
+
+    await expect(waitForAdmissionProjection({
+      refreshAuth,
+      wait: async () => {},
+    })).rejects.toMatchObject({ status: 401 })
+    expect(refreshAuth).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not swallow an abort raised by the auth refresh request', async () => {
+    const refreshAuth = vi.fn().mockRejectedValue(
+      new DOMException('request aborted', 'AbortError'),
+    )
+
+    await expect(waitForAdmissionProjection({
+      refreshAuth,
+      wait: async () => {},
+    })).rejects.toMatchObject({ name: 'AbortError' })
+    expect(refreshAuth).toHaveBeenCalledTimes(1)
   })
 
   it('aborts before the next projection refresh request', async () => {

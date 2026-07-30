@@ -55,6 +55,7 @@ vi.mock("@/i18n", () => ({
     default: {
         global: {
             t: () => "translated",
+            te: () => false,
         },
     },
 }));
@@ -249,6 +250,75 @@ describe("auth bootstrap", () => {
         expect(store.isAuthenticated).toBe(true);
         expect(store.globalCapabilities).toEqual([]);
         expect(mockClearAuth).not.toHaveBeenCalled();
+    });
+
+    it("preserves the current user when a direct auth refresh gets a 503", async () => {
+        mockGetUser.mockReturnValue({
+            id: "cached_user",
+            name: "cached",
+            displayName: "Cached",
+        });
+        mockAuthMe.mockRejectedValue(
+            new ApiError({
+                code: "B0000001",
+                message: "temporarily unavailable",
+                status: 503,
+            }),
+        );
+
+        const { useAuthStore } = await import("../auth");
+        const store = useAuthStore();
+
+        await expect(store.fetchUser()).rejects.toMatchObject({ status: 503 });
+        expect(store.isAuthenticated).toBe(true);
+        expect(store.user?.id).toBe("cached_user");
+        expect(mockClearAuth).not.toHaveBeenCalled();
+    });
+
+    it("does not treat a direct auth refresh 403 as proof of logout", async () => {
+        mockGetUser.mockReturnValue({
+            id: "cached_user",
+            name: "cached",
+            displayName: "Cached",
+        });
+        mockAuthMe.mockRejectedValue(
+            new ApiError({
+                code: "A0010202",
+                message: "forbidden",
+                status: 403,
+            }),
+        );
+
+        const { useAuthStore } = await import("../auth");
+        const store = useAuthStore();
+
+        await expect(store.fetchUser()).rejects.toMatchObject({ status: 403 });
+        expect(store.isAuthenticated).toBe(true);
+        expect(store.user?.id).toBe("cached_user");
+        expect(mockClearAuth).not.toHaveBeenCalled();
+    });
+
+    it("clears the current user when a direct auth refresh gets a 401", async () => {
+        mockGetUser.mockReturnValue({
+            id: "cached_user",
+            name: "cached",
+            displayName: "Cached",
+        });
+        mockAuthMe.mockRejectedValue(
+            new ApiError({
+                code: "A0010001",
+                message: "unauthorized",
+                status: 401,
+            }),
+        );
+
+        const { useAuthStore } = await import("../auth");
+        const store = useAuthStore();
+
+        await expect(store.fetchUser()).rejects.toMatchObject({ status: 401 });
+        expect(store.isAuthenticated).toBe(false);
+        expect(store.user).toBeNull();
+        expect(mockClearAuth).toHaveBeenCalledTimes(1);
     });
 
     it("fails closed when auth/me returns malformed user capabilities", async () => {
