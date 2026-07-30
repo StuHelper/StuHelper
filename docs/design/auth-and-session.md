@@ -114,7 +114,11 @@ Casdoor token 通过 provider `tokenType` 区分 access / refresh；遗留 StuHe
 - 原生 OIDC refresh 必须通过 `X-Stuhelper-Session-ID` 回传 `sessionID`；缺失或不匹配时拒绝 refresh。
 - refresh 会对旧 refresh token 做 blacklist，并在 session store 内原子更新新 access
   hash、已验证 `exp`、新 refresh hash 和加密后的 provider access/refresh token。
-- 旧 refresh token 再次提交会触发 reuse detection：吊销该用户全部 session 并记录审计。
+- blacklisted refresh token 只有在 attribution 指向的 session 仍存在、当前 refresh hash
+  非空且与提交 token 的 hash 不同时，才证明它已被成功轮换后再次使用：此时吊销该用户
+  全部 session、增加 reuse metric 并记录 `refresh_reuse_detected` 审计。referenced session
+  已删除，或仍持有相同 hash，表示 logout 已完成或正处于 blacklist→delete 窗口，只返回
+  `refresh token revoked`，不能误伤其他设备或记录虚假安全事件。
 
 ## Shadow User
 

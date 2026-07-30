@@ -11,12 +11,14 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/StuHelper/StuHelper/server/internal/pkg/config"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/crypto"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/errs"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/metrics"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/middleware"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/token"
 	"github.com/StuHelper/StuHelper/server/internal/testutil/redisfixture"
@@ -238,16 +240,17 @@ func TestRefreshToken_RejectsLegacyCSRFWithoutReservingRefreshToken(t *testing.T
 	assert.False(t, fixture.Server.Exists(refreshReservationRedisKey(t, "legacy-csrf-refresh-token")))
 }
 
-func TestRefreshToken_BlacklistedRefreshReuseRevokesAllSessions(t *testing.T) {
+func TestRefreshToken_BlacklistedRotatedRefreshRevokesAllSessions(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	h, tokenSvc := newRefreshTestHandler(t, &fakeUserSyncRepo{})
+	oldRefreshToken := "reused-refresh-token"
 
 	_, err := h.svc.CreateSession(
 		t.Context(),
 		"sid-refresh-reuse-a",
 		"user-refresh-reuse",
 		"old-access-token",
-		"reused-refresh-token",
+		oldRefreshToken,
 		"oidc",
 		"browser",
 	)
@@ -262,27 +265,165 @@ func TestRefreshToken_BlacklistedRefreshReuseRevokesAllSessions(t *testing.T) {
 		"browser",
 	)
 	require.NoError(t, err)
-	require.NoError(t, tokenSvc.GetBlacklist().Add(t.Context(), "reused-refresh-token", tokenSvc.GetRefreshTokenTTL()))
+	require.NoError(t, h.svc.RotateSession(
+		t.Context(),
+		"sid-refresh-reuse-a",
+		"user-refresh-reuse",
+		oldRefreshToken,
+		"new-access-token",
+		futureAccessTokenExpiryUnix(),
+		"new-provider-access-token",
+		"new-refresh-token",
+	))
 
 	r := gin.New()
 	r.POST("/refresh", h.RefreshToken)
 
 	csrfToken := mustGenerateCSRFTokenForSession(t, "sid-refresh-reuse-a")
 	req := httptest.NewRequest(http.MethodPost, "/refresh", nil)
-	req.AddCookie(&http.Cookie{Name: middleware.CookieRefreshToken, Value: "reused-refresh-token"})
+	req.AddCookie(&http.Cookie{Name: middleware.CookieRefreshToken, Value: oldRefreshToken})
 	req.AddCookie(&http.Cookie{Name: middleware.CSRFCookieName, Value: csrfToken})
 	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "sid-refresh-reuse-a"})
 	req.Header.Set(middleware.CSRFHeaderName, csrfToken)
 	w := httptest.NewRecorder()
+	reuseBefore := testutil.ToFloat64(metrics.AuthRefreshTokenReuseTotal.WithLabelValues("oidc"))
 	r.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusUnauthorized, w.Code, w.Body.String())
 	assert.Contains(t, w.Body.String(), "refresh token reuse detected")
 	assert.Contains(t, w.Body.String(), string(errs.ErrTokenRevoked))
+	assert.Equal(
+		t,
+		reuseBefore+1,
+		testutil.ToFloat64(metrics.AuthRefreshTokenReuseTotal.WithLabelValues("oidc")),
+	)
 
 	sessions, err := tokenSvc.GetSessionStore().ListUserSessions(t.Context(), "user-refresh-reuse")
 	require.NoError(t, err)
 	assert.Empty(t, sessions)
+}
+
+func TestRefreshToken_BlacklistedCurrentRefreshDoesNotRevokeOtherSessions(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h, tokenSvc := newRefreshTestHandler(t, &fakeUserSyncRepo{})
+	refreshToken := "logout-in-progress-refresh-token"
+
+	_, err := h.svc.CreateSession(
+		t.Context(),
+		"sid-refresh-current-a",
+		"user-refresh-current",
+		"current-access-token",
+		refreshToken,
+		"oidc",
+		"browser",
+	)
+	require.NoError(t, err)
+	_, err = h.svc.CreateSession(
+		t.Context(),
+		"sid-refresh-current-b",
+		"user-refresh-current",
+		"other-access-token",
+		"other-refresh-token",
+		"oidc",
+		"browser",
+	)
+	require.NoError(t, err)
+	require.NoError(t, tokenSvc.GetBlacklist().Add(
+		t.Context(),
+		refreshToken,
+		tokenSvc.GetRefreshTokenTTL(),
+	))
+
+	r := gin.New()
+	r.POST("/refresh", h.RefreshToken)
+
+	csrfToken := mustGenerateCSRFTokenForSession(t, "sid-refresh-current-a")
+	req := httptest.NewRequest(http.MethodPost, "/refresh", nil)
+	req.AddCookie(&http.Cookie{Name: middleware.CookieRefreshToken, Value: refreshToken})
+	req.AddCookie(&http.Cookie{Name: middleware.CSRFCookieName, Value: csrfToken})
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "sid-refresh-current-a"})
+	req.Header.Set(middleware.CSRFHeaderName, csrfToken)
+	w := httptest.NewRecorder()
+	reuseBefore := testutil.ToFloat64(metrics.AuthRefreshTokenReuseTotal.WithLabelValues("oidc"))
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusUnauthorized, w.Code, w.Body.String())
+	assert.Contains(t, w.Body.String(), "refresh token revoked")
+	assert.NotContains(t, w.Body.String(), "refresh token reuse detected")
+	assert.Equal(
+		t,
+		reuseBefore,
+		testutil.ToFloat64(metrics.AuthRefreshTokenReuseTotal.WithLabelValues("oidc")),
+	)
+
+	sessions, err := tokenSvc.GetSessionStore().ListUserSessions(t.Context(), "user-refresh-current")
+	require.NoError(t, err)
+	assert.Len(t, sessions, 2)
+}
+
+func TestRefreshToken_LogoutRevokedRefreshDoesNotRevokeOtherSessions(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h, tokenSvc := newRefreshTestHandler(t, &fakeUserSyncRepo{})
+	refreshToken := "logout-complete-refresh-token"
+
+	_, err := h.svc.CreateSession(
+		t.Context(),
+		"sid-refresh-logout-a",
+		"user-refresh-logout",
+		"logout-access-token",
+		refreshToken,
+		"oidc",
+		"browser",
+	)
+	require.NoError(t, err)
+	_, err = h.svc.CreateSession(
+		t.Context(),
+		"sid-refresh-logout-b",
+		"user-refresh-logout",
+		"other-access-token",
+		"other-refresh-token",
+		"oidc",
+		"browser",
+	)
+	require.NoError(t, err)
+	require.NoError(t, h.svc.RevokeSession(
+		t.Context(),
+		"sid-refresh-logout-a",
+		"user-refresh-logout",
+		"logout-access-token",
+		refreshToken,
+		futureAccessTokenExpiry(),
+	))
+
+	r := gin.New()
+	r.POST("/refresh", h.RefreshToken)
+
+	csrfToken := mustGenerateCSRFTokenForSession(t, "sid-refresh-logout-a")
+	req := httptest.NewRequest(http.MethodPost, "/refresh", nil)
+	req.AddCookie(&http.Cookie{Name: middleware.CookieRefreshToken, Value: refreshToken})
+	req.AddCookie(&http.Cookie{Name: middleware.CSRFCookieName, Value: csrfToken})
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "sid-refresh-logout-a"})
+	req.Header.Set(middleware.CSRFHeaderName, csrfToken)
+	w := httptest.NewRecorder()
+	reuseBefore := testutil.ToFloat64(metrics.AuthRefreshTokenReuseTotal.WithLabelValues("oidc"))
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusUnauthorized, w.Code, w.Body.String())
+	assert.Contains(t, w.Body.String(), "refresh token revoked")
+	assert.NotContains(t, w.Body.String(), "refresh token reuse detected")
+	assert.Equal(
+		t,
+		reuseBefore,
+		testutil.ToFloat64(metrics.AuthRefreshTokenReuseTotal.WithLabelValues("oidc")),
+	)
+
+	sessionA, err := tokenSvc.GetSessionStore().Get(t.Context(), "sid-refresh-logout-a")
+	require.NoError(t, err)
+	assert.Nil(t, sessionA)
+	sessionB, err := tokenSvc.GetSessionStore().Get(t.Context(), "sid-refresh-logout-b")
+	require.NoError(t, err)
+	require.NotNil(t, sessionB)
+	assert.Equal(t, "user-refresh-logout", sessionB.UserID)
 }
 
 func TestRefreshToken_BlacklistedRefreshReuseRevokesAllSessionsAfterOldRefTTLWasNearExpiry(t *testing.T) {

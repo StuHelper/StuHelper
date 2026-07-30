@@ -49,6 +49,10 @@ Casdoor access / refresh 由 provider `tokenType` 区分；遗留 StuHelper 自�
   `invalid_grant` 可判为 family 已失效，配置错误、其他 4xx、5xx、网络失败或业务
   `status=error` 均 fail-closed；两种 provider 凭据都缺失也不能静默成功。logout-all
   在外部调用前先完成本地 session/blacklist 撤销，避免 provider 延迟耗尽本地清理预算。
+- refresh reuse detection 不把“存在历史 attribution”单独当成攻击证据。只有 referenced
+  session 仍存在，且其当前 refresh hash 非空、与提交 token hash 不同，才撤销整个用户的
+  session family 并记录 reuse metric/audit；session 已删除或 hash 相同只表示 token 已被
+  logout 撤销，返回 401 而不影响其他设备。
 - 浏览器 Cookie 中的 Casdoor JWT access credential 会先查 blacklist 和 tracked session
   hash，再做本地 JWKS / audience / `exp` 验证；Bearer 继续走 provider introspection，
   不新增每请求 session 绑定。
