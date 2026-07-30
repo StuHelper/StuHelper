@@ -418,14 +418,14 @@ Claude 新生成的 `AUDIT-REPORT.md` 是一份新的汇总快照，不是对本
 |----------|------------|----------|--------------------------------------|
 | 3 | 确认 | P1 | Koishi 的 bot-wide runtime settings 只校验 `authority >= 4`，没有 global/guild scope 判断。应复用或暴露现有 scope resolver，并对全局写操作做 `assertGlobal`、失败时 fail-closed。为此搬迁整套 shared helper 或先建设通用 Console 权限框架没有必要。 |
 | 4 | 确认 | P1 | Admission runtime 页面、成员列表和 mutation 可跨 guild 读取/操作。读取必须按可管理 guild 过滤，mutation 必须在写入前校验目标 guild；可与 #3 作为同一 Console 授权修复簇实施，但两个影响面都要测试。 |
-| 5 | 确认 | P2 | `pages.json` 引用的 4 组、共 8 个 tabBar 图标路径位于 uni-app 输入树之外，当前 H5 产物不包含它们。应移入 `src/static` 并补产物契约。UniAppX 当前是实验性客户端，因此不升为 P1。 |
-| 6 | 确认，纠正一项描述 | P2 | 单份 draft 没有核对 `courseID`，会在另一课程页面恢复并可能提交给错误课程。当前代码只在成功后删除 draft，原文“失败也删除”不成立。最小修复是只恢复匹配课程或可识别的 legacy draft，并保留不匹配草稿。 |
+| 5 | 确认 H5 缺陷，纠正 mp-weixin 证据 | P2 | `pages.json` 引用的 4 组、共 8 个 tabBar 图标位于 uni-app 的 `src` 输入树之外；隔离 H5 build 虽退出 0，但产物没有这些文件，静态预览均为 404。最小修复是把 `clients/uniappx/static` 移入 `src/static`，并从 `pages.json` 派生源文件/构建产物断言；`pages.json` 与 `index.html` 的 `/static/...` URL 无需修改，改成 `/src/static/...`、新增 `publicDir` 或复制 favicon 都是多余的。报告所称 mp-weixin “因缺图硬编译失败”没有真实小程序产物支持；当前 mp build 本身是假绿，按下方独立 P2 处置。UniAppX 仍是实验性客户端，因此不升为 P1。 |
+| 6 | 确认，纠正恢复与清理语义 | P2 | PostgreSQL 中是按用户唯一的单槽 draft；页面没有核对 `courseID`，会把 A 课程内容恢复到 B 并可能提交给 B。当前代码只在 create 成功后删除，原文“失败也删除”不成立；真实附加风险是 B 成功提交会删除未消费的 A 草稿。最小修复是只恢复未绑定课程的合法草稿或 `courseID` 匹配的草稿，未绑定草稿不恢复 teacher；用明确的 cleanup 资格记录当前页是否恢复或成功保存过草稿，只有 create 成功且具备资格时才 best-effort DELETE。不需要改成多课程草稿、改 OpenAPI 或引入 autosave/并发版本框架。 |
 | 7 | 确认 | P2 | OAuth profile-completion 指向只读的 `/account/profile`，用户无法补齐缺失资料；代码已有 `accountSettingsUrl` 可复用。开放平台 GA 前应改成可编辑入口或给出明确链接，不需要先重构后端 profile service/config。 |
 | 8 | 部分确认 | P2 | 浏览器声明 MIME 与服务端 sniffed MIME 严格相等，确会误拒绝常见 Office/container/text refinement，但不是“每种文件都必然失败”。应维护窄的兼容映射并保留内容 sniffing；直接信任 `application/octet-stream` 或任意 `text/*` 会削弱安全边界。 |
 | 9 | 确认，已完成本地修复与回归验证 | P1 | review parser 已按 OpenAPI 的 `like`/`dislike` enum 保留可选 `userVote`，非法值继续 fail-closed；针对两种投票和非法值的定向回归通过。没有为了一个字段建设反射式“全 DTO 自动对齐”框架。 |
 | 11 | 确认，修正失败后果 | P1 | 仓库没有受支持、可审计的 school/section admin tuple 发放与撤销流程；运维可手写 OpenFGA tuple，所以不是物理上“无法写入”。实际后果是 scoped role 默认 fail-closed、角色不可用，不是自动获得全局权限。应先确定 Casdoor、业务库或运维清单中的权威来源，再实现最小 grant/revoke/reconcile/audit；在权威来源未定前一次性建设 DB、outbox、API、CLI 和 MFA 全套流程属于过度设计。 |
 | 17 | 确认 | P1 | `super_admin` tuple 只增不减，角色降级后 OpenFGA 全局权力可能残留。同步器应做 reconcile；只有当 roles claim 明确存在且被认定为权威时才允许删除，claim 缺失/解析失败不能被当成撤权信号。 |
-| 18 | 部分确认，原时长错误 | P1 | blacklist TTL 不取 token 自身 `exp` 的问题真实，但当前仓库默认链是 access 1h、refresh 24h、本地 blacklist 5m，不是原文的 168h；理论残余窗口约 55 分钟，生产实际配置尚未核验。应按 token `exp + skew` 保存 blacklist。要求每个 bearer 立即绑定 session ID 属于第二阶段设计。另有相邻的 Casdoor logout 契约风险：当前兼容路径可能把 `end_session_endpoint` 当 RFC 7009 revocation 调用，需要按真实 provider 契约验证。 |
+| 18 | 确认，原时长与兼容方案需要纠正 | P1 | blacklist TTL 不取 token 自身 `exp` 的问题真实。仓库 bootstrap 默认 Casdoor access=1h、provider refresh=24h，本地 blacklist/cookie policy=5m、session lease=7d，故刚登录后 logout 的默认残余窗口约 55 分钟，不是原文的 168h；生产实际值仍须核验。应从已验签 claims 保存 access expiry，并在 refresh 时把 hash+expiry 原子更新；每个 session 按真实剩余寿命吊销。超过 hard cap 不能静默向下截断；旧 session 的 logout-all 无法从 hash 还原 expiry，必须以真实 provider TTL 不超过 session lease 的发布前检查作为保守 PTTL 回退前提，否则 fail-closed/强制重新认证。每个 bearer 立即绑定新 session ID 仍属于第二阶段设计。深挖还确认了下方 N-1 provider 撤销 no-op，须独立修复，不能混入本项假装一次解决。 |
 | 28 | 确认 | P2 | settings save 串行调用 7 个 endpoint，失败后既可能部分落地，又继续展示旧 baseline。应显示分步结果、提供 reload，并让 keyword 删除幂等；HTTP 间不存在可伪造的前端“事务”，也不需要先引入分布式事务。 |
 | 30 | 部分确认 | P2 | restricted-member 队列静默截断到 100 条真实，但这些记录并非在全系统中绝对无法处理。应先显示 `shown/total/truncated` 和告警；只有真实规模常超过 100 时再做分页/搜索。 |
 | 33 | 部分确认 | P3 | custom navigation 没有通用安全区处理，首页风险明确；仅凭静态代码不足以断言 login/callback 在所有设备都重叠。可恢复 native navigation，或按平台 status bar/capsule 做正确间距，并用微信真机验收。 |
@@ -440,9 +440,9 @@ Claude 新生成的 `AUDIT-REPORT.md` 是一份新的汇总快照，不是对本
 | 42 | 部分确认 | P2 | fresh store 的 status fetch 失败会把依赖验证状态的字段呈现为 false negative；并非所有 email/base info 都必然受影响，已有 cache 时也可能保留。应显式建 loading/ready/error/retry 状态，在成功前不展示“未验证”结论。 |
 | 43 | 确认 | P2 | caller cancellation 和 50ms lookup deadline 都会记作全局 breaker failure，连续 5 次可使鉴权 fail-closed 30 秒。应把 caller cancellation 分类为 neutral，并为必要查询使用有界 detached context；没有指标前武断改成 200ms/3s 只是参数猜测。 |
 | 44 | 确认，已完成本地修复与回归验证 | P1 | Bearer introspection 现在发送 `token_type_hint=access_token`，并在 active 后对同一原始 JWT 强制校验 Casdoor `tokenType == "access-token"`；refresh、claim 缺失、opaque 和 malformed token 均 fail-closed。用户认证还要求已登记应用和非空 `sub`。没有信任 response 的通用 `token_type=Bearer`，也没有为每个 Bearer 请求再建一套 JWKS 验签。 |
-| 45 | 确认 | P2 | RequestLogger/Recovery 记录 raw path，path parameter 中的一次性 bearer 会进入日志。路由匹配后优先记录 `c.FullPath()`，无模板时使用统一的安全 fallback；逐个 token 做脆弱的字符串替换不可取。 |
+| 45 | 确认，影响面比报告列举更广 | P2 | 实际有 5 条 admission `:token` 路由；raw path 不只进入 RequestLogger/Recovery，还进入两条请求体超限告警，共 4 类日志点。所有匹配路由统一记录 `c.FullPath()` 模板；Gin 在进入全局 middleware chain 前已经完成路由匹配，无需把记录逻辑推迟到 handler 后。404/405 的 `FullPath()` 为空时必须记录固定 `unmatched`，绝不能回退 raw URL。枚举敏感参数名、遍历 Params 或做字符串替换都容易漏编码/新参数，属于脆弱的过度设计。 |
 | 51 | 部分确认 | P2 | browser cookie 场景存在 logout 与在途 refresh 竞争，可被误判为 reuse 并撤销整个 family；native 常在更早的 tracked-session 检查失败。应加载 referenced session：缺失或 hash 相同视为已撤销，不触发 family revoke；与当前 hash 不同才是真 reuse。无需先新增一套 revoke reason schema。 |
-| 57 | 确认 | P2 | public feed/search 把 scoped `admin:reviews:manage` 当全局 full-content 标志，合法的 scoped admin 可在范围外看到 full 而非 brief 内容。公共路径只接受 global grant；scoped admin 使用已有 scoped admin 路由。为了在公共列表做“范围内 full”而给所有 DTO/SQL 增加 `SchoolID` 是另一个产品增强，不是最小修复。 |
+| 57 | 确认，收窄泄漏叙事与修复范围 | P2 | course/latest/search/batch 四类 public read 共用只接收 flat capability 的 access facts，把合法 scoped `admin:reviews:manage` 错当平台级 full-content 标志，导致范围外已发布正文由 preview 升为 full。当前 public SQL 仍限制 `status='published'`，没有证据支持报告所称 hidden row 泄漏。最小修复只让 global grant 推出 `CanManageReviews/CanViewFull`，scoped admin 继续使用已有 scoped moderation route。报告引用的 `Review.SchoolID` 实际不存在；为了在公共列表实现“范围内 full”而扩 DTO、多组 SQL、scan 和缓存是新的产品增强，不是本安全修复。 |
 | 58 | 部分确认 | P3 | `admin:reports:manage` 未被直接使用，moderation route 仍按 role gate；但当前 raw-role 集合与 capability catalog 等价，下游 scope 也仍检查，所以尚无可利用的授权漂移。可逐步改用已有非全局 capability 并保留 scope，不需要新建 content-edit capability 或一次性重写全部 RBAC。 |
 | 66 | 确认 | P3 | 本地 alg pre-check 接受 ES256，而实际 go-oidc verifier 默认只接受 RS256，配置/行为不一致。显式把本地允许集收窄为 RS256，或明确配置 verifier 支持经决策允许的 ES256；不要无界信任 discovery 返回的任意算法。 |
 | 68 | 确认 | P3 | `ReadTuples` 只读取第一页，忽略 continuation token，后续 `WriteMissingTuples` 可能重写已存在 tuple 并失败。循环分页即可；改成对每条 tuple 单独 `hasTuple` 会把问题变成 N 次网络调用。 |
@@ -494,6 +494,15 @@ Claude 的两条 `/admin/stats` 记录是同一位置、同一 middleware 顺序
 | U-2 | 每 5 分钟丢弃 JWKS `RemoteKeySet` 缓存 | 确认，需要策略决策 | P2 | 当前 wrapper 会销毁 go-oidc 已缓存的 key，TTL 后即使是已知 kid 也必须访问 IdP；IdP 短暂不可用会 503。文档同时存在“已知 key 可离线继续”和“5 分钟后必须 fail”的冲突。必须选择并写清：复用长生命周期 RemoteKeySet 以保可用性，或保留 TTL 后 fail-closed 并修正文档、监控和测试。只随意延长 TTL 不能解决策略矛盾。 |
 | U-3 | StudentVerificationPanel 学籍邮箱流程硬编码中文 | 确认 | P3 | 标签、placeholder、状态和错误均有硬编码中文，英文 locale 会混合显示。增加 scoped 中英文 key，并按稳定状态/错误码映射；不需要引入 CMS 或新 i18n 引擎。 |
 
+### 深挖复核新增的独立问题
+
+下列问题不是 Claude 第二轮 56 个标签之一，因此**不回写也不改变**上方“55 个唯一根因、
+47 个需要处置”的原报告复核统计；它是在实现级交叉验证既有条目时发现的 Codex 补充项。
+
+| 编号 | Codex 结论 | 级别 | 真实机制、必要修复与边界 |
+|------|------------|------|--------------------------|
+| N-1 | Casdoor provider token-family 撤销当前是 HTTP 200 no-op | P1 | 固定 Casdoor 版本的 discovery 没有 RFC 7009 `revocation_endpoint`，只给出 `/api/logout` 的 `end_session_endpoint`；该 endpoint 读取 `id_token_hint`，而当前 StuHelper 发送 `token=<refresh>&token_type_hint=refresh_token`，无浏览器 Casdoor session 时直接返回 200 且不撤销 token。当前 client 只检查 HTTP 2xx，因而把 no-op 当成功。应在 #18 保存 expiry/会话迁移完成后，以独立提交实现明确的 Casdoor adapter：session 保存加密的 provider access token，以 `id_token_hint=<access>` 调用并校验 JSON 业务状态，再用忠实模拟固定 Casdoor 行为的 contract test 验证 access introspection 与 refresh grant 均失效。不能继续把 end-session 伪装成通用 RFC 7009，也不能只把 mock 改成继续接受 `token=refresh` 来自证成功。 |
+
 ### 对新版报告 I-1、I-2、I-3 的复核
 
 | 报告项 | Codex 结论 |
@@ -513,9 +522,10 @@ P2-13/P2-14 的合并修复和回归记录，P2-15 是同一逐行上下文查�
 1. #3 + #4：Koishi Console 全局/群 scope 和跨群数据隔离。
 2. #44：access/refresh token 类型边界与非空 subject。
 3. #17：`super_admin` tuple 的权威 reconcile；#11 先确定 scoped tuple 的权威来源。
-4. #18：按 token 自身 `exp` 计算 blacklist，并单独验证真实 Casdoor logout/revocation 契约。
-5. U-1：academics import 补复用现有 MFA chain。
-6. #9：恢复 `userVote` 契约，避免用户动作语义反转。
+4. #18：按 token 自身 `exp` 计算 blacklist 并完成旧 session 迁移边界。
+5. N-1：在 #18 之后单独实现并验证真实 Casdoor logout/token-family 撤销契约。
+6. U-1：academics import 补复用现有 MFA chain。
+7. #9：恢复 `userVote` 契约，避免用户动作语义反转。
 
 不要把这些问题合成一个“重写 IAM/Casdoor/OpenFGA”的大型项目。每项都应先固定权威输入、
 fail-closed 语义和撤权测试，再做局部实现。
@@ -524,7 +534,7 @@ fail-closed 语义和撤权测试，再做局部实现。
 
 1. #45 path credential 日志脱敏，#51 refresh reuse 误判，#57 scoped grant 的 public-content 边界。
 2. #39 projection polling、#43 breaker cancellation、U-2 JWKS 缓存策略。
-3. #5 的真实 MP/H5 产物契约，以及“实现 mp-weixin 或明确不支持”的产品决策。
+3. #5 的 H5 资产产物契约；mp-weixin 假绿另做“实现真实平台 build 或明确不支持”的产品决策。
 4. #6、#7、#28、#30、#38、#42 等会让用户状态错误、流程卡死或操作结果不可信的问题。
 
 #### 第三批：局部 UX、可访问性、契约和文档
@@ -533,18 +543,44 @@ fail-closed 语义和撤权测试，再做局部实现。
 bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复；不先建设动画框架、全局事件总线、
 通用 OAuth 调度器、动态 OIDC discovery 平台或文档全量 parser。
 
+### 并行实现级深挖复核记录
+
+“逐项复核”分为两层：上方 55 个唯一根因已经全部完成源码级确认/证伪与重新分级；下表是在此
+基础上，针对优先队列继续做的实现级调用链、负向测试、第三方契约和修复冲突复核。没有列入
+下表的条目不是“未审计”，而是尚未完成同等深度的实施前验证；后续每个条目在修改前仍须补齐
+这一层，不能仅凭初始静态结论直接改代码。
+
+| Workflow / 条目 | 深挖结论 | 实施决策与避免过度设计边界 |
+|-----------------|----------|--------------------------------|
+| WF01：#3 + #4 | 两项均为真实 P1，共享 Koishi Console guild-scope 根因 | 复用既有 guild scope resolver；global settings 必须 global scope，列表/统计先按 guild 过滤，mutation 在副作用前断言目标 guild。可一个原子提交修共享边界，但文档分别关闭两个影响面；不搬迁整套 RBAC helper，不与 #30 队列 UX 混改。 |
+| WF02：#44 | 真实 P1，已修复 | Casdoor active introspection 不能只看 `active` 或相信 hint；运行时已强制 3 段 JWT、`tokenType=access-token`、registered app 和非空 subject。没有增加每请求第二套 JWKS 验签。 |
+| WF03：#17 | 真实 P1 | 只有 roles claim **明确存在、结构有效且被调用链标记为权威**时才能删除残留 `super_admin` tuple；Web/native login、refresh 的新 token 可作为权威输入，使用可能陈旧 access token 的 `/userinfo` 不能触发撤权或重新加权。先做 claim provenance + exact tuple reconcile，不顺手实现 #11 的全套 provisioning 平台。 |
+| WF04：#9 | 真实 P1，已修复 | 所有 `readReviewPagePayload` consumer 都经过同一 parser；保留 `like/dislike` enum、缺失可选、非法 fail-closed 足够，不建设反射式 DTO 自动同步框架。 |
+| WF05/WF10：U-1 | MFA 缺口真实；“缺通用 admin-entry”证伪；交叉审查从 FAIL 修到 PASS | 三条 `/admin/academics` route 已复用现有 admin MFA chain。反向复核发现共享 RBAC step-up 曾返回 428、与 OpenAPI/管理端 412 契约冲突，已中央对齐 412并扩展真实链路断言；非 MFA 的 Open Platform 428 未被机械替换。精确 global capability 已比 admin-entry 更严格，无需重复 gate。 |
+| WF06：#18 + N-1 | #18 真实 P1；同时把 provider revoke 从“风险”提升为已证实 no-op P1 | 保存已验签 expiry、原子轮换 hash+expiry、逐 session 计算剩余 TTL；legacy logout-all 迁移必须有 provider TTL invariant，不能用 30 天向下 clamp。N-1 独立实现 Casdoor adapter，避免把会话迁移、blacklist 和 provider 协议揉成一次 IAM 重写。 |
+| WF07：#51 | 较窄 P2 真实 | referenced session 存在、当前 refresh hash 非空且与 presented hash **不同**才是真 reuse；session 缺失或 hash 相同是已撤销/并发 logout，不触发 family revoke。无需为此新增 revoke-reason schema。 |
+| WF08：#57 | 真实 P2，原报告的 hidden-row 与 `Review.SchoolID` 证据不成立 | public full-content entitlement 只接受 global grant；不改 capability producer、管理路由、Review DTO/OpenAPI/SQL，不实现新的“scope 内 public full”产品语义。 |
+| WF09：#45 | 真实 P2，报告漏掉 1 条 token route 和 2 类 body-limit 日志 | 4 类日志点统一用 `FullPath()`，未匹配 404/405 固定 `unmatched`；保留 query masking。不得回退 raw path，也不维护敏感参数黑名单或 token 字符串替换器。 |
+| WF11：#5 | H5 缺图真实 P2；mp-weixin 缺图硬失败未验证，真实相邻问题是 mp build 假绿 | 移动 `static` 到 `src/static` 并补从 `pages.json` 派生的产物断言；保留现有公共 URL。mp 先决定支持与否，再补真实平台 compiler/app.json/WXML 门禁，不能把 H5 假产物当微信验证。 |
+| WF12：#6 | 真实 P2；“create 失败也删除”证伪 | 只恢复匹配或未绑定课程草稿，未绑定不恢复 teacher；显式记录当前页是否消费/保存服务端单槽，create 成功后才有条件清理。不改 DB/OpenAPI 为多草稿，也不在本项解决跨设备 CAS/If-Match。 |
+
 ### 本轮交叉验证与尚未验证边界
 
 本轮并行代理均以只读复审为主，主代理对关键链路再次交叉检查。执行结果：
 
-- 后端：`go test` 覆盖 `middleware`、`auth`、`course/review`、`fga`、`oidc`、
-  `authorization`、`user`、`academics`、`app`、`sms` 等相关包，均通过。
+- 后端：U-1/412 修复后执行 `go test ./... -count=1` 全部通过；`rbac`、`app`、
+  `academics`、`auth`、`user`、`course/review` 的定向 race 也通过。#18 深挖的
+  `token`/`oidc`/`auth` 基线、#45 的 `middleware`/`metrics` 基线以及 #57 的
+  `course/review`/`capability` 基线均通过；这些现有正向测试本身不覆盖已确认的负向场景。
 - Web：第一组 2 files / 7 tests、补充组 5 files / 20 tests 均通过；专门的 jsdom probe
   复现了 #38 的永久 toast。现有绿色测试没有覆盖该负向生命周期。
-- Koishi、Web、UniAppX 定向回归分别为 34/34、54/54、36/36；H5 Playwright 的
-  A11yButton 键盘 probe 1/1 通过，支持维持证伪“双触发”。
-- 实际执行 mp-weixin build 时命令错误地以 0 退出，却只生成 H5 结构，没有小程序入口和
-  模板产物；审计临时产物已移出工作树，未把生成物写入仓库。
+- Koishi、Web、UniAppX 初始定向回归分别为 34/34、54/54、36/36；#6 深挖时 UniAppX
+  Vitest 8 files / 58 tests、类型检查和 review-post Playwright 2/2 继续通过，但尚无
+  foreign-course draft 负向用例。H5 A11yButton 键盘 probe 1/1 通过，支持维持证伪“双触发”。
+- #5 的隔离 H5 build 复现了“命令成功、8 个 tabBar 图标均未进入产物、built preview
+  返回 404”；临时副本只把 `static` 移入 `src/static` 后，8 个源/产物哈希一致且抽查
+  preview 为 200。实际执行 mp-weixin build 同样错误地以 0 退出，却只生成 H5 结构，
+  没有 `app.json`、WXML/WXSS 等小程序产物；所有临时输出均位于工作树外。
 
 测试通过只说明现有正向契约未被破坏，不能覆盖报告指出的所有负向场景。以下仍需在真正处置时
 单独验收：
@@ -559,9 +595,9 @@ bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复
 
 | 报告编号 | 状态 | 验证证据 | 提交 |
 |----------|------|----------|------|
-| 9 | 已修复，待发布 | Web review payload reader 保留 `like`/`dislike`，缺失字段保持可选，非法 enum fail-closed；定向 payload/voting 回归、Web 类型检查与相关静态检查通过 | `fix(review): preserve current user vote state` |
-| 44 | 已修复，待发布 | active introspection 只接受 Casdoor `access-token` purpose，refresh/missing/malformed/opaque token 均拒绝；Bearer 用户路径拒绝空白 subject，provider unavailable 与 inactive 分类保持不变；OIDC、middleware、app/auth 定向回归与服务端静态检查通过 | `fix(auth): reject refresh tokens on bearer paths` |
-| U-1 | 已修复，待发布 | 三个 academics admin operation 消费现有 admin MFA middlewares；共享 step-up 响应从错误的 428 对齐既有 412 契约，OpenAPI/生成物同步；blocking route contract、真实 MFA chain、相关包/全量 Go 回归、race、spec/drift、lint/build 与文档检查通过 | `fix(academics): require MFA for import administration` |
+| 9 | 已修复，待发布 | Web review payload reader 保留 `like`/`dislike`，缺失字段保持可选，非法 enum fail-closed；定向 payload/voting 回归、Web 类型检查与相关静态检查通过 | `59322589` `fix(review): preserve current user vote state` |
+| 44 | 已修复，待发布 | active introspection 只接受 Casdoor `access-token` purpose，refresh/missing/malformed/opaque token 均拒绝；Bearer 用户路径拒绝空白 subject，provider unavailable 与 inactive 分类保持不变；OIDC、middleware、app/auth 定向回归与服务端静态检查通过 | `3d12d259` `fix(auth): reject refresh tokens on bearer paths` |
+| U-1 | 已修复，待发布 | 三个 academics admin operation 消费现有 admin MFA middlewares；共享 step-up 响应从错误的 428 对齐既有 412 契约，OpenAPI/生成物同步；blocking route contract、真实 MFA chain、相关包/全量 Go 回归、race、spec/drift、lint/build 与文档检查通过 | `4b2f520b` `fix(academics): require MFA for import administration` |
 
 ## Claude 原审计的确认问题分布（保留原始记录）
 
