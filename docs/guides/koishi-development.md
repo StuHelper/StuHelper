@@ -3,7 +3,7 @@ type: guide
 audience: backend-dev, ops
 status: current
 authoritative-source: bots/koishi/ + server/api/openapi.yaml
-last-verified: 2026-06-18
+last-verified: 2026-07-31
 ---
 
 # Koishi 机器人开发
@@ -85,6 +85,26 @@ YARN_NPM_REGISTRY_SERVER=https://registry.npmjs.org corepack yarn npm audit --al
 
 - `bots/koishi/packages/shared/src/types/index.ts`
 - `bots/koishi/packages/shared/src/config/index.ts`
+
+### 全局设置的保存一致性
+
+“全局设置”页面实际保存 7 个逻辑域：群管中心设置、QQ 绑定提示、管理员命令提示、
+群管 AI、群管行为、群管提示和关键词规则。它们由不同的 Console API 持久化，关键词规则
+还会展开为删除和逐条 upsert，因此这不是单个数据库事务。
+
+- 页面按固定顺序执行有界请求，不使用 `Promise.all` 并发冲击运行时配置。
+- 每个逻辑域显示 `已确认`、`结果未确认` 或 `未执行`；失败后不会把整个旧表单误称为服务端
+  当前状态。
+- 只有收到成功响应的设置切片才推进本地 baseline。关键词规则每完成一次删除或 upsert
+  就推进对应 baseline，重试时不会再次删除已经确认落地的规则。
+- 关键词删除是幂等的；如果前一次请求已删除规则但响应丢失，重试仍返回成功。已存在规则的
+  guild scope 校验保持不变。
+- 失败后管理员可以继续按剩余差异重试，也可以在二次确认后重新加载服务端实际状态；重新加载
+  会放弃当前表单中尚未确认保存的内容。
+- WebUI 与机器人运行时复用同一份安全正则校验，避免浏览器接受而服务端拒绝高风险回溯表达式。
+
+这里不承诺跨多个 HTTP 请求的原子提交，也不应在前端模拟 rollback、2PC 或 saga。若未来确实
+需要全域原子配置，应由服务端提供单一事务 API，并先明确各运行时设置表的事务边界。
 
 ## 平台依赖接口
 

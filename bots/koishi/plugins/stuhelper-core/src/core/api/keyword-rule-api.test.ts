@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
+  deleteKeywordRuleIfPresent,
   parseKeywordRuleInput,
   toPublicKeywordRule,
 } from './keyword-rule-api'
@@ -177,4 +178,59 @@ test('toPublicKeywordRule serializes dates without leaking internal fields', () 
     createdAt: '2026-06-09T10:00:00.000Z',
     updatedAt: '2026-06-09T10:01:00.000Z',
   })
+})
+
+test('deleteKeywordRuleIfPresent makes a repeated delete idempotent', async () => {
+  const deleted: string[] = []
+  const store = {
+    getKeywordRule: async () => undefined,
+    deleteKeywordRule: async (id: string) => {
+      deleted.push(id)
+    },
+  }
+
+  const removed = await deleteKeywordRuleIfPresent(store, { kind: 'all' }, 'already-gone')
+
+  assert.equal(removed, false)
+  assert.deepEqual(deleted, [])
+})
+
+test('deleteKeywordRuleIfPresent preserves scope checks for existing rules', async () => {
+  const deleted: string[] = []
+  const record = {
+    id: 'rule-1',
+    guildId: '10001',
+    pattern: 'spam',
+    matchMode: 'includes' as const,
+    action: 'warn' as const,
+    enabled: true,
+    muteSeconds: 0,
+    note: null,
+    createdAt: new Date('2026-06-09T10:00:00.000Z'),
+    updatedAt: new Date('2026-06-09T10:01:00.000Z'),
+  }
+  const store = {
+    getKeywordRule: async () => record,
+    deleteKeywordRule: async (id: string) => {
+      deleted.push(id)
+    },
+  }
+
+  await assert.rejects(
+    deleteKeywordRuleIfPresent(
+      store,
+      { kind: 'guilds', guildIds: new Set(['20002']) },
+      record.id,
+    ),
+    /outside of the current console guild scope/,
+  )
+  assert.deepEqual(deleted, [])
+
+  const removed = await deleteKeywordRuleIfPresent(
+    store,
+    { kind: 'guilds', guildIds: new Set(['10001']) },
+    record.id,
+  )
+  assert.equal(removed, true)
+  assert.deepEqual(deleted, ['rule-1'])
 })

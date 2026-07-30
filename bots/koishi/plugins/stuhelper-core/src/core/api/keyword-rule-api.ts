@@ -84,17 +84,31 @@ export function registerKeywordRuleAPI(api: WebSocketAPIContext): void {
     try {
       const scope = await api.resolveConsoleScope(this)
       const id = readRuleID(params?.id)
-      const existing = await store.getKeywordRule(id)
-      if (!existing) {
-        throw new Error('keyword rule not found')
-      }
-      assertKeywordRuleScope(scope, existing.guildId, 'keyword rule')
-      await store.deleteKeywordRule(id)
+      await deleteKeywordRuleIfPresent(store, scope, id)
       return success({ success: true })
     } catch (cause) {
       return error(cause instanceof Error ? cause.message : '删除关键词规则失败')
     }
   })
+}
+
+export interface KeywordRuleDeleteStore {
+  getKeywordRule: (id: string) => Promise<KeywordRuleRecord | undefined>
+  deleteKeywordRule: (id: string) => Promise<unknown>
+}
+
+export async function deleteKeywordRuleIfPresent(
+  store: KeywordRuleDeleteStore,
+  scope: ConsoleGuildScope,
+  id: string,
+): Promise<boolean> {
+  const existing = await store.getKeywordRule(id)
+  if (!existing) {
+    return false
+  }
+  assertKeywordRuleScope(scope, existing.guildId, 'keyword rule')
+  await store.deleteKeywordRule(id)
+  return true
 }
 
 export function parseKeywordRuleInput(input: unknown): KeywordRuleInput {

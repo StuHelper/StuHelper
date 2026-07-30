@@ -426,7 +426,7 @@ Claude 新生成的 `AUDIT-REPORT.md` 是一份新的汇总快照，不是对本
 | 11 | 确认，修正失败后果 | P1 | 仓库没有受支持、可审计的 school/section admin tuple 发放与撤销流程；运维可手写 OpenFGA tuple，所以不是物理上“无法写入”。实际后果是 scoped role 默认 fail-closed、角色不可用，不是自动获得全局权限。应先确定 Casdoor、业务库或运维清单中的权威来源，再实现最小 grant/revoke/reconcile/audit；在权威来源未定前一次性建设 DB、outbox、API、CLI 和 MFA 全套流程属于过度设计。 |
 | 17 | 确认，已完成本地修复、真实 OpenFGA 协议与回归验证 | P1 | `super_admin` tuple 原先只增不减，角色降级后 OpenFGA 全局权力会残留。现在只有 Web/native login 与 refresh 新签发、已验签且显式包含结构合法 roles claim 的 ID token 才设置 `RolesAuthoritative` 并执行 reconcile；`/auth/me` 的旧 access token、claim 缺失、`null` 或解析失败均不能增删 tuple。撤权使用 higher-consistency 的完整 direct tuple 精确读取，再以 `on_missing=ignore` 幂等删除并写 `iam.role.revoke` 审计；读取/删除失败时认证同步 fail-closed。真实 OpenFGA v1.18.1 临时 store 验证写入后为 1、首次和重复删除均为 200、最终为 0，store 已删除。没有顺手建设 #11 的 scoped provisioning 平台，也没有让 introspection 每请求写 OpenFGA。 |
 | 18 | 确认，已完成本地修复与真实 Redis 验证 | P1 | blacklist TTL 不取 token 自身 `exp` 的问题真实；进一步确认 tracked logout 原先先按 session 写 blacklist，随后又用本地 5 分钟 TTL 对同一 key 二次 `SET`，会把较长 TTL 缩短。现在 Web/native login 与 refresh 都从已验签 ID token 保存 provider `exp`，refresh 在既有 Redis Lua 中原子更新 access hash + expiry；新 token 剩余寿命必须不超过 session lease 和 30 天 hard cap。logout/logout-all 对每个 session 按真实剩余寿命吊销，已过期不写 key，低于 1 秒只向上取整，超过上限不静默截断；tracked 撤销成功后直接返回，消除了二次覆盖。滚动升级旧 session 仅在仓库托管 Casdoor access=1h、不超过 session lease 的约束下使用真实 Redis PTTL，无 TTL 时 fail-closed。永久回归、四包定向/race、全服务端 race、lint/build/docs 均通过；一次性 Redis 8.8.1 容器验证原子轮换、50 分钟现代 session、20 分钟 legacy PTTL、10/40 分钟逐 session logout-all 和 hard-cap 拒绝均符合预期，容器已删除。没有给每个 Bearer 请求新增 session lookup/ID；当时独立保留的 N-1 provider no-op 后续已按下方 N-1 记录修复，没有混入本项。生产实际 Casdoor TTL 与真实登出仍待发布验收。 |
-| 28 | 确认，已完成实现前深挖 | P2 | 页面保存的是 7 个逻辑域，而非固定“7 次请求”：实际 mutation 数是 `6 + D` 次关键词删除 + `N` 次关键词 upsert。失败会形成部分落地，当前又继续展示旧 baseline。最小修复是逐域记录 confirmed/unconfirmed/not-run、仅对确认成功的 slice 更新 baseline、失败后提供带确认的服务端 reload，并让“已不存在”的关键词删除幂等；前端跨 HTTP 伪造 transaction/rollback、`Promise.all` 并发冲击、2PC 或 saga 都是过度设计。 |
+| 28 | 确认，已完成本地修复与失败路径回归 | P2 | 页面保存的是 7 个逻辑域，而非固定“7 次请求”：实际 mutation 数是 `6 + D` 次关键词删除 + `N` 次关键词 upsert。现在固定顺序记录 confirmed/unconfirmed/not-run，只对收到成功响应的 slice 推进 baseline；关键词域每个已确认删除/upsert 都立即推进，失败重试不会重复已确认删除。错误区展示逐域结果，并提供二次确认后的服务端 reload；missing keyword delete 幂等，已存在规则仍保留 guild scope 检查。WebUI 也复用服务端的安全正则校验。没有用 `Promise.all`、前端 rollback、2PC 或 saga 伪造跨 HTTP 事务。 |
 | 30 | 部分确认，已完成实现前深挖 | P2 | Admission runtime 确实加载全部 active records 后按 deadline 静默截断为 100 条，页面同时显示未截断统计和“100 条”却无解释；但“其余记录在整个 Console 不可达、只能等待前 100 条老化”不成立。处置中心可检索全部 active records 并放行/拒绝/延期，群内授权命令可查询/重发/重新生成/跳过，backend-sync 与 time-code 扫描也不受 UI cap 影响；deadline 到期本身不会让记录退出 active。应先基于同一 guild scope 显示 `shown / total / truncated` 和替代操作说明，并用 `(deadlineAt,id)` 稳定排序；只有遥测证明队列经常持续超过 100、替代路径不足或全量加载产生 SLO 问题时，才做数据库级 scoped cursor pagination/search。 |
 | 33 | 部分确认 | P3 | custom navigation 没有通用安全区处理，首页风险明确；仅凭静态代码不足以断言 login/callback 在所有设备都重叠。可恢复 native navigation，或按平台 status bar/capsule 做正确间距，并用微信真机验收。 |
 | 34 | 确认，已用真实 Chromium 复现 | P2 | 每个实际执行的 resize rAF 回调会丢弃当前 50 个粒子引用并新建 50 个 `repeat:-1` GSAP tween；同帧 resize 已合并，原报告按每个 event/帧推算的数量不是实测。Chromium 探针确认旧 tween 在离开首页后仍被 global timeline 强引用并继续推进；在 `particles=[]` 前执行 `gsap.killTweensOf(particles)` 后始终稳定为一批且卸载归零。无需引入 animation manager、Worker、ResizeObserver、Tween handle 数组或重写粒子系统。 |
@@ -550,7 +550,7 @@ fail-closed 语义和撤权测试，再做局部实现。
 1. #45 path credential 日志脱敏（已完成本地修复），#51 refresh reuse 误判（已完成本地修复），#57 scoped grant 的 public-content 边界（已完成本地修复）。
 2. #39 projection polling（已完成本地修复）、#43 breaker cancellation（已完成本地修复）、U-2 JWKS 缓存策略（已完成代码与守卫文档修复；用户架构稿旧段待收敛）。
 3. #5 的 H5 资产产物契约（已完成本地修复）；mp-weixin 假绿另做“实现真实平台 build 或明确不支持”的产品决策。
-4. #6、#7、#8（均已完成本地修复）、#28、#30、#38、#42 等会让用户状态错误、流程卡死或操作结果不可信的问题。
+4. #6、#7、#8、#28（均已完成本地修复）、#30、#38、#42 等会让用户状态错误、流程卡死或操作结果不可信的问题。
 
 #### 第三批：局部 UX、可访问性、契约和文档
 
@@ -582,7 +582,7 @@ bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复
 | WF12：#6 | 真实 P2，已完成本地修复与回归；“create 失败也删除”证伪 | 只恢复匹配或未绑定课程草稿，未绑定不恢复 teacher；显式记录当前页是否成功恢复/保存服务端单槽，create 成功后才有条件清理。外课程草稿和不确定保存结果均保守保留。产品文档同步真实无 course path 单槽契约；不改 DB/OpenAPI 为多草稿，也不在本项解决跨设备 CAS/If-Match。 |
 | WF13：#7 | 真实 P2，已完成本地修复与回归 | Profile Completion 对 username/email/avatar 优先使用 `/auth/me` 已给出的绝对 `accountSettingsUrl`，phone/identity/student/school 保留后端本地 route，缺失外部 URL 时回退声明 action。单元和双视口浏览器回归覆盖字段归属与既有 Continue 链路。未为静态 catalog 注入整套 config/service、复制 issuer fallback 或把本地只读资料页改造成第二个身份提供方编辑器。 |
 | WF14：#8 | 部分确认 P2，已完成本地修复与回归；问题是有限的媒体类型兼容，不是通用 MIME 绕过 | 只在资源 POST 的内容解码边界做窄映射并返回 effective MIME；ZIP/Office/OLE/text refinement 精确枚举且保留 sniff，OLE/JSON 另做内容验证。负向测试固定任意 `text/*`、`vnd.*`、`*+zip`、无魔数 legacy 与无效 JSON 仍拒绝。没有把策略复制到身份/准入图片路径，也没有增加易漂移的前端 allowlist。 |
-| WF15：#28 | 真实 P2；“7 endpoint”应改成 7 个逻辑域、`6 + D + N` 次 mutation | 结果状态区分 confirmed/unconfirmed/not-run；按成功 slice 更新 baseline，失败后提供带确认 reload，missing keyword delete 幂等。前端无法给多个 HTTP 请求制造真实事务；不引入 rollback、2PC、saga 或无界并发。 |
+| WF15：#28 | 真实 P2，已完成本地修复与回归；“7 endpoint”已纠正为 7 个逻辑域、`6 + D + N` 次 mutation | 顺序 orchestrator 区分 confirmed/unconfirmed/not-run；成功 slice 与关键词子 mutation 逐步推进 baseline，失败后可确认 reload，missing delete 幂等且已有规则继续做 scope 检查。客户端和运行时共用安全正则校验。没有引入 rollback、2PC、saga 或无界并发。 |
 | WF16：#30 | 部分确认 P2；100 条静默窗口真实，但全系统不可处理和等待老化叙事被证伪 | 先显示同一授权 scope 下 `shown/total/truncated`、替代操作路径和稳定 `(deadlineAt,id)` 排序。处置中心、群内命令、backend-sync/time-code 仍覆盖隐藏记录；只有真实规模长期超限或全量加载达到 SLO 风险时才做 Repository cursor pagination/search。 |
 | WF17：#34 | 真实 P2，Chromium 证明旧无限 tween 在 resize 和卸载后仍推进 | 在 `createParticles()` 丢弃当前 targets 前 kill；保留现有 rAF 合并与 unmount 清理。无需 GSAP context 重构、Tween handle registry、ResizeObserver、Worker 或全局 animation manager。 |
 | WF18：#35 | 真实但偏低端 P2；用户删除是 soft delete，却没有受支持的用户/管理员恢复 | 在 `ReviewCard` 做局部两阶段确认或复用已有可访问 Dialog，并用 single-flight 防重复提交；失败时保留重试状态。不要为确认框顺带新增 restore schema/API、延时删除、undo 平台或全站 modal manager。 |
@@ -668,6 +668,14 @@ bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复
   有效 JSON 保留规范化 MIME；伪装图片、任意文本/ZIP 细分、无魔数旧 Office、无效 JSON
   与畸形 MIME fail-closed。真实 PostgreSQL 用例确认 DOCX 的有效 MIME 写入版本记录；
   资源包全量 `-race` 通过。未对身份材料或 admission 上传复用该兼容策略。
+- #28 的纯状态机回归在第二个逻辑域抛出超时，确认结果稳定为
+  `confirmed / unconfirmed / not-run`，后续域没有被调用；关键词回归先确认删除 A、再让 B
+  upsert 失败，baseline 只保留 B 的旧值，重试只执行 B/C upsert、不再删除 A。服务端回归
+  证明 missing delete 返回成功且不调用 delete，已存在的外群规则仍在副作用前拒绝。WebUI
+  静态契约固定逐域状态、成功 slice baseline、确认 reload 和共享安全正则接线。Koishi
+  production build、UI contracts、606/606 unit、startup smoke 与 46/46 Chromium UI
+  smoke 全部通过；浏览器全局设置的保存、放弃和恢复默认真实 Console action 未回归。没有
+  声称这些测试提供跨 7 个逻辑域的原子事务。
 - U-2 先对固定 go-oidc v3.17.0 源码交叉验证：`RemoteKeySet` 文档要求复用 long-lived
   verifier，已知 `kid` 先读 cache，只有不匹配才回源，remote failure 不替换
   `cachedKeys`。永久 httptest 依次证明首次 known key 请求一次、provider 下线后 known
@@ -730,6 +738,7 @@ bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复
 | 6 | 已修复，待发布；跨设备 ABA 未提前设计 | 当前页只恢复 course 匹配/未绑定草稿，未绑定不恢复 teacher；成功恢复或保存才获得 create 成功后的单槽清理资格，外课程和不确定保存结果均保留。产品文档纠正为无 course path 的每用户单槽。58 unit、type-check、草稿边界 8 E2E、完整 H5 72 E2E、正式 build/docs 通过 | `fix(uniappx): preserve drafts across course submissions` |
 | 7 | 已修复，待发布 | provider-owned 三个字段使用已验证的 `accountSettingsUrl`；四个 StuHelper 字段保留后端本地 action，外部 URL 缺失时不猜测 issuer。10 个单元测试、Web type-check/ESLint、桌面和移动完整 Open Platform 流程 20/20 通过，既有 Continue 与安全 redirect 行为未回归 | `fix(web): route provider profile completion to account settings` |
 | 8 | 已修复，待发布 | 资源创建对精确 ZIP/OLE/text refinement 返回并持久化有效 MIME；OLE/JSON 增加内容验证，未知 octet-stream、任意文本/ZIP 派生和真实冲突继续拒绝。23 个媒体边界子测试、真实 PostgreSQL 持久化、资源全包 race、OpenAPI spec/drift、全服务端 race/lint/build/docs 通过 | `fix(resource): preserve verified upload media types` |
+| 28 | 已修复，待发布；跨请求原子性仍不承诺 | 逐域状态机和关键词部分成功 baseline 负向测试通过；missing delete 幂等、existing foreign rule 无副作用；Koishi build、UI contracts、606 unit、startup 与 46 Chromium UI smoke 通过。失败后可按剩余差异重试或确认 reload，未引入并发 fan-out/rollback/2PC/saga | `fix(koishi): preserve partial settings save results` |
 
 ## Claude 原审计的确认问题分布（保留原始记录）
 
