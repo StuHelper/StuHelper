@@ -96,6 +96,7 @@ assert_text_contains "${docs_filter}" "^[[:space:]]+- 'scripts/lib/\\*\\*'$" "do
 
 clients_filter="$(workflow_filter_block clients)"
 contract_filter="$(workflow_filter_block contract)"
+backend_filter="$(workflow_filter_block backend)"
 infra_filter="$(workflow_filter_block infra)"
 koishi_filter="$(workflow_filter_block koishi)"
 for filter_name in clients contract infra koishi; do
@@ -110,6 +111,8 @@ for filter_name in clients contract infra koishi; do
 done
 assert_text_contains "${clients_filter}" "^[[:space:]]+- 'scripts/check-vue-ui-contracts\\.mjs'$" "clients path filter"
 assert_text_contains "${koishi_filter}" "^[[:space:]]+- 'scripts/check-vue-ui-contracts\\.mjs'$" "koishi path filter"
+assert_text_contains "${backend_filter}" "^[[:space:]]+- '\\.env\\.example'$" "backend path filter"
+assert_text_contains "${backend_filter}" "^[[:space:]]+- '\\.env\\.prod\\.example'$" "backend path filter"
 
 repository_policy_block="$(sed -n '/^  repository-policy:$/,/^  secret-scan:$/p' "${GITHUB_CI_FILE}")"
 sast_job_block="$(sed -n '/^  sast:$/,/^  required:$/p' "${GITHUB_CI_FILE}")"

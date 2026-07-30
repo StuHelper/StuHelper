@@ -82,7 +82,7 @@ Web / Admin / UniAppX+Koishi UI / Koishi / 基础设施 / 代码质量与文档)
 | P1-9 | 核心确认，已按既有安全模型完成本地修复 | P1/P2 边界 | 已修复，待真实 Casdoor 验收 | Open Platform 只传内部 user ID；app gateway 用 user repository 解析 Casdoor subject，再实时调用既有 `GetPhone`。本地只读取 `phone_enc IS NOT NULL` 作为验证状态，不再读取/解密掩码字节。真实 PostgreSQL/Redis 覆盖 phone API、identity-token、授权审计和 provider fail-closed；app adapter 覆盖身份解析失败不调用外部客户端。没有落库完整手机号、缓存 Casdoor 返回或让业务模块持有外部 subject。 |
 | P1-10 | 机制确认，已完成本地修复与真实单连接池回归；生产影响未量化 | P1 → P2 | 已修复，待发布 | 先 drain 并显式关闭主结果，再以 2 条批量 SQL 取 tags/bindings，查询数由 `1 + 2N` 固定为 3。真实 PostgreSQL 在 `MaxConns=1` 下覆盖 1/2 条数据的固定查询数、详情查询与 6 个并发列表请求；无需 ORM/DataLoader。 |
 | X-1 | 证伪 | P1 → 不成立 | 不改 | 无 school scope 的 `school_admin` 在 `ExpandRoleGrants` 已得到零 capability，admin Entry 会在 Handler 前返回 403；定向测试也覆盖该语义。Repository 的 nil/空切片确有可读性风险，但原攻击链不可达。最多补 route-level 防回归/显式空结果，按 P3 加固，不做紧急授权模型重写。 |
-| X-2 | 部分确认，原计数错误 | P2 | 应改 | config 包运行时键为 181 个，主模板实际缺 17 个；另外 4 个分别属于 bootstrap/FGA 工具、`GIN_MODE` 和 Redis 集成测试，不能混入运行时模板。建立分类 allowlist，只要求 operator-facing 配置进入对应模板；识别并删除 `LOG_SERVICE_VERSION` 等死配置。要求所有 `getenv` 与两个模板严格集合相等会暴露危险开关并制造噪声，属于过度设计。 |
+| X-2 | 部分确认，已完成分类修复与持续门禁 | P2 | 已修复，待 CI/发布验收 | 实施前用 Go AST 重新枚举得到 config 包 **184** 个运行时键，而不是先前复核误记的 181；17 个模板差集本身正确。13 个真正面向操作员的 DB/Redis mTLS、Casdoor scopes/introspection/admin-certificate 与邮件路由键已进入开发、生产模板；`LOG_SERVICE_VERSION` 是死配置，运行时始终使用 build version，现已删除。`AWS_CA_BUNDLE`、`LOG_SERVICE_NAME`、`LOG_ENVIRONMENT` 是已有主键的兼容覆盖项，保留但不写入模板，避免空值压掉 fallback。AST 回归只要求 config 运行时键进入至少一个模板或带理由的窄 allowlist，并拒绝动态 key、缺项和陈旧 allowlist；env 模板改动也会触发 Backend job。没有把 bootstrap/FGA 工具、`GIN_MODE`、Redis integration 开关暴露到运行模板，也没有要求模板与全仓 `getenv` 集合相等。 |
 
 ### P2 逐项复核
 
@@ -197,7 +197,7 @@ P2 唯一根因应按以下修复簇合并，避免重复设计：
 #### 第四批：低风险 UX、文档和清理
 
 P1-7 已完成修复、真实路由/数据库回归和独立提交。继续 P2-5、P2-8、P2-11、P2-19、
-P3-1 至 P3-6、P3-8、R-5 至 R-7、R-14、R-15、R-17，以及 X-2 的配置分类治理。
+P3-1 至 P3-6、P3-8、R-5 至 R-7、R-14、R-15、R-17。X-2 的配置分类治理已完成。
 
 ### 本轮执行的验证
 
@@ -508,7 +508,7 @@ Claude 的两条 `/admin/stats` 记录是同一位置、同一 middleware 顺序
 | 报告项 | Codex 结论 |
 |--------|------------|
 | I-1 无 scope 的 `school_admin` 全量可见 | 不是新问题，与本文件 X-1 相同，维持证伪。`ExpandRoleGrants` 对无 scope 角色不给 capability，admin Entry 在 Handler 前返回 403。#11 的真实问题是“缺少受支持的 scoped tuple provisioning，角色 fail-closed 不可用”；#57 的真实问题是“已有合法 scoped grant 被 public content path 错当全局 full-content grant”。两者都不能证明 I-1 的默认全局泄漏。 |
-| I-2 21 个 env 变量缺模板 | 不是新问题，与 X-2 相同，维持“部分确认”。当前复核口径是 runtime key 181 个、主模板缺 17 个；另 4 个分别属于 bootstrap/FGA 工具、`GIN_MODE` 和 Redis integration test。应做分类 allowlist，不要求所有 `getenv` 与两个模板严格相等。 |
+| I-2 21 个 env 变量缺模板 | 不是新问题，与 X-2 相同，维持“部分确认”并已完成分类修复。实施前 AST 口径为 config runtime key 184 个、模板差集 17 个；本文件早先的 181 是计数错误，现已纠正。13 个 operator-facing 键进入两个模板，死配置 `LOG_SERVICE_VERSION` 删除，3 个兼容覆盖项进入带理由 allowlist；另 4 个原报告键分别属于 bootstrap/FGA 工具、`GIN_MODE` 和 Redis integration test，不进入运行模板。门禁不要求所有 `getenv` 与两个模板严格相等。 |
 | I-3 契约测试锁死 deploy bundle 缺陷 | 不是新问题，是旧 P1-4 的测试反模式补充；相关修复和本地验证已在上方进度表记录。新版报告第 7 节刻意不判断当前实现状态，所以不能据其原始正文把已修复项重新标成“未处理”。 |
 
 ### 本次增量完整性核对
@@ -592,6 +592,7 @@ live rating bar 已完成可达表面的最小修复。优先做一处根因、�
 | WF25：#37 | 真实 P2，已完成 AppShell 级最小修复与真实键盘回归 | 按最新 Web Interface Guidelines 复核后，缺口限定为 shell 的 bypass block；skip link 使用原生 anchor 和 fragment，不用 click handler 模拟导航，`main` 只增加稳定 id 与 `tabindex=-1`。样式沿用现有 token、全局 focus-visible 和 reduced-motion，z-index 高于 sticky header。桌面/移动 Chromium 实测首个 Tab 可见、Enter 后 main 获得焦点；无需在各页面复制链接或构建 focus manager。 |
 | WF26：反向复核 / 非法 FGA section | 部分真实 P2，已完成单 grant 隔离、可观测性与失败关闭回归 | `ListObjects` 成功返回的每个 section ID 独立经过既有 codec；解析失败项不再把 resolver 整体变成 dependency error，但也绝不进入 `orgScopedRoles`。混合列表保留合法 scope，纯无效列表展开为零 capability；OpenFGA transport/server error 在过滤前返回，继续映射 503。无效项用无 label counter 控制基数、结构化 warning 定位，并由告警要求人工 reconcile；由于 #11 的权威来源尚未决定，读路径不自动删除 tuple。 |
 | WF27：反向复核 / live rating bar | 部分真实 P2，已完成可达表面的定性可访问名称与双视口回归 | Claude 引用的通用 RatingBar 是 dead code，不能靠修改它关闭问题；真实 CourseDetailPage 的维度条改为一个具名图像语义，复用 `normalizeRatingLevel` 和现有 `review.rating.face1..5`。helper 与 policy 测试固定“不含原始 4.6”，桌面/移动 Chromium 读取“教学质量：超赞”且页面找不到精确数值。没有改评分 API、产品显示策略、dead component 或新增 ARIA 数值进度条。 |
+| WF28：X-2 / runtime env 模板差集 | 较窄 P2 真实，已完成 AST 复枚举、分类修复和 CI 接线 | 实施前 config 包有 184 个字面量运行时键、17 个未进入任一模板；Claude 的 187/21 和本文件早先的 181 都不是准确的 config 包计数。13 个 operator-facing 键进入两个模板，`LOG_SERVICE_VERSION` 删除后当前为 183 个；`AWS_CA_BUNDLE` 与两个 `LOG_*` fallback override 用显式理由保留在 3 项 allowlist。Go AST 测试遍历整个 config 包，要求字面量 key、模板/allowlist 覆盖并拒绝陈旧 allowlist；CI backend filter 同时覆盖两个模板。没有扫描或模板化全仓工具/测试变量，也没有建立一套新配置 schema/generator。 |
 
 ### 本轮交叉验证与尚未验证边界
 
@@ -757,6 +758,14 @@ live rating bar 已完成可达表面的最小修复。优先做一处根因、�
   516/516、type-check、受控 ESLint、production build 和文档卫生均通过。第一次把全量 unit
   与 build 并行时 3 个无关基线测试因 5 秒 timeout/级联状态失败；隔离及无资源争用全量复跑
   均通过，未放宽 timeout、未修改 locale/observability。
+- X-2 先以 AST 对实施前 `b479bafa` 的 config 包复枚举，得到 184 个运行时字面量键和 17 个
+  模板差集；删除 `LOG_SERVICE_VERSION` 并补齐 13 个操作员配置后，永久门禁记录当前 183 个
+  runtime key、378 个模板/基础设施 key 和 3 个有理由的兼容别名。门禁同时验证新增配置调用
+  必须使用可审计的字面量 key，allowlist 项必须仍被运行时读取且不得已进入模板。config 全包
+  race、全服务端 `make test`（`-race -p 1 ./...`）、Casdoor boundary、`golangci-lint`、静态
+  build、Actionlint、文档卫生、开发/生产 env 初始化 contract 和全部 infra contracts 均通过；
+  新增模板空值保持现有 scopes default、OIDC discovery、邮件默认 failover 和 TLS 非 mTLS
+  行为，没有改变运行时默认值。
 
 测试通过只说明现有正向契约未被破坏，不能覆盖报告指出的所有负向场景。以下仍需在真正处置时
 单独验收：
@@ -809,6 +818,7 @@ live rating bar 已完成可达表面的最小修复。优先做一处根因、�
 | 37 | 已修复，待发布 | AppShell 首个键盘停靠点增加本地化原生 skip link，唯一 main target 可聚焦；链接 focus-visible 时位于 fixed header 之上并遵守 safe-area/reduced-motion。双视口真实键盘与 Axe 14/14、全部受控 Web unit 514/514、type-check、ESLint、production build 与 docs 通过 | `fix(web): let keyboard users skip application navigation` |
 | 反向-FGA | 已修复，待发布；生产告警投递与人工 tuple reconcile 待验收 | 无效 section grant 独立忽略、计数并 warning，合法 grant 保留，纯无效得到零 scope，真实 OpenFGA error 仍失败关闭；Prometheus warning alert 已接线。定向 race、全服务端 race、lint/build、全部 infra contracts 与 docs 通过 | `fix(authz): isolate invalid OpenFGA role scopes` |
 | 反向-RatingBar | 已修复，待发布 | 只修改可达 CourseDetailPage：维度条以定性 `role=img` 名称暴露，视觉层隐藏，复用既有 face bucket，精确 avg 不进入辅助文本。helper/policy 10/10、双视口 Chromium 2/2、全部受控 Web unit 516/516、type-check、ESLint、production build 与 docs 通过 | `fix(web): describe course rating bars qualitatively` |
+| X-2 / I-2 | 已修复，待 CI/发布验收 | 实施前 AST 精确枚举 184 runtime keys / 17 missing；13 个 operator-facing 键补入两模板，删除死 `LOG_SERVICE_VERSION`，3 个兼容 override 留在带理由 allowlist。当前 183 runtime keys 全覆盖；全服务端 race/lint/build、Actionlint、docs、dev/prod env 初始化和全部 infra contracts 通过，模板改动已接入 Backend job | `fix(config): keep runtime env templates complete` |
 
 ## Claude 原审计的确认问题分布（保留原始记录）
 

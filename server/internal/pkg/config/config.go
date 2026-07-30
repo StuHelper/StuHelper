@@ -141,7 +141,6 @@ type LogConfig struct {
 	SamplingAfter   int
 	ServiceName     string
 	Environment     string
-	ServiceVersion  string
 }
 
 // ObservabilityConfig OpenTelemetry / tracing 配置
@@ -482,7 +481,6 @@ func loadLogConfig(parseErrs *[]string) LogConfig {
 		SamplingAfter:   getEnvInt("LOG_SAMPLING_AFTER", 100, parseErrs),
 		ServiceName:     getEnv("LOG_SERVICE_NAME", getEnv("OTEL_SERVICE_NAME", "stuhelper-backend")),
 		Environment:     getEnv("LOG_ENVIRONMENT", getEnv("APP_ENV", "development")),
-		ServiceVersion:  getEnv("LOG_SERVICE_VERSION", ""),
 	}
 }
 
