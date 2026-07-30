@@ -106,6 +106,22 @@ YARN_NPM_REGISTRY_SERVER=https://registry.npmjs.org corepack yarn npm audit --al
 这里不承诺跨多个 HTTP 请求的原子提交，也不应在前端模拟 rollback、2PC 或 saga。若未来确实
 需要全域原子配置，应由服务端提供单一事务 API，并先明确各运行时设置表的事务边界。
 
+### 入群认证队列窗口
+
+入群认证页的“受限成员队列”是一个有界的操作窗口，不是全量分页列表：
+
+- 服务端先按当前 Console 操作员的 guild scope 过滤，再以
+  `(deadlineAt, record id)` 稳定排序并返回最早到期的 100 条。
+- 页面同时显示 `shown / total`、窗口上限和是否截断；总数与窗口都来自同一次、同一 scope
+  的页面快照，不能把“显示 100 条”误解为“系统只有 100 条”。
+- 窗口截断时，页面明确引导管理员前往“处置中心”，按“准入”类型、成员或群号检索同一权限
+  范围内的其他 active guard records；已授权的群内认证命令也是独立处置入口。
+- 处置中心和后台 admission 扫描不受这个 100 条展示窗口限制。
+
+只有在真实队列规模、持续截断频率或页面加载延迟达到既定 SLO 风险时，才考虑给
+`GuardMemberStore` 增加 scoped cursor pagination/search。本窗口提示本身不需要先建设新的
+Repository 查询或前端分页框架。
+
 ## 平台依赖接口
 
 Koishi 当前依赖的 StuHelper 后端机器人接口包括：

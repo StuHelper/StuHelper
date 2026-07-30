@@ -906,6 +906,21 @@ test('AdmissionView exposes admission policy navigation without editable target 
   assert.match(source, /function openPolicyWorkspace\(workspace: GuardPolicyWorkspace\) \{\s*props\.navigation\?\.selectView\('config', \{ workspace \}\)\s*\}/)
 })
 
+test('AdmissionView discloses a truncated admission member window and links to the full workbench', () => {
+  const source = readClientFile('./components/AdmissionView.vue')
+  const modelSource = readClientFile('./models/admission-runtime.ts')
+
+  assert.match(modelSource, /activeMemberWindow: \{\s*shown: number\s*total: number\s*limit: number\s*truncated: boolean\s*\}/)
+  assert.match(modelSource, /activeMemberWindow: \{ \.\.\.data\.activeMemberWindow \}/)
+  assert.match(modelSource, /Date\.parse\(left\.deadlineAt\) - Date\.parse\(right\.deadlineAt\)\s*\|\| left\.id\.localeCompare\(right\.id\)/)
+  assert.match(source, /:meta="`\$\{model\.activeMemberWindow\.shown\} \/ \$\{model\.activeMemberWindow\.total\} 条`"/)
+  assert.match(source, /v-if="model\.activeMemberWindow\.truncated"/)
+  assert.match(source, /当前列表已截断/)
+  assert.match(source, /同一权限范围共/)
+  assert.match(source, /前往处置中心/)
+  assert.match(source, /function openReviewWorkspace\(\) \{\s*props\.navigation\?\.selectView\('review', \{ workspace: 'admission' \}\)\s*\}/)
+})
+
 test('ConfigCenterView uses shared confirmation before discarding dirty governance forms', () => {
   const viewSource = readClientFile('./components/ConfigCenterView.vue')
   const composableSource = readClientFile('./composables/use-config-governance.ts')

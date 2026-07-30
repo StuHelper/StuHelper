@@ -146,7 +146,7 @@ export async function buildAdmissionRuntimePageData(
     ? templates
     : templates.filter((template) => visibleTemplateIds.has(template.id))
   const sortedMembers = [...visibleMembers]
-    .sort((left, right) => left.deadlineAt.getTime() - right.deadlineAt.getTime())
+    .sort(compareActiveMembers)
     .slice(0, ACTIVE_MEMBER_LIMIT)
 
   return {
@@ -162,6 +162,12 @@ export async function buildAdmissionRuntimePageData(
       backendSyncPendingCount: visibleMembers.filter((record) => record.backendSyncPending).length,
       membersWithAdmissionSessionCount: visibleMembers.filter((record) => Boolean(record.admissionSessionID)).length,
       membersWithLastErrorCount: visibleMembers.filter((record) => Boolean(record.lastError)).length,
+    },
+    activeMemberWindow: {
+      shown: sortedMembers.length,
+      total: visibleMembers.length,
+      limit: ACTIVE_MEMBER_LIMIT,
+      truncated: sortedMembers.length < visibleMembers.length,
     },
     templates: visibleTemplates.map((template) => ({
       id: template.id,
@@ -185,6 +191,12 @@ export async function buildAdmissionRuntimePageData(
     })),
     activeMembers: sortedMembers.map(serializeGuardMember),
   }
+}
+
+function compareActiveMembers(left: GuardMemberRecord, right: GuardMemberRecord) {
+  const deadlineOrder = left.deadlineAt.getTime() - right.deadlineAt.getTime()
+  if (deadlineOrder !== 0) return deadlineOrder
+  return left.id.localeCompare(right.id)
 }
 
 async function buildAdmissionGlobalRuntimeData(

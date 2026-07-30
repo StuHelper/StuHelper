@@ -10,6 +10,12 @@ export interface AdmissionRuntimePageData {
     membersWithAdmissionSessionCount: number
     membersWithLastErrorCount: number
   }
+  activeMemberWindow: {
+    shown: number
+    total: number
+    limit: number
+    truncated: boolean
+  }
   templates: AdmissionRuntimeTemplate[]
   bindings: AdmissionRuntimeBinding[]
   activeMembers: AdmissionRuntimeMember[]
@@ -150,8 +156,10 @@ export function buildAdmissionRuntimeModel(data: AdmissionRuntimePageData) {
     switchRows: data.globalRuntime ? buildSwitchRows(data.globalRuntime) : [],
     enabledBindings: data.bindings.filter((binding) => binding.enabled),
     disabledBindings: data.bindings.filter((binding) => !binding.enabled),
+    activeMemberWindow: { ...data.activeMemberWindow },
     activeMembers: [...data.activeMembers].sort((left, right) => (
       Date.parse(left.deadlineAt) - Date.parse(right.deadlineAt)
+      || left.id.localeCompare(right.id)
     )),
   }
 }

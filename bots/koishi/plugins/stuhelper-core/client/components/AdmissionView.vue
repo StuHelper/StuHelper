@@ -236,9 +236,28 @@
       <WorkspaceSection
         title="受限成员队列"
         description="当前仍未释放、未踢出的本地 guard records。"
-        :meta="`${model.activeMembers.length} 条`"
+        :meta="`${model.activeMemberWindow.shown} / ${model.activeMemberWindow.total} 条`"
         flush
       >
+        <div
+          v-if="model.activeMemberWindow.truncated"
+          class="sh-admission__queue-window"
+          role="note"
+        >
+          <div class="sh-admission__queue-window-copy">
+            <strong>当前列表已截断</strong>
+            <span>
+              按截止时间和记录 ID 稳定排序，仅显示最早到期的
+              {{ model.activeMemberWindow.shown }} 条（上限
+              {{ model.activeMemberWindow.limit }} 条），同一权限范围共
+              {{ model.activeMemberWindow.total }} 条。其余记录可在处置中心按“准入”类型、
+              成员或群号检索，也可使用已授权的群内认证命令处理。
+            </span>
+          </div>
+          <el-button size="small" @click="openReviewWorkspace">
+            前往处置中心
+          </el-button>
+        </div>
         <EmptyState
           v-if="model.activeMembers.length === 0"
           title="暂无受限成员"
@@ -386,6 +405,10 @@ loadData()
 
 function openPolicyWorkspace(workspace: GuardPolicyWorkspace) {
   props.navigation?.selectView('config', { workspace })
+}
+
+function openReviewWorkspace() {
+  props.navigation?.selectView('review', { workspace: 'admission' })
 }
 
 async function loadData() {
@@ -549,6 +572,31 @@ function runtimeSwitchLabel(row: AdmissionSwitchRow) {
   color: var(--sh-success);
 }
 
+.sh-admission__queue-window {
+  display: flex;
+  gap: var(--sh-s-3);
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sh-s-3);
+  margin-bottom: var(--sh-s-3);
+  border: 1px solid color-mix(in srgb, var(--sh-warning) 38%, transparent);
+  border-radius: var(--sh-radius-md);
+  background: color-mix(in srgb, var(--sh-warning) 10%, transparent);
+  color: var(--sh-fg-2);
+}
+
+.sh-admission__queue-window-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  font-size: var(--sh-t-body);
+}
+
+.sh-admission__queue-window-copy strong {
+  color: var(--sh-warning);
+}
+
 .sh-admission__error {
   margin: 12px 0 0;
   padding: var(--sh-s-3);
@@ -557,5 +605,12 @@ function runtimeSwitchLabel(row: AdmissionSwitchRow) {
   background: color-mix(in srgb, var(--sh-danger) 10%, transparent);
   color: var(--sh-danger);
   font-size: var(--sh-t-body);
+}
+
+@media (max-width: 720px) {
+  .sh-admission__queue-window {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
 </style>

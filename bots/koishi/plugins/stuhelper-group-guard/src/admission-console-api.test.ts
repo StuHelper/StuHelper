@@ -39,6 +39,12 @@ test('admission runtime page data redacts service token and exposes guard state'
   assert.equal(data.stats.enabledBindingCount, 1)
   assert.equal(data.stats.activeMemberCount, 1)
   assert.equal(data.stats.backendSyncPendingCount, 1)
+  assert.deepEqual(data.activeMemberWindow, {
+    shown: 1,
+    total: 1,
+    limit: 100,
+    truncated: false,
+  })
   assert.equal(data.globalRuntime?.moderation.keywordRuleCount, 2)
   assert.equal(data.globalRuntime?.bots[0].platform, 'onebot')
   assert.equal(data.activeMembers[0].memberId, '2001')
@@ -109,6 +115,12 @@ test('admission runtime page filters guild records before stats and queue trunca
   assert.deepEqual(data.templates.map((template) => template.id), ['allowed-template'])
   assert.equal(data.globalRuntime, null)
   assert.equal(globalRuntimeLoaderCalls, 0)
+  assert.deepEqual(data.activeMemberWindow, {
+    shown: 1,
+    total: 1,
+    limit: 100,
+    truncated: false,
+  })
   assert.deepEqual(data.stats, {
     templateCount: 1,
     bindingCount: 1,
@@ -119,6 +131,37 @@ test('admission runtime page filters guild records before stats and queue trunca
     membersWithLastErrorCount: 1,
   })
   assert.doesNotMatch(JSON.stringify(data), /foreign-member|foreign-template|999999999/)
+})
+
+test('admission runtime page reports a stable scoped member window when truncated', async () => {
+  const deadlineAt = new Date('2026-06-04T08:00:00.000Z')
+  const members = Array.from({ length: 103 }, (_, index) => createMember({
+    id: `member-${String(102 - index).padStart(3, '0')}`,
+    memberId: `user-${index}`,
+    deadlineAt,
+  }))
+
+  const data = await buildAdmissionRuntimePageData(fakeContext(), {
+    config: createConfig(),
+    platform: fakePlatform(),
+    runtimeSettings: fakeRuntimeSettings(),
+    guardStore: fakeGuardStore({
+      listActive: async () => members,
+    }),
+    policyStore: fakePolicyStore(),
+    moderationStore: fakeModerationStore(),
+  }, GLOBAL_CONSOLE_SCOPE)
+
+  assert.deepEqual(data.activeMemberWindow, {
+    shown: 100,
+    total: 103,
+    limit: 100,
+    truncated: true,
+  })
+  assert.equal(data.stats.activeMemberCount, 103)
+  assert.equal(data.activeMembers.length, 100)
+  assert.equal(data.activeMembers[0].id, 'member-000')
+  assert.equal(data.activeMembers.at(-1)?.id, 'member-099')
 })
 
 test('admission runtime action rejects an out-of-scope member before side effects', async () => {
