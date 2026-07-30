@@ -18,6 +18,8 @@ CLIENTS_PACKAGE="${REPO_ROOT}/clients/package.json"
 CLIENTS_WORKSPACE="${REPO_ROOT}/clients/pnpm-workspace.yaml"
 ADMIN_WORKSPACE="${REPO_ROOT}/clients/admin/pnpm-workspace.yaml"
 BRACE_EXPANSION_PATCH="${REPO_ROOT}/clients/patches/npm/brace-expansion@5.0.8.patch"
+NODE_VERSION_FILE="${REPO_ROOT}/.node-version"
+NVMRC_FILE="${REPO_ROOT}/.nvmrc"
 
 fail() {
   echo "[ci-and-drift-contract][error] $*" >&2
@@ -40,11 +42,40 @@ assert_not_contains() {
   fi
 }
 
+workflow_filter_block() {
+  local filter_name="$1"
+  awk -v target="${filter_name}" '
+    $0 == "            " target ":" {
+      in_filter = 1
+      next
+    }
+    in_filter && $0 ~ /^            [[:alnum:]_-]+:$/ {
+      exit
+    }
+    in_filter {
+      print
+    }
+  ' "${GITHUB_CI_FILE}"
+}
+
+assert_text_contains() {
+  local text="$1"
+  local pattern="$2"
+  local description="$3"
+  if ! grep -Eq -- "${pattern}" <<<"${text}"; then
+    fail "expected ${description} to contain pattern: ${pattern}"
+  fi
+}
+
 [[ ! -e "${REPO_ROOT}/.gitlab-ci.yml" ]] ||
   fail "retired GitLab pipeline must not remain in the GitHub repository"
 [[ ! -d "${REPO_ROOT}/.gitlab" ]] ||
   [[ -z "$(find "${REPO_ROOT}/.gitlab" -type f -print -quit)" ]] ||
   fail "retired GitLab pipeline fragments must not remain in the GitHub repository"
+node_version="$(tr -d '[:space:]' <"${NODE_VERSION_FILE}")"
+nvmrc_version="$(tr -d '[:space:]' <"${NVMRC_FILE}")"
+[[ -n "${node_version}" && "${node_version}" == "${nvmrc_version}" ]] ||
+  fail ".node-version and .nvmrc must contain the same non-empty Node.js version"
 assert_contains "${GITHUB_CI_FILE}" 'DATABASE_URL: postgres://stuhelper_app:test@127\.0\.0\.1:5432/test'
 assert_contains "${GITHUB_CI_FILE}" 'STUHELPER_TEST_POSTGRES_URL: postgres://test:test@127\.0\.0\.1:5432/postgres'
 assert_contains "${GITHUB_CI_FILE}" 'CREATE ROLE stuhelper_app;'
@@ -52,6 +83,39 @@ assert_contains "${GITHUB_CI_FILE}" 'WITH LOGIN PASSWORD .* NOSUPERUSER NOCREATE
 assert_contains "${GITHUB_CI_FILE}" 'ALTER DATABASE test OWNER TO stuhelper_app;'
 assert_contains "${GITHUB_CI_FILE}" 'ALTER SCHEMA public OWNER TO stuhelper_app;'
 assert_contains "${GITHUB_CI_FILE}" "^[[:space:]]+- '\\.github/\\*\\*'$"
+assert_contains "${GITHUB_CI_FILE}" 'guards: \$\{\{ steps\.filter\.outputs\.guards \}\}'
+
+guards_filter="$(workflow_filter_block guards)"
+assert_text_contains "${guards_filter}" "^[[:space:]]+- 'scripts/\\*\\*'$" "guards path filter"
+assert_text_contains "${guards_filter}" "^[[:space:]]+- 'tools/\\*\\*'$" "guards path filter"
+assert_text_contains "${guards_filter}" "^[[:space:]]+- '\\.node-version'$" "guards path filter"
+assert_text_contains "${guards_filter}" "^[[:space:]]+- '\\.nvmrc'$" "guards path filter"
+
+docs_filter="$(workflow_filter_block docs)"
+assert_text_contains "${docs_filter}" "^[[:space:]]+- 'scripts/lib/\\*\\*'$" "docs path filter"
+
+clients_filter="$(workflow_filter_block clients)"
+contract_filter="$(workflow_filter_block contract)"
+infra_filter="$(workflow_filter_block infra)"
+koishi_filter="$(workflow_filter_block koishi)"
+for filter_name in clients contract infra koishi; do
+  case "${filter_name}" in
+    clients) filter_block="${clients_filter}" ;;
+    contract) filter_block="${contract_filter}" ;;
+    infra) filter_block="${infra_filter}" ;;
+    koishi) filter_block="${koishi_filter}" ;;
+  esac
+  assert_text_contains "${filter_block}" "^[[:space:]]+- '\\.node-version'$" "${filter_name} path filter"
+  assert_text_contains "${filter_block}" "^[[:space:]]+- '\\.nvmrc'$" "${filter_name} path filter"
+done
+assert_text_contains "${clients_filter}" "^[[:space:]]+- 'scripts/check-vue-ui-contracts\\.mjs'$" "clients path filter"
+assert_text_contains "${koishi_filter}" "^[[:space:]]+- 'scripts/check-vue-ui-contracts\\.mjs'$" "koishi path filter"
+
+repository_policy_block="$(sed -n '/^  repository-policy:$/,/^  secret-scan:$/p' "${GITHUB_CI_FILE}")"
+sast_job_block="$(sed -n '/^  sast:$/,/^  required:$/p' "${GITHUB_CI_FILE}")"
+assert_text_contains "${repository_policy_block}" "needs\\.changes\\.outputs\\.guards == 'true'" "repository-policy job"
+assert_text_contains "${sast_job_block}" "needs\\.changes\\.outputs\\.guards == 'true'" "sast job"
+
 assert_contains "${GITHUB_CI_FILE}" 'INSTALL_ADMIN: \$\{\{ matrix\.install_admin \}\}'
 assert_contains "${GITHUB_CI_FILE}" 'if \[ "\$\{INSTALL_ADMIN\}" = "true" \]; then'
 assert_not_contains "${GITHUB_CI_FILE}" 'if \[\[ "\$\{INSTALL_ADMIN\}"'

@@ -45,7 +45,7 @@ Web / Admin / UniAppX+Koishi UI / Koishi / 基础设施 / 代码质量与文档)
   检查生产备份目录或用生产 WAL 执行目标时间点恢复，也没有观察生产锁等待或真实大表延迟。
   因此“生产已经丢失 PITR”“生产已经 OOM/死锁/永久停更”等说法仍不得当作已证实事实。
 - 当前工作树在复核开始前已经有未提交修改。Codex 对 P0-1、P1-1、P1-2、P1-3、P1-4、
-  P1-5、P1-6、P1-7、P1-8、P1-9 与 P1-10 的修复已经按问题独立提交（P1-10 提交见下方
+  P1-5、P1-6、P1-7、P1-8、P1-9、P1-10 与 P2-1 的修复已经按问题独立提交（提交见下方
   进度表），但均未合并或发布；原有其他工作树修改没有混入这些提交。
 - 原报告大量“修复方案”和全部 18 条驳回长文在句中截断。例如 P0-1 结尾是
   `only surface the 4`，P1-1 结尾是 `Promise.resolve<string[]>(`，P1-3 结尾是
@@ -87,7 +87,7 @@ Web / Admin / UniAppX+Koishi UI / Koishi / 基础设施 / 代码质量与文档)
 
 | 编号 | Codex 结论 | 调整级别 | 必要性 | 最小处置与过度设计判断 |
 |------|------------|----------|--------|------------------------|
-| P2-1 | 确认 | P2 | 必须 | `scripts/**`、`tools/**` 等变更不会触发相关 gated/static job；建立 always-on 的轻量 guard-contract，或精确补 filter 并纳入 required。与 P2-2 合并实施。原文“零 CI”应改成“零个相关门禁”，secret scan 仍会运行。 |
+| P2-1 | 确认，已完成本地修复与静态契约验证 | P2 | 已修复，待 CI 验收 | 新增 `guards` 分类；文档、Vue UI、Semgrep 与 Node pin 分别触发实际消费它们的 job，Node 两个版本文件还必须一致。没有让所有脚本改动触发所有重型 job。原文“零 CI”已纠正为“零个相关门禁”，secret scan 原本仍会运行。 |
 | P2-2 | 确认 | P2 | 必须 | supply-chain 契约检查 Dockerfile/Koishi 输入，但 infra filter 漏掉它们。便宜 shell contract 常跑，Koishi 特有契约放入 Koishi job；把所有机器人改动都触发整套 infra/E2E 过重。 |
 | P2-3 | 确认机制，影响未量化 | 条件性 P2，否则 P3 | 先测并做低风险修复 | 将 repeat 检测的排序/limit 下推 DB，增加 `(guildId, createdAt)` 索引和基础 retention；记录表规模与 p95。立即建设 retention WebUI/完整配置面属于过度设计。 |
 | P2-4 | 部分确认；原报告引用了一条 dead 路径 | P2 → P3 | 先测 | 当前 dashboard 仍有 recent events 与 active guards 的全扫，应下推过滤/limit 后测延迟。原文所称 admission console 全量扫描不成立，五步聚合与全面 API 重写过重。 |
@@ -176,7 +176,8 @@ P2 唯一根因应按以下修复簇合并，避免重复设计：
 1. P0-1、P1-4 与 P1-5 已完成修复、验证和独立提交；P1-5 仍需在受保护
    GitHub environment 与真实目标机执行一次带审计记录的回滚演练。
 2. P1-2 migration 指南与 P1-6 SSE shutdown 已完成修复、真实回归验证和独立提交。
-3. P2-1/P2-2 CI 门禁，P2-6 privileged listener 生命周期。
+3. P2-1 CI guard 路径分类已完成修复、契约验证和独立提交；继续 P2-2 always-on
+   静态供应链合约与 Koishi package contract，随后处理 P2-6 privileged listener 生命周期。
 4. P2-7 转发 poison、P2-13/14/15 claimed batch、P2-23 outbox panic。
 5. P2-21/P2-22 breaker 分类，R-8 Redis 错误分类，P3-9 cache version unavailable。
 6. P2-9 Ansible 路径、P2-16 NULL 语义决策、P2-18 filter invalidation。
@@ -252,6 +253,10 @@ P3-1 至 P3-6、P3-8、R-5 至 R-7、R-14、R-15、R-17，以及 X-2 的配置�
   增长。6 个并发列表请求在同一单连接池内全部于 deadline 前完成；tags/bindings 排序保持，
   无关联项返回非 nil 空数组。定向普通/race、资源包全量、`go vet`、Casdoor boundary guard
   与全服务端 `golangci-lint`（0 issues）通过。
+- CI P2-1：`ci-and-drift-contract.sh` 按具体 filter/job block 验证 `guards` output、
+  `scripts/**`、`tools/**`、文档库、Vue UI contract 和 Node pin 的触发关系，并校验
+  `.node-version == .nvmrc`。合约、Bash 语法与 actionlint 通过；ShellCheck 只有该脚本原有
+  单引号 `$uri` 的 SC2016 info。尚未在 GitHub PR 上观察 dorny 输出和各 job 实际调度。
 - image policy：2026-07-30 通过，2026-08-06 因 `review_by=2026-08-05` 失败，确认日历门禁。
 - 授权：capability/RBAC/review 定向 Go 测试通过，确认 X-1 在 Handler 前 fail-closed。
 - P2：3 个 infra/import contract 通过；Koishi 定向 29 tests 通过；outbox、externaldata、
@@ -278,6 +283,7 @@ P3-1 至 P3-6、P3-8、R-5 至 R-7、R-14、R-15、R-17，以及 X-2 的配置�
 | P1-8 | 已修复，未发布 | Service 复用统一 review 状态机；作者删除态只结案 report，不改 review。真实 PostgreSQL 覆盖两种动作、重复转换、计数、时间戳和后续 restore；评课包全量、定向 race、vet、全服务端 lint 与文档卫生检查通过 | `fix(review): preserve deleted reviews during report handling` |
 | P1-9 | 已修复，未发布；真实 Casdoor 待验收 | Open Platform 仅按内部 user ID 请求 authoritative phone；app gateway 在边界解析 Casdoor subject。真实 PostgreSQL/Redis 覆盖 phone API、identity-token、granted/denied 审计和 provider 故障；adapter、Casdoor client、race、全包、vet、边界门禁与 lint 通过 | `fix(openplatform): read disclosed phones from Casdoor` |
 | P1-10 | 已修复，未发布；生产规模影响待观测 | 主结果集完整 drain 后显式关闭，tags/bindings 分别批量加载，查询数由 `1 + 2N` 固定为 3。真实 PostgreSQL 单连接池覆盖固定 query count、详情、空数组、排序和 6 并发；定向 race、资源全包、vet 与 lint 通过 | `fix(resource): batch related data loads` |
+| P2-1 | 已修复，待 GitHub CI 验收 | `guards` 覆盖根 scripts/tools；文档库、Vue 合约、Semgrep 和 Node pin 精确触发消费 job，两个 Node 版本文件强制同步。CI contract、Bash 语法、actionlint 与文档检查通过 | `fix(ci): route guard changes to their checks` |
 
 ### 明确不建议实施的“修复”
 
@@ -993,6 +999,29 @@ B) `infra/ops/tests/ci-and-drift-contract.sh` — assert the coverage so a futur
    assert_contains "${GITHUB_CI_FILE}" "^[[:space:]]+- 'scripts/\*\*'$"
    assert_contains "${GITHUB_CI_FILE}" "^[[:space:]]+- 'tools/\*\*'$"
 
+
+**Codex 独立复核与处置（2026-07-30）**
+
+- **问题确认，但原文“零 CI”不准确。**`secret-scan` 没有 `if`，只改 `scripts/**` 或
+  `tools/**` 时仍会运行；真正缺失的是消费这些文件的相关门禁。尤其
+  `tools/semgrep/**` 和 `scripts/check-semgrep-custom-rules.sh` 不触发 SAST，
+  `scripts/lib/docs-hygiene-lib.mjs` 不触发 repository-policy，
+  `scripts/check-vue-ui-contracts.mjs` 不触发 clients/Koishi。Required 会把 job-level skip
+  当作非失败，这是 GitHub Actions 的正常语义，不能依靠聚合 job 猜测某个 skip 是否合理。
+- **采用按消费者分类的最小修复。**`changes` 新增 `guards` output，统一覆盖
+  `scripts/**`、`tools/**`、`.node-version` 和 `.nvmrc`；repository-policy 与 SAST
+  接入该 output。与此同时，文档卫生库只进入 docs filter，Vue UI contract 只进入
+  clients/Koishi filter，Node pin 进入实际使用 Node 的 repository-policy、clients、
+  contract、Koishi 与 infra 路径。没有把 root scripts 变化接到 backend、E2E 等所有重型任务。
+- **补上可执行契约。**`ci-and-drift-contract.sh` 不再只检查某个路径字符串是否在 YAML
+  任意位置出现，而是提取各 filter 和 job block，逐项断言 output、路径和 `if` 接线；
+  同时要求 `.node-version` 与 `.nvmrc` 内容非空且完全一致，防止只改兼容入口却仍用旧版本
+  跑 CI。
+- **验证与边界。**CI wiring contract、Bash 语法和 actionlint 均通过；ShellCheck 只报告
+  文件既有的单引号 `$uri` SC2016 info，新增代码无告警。文档卫生检查通过。由于本地不能
+  模拟 GitHub PR 的 dorny/paths-filter 事件，本项仍需由本提交对应的真实 GitHub Actions run
+  验收调度结果。P2-2 的 always-on 静态供应链契约与 Koishi packaging 接线单独处理，避免
+  把两个审计编号混成一个不可追溯提交。
 
 #### P2-2. The infra filter omits the Dockerfiles and Koishi sources that infra contracts assert, so supply-chain pinning gates skip the very change they guard
 
@@ -2652,6 +2681,7 @@ STUHELPER_REDIS_INTEGRATION
 | P1-8 | 举报处理可把作者已删除的评课改回隐藏态并再次发布 | Codex 已完成实现：举报入口复用统一状态机，作者删除态只结案 report、不改 review；缺失 review 映射 404。真实 PostgreSQL 覆盖 hide/delete、重复非法转换、计数、时间戳和后续 restore，评课包全量、定向 race、vet、全服务端 lint 与文档卫生检查通过。随独立修复提交入库，尚未发布 |
 | P1-9 | `phone.read` 解密到的仍是掩码手机号 | Codex 已完成实现：Open Platform 仅按内部 user ID 请求权威手机号，app gateway 在允许的边界解析 Casdoor subject 并调用既有 client；本地投影不再参与明文恢复。真实 PostgreSQL/Redis 覆盖 phone API、identity-token、granted/denied 审计和 provider 故障；adapter、race、全包、vet、Casdoor 边界门禁与 lint 通过。随独立修复提交入库，尚未发布；真实 Casdoor 待验收 |
 | P1-10 | Resource 逐行加载 tags/bindings 并在外层 cursor 打开时嵌套取连接 | Codex 已完成实现：先 drain/关闭主结果，再用两条批量 SQL 回填关联，查询数由 `1 + 2N` 固定为 3。真实 PostgreSQL `MaxConns=1` 覆盖 1/2 条数据的固定 query count、详情、排序、空数组和 6 并发；定向 race、资源全包、vet 与全服务端 lint 通过。随独立修复提交入库，尚未发布；生产规模影响仍待指标观测 |
+| P2-1 | Guard/toolchain 文件变化不触发消费它们的 CI 门禁 | Codex 已完成实现：新增 guards 分类，并把 docs hygiene、Vue UI contract、Semgrep 与 Node pin 精确接到实际消费 job；两个 Node 版本文件必须同步。CI wiring contract、Bash 语法、actionlint 与文档卫生通过。随独立修复提交入库，真实 GitHub paths-filter 调度待验收 |
 | X-1 | 无 scope 的 school_admin 全量可见 | Codex 已证伪；现有 capability 展开和 admin Entry 在 Handler 前返回 403，不按 P1 修复 |
 | X-2 | env 模板差集 | Codex 判定部分成立；改为分类治理，不执行 21 项全量入模板/严格集合相等方案 |
 | 其余条目 | — | 不再用“其余 41 项待修”概括；按 Codex 逐项表和四批实施顺序处置 |

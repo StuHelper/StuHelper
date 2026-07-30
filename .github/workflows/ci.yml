@@ -25,6 +25,7 @@ jobs:
       clients: ${{ steps.filter.outputs.clients }}
       contract: ${{ steps.filter.outputs.contract }}
       docs: ${{ steps.filter.outputs.docs }}
+      guards: ${{ steps.filter.outputs.guards }}
       infra: ${{ steps.filter.outputs.infra }}
       koishi: ${{ steps.filter.outputs.koishi }}
       workflows: ${{ steps.filter.outputs.workflows }}
@@ -46,6 +47,9 @@ jobs:
               - 'clients/**'
               - 'server/api/**'
               - 'server/internal/pkg/capability/**'
+              - 'scripts/check-vue-ui-contracts.mjs'
+              - '.node-version'
+              - '.nvmrc'
             contract:
               - 'server/api/**'
               - 'server/internal/api/gen/**'
@@ -56,11 +60,19 @@ jobs:
               - 'clients/package.json'
               - 'clients/pnpm-lock.yaml'
               - 'clients/pnpm-workspace.yaml'
+              - '.node-version'
+              - '.nvmrc'
             docs:
               - 'AGENTS.md'
               - 'README.md'
               - 'docs/**'
               - 'scripts/check-docs-hygiene*'
+              - 'scripts/lib/**'
+            guards:
+              - 'scripts/**'
+              - 'tools/**'
+              - '.node-version'
+              - '.nvmrc'
             infra:
               - '.env.example'
               - '.env.prod.example'
@@ -68,9 +80,14 @@ jobs:
               - 'Makefile'
               - 'docker-compose*.yml'
               - 'infra/**'
+              - '.node-version'
+              - '.nvmrc'
             koishi:
               - 'bots/koishi/**'
               - 'server/api/**'
+              - 'scripts/check-vue-ui-contracts.mjs'
+              - '.node-version'
+              - '.nvmrc'
             workflows:
               - '.github/**'
               - '.gitleaksignore'
@@ -82,6 +99,7 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       needs.changes.outputs.docs == 'true' ||
       needs.changes.outputs.clients == 'true' ||
+      needs.changes.outputs.guards == 'true' ||
       needs.changes.outputs.workflows == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -597,6 +615,7 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       needs.changes.outputs.clients == 'true' ||
       needs.changes.outputs.backend == 'true' ||
+      needs.changes.outputs.guards == 'true' ||
       needs.changes.outputs.workflows == 'true'
     runs-on: ubuntu-latest
     steps:
