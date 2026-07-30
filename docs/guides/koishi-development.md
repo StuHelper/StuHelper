@@ -122,6 +122,21 @@ YARN_NPM_REGISTRY_SERVER=https://registry.npmjs.org corepack yarn npm audit --al
 `GuardMemberStore` 增加 scoped cursor pagination/search。本窗口提示本身不需要先建设新的
 Repository 查询或前端分页框架。
 
+### 消息账本的查询与保留边界
+
+`stuhelper-group-guard` 会为群消息写入
+`stuhelper_moderation_message_ledger`。复读检测是逐消息热路径，只允许按 `guildId` 查询并在
+数据库中以 `createdAt DESC` 排序、按当前 `repeatWindowSize` 截断；表模型必须保留
+`(guildId ASC, createdAt DESC)` 复合索引。调用方会从结果中排除刚写入的当前消息，因此查询
+上限必须保持与 `repeatWindowSize` 相同，不能擅自加一改变既有检测窗口。
+
+该账本同时用于按 `messageId` 处理后续撤回事件。当前没有经产品确认的最长撤回取证期、审计
+留存期或生产表规模证据，因此不自动删除历史行，也不为此新增 WebUI 配置。运维侧应观测表行数、
+数据库文件大小和复读查询延迟；只有确认保留期限后才能引入清理任务。清理必须采用有界批次，
+明确对迟到撤回事件的影响，并按
+[`iam-implementation-guardrails.md`](../design/iam-implementation-guardrails.md)
+的后台任务与 retention 约束完成恢复、并发和发布验收。
+
 ## 平台依赖接口
 
 Koishi 当前依赖的 StuHelper 后端机器人接口包括：

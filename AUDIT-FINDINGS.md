@@ -89,7 +89,7 @@ Web / Admin / UniAppX+Koishi UI / Koishi / 基础设施 / 代码质量与文档)
 |------|------------|----------|--------|------------------------|
 | P2-1 | 确认，已完成本地修复与静态契约验证 | P2 | 已修复，待 CI 验收 | 新增 `guards` 分类；文档、Vue UI、Semgrep 与 Node pin 分别触发实际消费它们的 job，Node 两个版本文件还必须一致。没有让所有脚本改动触发所有重型 job。原文“零 CI”已纠正为“零个相关门禁”，secret scan 原本仍会运行。 |
 | P2-2 | 确认，已完成本地修复与全量 infra 回归 | P2 | 已修复，待 CI 验收 | 两个毫秒级静态合约改为 always-on 并纳入 Required；需要构建产物的 package contract 放进既有 Koishi job。Dockerfile/CI wiring 和机器人可部署包都不再依赖 infra filter；没有让所有机器人改动触发整套 infra/E2E。 |
-| P2-3 | 确认机制，影响未量化 | 条件性 P2，否则 P3 | 先测并做低风险修复 | 将 repeat 检测的排序/limit 下推 DB，增加 `(guildId, createdAt)` 索引和基础 retention；记录表规模与 p95。立即建设 retention WebUI/完整配置面属于过度设计。 |
+| P2-3 | 热路径确认并已完成最小修复；容量影响未量化 | 热路径 P2；retention 决策 P3 | 热路径已修复，待发布；retention 待业务期限和容量证据 | repeat 检测已把排序/limit 下推 DB，并增加 `(guildId, createdAt)` 索引。开发库该表为 0 行，原 300k 行/OOM 是假设而非实测。账本还供迟到撤回按 messageId 取证；没有最长撤回/审计期限时自动删除会改变业务语义，因此不新增 retention WebUI/配置/清理任务，先观测规模与延迟。 |
 | P2-4 | 部分确认；原报告引用了一条 dead 路径 | P2 → P3 | 先测 | 当前 dashboard 仍有 recent events 与 active guards 的全扫，应下推过滤/limit 后测延迟。原文所称 admission console 全量扫描不成立，五步聚合与全面 API 重写过重。 |
 | P2-5 | 确认 | P2 → P3 | 应改 | 修复空格分隔 ID 的 destructuring，并同步真实命令名和回归测试。低频、低成本 correctness，不需要新 parser 框架。 |
 | P2-6 | 确认，已完成本地修复与回归验证；真实 Console 热重载待验收 | P2 | 已修复，待发布与运行时热重载验收 | Group Guard 在 required console 子作用域注册；Group Guard 与 Core 的特权 listener 都交给 `ctx.effect` 管理，并只在 registry 仍指向本次 registration 时删除。authority 固定为 4，调用方不能降级。只做 injection 不能消除陈旧回调，无条件按 event 删除又会误删新作用域注册；无需全局 monkey patch 或修改上游 Console。 |
@@ -189,7 +189,8 @@ P2 唯一根因应按以下修复簇合并，避免重复设计：
 
 #### 第三批：可测量的性能与一致性
 
-1. P2-3 ledger query/retention、P2-4 dashboard 查询。
+1. P2-3 ledger 逐消息热查询已完成有界读取和索引修复；无界留存降为需产品期限与容量证据的
+   P3 决策项。继续 P2-4 dashboard 查询。
 2. P1-10 resource N+1 已完成固定三查询修复、单连接池并发验证和独立提交；继续
    P2-20 materialized-view refresh timeout。
 3. R-11 outbox lock contention：只有指标或压测达到门槛后再改事件键/合并策略。
@@ -850,6 +851,14 @@ live rating bar 已完成可达表面的最小修复。优先做一处根因、�
   定向与全服务端 race、OpenAPI lint/drift、生成稳定、共享 TS type-check、`golangci-lint`、
   静态 build 和文档卫生均通过；没有限制不查 Oracle 的 verify-otp、重排 OTP cooldown，
   或引入第二个 limiter 实现。
+- P2-3 先只读检查开发 SQLite：数据库文件为 204 KiB，消息账本为 0 行且只有主键索引；
+  旧查询的执行计划仍明确为全表 `SCAN` 加临时 B-tree 排序，证明机制真实但没有本地规模影响
+  证据。候选实现用锁定版 Minato 的 cursor 把 `guildId`、`createdAt DESC` 和原始 limit
+  下推，并由模型自动创建 `(guildId ASC, createdAt DESC)` 索引。隔离 Koishi SQLite 实例
+  实际生成该索引；插入 10,000 行（目标群 9,000 行）后，`EXPLAIN QUERY PLAN` 改为按复合
+  索引 `SEARCH`，最新 3 行顺序正确。定向 8/8、Koishi 全工作区 build/contracts、
+  611/611 unit、startup 和 46/46 UI smoke 通过。没有删除开发数据，也没有在缺少最长撤回/
+  审计期限时加入自动 retention。
 
 测试通过只说明现有正向契约未被破坏，不能覆盖报告指出的所有负向场景。以下仍需在真正处置时
 单独验收：
@@ -912,6 +921,7 @@ live rating bar 已完成可达表面的最小修复。优先做一处根因、�
 | P2-16 | 已修复，待发布；目标库 NULL 分布与同批发布待验收 | 可空课程元数据使用指针/nullable contract，必有的 departmentID/credits 明确为 null，code/departmentName 缺失时省略；未分类 group 保留 null，credits sort NULLS LAST。开发库只读 23/0 NULL 盘点，隔离 PostgreSQL 覆盖五条读取路径；Go/TS generate、Web nullable parser、UniAppX fallback、三前端 type-check、两包/全服务端 race、spec/drift/lint/build/docs 通过 | `fix(course): preserve unknown catalog metadata` |
 | P3-7 | 已修复，待发布；生产审计查询/留存待验收 | NDJSON/CSV 成功与请求取消各 1 次，真实 PostgreSQL 验证每个 request_id 恰好一条 `data.export`，包含 actor、normalized filter、row_count/row_limit 和 success/failure；取消后仍持久化。评课/全服务端 race、lint/build/docs 通过；未双写 operation log 或新增异步审计系统 | `fix(audit): record review export outcomes` |
 | P2-12 | 已修复，待发布；真实 Oracle 池与生产限流指标待验收 | 两个 Oracle fan-out route 同一 subject 合计 5/min，第 6 次 429 且 gateway 计数不变；第二 subject 独立。miniredis outage 下 auth 先于 limiter，认证请求 503 且 gateway=0。academic-match 429/503 进入真源并完整生成；Admission/app/全服务端 race、spec/drift/type/lint/build/docs 通过 | `fix(admission): bound academic email lookups per user` |
+| P2-3 | 逐消息热路径已修复，待发布；自动 retention 降为 P3 决策 | 开发库 0 行但旧计划仍为 scan+临时排序；cursor 下推保持原 limit，模型声明复合索引。隔离 SQLite 10,000/9,000 行验证索引实际落地、查询计划按 guild 搜索和最新三行顺序；8/8 定向、build/contracts、611/611 unit、startup、46/46 UI smoke 和 docs 通过。未臆定删除期限 | `fix(koishi): bound repeat ledger reads` |
 
 ## Claude 原审计的确认问题分布（保留原始记录）
 
@@ -1747,7 +1757,46 @@ Keep `limit` exactly as passed (do NOT use limit + 1): message-guard.ts:233-234 
   { primary: 'messageId', indexes: [{ keys: { guildId: 'asc', createdAt: 'desc' } }] }
 @minatojs/driver-sqlite creates this on migration (createIndex, lib/index.cjs:558); the live DB currently has only the primary-key autoindex.
 
-3) Add config-driven retention. Add `ledgerRetentionDays` to GroupGuardModerationSettings in bots/koishi/packages/shared/src/guard/behavior-settings.ts (parse via the existing positiveIntegerOrDefault path at :217, add it to GROUP_GUARD_MODERATION_S
+3) Add config-driven retention. Add `ledgerRetentionDays` to
+`GroupGuardModerationSettings` in
+`bots/koishi/packages/shared/src/guard/behavior-settings.ts`。**Claude 更新后的原报告在此处截断，
+没有给出完整实现、保留期限依据或迟到撤回语义。**
+
+#### Codex 对 P2-3 的最终复核与实施记录（2026-07-31）
+
+- **结论拆分。**
+  - 逐消息热路径缺陷成立：`saveMessage` 后每条消息都会调用
+    `listRecentMessages`；旧实现读取该群全部文本行、在 JS 排序后才截断，且没有
+    `guildId/createdAt` 索引。这一部分按 P2 修复。
+  - 原报告的规模与 OOM 影响没有仓库运行证据。只读检查当前开发
+    `bots/koishi/data/koishi.db` 得到文件 204 KiB、账本 0 行、0 个 guild；它只能证明当前
+    样本尚未累积数据，不能反向证伪热路径。原文“5k msgs/day、两个月 300k 行直至 OOM”
+    是风险推演，不是实测事实。
+  - “从不清理”是独立的容量/产品策略问题。账本还被
+    `handleMessageDeleted -> getMessage(messageId)` 用于撤回取证；仓库没有权威的最长撤回
+    到达期、审计留存期或生产表规模。此时加入固定天数或 WebUI 配置会擅自改变迟到撤回语义，
+    因此降为 P3 决策项，不能为了把报告标成 fixed 而删除历史数据。
+- **最小实现。**
+  - `listRecentMessages` 继续使用既有 `database.get`，但将
+    `{ sort: { createdAt: 'desc' }, limit }` 传给 Minato cursor，数据库只返回窗口内记录。
+  - 模型声明 `(guildId ASC, createdAt DESC)` 复合索引；锁定版本的 Minato
+    `prepareIndexes()` 会在启动准备阶段为已有/新建 SQLite 表补齐索引。
+  - `limit` 原样保留，没有改成 `limit + 1`：调用方随后排除刚保存的当前消息，改上限会扩大
+    既有复读窗口并改变阈值语义。
+  - 开发指南记录热路径、索引和 retention 前置决策；没有新增设置字段、控制台页面、定时器、
+    第二张表或清理框架。
+- **交叉验证。**
+  - 变更前对开发库执行计划为
+    `SCAN stuhelper_moderation_message_ledger` + `USE TEMP B-TREE FOR ORDER BY`。
+  - 隔离 Koishi SQLite 启动后实际生成
+    `index:stuhelper_moderation_message_ledger:guildId+createdAt`；插入 10,000 行、其中目标群
+    9,000 行后，相同查询改为
+    `SEARCH ... USING INDEX ... (guildId=?)`，且 `LIMIT 3` 返回 `9000, 8999, 8998`。
+  - 单元测试锁定 cursor 参数和模型索引声明，并刻意让数据库桩返回非时间顺序，证明 store
+    不再把全量结果拉回 JS 重排。复读/撤回真实 SQLite 定向测试共 8/8 通过。
+  - Koishi 全工作区 build、Vue UI contracts、611/611 unit、startup smoke、46/46
+    Playwright UI smoke 与文档卫生通过。生产表规模、p95/p99 和索引迁移锁等待仍须发布后
+    观测，不能由 10,000 行隔离样本替代。
 
 #### P2-4. Dashboard overview loads the whole moderation-event and guard-member tables to compute counters
 
@@ -3628,6 +3677,7 @@ STUHELPER_REDIS_INTEGRATION
 | P1-10 | Resource 逐行加载 tags/bindings 并在外层 cursor 打开时嵌套取连接 | Codex 已完成实现：先 drain/关闭主结果，再用两条批量 SQL 回填关联，查询数由 `1 + 2N` 固定为 3。真实 PostgreSQL `MaxConns=1` 覆盖 1/2 条数据的固定 query count、详情、排序、空数组和 6 并发；定向 race、资源全包、vet 与全服务端 lint 通过。随独立修复提交入库，尚未发布；生产规模影响仍待指标观测 |
 | P2-1 | Guard/toolchain 文件变化不触发消费它们的 CI 门禁 | Codex 已完成实现：新增 guards 分类，并把 docs hygiene、Vue UI contract、Semgrep 与 Node pin 精确接到实际消费 job；两个 Node 版本文件必须同步。CI wiring contract、Bash 语法、actionlint 与文档卫生通过。随独立修复提交入库，真实 GitHub paths-filter 调度待验收 |
 | P2-2 | Dockerfile/Koishi 输入可绕过只在 infra job 中运行的供应链合约 | Codex 已完成实现：Dockerfile/CI wiring 两个静态合约改为 always-on Required 依赖，Koishi package contract 接入已有 Koishi build/test job；没有扩大为所有机器人变更跑全套 infra。三个定向合约、actionlint 与全部 76 个 infra contracts 通过。随独立修复提交入库，真实 GitHub runner 待验收 |
+| P2-3 | 每条消息读取并排序该群全部消息账本，且账本无 retention | Codex 已完成热路径最小修复：排序/limit 下推数据库并增加 `(guildId, createdAt)` 索引，保持原窗口语义；隔离 SQLite 10,000 行执行计划与全 Koishi 回归通过。开发库账本为 0 行，原 300k/OOM 只是推演。自动 retention 会影响迟到撤回取证，缺少权威期限和生产规模时不实施，降为 P3 决策 |
 | P2-6 | Console listeners 不随插件作用域释放，停用后仍可能调用特权动作 | Codex 已完成实现：Group Guard 改为 required console 子作用域；Core 与 Group Guard listeners 均由 `ctx.effect` 管理，并以 registration identity 保护服务重载后的新注册，authority 固定为 4。build、contracts、595 unit、startup 与 package contract 通过；WebUI E2E 首轮无关用例 45/46，立即复跑 46/46。随独立修复提交入库；真实 Console 热重载/插件卸载待验收 |
 | P2-7 | 单个不可转发的新生材料阻塞后续队列 | Codex 已完成 Koishi delivery 阶段修复：单项 delivery failure 记录后继续，健康项 ACK，批末保持失败信号；ACK failure 分相并 fail-fast。poison→healthy、ACK failure 及既有多群语义测试通过，完整 Koishi build/contracts/597 unit/startup/46 E2E 与 package contract 通过。随独立修复提交入库；功能默认关闭，真实启用验收及服务端 URL 批构建边界仍待处理 |
 | P2-10 | 普通学籍 importer 破坏身份证 enc/hash 成对写入约束 | Codex 已完成最小修复：普通 TSV 明确拒绝两列并从全部写入阶段移除 hash，重导不触碰已有 pair，新行保持 `NULL/NULL`；真实 PostgreSQL 18、定向契约、ShellCheck、76 个 infra contracts 和文档卫生通过。随独立修复提交入库；仓库当前没有完整 pair 导入入口，本次没有过度扩建 PII API/CLI |

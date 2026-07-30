@@ -98,7 +98,10 @@ function registerMessageLedgerModel(ctx: Context) {
     quoteMessageId: 'string',
     createdAt: 'timestamp',
     deletedAt: 'timestamp',
-  }, { primary: 'messageId' })
+  }, {
+    primary: 'messageId',
+    indexes: [{ keys: { guildId: 'asc', createdAt: 'desc' } }],
+  })
 }
 
 function registerWarningModel(ctx: Context) {
