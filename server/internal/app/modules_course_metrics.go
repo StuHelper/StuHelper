@@ -36,7 +36,12 @@ func (rt *Runtime) initCourseModule(
 ) courseModule {
 	courseCache := cache.NewHelperWithNamespace(rt.redisClient.GetClient(), cache.NamespaceCourse)
 	reviewCache := cache.NewHelperWithNamespace(rt.redisClient.GetClient(), cache.NamespaceReview)
-	reviewRepo := review.NewRepository(rt.database)
+	reviewRepo := review.NewRepository(
+		rt.database,
+		review.WithTeacherStatsRefreshTimeout(
+			time.Duration(rt.cfg.Review.TeacherStatsRefreshTimeoutSeconds)*time.Second,
+		),
+	)
 	reviewService := review.NewService(
 		rt.database,
 		reviewRepo,

@@ -3,12 +3,25 @@ package review
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/StuHelper/StuHelper/server/internal/pkg/db"
 	"github.com/StuHelper/StuHelper/server/internal/testutil/postgresfixture"
 )
+
+func TestTeacherPublicStatsRefreshUsesDedicatedTimeout(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	databaseWithExpiredOrdinaryBudget := db.NewDB(fixture.Pool, time.Nanosecond)
+	repo := NewRepository(
+		databaseWithExpiredOrdinaryBudget,
+		WithTeacherStatsRefreshTimeout(2*time.Second),
+	)
+
+	require.NoError(t, repo.RefreshTeacherPublicStats(context.Background()))
+}
 
 func TestTeacherPublicStats_RefreshAndList(t *testing.T) {
 	fixture := postgresfixture.Start(t)

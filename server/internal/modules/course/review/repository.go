@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -14,15 +15,39 @@ import (
 
 // Repository 评课数据访问层
 type Repository struct {
-	db *db.DB
+	db                         *db.DB
+	teacherStatsRefreshTimeout time.Duration
+}
+
+const defaultTeacherStatsRefreshTimeout = 60 * time.Second
+
+type repositoryOption func(*Repository)
+
+// WithTeacherStatsRefreshTimeout configures the maintenance budget for the
+// full materialized-view refresh without changing ordinary query timeouts.
+func WithTeacherStatsRefreshTimeout(timeout time.Duration) repositoryOption {
+	return func(repository *Repository) {
+		if timeout > 0 {
+			repository.teacherStatsRefreshTimeout = timeout
+		}
+	}
 }
 
 // NewRepository 创建数据访问层
-func NewRepository(database *db.DB) *Repository {
+func NewRepository(database *db.DB, options ...repositoryOption) *Repository {
 	if database == nil {
 		panic("review.NewRepository: database must not be nil")
 	}
-	return &Repository{db: database}
+	repository := &Repository{
+		db:                         database,
+		teacherStatsRefreshTimeout: defaultTeacherStatsRefreshTimeout,
+	}
+	for _, option := range options {
+		if option != nil {
+			option(repository)
+		}
+	}
+	return repository
 }
 
 func withDBTable(ctx context.Context, table string) context.Context {

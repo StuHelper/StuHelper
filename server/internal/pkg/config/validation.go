@@ -50,6 +50,12 @@ func (c *Config) validate(parseErrs []string) error {
 	if c.Database.QueryTimeout < 1 || c.Database.QueryTimeout > 60 {
 		errs = append(errs, fmt.Sprintf("DB_QUERY_TIMEOUT must be between 1 and 60 seconds (got %d)", c.Database.QueryTimeout))
 	}
+	if timeout := c.Review.TeacherStatsRefreshTimeoutSeconds; timeout < 5 || timeout > 90 {
+		errs = append(errs, fmt.Sprintf(
+			"REVIEW_TEACHER_STATS_REFRESH_TIMEOUT_SECONDS must be between 5 and 90 seconds (got %d)",
+			timeout,
+		))
+	}
 	if c.Database.MaxConns <= 0 {
 		errs = append(errs, fmt.Sprintf("DB_MAX_CONNS must be greater than 0 (got %d)", c.Database.MaxConns))
 	} else if c.Database.MaxConns > 10000 {

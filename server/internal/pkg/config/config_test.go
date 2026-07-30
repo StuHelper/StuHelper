@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -691,6 +692,7 @@ func TestLoad_EmptyOptionalTypedEnvUsesDefaults(t *testing.T) {
 	t.Setenv("EMAIL_TENCENT_TEMPLATE_ID", "")
 	t.Setenv("EMAIL_TENCENT_TEMPLATE_EXPIRE_MINUTES", "")
 	t.Setenv("OTEL_TRACE_SAMPLE_RATIO", "")
+	t.Setenv("REVIEW_TEACHER_STATS_REFRESH_TIMEOUT_SECONDS", "")
 
 	cfg, err := Load()
 
@@ -700,6 +702,37 @@ func TestLoad_EmptyOptionalTypedEnvUsesDefaults(t *testing.T) {
 	assert.Equal(t, int64(0), cfg.Email.TencentTemplateID)
 	assert.Equal(t, 5, cfg.Email.TencentTemplateExpireMinutes)
 	assert.InDelta(t, 0.2, cfg.Observability.TraceSampleRatio, 0.0001)
+	assert.Equal(t, 60, cfg.Review.TeacherStatsRefreshTimeoutSeconds)
+}
+
+func TestValidateReviewConfigRejectsTimeoutOutsideProjectionLeaseBudget(t *testing.T) {
+	for _, timeout := range []string{"0", "4", "91"} {
+		t.Run(timeout, func(t *testing.T) {
+			t.Setenv("REVIEW_TEACHER_STATS_REFRESH_TIMEOUT_SECONDS", timeout)
+			var parseErrs []string
+
+			reviewCfg := loadReviewConfig(&parseErrs)
+			require.Empty(t, parseErrs)
+			cfg := validProductionConfigForTest()
+			cfg.Review = reviewCfg
+
+			err := cfg.validate(parseErrs)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(),
+				"REVIEW_TEACHER_STATS_REFRESH_TIMEOUT_SECONDS must be between 5 and 90 seconds")
+		})
+	}
+}
+
+func TestValidateReviewConfigAcceptsLeaseSafeBoundaries(t *testing.T) {
+	for _, timeout := range []int{5, 60, 90} {
+		t.Run(fmt.Sprint(timeout), func(t *testing.T) {
+			cfg := validProductionConfigForTest()
+			cfg.Review.TeacherStatsRefreshTimeoutSeconds = timeout
+
+			require.NoError(t, cfg.validate(nil))
+		})
+	}
 }
 
 func TestValidate_ProductionRequiresSMSEnabled(t *testing.T) {
@@ -1535,6 +1568,7 @@ func TestValidate_SMSRejectsBlankRequiredConfigWhenEnabled(t *testing.T) {
 
 func TestValidate_SMSDisabledAllowsEmptyConfig(t *testing.T) {
 	c := &Config{
+		Review: ReviewConfig{TeacherStatsRefreshTimeoutSeconds: 60},
 		App: AppConfig{
 			Env:                "development",
 			Port:               "8080",
@@ -1902,6 +1936,7 @@ func TestValidate_RejectsBlankIdentityAndAuthorizationConfig(t *testing.T) {
 
 func validProductionConfigForTest() *Config {
 	return &Config{
+		Review: ReviewConfig{TeacherStatsRefreshTimeoutSeconds: 60},
 		App: AppConfig{
 			Env:                "production",
 			Port:               "8080",

@@ -34,6 +34,7 @@ type Config struct {
 	Token         TokenConfig
 	Log           LogConfig
 	RateLimit     ReviewRateLimitConfig
+	Review        ReviewConfig
 	Security      SecurityConfig
 	SMS           SMSConfig
 	Email         EmailConfig
@@ -61,6 +62,11 @@ type ReviewRateLimitConfig struct {
 	SearchUserLimit int
 	BatchAnonLimit  int
 	BatchUserLimit  int
+}
+
+// ReviewConfig controls long-running review projection maintenance.
+type ReviewConfig struct {
+	TeacherStatsRefreshTimeoutSeconds int
 }
 
 // OpenPlatformConfig 开放平台配置。
@@ -325,6 +331,7 @@ func Load() (*Config, error) {
 		Token:         loadTokenConfig(&parseErrs),
 		Log:           loadLogConfig(&parseErrs),
 		RateLimit:     loadReviewRateLimitConfig(&parseErrs),
+		Review:        loadReviewConfig(&parseErrs),
 		SMS:           loadSMSConfig(&parseErrs),
 		Email:         loadEmailConfig(&parseErrs),
 		Bot:           loadBotConfig(),
@@ -496,6 +503,16 @@ func loadReviewRateLimitConfig(parseErrs *[]string) ReviewRateLimitConfig {
 		BatchAnonLimit:  getEnvInt("REVIEW_RATE_BATCH_ANON_LIMIT", 5, parseErrs),
 		BatchUserLimit:  getEnvInt("REVIEW_RATE_BATCH_USER_LIMIT", 60, parseErrs),
 	}
+}
+
+func loadReviewConfig(parseErrs *[]string) ReviewConfig {
+	const defaultTeacherStatsRefreshTimeoutSeconds = 60
+	timeout := getEnvInt(
+		"REVIEW_TEACHER_STATS_REFRESH_TIMEOUT_SECONDS",
+		defaultTeacherStatsRefreshTimeoutSeconds,
+		parseErrs,
+	)
+	return ReviewConfig{TeacherStatsRefreshTimeoutSeconds: timeout}
 }
 
 func loadOpenPlatformConfig(parseErrs *[]string) OpenPlatformConfig {

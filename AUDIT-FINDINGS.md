@@ -106,7 +106,7 @@ Web / Admin / UniAppX+Koishi UI / Koishi / 基础设施 / 代码质量与文档)
 | P2-17 | 确认两个配置当前未生效，但行为可能是刻意安全收紧 | P2 → P3/P4 | 决策 | 优先决定是否废弃 content preview knobs，并把 title knob 说明改成锁定首行 teaser；若恢复，只对已认证非 full tier 接线并保持 guest 收紧。直接“恢复配置生效”可能削弱访问控制。 |
 | P2-18 | 确认，已完成单实例最小修复与真实 PostgreSQL 回归 | P2 | 已修复，待发布 | create/update/delete 只有在 Repository 成功后才调用进程内 `Filter.Invalidate()`；下一次内容检查重载 DB，失败继续映射 `ErrModerationUnavailable`，不会用旧词表放行。`Invalidate` 与 `Refresh` 共享一把窄 mutex，避免 mutation 与在途刷新交错后旧结果重新获得 5 分钟 freshness；matcher 读锁不覆盖 DB 查询。真实数据库覆盖已预热快照上的新增、改词/改级别、删除、失败 mutation 不失效和 reload failure fail-closed。当前 Compose 是单 app，不引入 Redis version/pub/sub；多副本前置要求已写入安全文档。 |
 | P2-19 | 确认 | P2 → P3 | 应改 | 先为语义唯一的 dangerous/too-short/rating-required/invalid-rating 映射专用 code；共享的 content-too-long 需先拆 sentinel。不要把所有共享错误一刀切成 review code。 |
-| P2-20 | 确认结构风险，生产是否超过 5 秒未验证 | 条件性 P2 | 先测后改 | 给 materialized-view refresh 独立可配置 timeout，继承 parent cancel；增加 duration、projection age、retry 指标。不要抬高全局 DB timeout，也无需先重写所有 shutdown/retry。 |
+| P2-20 | 确认结构风险，已完成独立预算修复；当前样本未发生超时 | 条件性 P2 | 已修复，待发布与生产规模验收 | 普通查询 5 秒预算确实曾截断全量刷新，但开发库 15 名教师/13 条评课下两组共 6 次刷新仅 4.040–20.517 ms，outbox 为 `completed`、0 次失败，故“已经永久陈旧”没有证据。已增加继承 parent cancel 的专用 60 秒预算并限制在 5–90 秒，严格低于 2 分钟 lease；复用既有 DB duration、outbox retry/terminal 指标和告警。不抬高全局 DB timeout，不新增重复投影平台或无依据 cadence/age SLO。 |
 | P2-21 | 确认，已完成最小修复与断路器状态回归 | P2 | 已修复，待发布 | `Probe`/`LookupStudent` 的错误统一进入局部 classifier：parent caller cancel/deadline 为 neutral，目录自身 query timeout 与真实 backend error 仍为 failure；neutral 必须调用 `RecordNeutral()`，因此 half-open probe 会被释放。没有改变全局 breaker 阈值、窗口或超时。 |
 | P2-22 | 核心确认，已完成最小修复并保留 503 契约 | P2 | 已修复，待发布 | 无效/冲突单行保留 typed error 并记 neutral，不增加也不重置既有健康计数；学号与绑定参数错位拆成独立 sentinel，仍是 source failure。新增固定三类、无原始数据 label 的 integrity counter；app adapter 继续把所有源错误映射到既有 503。原建议用 `RecordSuccess()` 会错误清空此前真实失败，未采用。 |
 | P2-23 | 核心确认、原影响范围夸大；已完成最小修复与真实 PostgreSQL 回归 | P2 | 已修复，待发布 | 共享 outbox 的 `process` panic 在 per-job 边界转成带 stack 的普通失败，复用现有 retry/dead-letter/terminal metric；同批后续 job 继续。真实生产调用面是 5 个共享 outbox worker，不包括两个手写 Admission expiry loop。没有加入无界 root supervisor；它会对无 durable attempt 的 poison 形成 panic loop。 |
@@ -191,8 +191,8 @@ P2 唯一根因应按以下修复簇合并，避免重复设计：
 
 1. P2-3 ledger 逐消息热查询已完成有界读取和索引修复；无界留存降为需产品期限与容量证据的
    P3 决策项。继续 P2-4 dashboard 查询。
-2. P1-10 resource N+1 已完成固定三查询修复、单连接池并发验证和独立提交；继续
-   P2-20 materialized-view refresh timeout。
+2. P1-10 resource N+1 与 P2-20 materialized-view 独立刷新预算均已完成修复、真实
+   PostgreSQL 回归和独立提交；继续 P2-4 dashboard 查询。
 3. R-11 outbox lock contention：只有指标或压测达到门槛后再改事件键/合并策略。
 4. R-16 academics bulk import：真实 connector 上线前处理，不提前建设。
 
@@ -315,6 +315,12 @@ P3-1 至 P3-6、P3-8、R-5 至 R-7、R-14、R-15、R-17。X-2 的配置分类治
 - P2-11 对 `openapi-fetch` 的实测确认数组被序列化为重复 `courseIDs` 参数。
 - P2-9 后续已在隔离 venv 安装固定 `ansible-core==2.20.2`，补齐真实 controller 复现、
   三 playbook syntax check 和修复后 bundle task 执行；仅远端 SSH 上传/部署仍 pending。
+- P2-20：开发库只读盘点为 15 名教师、8 个院系、13 条评课和 15 行投影；复核期间两组
+  共 6 次真实 `REFRESH MATERIALIZED VIEW CONCURRENTLY` 为 4.040–20.517 ms，统一 outbox
+  行为 `completed / attempt_count=0 / last_error=NULL`，因此没有把假设的生产永久陈旧写成
+  现状。真实 PostgreSQL 回归另用 20 ms 普通预算证明 250 ms 显式预算可完成 60 ms statement，
+  并证明显式 25 ms deadline 与已取消 parent 均能终止；Repository 在普通预算仅 1 ns 时仍可
+  通过 2 秒专用预算刷新真实物化视图。生产行数、锁等待和 p95/p99 尚未验证。
 
 ### Codex 修复进度
 
@@ -339,6 +345,7 @@ P3-1 至 P3-6、P3-8、R-5 至 R-7、R-14、R-15、R-17。X-2 的配置分类治
 | P2-13/P2-14 | 主因已修复，未发布；P2-15 为重复标签；补偿失败/replay 边界已记录 | 每批固定两次上下文查询；补偿可写时，全批 enrichment failure/取消归还未公开 lease；单行确定性 preparation failure 独立 retry/dead-letter，stale/failure/abandon 使用 attempt fence。真实 PostgreSQL 覆盖固定查询数、故障/cancel cleanup、旧 lease fence、poison 隔离；Admission 全包 `-race`、全服务端 lint/build 与文档检查通过。未把补偿写同时不可用或 terminal replay 误报为已解决 | `fix(admission): isolate claimed action failures` |
 | P2-21/P2-22 | 已修复，未发布；真实 Oracle/生产指标待验收 | parent cancel/deadline 与单条 invalid/ambiguous row 记 neutral 并释放 half-open probe；目录自身 timeout、backend failure 和 bind identity mismatch 仍记 failure。三类固定 integrity metric 已接入，typed error 经既有 adapter 保持 503。定向三包 race、全服务端 race、lint/build 与文档卫生通过 | `fix(externaldata): classify Oracle source outcomes` |
 | P2-23 | 已修复，未发布；生产 poison 告警/replay 待验收 | `process` panic 转成带 stack 的普通 job error；第 5 次沿既有路径 dead-letter、增加 terminal metric，同批健康 job 继续。真实 PostgreSQL 18 直接验证 poison/healthy 最终状态；outbox 定向与全服务端 race、lint/build/docs 通过。未修改 runtime root supervisor，也未把两个 Admission expiry loop 误报为已覆盖 | `fix(outbox): isolate panicking job handlers` |
+| P2-20 | 已修复，未发布；生产规模与锁等待待验收 | `ExecWithTimeout` 复用原 Exec 的 tracing/DB 指标且不重试，专用预算继承 caller/shutdown cancel；配置默认 60 秒、仅允许 5–90 秒并进入两份 env 模板。真实 PostgreSQL 验证显式预算覆盖普通预算、parent cancel 优先，以及 Repository 在 1 ns 普通预算下仍完成真实刷新；开发库 6 次实测 4.040–20.517 ms、outbox 无失败。全服务端 race/lint/build、docs 与全部 infra contracts 通过；未抬高全局 timeout、未新增重复指标/cadence 框架 | `fix(review): separate teacher projection timeout` |
 | R-8 | 已修复，未发布 | Admission/User 两条 OTP cooldown reserve 对 `redis.Nil` 保持 429，对真实 miniredis server 关闭后的 transport failure 返回各自 unavailable sentinel 并映射 503；Admission request-otp OpenAPI 与 bundle/Go/TS 生成物同步。两包/全服务端 race、lint/build、spec、生成稳定性和 docs 通过 | `fix(otp): distinguish Redis outages from cooldowns` |
 
 ### 明确不建议实施的“修复”
@@ -922,6 +929,7 @@ live rating bar 已完成可达表面的最小修复。优先做一处根因、�
 | P3-7 | 已修复，待发布；生产审计查询/留存待验收 | NDJSON/CSV 成功与请求取消各 1 次，真实 PostgreSQL 验证每个 request_id 恰好一条 `data.export`，包含 actor、normalized filter、row_count/row_limit 和 success/failure；取消后仍持久化。评课/全服务端 race、lint/build/docs 通过；未双写 operation log 或新增异步审计系统 | `fix(audit): record review export outcomes` |
 | P2-12 | 已修复，待发布；真实 Oracle 池与生产限流指标待验收 | 两个 Oracle fan-out route 同一 subject 合计 5/min，第 6 次 429 且 gateway 计数不变；第二 subject 独立。miniredis outage 下 auth 先于 limiter，认证请求 503 且 gateway=0。academic-match 429/503 进入真源并完整生成；Admission/app/全服务端 race、spec/drift/type/lint/build/docs 通过 | `fix(admission): bound academic email lookups per user` |
 | P2-3 | 逐消息热路径已修复，待发布；自动 retention 降为 P3 决策 | 开发库 0 行但旧计划仍为 scan+临时排序；cursor 下推保持原 limit，模型声明复合索引。隔离 SQLite 10,000/9,000 行验证索引实际落地、查询计划按 guild 搜索和最新三行顺序；8/8 定向、build/contracts、611/611 unit、startup、46/46 UI smoke 和 docs 通过。未臆定删除期限 | `fix(koishi): bound repeat ledger reads` |
+| P2-20 | 已修复，待发布；生产刷新 p95/p99 与锁等待待验收 | 独立 60 秒预算只用于教师投影刷新，范围 5–90 秒且 parent cancel 优先；DB 执行路径复用现有 tracing/metrics 并保持不重试。真实 PostgreSQL 覆盖 20 ms 普通预算下的长 statement、deadline/cancel，以及 Repository 在 1 ns 普通预算下成功刷新；开发库两组 6 次为 4.040–20.517 ms、outbox 无失败。全服务端 race/lint/build、docs 与全部 infra contracts 通过；未抬高全局预算或增加无 SLO 的 cadence/age 平台 | `fix(review): separate teacher projection timeout` |
 
 ## Claude 原审计的确认问题分布（保留原始记录）
 
@@ -2778,6 +2786,60 @@ Give the refresh its own budget, keep it cancellable, and stop the hot retry loo
 
 4. Add a
 
+> **原报告完整性说明：**Claude 更新后的修复方案仍在第 4 点中途截断；新版
+> `AUDIT-REPORT.md` 只多出“增加 cadence floor”的半句，没有给出算法、SLO 或回归边界。
+> 下述 Codex 记录是基于当前代码与真实数据库重新完成的结论，不把该半句当成已验证方案。
+
+#### Codex 对 P2-20 的最终复核与实施记录（2026-07-31）
+
+**最终结论**
+
+- 结构缺陷成立：旧 `RefreshTeacherPublicStats` 经普通 `DB.Exec` 使用全局
+  `DB_QUERY_TIMEOUT`，默认 5 秒；`REFRESH MATERIALIZED VIEW CONCURRENTLY` 是全量维护
+  statement，随数据增长可能合理地超过普通在线查询预算。唯一的配置逃生口曾是抬高所有查询
+  的 timeout，边界不正确。
+- “投影已经永久停止更新”没有现状证据。开发库只读盘点为 15 名教师、8 个院系、13 条评课、
+  15 行投影；复核期间两组共 6 次真实刷新为 4.040–20.517 ms。对应统一 outbox 行当前为
+  `completed`、`attempt_count=0`、`last_error=NULL`。这些小样本只否定“当前已坏”的断言，
+  不能证明生产规模永远不会跨过 5 秒。
+- 原报告建议 timeout 最多可到 600 秒不安全。该 worker 复用共享 outbox 的 2 分钟
+  `LockStaleAfter`；维护 statement 若可超过 lease，另一 worker/实例可能把仍在执行的 job
+  当成 stale 重领。因此本次把独立预算限制为 5–90 秒，给取消和最终化留出余量；若 90 秒仍
+  不足，正确动作是先测锁等待/数据规模并拆分或重构投影，而不是继续放大 timeout。
+- 原报告“每 2 秒无限重建”的表述也过强：未发生 revision supersession 时，既有 worker 会按
+  5 秒起步指数退避并在第 5 次 dead-letter；只有刷新期间持续写入导致 revision 变化时，
+  supersession fence 才会把最新修订立即重新排队。当前耗时与失败数据不足以发明新的 cadence
+  状态机，故本次不修改共享 outbox 语义。
+
+**已实施的最小修复**
+
+1. `db.DB` 增加 `ExecWithTimeout`，与普通 `Exec` 共用同一个内部执行路径、span、
+   `db_query_duration_seconds` / `db_queries_total` 指标和“非幂等命令不自动重试”语义。
+   显式 context 始终从 caller 派生；进程停机、调用方取消或更短的 parent deadline 优先，
+   没有使用 detached context。
+2. 新增 `REVIEW_TEACHER_STATS_REFRESH_TIMEOUT_SECONDS`，默认 60、合法范围 5–90；运行时
+   config、统一 validation、开发/生产 env 模板和 app wiring 同步。Repository option 仍有
+   60 秒安全默认，零值 option 不会覆盖它。
+3. 只有 `REFRESH MATERIALIZED VIEW CONCURRENTLY mv_teacher_public_stats` 使用专用预算；
+   其余在线 SQL 继续受原 5 秒普通预算保护。配置文档明确专用预算必须小于 2 分钟 lease，
+   以及超过 90 秒时的重新设计门槛。
+4. 没有重复创建投影 duration/retry 指标：稳定 table hint 已使刷新进入现有
+   `db_query_duration_seconds{operation="exec",table="mv_teacher_public_stats"}`；每次失败、
+   重试与 terminal 状态沿统一 `outbox_job_failures_total`、结构化日志和既有 terminal alert
+   观测。没有权威 freshness SLO 前不新增会立即产生任意阈值告警的 projection-age gauge。
+
+**交叉验证**
+
+- DB 单元测试锁定显式 timeout 覆盖普通预算、非正值回退，以及较短 parent deadline 优先。
+- 真实 PostgreSQL 测试把普通预算设为 20 ms：250 ms 显式预算成功完成约 60 ms statement；
+  25 ms 显式预算按 deadline 终止，预先取消的 parent 保持 `context.Canceled`。
+- Repository 真实 PostgreSQL 回归把普通预算设为 1 ns、刷新专用预算设为 2 秒，物化视图仍
+  成功刷新，直接证明 app 所依赖的 Repository 路径没有意外回落到全局预算。
+- config 默认值和 `0/4/91` 拒绝路径、Repository 默认/自定义/零值 option、既有刷新/list
+  行为均有回归；全服务端 `go test -race -p 1 ./...`、`golangci-lint`（0 issues）、生产
+  二进制 build、文档卫生和全部 infra contracts 均通过。生产数据量、长事务/锁等待、刷新
+  p95/p99 和多副本 stale-lease 行为仍须发布环境只读观测；本地小表结果不能替代这些验收。
+
 #### P2-21. Caller context cancellation is recorded as an external-source failure and trips the circuit breaker
 
 - **位置**：`server/internal/modules/externaldata/oracle_student_directory.go:218`
@@ -3678,6 +3740,7 @@ STUHELPER_REDIS_INTEGRATION
 | P2-1 | Guard/toolchain 文件变化不触发消费它们的 CI 门禁 | Codex 已完成实现：新增 guards 分类，并把 docs hygiene、Vue UI contract、Semgrep 与 Node pin 精确接到实际消费 job；两个 Node 版本文件必须同步。CI wiring contract、Bash 语法、actionlint 与文档卫生通过。随独立修复提交入库，真实 GitHub paths-filter 调度待验收 |
 | P2-2 | Dockerfile/Koishi 输入可绕过只在 infra job 中运行的供应链合约 | Codex 已完成实现：Dockerfile/CI wiring 两个静态合约改为 always-on Required 依赖，Koishi package contract 接入已有 Koishi build/test job；没有扩大为所有机器人变更跑全套 infra。三个定向合约、actionlint 与全部 76 个 infra contracts 通过。随独立修复提交入库，真实 GitHub runner 待验收 |
 | P2-3 | 每条消息读取并排序该群全部消息账本，且账本无 retention | Codex 已完成热路径最小修复：排序/limit 下推数据库并增加 `(guildId, createdAt)` 索引，保持原窗口语义；隔离 SQLite 10,000 行执行计划与全 Koishi 回归通过。开发库账本为 0 行，原 300k/OOM 只是推演。自动 retention 会影响迟到撤回取证，缺少权威期限和生产规模时不实施，降为 P3 决策 |
+| P2-20 | 教师公开统计刷新受普通 5 秒查询预算截断 | Codex 已完成最小修复：刷新使用独立、可配置且继承 caller/shutdown cancel 的 60 秒预算，配置仅允许 5–90 秒以保持低于 2 分钟 outbox lease；其余 SQL 仍为普通预算。真实 PostgreSQL 覆盖显式 deadline/cancel 与 Repository 专用预算；开发库 6 次刷新仅 4.040–20.517 ms、outbox 为 completed/0 次失败，因此原“已经永久陈旧”未获证实。未新增重复指标或猜测 cadence SLO |
 | P2-6 | Console listeners 不随插件作用域释放，停用后仍可能调用特权动作 | Codex 已完成实现：Group Guard 改为 required console 子作用域；Core 与 Group Guard listeners 均由 `ctx.effect` 管理，并以 registration identity 保护服务重载后的新注册，authority 固定为 4。build、contracts、595 unit、startup 与 package contract 通过；WebUI E2E 首轮无关用例 45/46，立即复跑 46/46。随独立修复提交入库；真实 Console 热重载/插件卸载待验收 |
 | P2-7 | 单个不可转发的新生材料阻塞后续队列 | Codex 已完成 Koishi delivery 阶段修复：单项 delivery failure 记录后继续，健康项 ACK，批末保持失败信号；ACK failure 分相并 fail-fast。poison→healthy、ACK failure 及既有多群语义测试通过，完整 Koishi build/contracts/597 unit/startup/46 E2E 与 package contract 通过。随独立修复提交入库；功能默认关闭，真实启用验收及服务端 URL 批构建边界仍待处理 |
 | P2-10 | 普通学籍 importer 破坏身份证 enc/hash 成对写入约束 | Codex 已完成最小修复：普通 TSV 明确拒绝两列并从全部写入阶段移除 hash，重导不触碰已有 pair，新行保持 `NULL/NULL`；真实 PostgreSQL 18、定向契约、ShellCheck、76 个 infra contracts 和文档卫生通过。随独立修复提交入库；仓库当前没有完整 pair 导入入口，本次没有过度扩建 PII API/CLI |
