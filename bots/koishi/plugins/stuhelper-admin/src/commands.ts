@@ -57,6 +57,9 @@ function registerStatusCommand(ctx: Context, deps: AdminCommandDeps) {
       if (denial) {
         return denial
       }
+      if (!targetGuildId) {
+        return adminMessage(messages, 'guardGuildContextRequired')
+      }
       return formatPendingMembers(await deps.guardMembers.listActiveByGuild({ guildId: targetGuildId }), messages)
     })
 }
@@ -103,6 +106,9 @@ function registerReviewListCommand(ctx: Context, deps: AdminCommandDeps) {
       })
       if (denial) {
         return denial
+      }
+      if (!targetGuildId) {
+        return adminMessage(messages, 'guardGuildContextRequired')
       }
       return formatPendingReviews(await deps.moderationStore.listPendingReviews(targetGuildId), messages)
     })

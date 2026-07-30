@@ -68,7 +68,7 @@ Web / Admin / UniAppX+Koishi UI / Koishi / 基础设施 / 代码质量与文档)
 | 编号 | Codex 结论 | 调整级别 | 必要性 | 最小处置与过度设计判断 |
 |------|------------|----------|--------|------------------------|
 | P0-1 | 确认，已完成本地修复与回归验证 | P0 → P1 | 已修复，待发布 | 守卫复用 capability 过滤后的 `accessibleRoutes`/`accessibleMenus` 推导首页，并只接受确实命中可访问路由的内部 redirect；未知、已过滤、核心登录、外部、scheme-relative 和坏编码路径均回退首页。没有放宽 dashboard 权限，也没有建立第二套 capability 判断。 |
-| P1-1 | 确认 | P1 | 必须 | 私聊或缺 guild 时必须拒绝群管理命令；`群审复核` 必须在授权 guild 内查询。补 DM、空参数、显式 guild 越权测试。无需重写整套命令权限框架。 |
+| P1-1 | 确认，已完成本地修复与回归验证 | P1 | 已修复，待发布 | 缺 Session 时 fail-closed；私聊无群号仍按 command policy 的 `minAuthority` 校验，但不加载成员角色，随后在访问数据前返回群上下文提示；私聊显式群号继续按目标群角色策略校验，复核列表始终带 guild filter。没有禁用合法私聊，也没有重写命令权限框架。 |
 | P1-2 | 确认 | P1 | 必须 | 文档让维护者修改 `000001_initial_schema`，对已迁移数据库不会生效。改为始终新增递增 migration，并同步 Make 帮助与迁移指南。不要普遍加入 `IF NOT EXISTS` 来追求“可重跑”，那会掩盖脏迁移和 schema drift。 |
 | P1-3 | 确认代码缺陷；生产状态未验证 | P1 | 必须 | 当前固定镜像对 `tar + gzip + wal-method=stream + pgdata=-` 明确报错；改用可工作的 WAL 模式，在同步目录外写 staging/`.partial`，验证后原子移入，并让同步器显式排除临时产物；补物理备份 freshness/evidence，之后在隔离环境做恢复演练。`fetch` 模式不能搭配 replication slot；不能仅凭仓库断言生产“从未有 PITR”。 |
 | P1-4 | 确认，当前工作树已有未提交修复 | P1 | 必须完成交付 | `git archive HEAD` 加根目录 env 模板断言适合本仓库，契约测试已通过。仍需提交、CI、部署/回滚演练；不能标为已发布。 |
@@ -159,7 +159,7 @@ P2 唯一根因应按以下修复簇合并，避免重复设计：
 
 #### 第一批：安全、恢复能力与不可逆正确性
 
-1. P1-1 群命令 fail-open。
+1. P1-1 群命令 fail-open 已完成实现和本地验证。
 2. P1-3 物理备份命令、原子产物、证据与隔离恢复演练。
 3. P1-8 删除态 review 状态机。
 4. P2-10 身份证 enc/hash 导入约束。
@@ -192,6 +192,9 @@ R-14、R-15、R-17，以及 X-2 的配置分类治理。
 - Admin：P0-1 的 capability-filtered 首页、可访问 redirect 和 6 类危险/无效 redirect
   定向 Vitest 10/10 通过；Admin 全量 Vitest 31 files / 153 tests 通过；`vue-tsc --noEmit
   --skipLibCheck`、Node 侧 `tsc`、`oxfmt --check`、`oxlint` 和 production build 均通过。
+- Koishi P1-1：缺 Session、私聊无 guild 的 authority 策略、显式 guild 越权和跨群数据隔离
+  定向测试随相关 shared settings 共 14/14 通过；Koishi 全工作区 build、全量 unit
+  593/593 和 Vue UI contracts 通过。
 - 部署包：`infra/ops/tests/deploy-bundle-contract.sh` 通过；当前修复仍未提交/发布。
 - PostgreSQL：固定镜像实测原 `pg_basebackup` 参数在解析阶段失败；换
   `--wal-method=fetch` 后通过参数校验并进入连接阶段。
@@ -211,6 +214,7 @@ R-14、R-15、R-17，以及 X-2 的配置分类治理。
 | 编号 | 状态 | 实现与验证 | 独立提交 |
 |------|------|------------|----------|
 | P0-1 | 已修复，未发布 | 按已过滤路由推导首页；redirect 必须命中可访问路由，否则回退。定向 Vitest 10/10、Admin 全量 153 tests、两段 TypeScript 检查、格式、静态检查和 production build 通过 | `fix(admin): route users to an accessible home` |
+| P1-1 | 已修复，未发布 | 缺 Session fail-closed；私聊无 guild 仍校验 policy 且禁止无范围查询；显式 guild 保留并按目标群授权。定向 14 tests、Koishi build、全量 593 tests 和 UI contracts 通过 | `fix(koishi): fail closed without a guild context` |
 
 ### 明确不建议实施的“修复”
 
@@ -2421,6 +2425,7 @@ STUHELPER_REDIS_INTEGRATION
 | 编号 | 问题 | 状态 |
 |------|------|------|
 | P0-1 | Admin 落地页 404 循环 | Codex 已完成实现：按 capability-filtered route/menu 推导首页，并对 redirect 做可访问路由校验；定向测试 10/10、Admin 全量 153 tests、类型、格式、静态检查和 production build 通过。随独立修复提交入库，尚未发布 |
+| P1-1 | 私聊空 guild 绕过策略并跨群读取复核队列 | Codex 已完成实现：缺 Session fail-closed；无 guild 仍校验 authority policy 且在数据访问前返回上下文提示；显式 guild 保持目标群授权与过滤。定向 14 tests、Koishi 全量 593 tests、build 和 UI contracts 通过。随独立修复提交入库，尚未发布 |
 | P1-4 | 部署包丢失 env 模板 | 当前未提交工作树已改为 `git archive` + 断言，契约测试通过；未合并、未执行真实部署/回滚 |
 | X-1 | 无 scope 的 school_admin 全量可见 | Codex 已证伪；现有 capability 展开和 admin Entry 在 Handler 前返回 403，不按 P1 修复 |
 | X-2 | env 模板差集 | Codex 判定部分成立；改为分类治理，不执行 21 项全量入模板/严格集合相等方案 |
