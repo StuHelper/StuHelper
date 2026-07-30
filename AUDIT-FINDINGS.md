@@ -127,7 +127,7 @@ P2 唯一根因应按以下修复簇合并，避免重复设计：
 | P3-4 | 部分确认 | P3 | 可选 | `member-blacklist-unification.md` 仍需把已落地内容改成当前时态；IAM 旧文在当前脏工作树已 rename/rewrite 为 `iam-architecture.md`，不要重复修改或覆盖现有改动。 |
 | P3-5 | 部分确认 | P3 | 可选 | 只修 `frontend-development.md` 的缺失/不存在目录，以及 `backend-development.md` 过窄的 RBAC 入口。带明确日期的 GitHub 迁移快照和当前仍准确的 automation 叙事不应批量重写。 |
 | P3-6 | 确认 | P3 | 应改 | 以 OpenAPI 为真源修 school SSO login/callback 和 mobile handoff 的 security/401/403，generate 后加路由契约测试；不要机械枚举未实现状态。 |
-| P3-7 | 确认 | P3 → P2 | 必须 | 每次敏感批量导出写一个 success/failure 审计事件及 row count，让 stream 返回 `(count, error)`。CSV 不含 moderation_reason，风险描述应保持准确。 |
+| P3-7 | 确认，已完成单事件审计与真实 PostgreSQL 取消回归 | P3 → P2 | 已修复，待发布 | 每次敏感批量导出恰好写一条 `data.export` success/failure 事件，记录规范化 format/status、已处理行数和 10,000 行上限；stream 返回 `(count, error)`，完成标记/写响应失败也归为 failure。取消请求下真实 DB stream 失败后审计仍用 WithoutCancel 上下文持久化。CSV 不含 moderation_reason，未重复调用 `h.logAdminOp`。 |
 | P3-8 | 确认 | P3 | 应改 | 三个 Handler 改为真正的 204 No Content，保持 OpenAPI 真源；历史提交也表明 204 是有意契约，不应反向把 spec 改成 200。 |
 | P3-9 | 确认，已完成最小修复与真实 Redis 故障回归 | P3 → P2 | 已修复，待发布 | 只有 Redis `Nil` 映射 `v0`；transport error/caller cancel 返回 unknown，版本化 get 为 miss、set 为 no-op且不本地 memoize。关闭并重启 miniredis 验证故障期不生成 `v0`、恢复后立即读取真实版本。没有引入 detached loader 或新 wrapper；singleflight 等待者在首 caller 取消时共同 bypass 属于可用性边界，不再是陈旧数据风险。 |
 
@@ -168,7 +168,7 @@ P2 唯一根因应按以下修复簇合并，避免重复设计：
    已删除内容不会被举报处理复活，历史举报仍可正常结案。
 4. P2-10 身份证 enc/hash 导入约束已完成最小修复、真实 PostgreSQL 验证和独立提交；
    当前仓库没有完整 pair 导入入口，不为本项额外建设未经需求驱动的 PII 导入 API/CLI。
-5. P3-7 敏感导出审计。
+5. P3-7 敏感导出审计已完成；每次请求只有一条可查询、可保留的 success/failure 事件。
 6. P1-9 `phone.read` 已按既有安全模型完成实时 Casdoor 读取与 fail-closed 修复；
    仍需带真实 Casdoor 凭据执行一次发布环境验收。
 
@@ -184,8 +184,8 @@ P2 唯一根因应按以下修复簇合并，避免重复设计：
    均已完成隔离、全量/状态机回归和独立提交。
 5. P2-21/P2-22 breaker 分类、R-8 Redis 错误分类与 P3-9 cache version unavailable
    均已完成最小修复和故障回归。
-6. P2-9 Ansible 路径、P2-18 filter invalidation 与 P2-16 nullable course metadata
-   均已完成修复；继续 P3-7 敏感导出审计。
+6. P2-9 Ansible 路径、P2-18 filter invalidation、P2-16 nullable course metadata 与
+   P3-7 敏感导出审计均已完成修复；继续 P2-12 外部 Oracle 用户级预算。
 
 #### 第三批：可测量的性能与一致性
 
@@ -836,6 +836,12 @@ live rating bar 已完成可达表面的最小修复。优先做一处根因、�
   Web 正向/null/错误类型/负数解析、UniAppX 58 unit、三前端类型检查、两业务包与全服务端 race、
   spec/drift、`golangci-lint`、静态 build 和文档卫生均通过。没有写生产数据、migration、
   `COALESCE(0/'')` 或伪造“未分类院系”记录。
+- P3-7 在隔离 PostgreSQL 18 对 NDJSON/CSV 各执行成功和预取消 context 的真实 DB stream
+  failure，共 4 次请求、4 条且每次恰好 1 条 `data.export`；成功行数为 1，失败行数为 0，
+  actor/resource/filter/10,000 行上限与 success/failure reason 均从落库记录复读验证。失败
+  请求没有完成标记，但审计通过 `context.WithoutCancel` 成功持久化。评课包与全服务端 race、
+  `golangci-lint`、静态 build 和文档卫生均通过。没有双写 `h.logAdminOp`、新增表/队列，或把
+  `row_count` 误称为客户端可靠接收证明。
 
 测试通过只说明现有正向契约未被破坏，不能覆盖报告指出的所有负向场景。以下仍需在真正处置时
 单独验收：
@@ -896,6 +902,7 @@ live rating bar 已完成可达表面的最小修复。优先做一处根因、�
 | R-8 | 已修复，待发布；生产 Redis 故障注入待验收 | 两条 OTP reserve 只有真实 NX miss 才返回 cooldown/429，transport error 包装现有 unavailable/503 并保留 cause；miniredis socket 关闭与 HTTP 映射回归通过。Admission request-otp 补 503 后完整生成，两个业务包/全服务端 race、lint/build/spec/codegen stability/docs 通过 | `fix(otp): distinguish Redis outages from cooldowns` |
 | P3-9 | 已修复，待发布；生产 Redis 故障注入待验收 | 版本 key 缺失仍为合法 `v0`；transport error/caller cancel 改为 unknown，`BuildVersionedKey` 返回空 key，版本化 get miss、set no-op且不写本地版本缓存。真实 miniredis 关闭/重启验证故障阶段不读写 `v0`、恢复后立即读到预存 `v7`；缓存全包 race、调用方两包 race、全服务端 race、lint/build/docs 通过 | `fix(cache): bypass versioned data when Redis is unavailable` |
 | P2-16 | 已修复，待发布；目标库 NULL 分布与同批发布待验收 | 可空课程元数据使用指针/nullable contract，必有的 departmentID/credits 明确为 null，code/departmentName 缺失时省略；未分类 group 保留 null，credits sort NULLS LAST。开发库只读 23/0 NULL 盘点，隔离 PostgreSQL 覆盖五条读取路径；Go/TS generate、Web nullable parser、UniAppX fallback、三前端 type-check、两包/全服务端 race、spec/drift/lint/build/docs 通过 | `fix(course): preserve unknown catalog metadata` |
+| P3-7 | 已修复，待发布；生产审计查询/留存待验收 | NDJSON/CSV 成功与请求取消各 1 次，真实 PostgreSQL 验证每个 request_id 恰好一条 `data.export`，包含 actor、normalized filter、row_count/row_limit 和 success/failure；取消后仍持久化。评课/全服务端 race、lint/build/docs 通过；未双写 operation log 或新增异步审计系统 | `fix(audit): record review export outcomes` |
 
 ## Claude 原审计的确认问题分布（保留原始记录）
 
@@ -3084,6 +3091,40 @@ Concretely:
    Emit the failure variant (with rows written so far) when StreamExportReviews errors, since the response body is already partially streamed and the client keeps a truncated file.
 3. Add a handler test asserting the event fires for both format=csv and format=ndjson, success and stream-error paths (the existin
 
+#### Codex 对 P3-7 的最终复核与实施记录（2026-07-31）
+
+**最终结论**
+
+缺少批量导出审计真实存在，并且应按 P2 安全审计缺口处理。导出由全局
+`admin:reviews:manage` capability 保护且 SQL 已有 10,000 行硬上限，因此不是“任意用户无限
+导出”；但 `status=all` 确实包含隐藏和软删除评课，NDJSON 还会序列化
+`moderationReason`。CSV 包含标题/正文和状态，但列清单不含 moderation reason，Claude 把
+这一字段套到 CSV 的描述不准确。权限与上限不能替代“谁在何时导出、成功还是截断”的留痕。
+
+**已实施的最小修复**
+
+1. NDJSON/CSV stream helper 返回 `(rowCount, error)`；数据库迭代、JSON/CSV 写入、CSV flush
+   和完成标记失败都会传播到统一出口。`rowCount` 表示服务端已成功序列化/处理的记录，不伪装
+   成 TCP 对端或客户端磁盘已确认。
+2. `ExportReviews` 在单一出口调用一次 `audit.LogFromGin`，事件为
+   `category=admin_operation`、`event_type=data.export`、`resource_type=review`、
+   `resource_id=bulk`，记录规范化 format/status、row count 和既有 10,000 行上限。
+   success/failure 共用同一 envelope，failure 保存错误原因。
+3. 未调用 `h.logAdminOp`，避免同一导出产生 `data.update` 与 `data.export` 两条记录；未新增
+   audit 表、消息队列、管理 UI 或第二套 retention。事件沿用管理员操作的现有查询与 90 天清理
+   路径。
+
+**交叉验证**
+
+- 隔离 PostgreSQL 18 为 NDJSON/CSV 各执行一次成功导出，响应均有数据和完成标记，落库
+  `row_count=1`、`result=success`。
+- 同两种格式各用预取消请求 context 触发真实查询失败，响应无完成标记、落库
+  `row_count=0`、`result=failure` 且 reason 非空；审计写使用既有 `WithoutCancel` 派生上下文，
+  因此没有随客户端取消丢失。
+- 四个唯一 request ID 均精确匹配一条事件，actor、resource、action、filter 和 row limit
+  均从 `audit_events` 复读断言。当前验证不等同于生产 Loki/数据库留存、告警或管理员页面
+  人工验收，发布后仍需用受控账号做一次导出并确认查询和 retention。
+
 #### P3-8. Three DELETE operations declare 204 No Content but the handlers return 200 with a JSON envelope
 
 - **位置**：`server/internal/modules/course/review/review_interaction.go:84`
@@ -3547,6 +3588,7 @@ STUHELPER_REDIS_INTEGRATION
 | P2-23 | 任一 outbox handler panic 永久杀死 polling worker | Codex 已完成最小修复：只在共享 outbox per-job 边界 recover，panic 带 stack 进入原 retry/dead-letter/metric 路径并继续健康 job。真实 PostgreSQL 18 验证 poison dead-letter 与 healthy completed；原文所列真实共享调用面是 5 个，不包括两个 Admission expiry 手写循环。未增加会形成 panic loop 的 runtime supervisor；生产告警/replay 与外部副作用幂等仍待验收 |
 | P3-9 | Redis 版本读取故障被本地缓存成 `v0`，使失效数据可重新出现 | Codex 已完成最小修复：只有 `redis.Nil` 使用初始 `v0`，transport error/caller cancel 返回 unknown；空版本 key 的 get 为 miss、set 为 no-op，且故障结果不进入本地版本缓存。真实 miniredis 关闭/重启覆盖故障绕过与 `v7` 恢复；未引入只改善命中率的 detached loader |
 | P2-16 | 可空课程元数据扫描到非空 Go 字段导致课程读取 500 | Codex 已确认 NULL 是合法未知值并完成 nullable contract：四条课程读取与收藏列表使用指针扫描，未分类 group 保留 null，学分排序 NULLS LAST；OpenAPI/Go/TS 与 Web/UniAppX 同步，隔离 PostgreSQL 五路径回归通过。原 `COALESCE(0/'')` 建议会伪造事实，未采用 |
+| P3-7 | 敏感批量评课导出没有审计事件 | Codex 已完成最小修复：NDJSON/CSV 每次请求只写一条 `data.export`，记录 success/failure、已处理行数、规范化筛选和既有上限；真实 PostgreSQL 验证成功及请求取消失败后审计仍落库。CSV 不含 moderation reason，原风险描述已纠正 |
 | X-1 | 无 scope 的 school_admin 全量可见 | Codex 已证伪；现有 capability 展开和 admin Entry 在 Handler 前返回 403，不按 P1 修复 |
 | X-2 | env 模板差集 | Codex 判定部分成立；改为分类治理，不执行 21 项全量入模板/严格集合相等方案 |
 | 其余条目 | — | 不再用“其余 41 项待修”概括；按 Codex 逐项表和四批实施顺序处置 |

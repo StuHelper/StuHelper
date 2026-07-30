@@ -4,12 +4,14 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"io"
 	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
+	"github.com/StuHelper/StuHelper/server/internal/pkg/audit"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/httputil"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/logger"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/response"
@@ -44,58 +46,91 @@ func (h *Handler) ExportReviews(c *gin.Context) {
 		status = StatusAll
 	}
 
+	var (
+		rowCount  int
+		streamErr error
+	)
 	if format == "csv" {
-		h.exportCSVStream(c, status)
-		return
+		rowCount, streamErr = h.exportCSVStream(c, status)
+	} else {
+		rowCount, streamErr = h.exportNDJSONStream(c, status)
 	}
 
-	h.exportNDJSONStream(c, status)
+	result := "success"
+	reason := ""
+	if streamErr != nil {
+		result = "failure"
+		reason = streamErr.Error()
+	}
+	audit.LogFromGin(c, audit.Event{
+		Type:         audit.EventDataExport,
+		Category:     "admin_operation",
+		ActorType:    "admin",
+		Resource:     "review",
+		ResourceType: "review",
+		ResourceID:   "bulk",
+		Action:       "export",
+		Result:       result,
+		Reason:       reason,
+		Details: map[string]any{
+			"format":    format,
+			"status":    status,
+			"row_count": rowCount,
+			"row_limit": maxExportLimit,
+		},
+	})
 }
 
 // exportNDJSONStream 流式导出 NDJSON，逐行从数据库读取并写入响应，避免全量加载到内存
-func (h *Handler) exportNDJSONStream(c *gin.Context, status string) {
+func (h *Handler) exportNDJSONStream(c *gin.Context, status string) (int, error) {
 	c.Header("Content-Type", "application/x-ndjson; charset=utf-8")
 	c.Header("Content-Disposition", "attachment; filename=reviews.ndjson")
 
+	rowCount := 0
 	streamErr := h.service.StreamExportReviews(c.Request.Context(), status, func(r Review) error {
 		line, err := json.Marshal(r)
 		if err != nil {
 			return fmt.Errorf("marshal review %s: %w", r.ID, err)
 		}
 		line = append(line, '\n')
-		_, err = c.Writer.Write(line)
-		return err
+		if err := writeExportChunk(c.Writer, line); err != nil {
+			return err
+		}
+		rowCount++
+		return nil
 	})
 	if streamErr != nil {
 		logger.FromGin(c).Warn("failed to stream export reviews (ndjson)", zap.Error(streamErr))
-		return
+		return rowCount, streamErr
 	}
 
-	if _, err := c.Writer.WriteString("# EXPORT_COMPLETE\n"); err != nil {
+	if err := writeExportChunk(c.Writer, []byte("# EXPORT_COMPLETE\n")); err != nil {
 		logger.FromGin(c).Warn("failed to write export completion marker", zap.Error(err))
+		return rowCount, fmt.Errorf("write NDJSON completion marker: %w", err)
 	}
+	return rowCount, nil
 }
 
 // exportCSVStream 流式导出 CSV，逐行从数据库读取并写入响应，避免全量加载到内存
-func (h *Handler) exportCSVStream(c *gin.Context, status string) {
+func (h *Handler) exportCSVStream(c *gin.Context, status string) (int, error) {
 	c.Header("Content-Type", "text/csv; charset=utf-8")
 	c.Header("Content-Disposition", "attachment; filename=reviews.csv")
 
-	if _, err := c.Writer.Write([]byte{0xEF, 0xBB, 0xBF}); err != nil {
-		return
+	if err := writeExportChunk(c.Writer, []byte{0xEF, 0xBB, 0xBF}); err != nil {
+		return 0, fmt.Errorf("write CSV BOM: %w", err)
 	}
 
 	w := csv.NewWriter(c.Writer)
-	defer w.Flush()
 
 	if err := w.Write([]string{
 		"ID", "课程ID", "课程名称", "教师ID", "教师名称",
 		"学期", "标题", "内容", "成绩", "评分",
 		"点赞数", "踩数", "状态", "创建时间",
 	}); err != nil {
-		return
+		return 0, fmt.Errorf("write CSV header: %w", err)
 	}
 
+	rowCount := 0
 	streamErr := h.service.StreamExportReviews(c.Request.Context(), status, func(r Review) error {
 		teacherID := ""
 		if r.TeacherID != nil {
@@ -117,17 +152,42 @@ func (h *Handler) exportCSVStream(c *gin.Context, status string) {
 			r.Status,
 			r.CreatedAt.Format("2006-01-02 15:04:05"),
 		}
-		return w.Write(record)
+		if err := w.Write(record); err != nil {
+			return err
+		}
+		rowCount++
+		return nil
 	})
+	w.Flush()
+	writeErr := w.Error()
 	if streamErr != nil {
 		logger.FromGin(c).Warn("failed to stream export reviews", zap.Error(streamErr))
-		return
+		if writeErr != nil {
+			return rowCount, fmt.Errorf("stream CSV export: %w; flush CSV export: %v", streamErr, writeErr)
+		}
+		return rowCount, streamErr
+	}
+	if writeErr != nil {
+		logger.FromGin(c).Warn("failed to flush export reviews", zap.Error(writeErr))
+		return rowCount, fmt.Errorf("flush CSV export: %w", writeErr)
 	}
 
-	w.Flush()
-	if _, err := c.Writer.WriteString("# EXPORT_COMPLETE\n"); err != nil {
+	if err := writeExportChunk(c.Writer, []byte("# EXPORT_COMPLETE\n")); err != nil {
 		logger.FromGin(c).Warn("failed to write export completion marker", zap.Error(err))
+		return rowCount, fmt.Errorf("write CSV completion marker: %w", err)
 	}
+	return rowCount, nil
+}
+
+func writeExportChunk(w io.Writer, data []byte) error {
+	n, err := w.Write(data)
+	if err != nil {
+		return err
+	}
+	if n != len(data) {
+		return io.ErrShortWrite
+	}
+	return nil
 }
 
 // sanitizeCSVField 防止 CSV 公式注入

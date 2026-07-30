@@ -88,7 +88,7 @@ API 对缺失代码/院系名省略可选字段，对必需出现的 `department
 | `/api/v1/course/review/admin/reviews/batch` | PATCH | 批量操作 |
 | `/api/v1/course/review/admin/stats` | GET | 后台统计 |
 | `/api/v1/course/review/admin/logs` | GET | 操作日志 |
-| `/api/v1/course/review/admin/export` | GET | 导出（NDJSON/CSV） |
+| `/api/v1/course/review/admin/export` | GET | 导出（NDJSON/CSV；每次请求写成功或失败审计） |
 | `/api/v1/course/review/admin/teachers` | GET | 教师管理列表 |
 | `/api/v1/course/review/admin/teachers` | POST | 创建教师 |
 | `/api/v1/course/review/admin/teachers/{teacherID}` | PUT | 更新教师 |
@@ -141,6 +141,15 @@ undo 或 restore 能力。
 **举报类型**：spam / inappropriate / harassment / false_info / other。后台可驳回、隐藏、删除。
 
 **后台能力**：评课管理、举报处理、批量操作、内容编辑、教师管理、敏感词管理、操作日志、NDJSON/CSV 导出、内容标记。
+
+### 敏感批量导出
+
+评课导出最多处理 10,000 行，可按状态筛选；`json` 与 `ndjson` 都返回 NDJSON 流，CSV 与
+NDJSON 只有出现 `# EXPORT_COMPLETE` 标记才代表响应完整。每次导出请求必须恰好写入一条
+`category=admin_operation`、`event_type=data.export` 的审计事件，记录管理员、规范化后的格式
+与状态、处理行数、行上限以及 success/failure；数据库流、序列化、写响应或完成标记失败时也
+必须留下 failure 事件。审计持久化沿用不受请求取消影响的安全上下文，但 `row_count` 只表示
+服务端已序列化/处理的行数，不等同于客户端已可靠保存的字节数。
 
 ## 访问控制
 
