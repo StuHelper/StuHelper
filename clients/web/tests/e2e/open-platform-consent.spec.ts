@@ -21,6 +21,7 @@ const user = {
     capabilityGrants: [],
     isPlatformAdmin: false,
     canAccessAdmin: false,
+    accountSettingsUrl: "https://sso.stuhelper.com/account",
 };
 
 const app = {
@@ -372,6 +373,92 @@ test.describe("Open Platform consent flow", () => {
         expect(continueBody).toEqual({ token: "profile-token" });
         await expect.poll(() => nextConsentToken).toBe("next-consent");
         await expect(page.getByText("将通过 Connect 披露以下信息")).toBeVisible();
+    });
+
+    test("profile completion keeps provider and StuHelper field actions on their owning systems", async ({
+        page,
+    }) => {
+        await page.route(
+            "**/api/v1/open-platform/profile-completion?*",
+            async (route) => {
+                await route.fulfill(
+                    ok({
+                        token: "field-actions-token",
+                        app,
+                        scopes,
+                        missingFields: [
+                            {
+                                key: "profile.username",
+                                displayName: "用户名",
+                                actionURL: "/account/profile",
+                            },
+                            {
+                                key: "profile.email",
+                                displayName: "邮箱",
+                                actionURL: "/account/profile",
+                            },
+                            {
+                                key: "profile.avatar",
+                                displayName: "头像",
+                                actionURL: "/account/profile",
+                            },
+                            {
+                                key: "profile.phone",
+                                displayName: "手机号",
+                                actionURL: "/user/phone-binding",
+                            },
+                            {
+                                key: "profile.identity",
+                                displayName: "身份认证",
+                                actionURL: "/user/identity-verification",
+                            },
+                            {
+                                key: "profile.student",
+                                displayName: "学生认证",
+                                actionURL: "/user/student-verification",
+                            },
+                            {
+                                key: "profile.school",
+                                displayName: "学校",
+                                actionURL: "/user/student-verification",
+                            },
+                        ],
+                        redirectURI: "https://client.example.com/callback",
+                        expiresAt: "2026-06-01T10:00:00Z",
+                    }),
+                );
+            },
+        );
+
+        await page.goto("/complete-profile?token=field-actions-token");
+
+        for (const key of [
+            "profile.username",
+            "profile.email",
+            "profile.avatar",
+        ]) {
+            await expect(
+                page
+                    .locator(".completion-row")
+                    .filter({ hasText: key })
+                    .locator(".completion-action"),
+            ).toHaveAttribute("href", user.accountSettingsUrl);
+        }
+
+        const localActions = new Map([
+            ["profile.phone", "/user/phone-binding"],
+            ["profile.identity", "/user/identity-verification"],
+            ["profile.student", "/user/student-verification"],
+            ["profile.school", "/user/student-verification"],
+        ]);
+        for (const [key, path] of localActions) {
+            await expect(
+                page
+                    .locator(".completion-row")
+                    .filter({ hasText: key })
+                    .locator(".completion-action"),
+            ).toHaveAttribute("href", new RegExp(`${path}$`));
+        }
     });
 
     test("profile completion without a token shows a fail-closed error state", async ({

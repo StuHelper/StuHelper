@@ -420,7 +420,7 @@ Claude 新生成的 `AUDIT-REPORT.md` 是一份新的汇总快照，不是对本
 | 4 | 确认，已完成本地修复、对抗复核与回归验证 | P1 | 成员、binding、被引用 template 和全部统计先按可管理 guild 过滤，再排序和截取 100 条；action 读取可信 record 后、在任何平台或 store 副作用前断言目标 guild。bot-wide 配置、平台信息和全部 Bot inventory 收拢为 `globalRuntime`，scoped response 返回 `null` 且不加载这些全局 store，客户端只显示权限说明。首次独立复核据此发现并阻断了“业务记录已过滤但全局运行态仍泄漏”的不完整修复；补齐后第二次复核 PASS。把 scope 下推 Repository 只有在真实规模/延迟需要时再做，当前继续改造属于过度优化。 |
 | 5 | 确认 H5 缺陷，已完成本地修复与真实产物/HTTP 回归；纠正 mp-weixin 证据 | P2 | `pages.json` 引用的 4 组、共 8 个 tabBar 图标原本位于 uni-app 的 `src` 输入树之外；H5 build 虽退出 0，但产物没有这些文件，静态预览全部 404。现在 8 个原 blob 原样移入 `src/static/tabbar`；`build:h5` 编译后运行零依赖 Node 契约，从 `pages.json` 动态派生 `iconPath/selectedIconPath`，同时断言源文件和 `dist/build/h5` 产物。原 `/static/...` URL 不变，构建预览 8/8 返回 200 `image/png`。没有增加 `publicDir`、资源副本或硬编码第二份图标表。报告所称 mp-weixin “因缺图硬编译失败”仍没有真实小程序产物支持；当前 mp build 假绿是独立 P2 产品决策，本项不伪称已修复。UniAppX 仍是实验性客户端，因此不升为 P1。 |
 | 6 | 确认，已完成本地修复与回归验证；纠正恢复与清理语义 | P2 | PostgreSQL/OpenAPI 是按用户唯一的单槽 draft；页面原先不核对 `courseID`，会把 A 课程内容恢复到 B，并在 B 成功提交后删除未消费的 A 草稿。现在只恢复未绑定或 `courseID` 精确匹配当前课程的草稿；未绑定草稿不恢复 teacher。显式 cleanup eligibility 只在本页成功恢复或成功保存该槽后置 true，且仍只有 create 成功才 best-effort DELETE；外课程草稿不载入、不清理，保存响应不确定时也保守不授予清理资格。产品文档已纠正无 course path 的 GET/POST/DELETE 和单槽语义。没有改 DB/OpenAPI 为多草稿、增加 autosave 框架或为尚未证明的跨设备 ABA 引入 generation/CAS migration。 |
-| 7 | 确认，已完成实现前复核 | P2 | 只有 provider-owned 的 username/email/avatar 被硬编码到只读 `/account/profile`；phone/identity/student/school 已指向真实可写页面。认证用户 payload 已提供由公共 account base、否则 OIDC issuer 推导的绝对 `accountSettingsUrl`，Profile Completion 可按字段复用它，并保留本地可写 route；这比把静态 field catalog 改成 Service/config 图更小且不会复制 issuer fallback。应测三类 provider 字段、四类本地字段、URL 缺失 fallback 和完成后 continue；不需要先重构 profile service、增加通用 action registry 或在只读摘要页建设资料编辑器。 |
+| 7 | 确认，已完成本地修复与回归验证 | P2 | 只有 provider-owned 的 username/email/avatar 原本被硬编码到只读 `/account/profile`；phone/identity/student/school 已指向真实可写页面。现在 Profile Completion 按字段复用 `/auth/me` 已校验的绝对 `accountSettingsUrl`，四类本地字段仍使用后端 action，URL 缺失时保守回退声明值。10 个单元用例覆盖三类 provider、四类本地和三类缺省回退，桌面/移动 Playwright 20/20 同时验证页面 href、刷新、非法 redirect 与完成后 Continue。没有重构 profile service、增加通用 action registry、复制 issuer fallback 或在只读摘要页建设资料编辑器。 |
 | 8 | 部分确认，已完成实现前深挖 | P2 | 只影响创建资源的 POST；metadata PATCH 不上传内容。浏览器声明 MIME 与服务端 sniffed MIME 严格相等，确会误拒绝 OOXML/legacy Office、CSV/Markdown/JSON 等常见 container/text refinement，但不是“每种文件都必然失败”。服务端应返回并持久化兼容后的 effective MIME，仅接受精确枚举的 ZIP/Office/OLE/text refinement；不得信任任意 `text/*`、`vnd.*`、`*+zip` 或把任意 `application/octet-stream` 声明当安全依据，也不应扩散到身份/准入图片链路。 |
 | 9 | 确认，已完成本地修复与回归验证 | P1 | review parser 已按 OpenAPI 的 `like`/`dislike` enum 保留可选 `userVote`，非法值继续 fail-closed；针对两种投票和非法值的定向回归通过。没有为了一个字段建设反射式“全 DTO 自动对齐”框架。 |
 | 11 | 确认，修正失败后果 | P1 | 仓库没有受支持、可审计的 school/section admin tuple 发放与撤销流程；运维可手写 OpenFGA tuple，所以不是物理上“无法写入”。实际后果是 scoped role 默认 fail-closed、角色不可用，不是自动获得全局权限。应先确定 Casdoor、业务库或运维清单中的权威来源，再实现最小 grant/revoke/reconcile/audit；在权威来源未定前一次性建设 DB、outbox、API、CLI 和 MFA 全套流程属于过度设计。 |
@@ -550,7 +550,7 @@ fail-closed 语义和撤权测试，再做局部实现。
 1. #45 path credential 日志脱敏（已完成本地修复），#51 refresh reuse 误判（已完成本地修复），#57 scoped grant 的 public-content 边界（已完成本地修复）。
 2. #39 projection polling（已完成本地修复）、#43 breaker cancellation（已完成本地修复）、U-2 JWKS 缓存策略（已完成代码与守卫文档修复；用户架构稿旧段待收敛）。
 3. #5 的 H5 资产产物契约（已完成本地修复）；mp-weixin 假绿另做“实现真实平台 build 或明确不支持”的产品决策。
-4. #6（已完成本地修复）、#7、#28、#30、#38、#42 等会让用户状态错误、流程卡死或操作结果不可信的问题。
+4. #6、#7（均已完成本地修复）、#28、#30、#38、#42 等会让用户状态错误、流程卡死或操作结果不可信的问题。
 
 #### 第三批：局部 UX、可访问性、契约和文档
 
@@ -580,7 +580,7 @@ bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复
 | WF21：U-2 | 真实 P2，已完成实现与回归；用户工作中的架构稿仍有旧 TTL 文案 | 选择仓库已声明的“已知 key 离线验证、未知 kid 回源失败 503”策略，直接复用固定 go-oidc 的 long-lived `RemoteKeySet`；薄包装只做错误分类。测试证明初次加载只请求一次，provider 下线后已知 key 不回源、未知 key 返回 provider unavailable，失败后已知 key 仍可验签。紧急移除已泄漏 known key 通过 provider 撤 key、撤 session 与滚动重启 verifier 明确处置，不用任意 TTL 猜窗口。 |
 | WF11：#5 | H5 缺图真实 P2，已完成本地修复与真实产物/HTTP 回归；mp-weixin 缺图硬失败未验证，真实相邻问题仍是 mp build 假绿 | 8 个原 blob 移到 `src/static`，`build:h5` 强制执行从 `pages.json` 派生的源/产物契约，公共 URL 不变；构建预览逐项 200 `image/png`。没有增加 `publicDir`、资源副本或硬编码清单。mp 仍须先决定支持与否，再补真实平台 compiler/app.json/WXML 门禁，不能把 H5 产物当微信验证。 |
 | WF12：#6 | 真实 P2，已完成本地修复与回归；“create 失败也删除”证伪 | 只恢复匹配或未绑定课程草稿，未绑定不恢复 teacher；显式记录当前页是否成功恢复/保存服务端单槽，create 成功后才有条件清理。外课程草稿和不确定保存结果均保守保留。产品文档同步真实无 course path 单槽契约；不改 DB/OpenAPI 为多草稿，也不在本项解决跨设备 CAS/If-Match。 |
-| WF13：#7 | 真实 P2；provider-owned 三个字段的 action 落到只读摘要，其他四类字段路径正确 | Profile Completion 对 username/email/avatar 优先使用 `/auth/me` 已给出的绝对 `accountSettingsUrl`，phone/identity/student/school 保留后端本地 route。避免为静态 catalog 注入整套 config/service、复制 issuer fallback 或把本地只读资料页改造成第二个身份提供方编辑器。 |
+| WF13：#7 | 真实 P2，已完成本地修复与回归 | Profile Completion 对 username/email/avatar 优先使用 `/auth/me` 已给出的绝对 `accountSettingsUrl`，phone/identity/student/school 保留后端本地 route，缺失外部 URL 时回退声明 action。单元和双视口浏览器回归覆盖字段归属与既有 Continue 链路。未为静态 catalog 注入整套 config/service、复制 issuer fallback 或把本地只读资料页改造成第二个身份提供方编辑器。 |
 | WF14：#8 | 部分确认 P2；问题是有限的媒体类型兼容，不是通用 MIME 绕过 | 只在资源 POST 的内容解码边界做窄映射并返回 effective MIME；ZIP/Office/OLE/text refinement 必须精确枚举且保留 sniff。拒绝任意 `text/*`、`vnd.*`、`*+zip` 与无条件信任 octet-stream，不把该策略复制到身份/准入图片路径。 |
 | WF15：#28 | 真实 P2；“7 endpoint”应改成 7 个逻辑域、`6 + D + N` 次 mutation | 结果状态区分 confirmed/unconfirmed/not-run；按成功 slice 更新 baseline，失败后提供带确认 reload，missing keyword delete 幂等。前端无法给多个 HTTP 请求制造真实事务；不引入 rollback、2PC、saga 或无界并发。 |
 | WF16：#30 | 部分确认 P2；100 条静默窗口真实，但全系统不可处理和等待老化叙事被证伪 | 先显示同一授权 scope 下 `shown/total/truncated`、替代操作路径和稳定 `(deadlineAt,id)` 排序。处置中心、群内命令、backend-sync/time-code 仍覆盖隐藏记录；只有真实规模长期超限或全量加载达到 SLO 风险时才做 Repository cursor pagination/search。 |
@@ -723,6 +723,7 @@ bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复
 | U-2 | 已修复，待发布；用户架构稿旧 TTL 段待收敛 | verifier 复用单一 long-lived go-oidc `RemoteKeySet`，known key 离线验证、unknown kid 单次回源失败 503，失败不清旧 cache；session/blacklist/claims 门禁不变。OIDC 普通/race、middleware+auth race、app、全服务端 race、lint/build/docs 通过；生产故障演练待发布验收 | `fix(auth): preserve cached JWKS during provider outages` |
 | 5 | 已修复，待发布；mp-weixin 假绿仍是独立决策 | 8 个 tabBar blob 原样移入 `src/static`；H5 build 从 `pages.json` 派生并强制检查 8 个 source/output 文件，built preview 8/8 为 200 PNG。58 unit、type-check、桌面/移动 68 E2E、package/monorepo build 通过；未改 URL/publicDir、未复制资源、未把 H5 当微信产物 | `fix(uniappx): include declared tab bar assets in H5 builds` |
 | 6 | 已修复，待发布；跨设备 ABA 未提前设计 | 当前页只恢复 course 匹配/未绑定草稿，未绑定不恢复 teacher；成功恢复或保存才获得 create 成功后的单槽清理资格，外课程和不确定保存结果均保留。产品文档纠正为无 course path 的每用户单槽。58 unit、type-check、草稿边界 8 E2E、完整 H5 72 E2E、正式 build/docs 通过 | `fix(uniappx): preserve drafts across course submissions` |
+| 7 | 已修复，待发布 | provider-owned 三个字段使用已验证的 `accountSettingsUrl`；四个 StuHelper 字段保留后端本地 action，外部 URL 缺失时不猜测 issuer。10 个单元测试、Web type-check/ESLint、桌面和移动完整 Open Platform 流程 20/20 通过，既有 Continue 与安全 redirect 行为未回归 | `fix(web): route provider profile completion to account settings` |
 
 ## Claude 原审计的确认问题分布（保留原始记录）
 
