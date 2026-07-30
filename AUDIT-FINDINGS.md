@@ -45,8 +45,8 @@ Web / Admin / UniAppX+Koishi UI / Koishi / 基础设施 / 代码质量与文档)
   检查生产备份目录或用生产 WAL 执行目标时间点恢复，也没有观察生产锁等待或真实大表延迟。
   因此“生产已经丢失 PITR”“生产已经 OOM/死锁/永久停更”等说法仍不得当作已证实事实。
 - 当前工作树在复核开始前已经有未提交修改。Codex 对 P0-1、P1-1、P1-2、P1-3、P1-4、
-  P1-5、P1-6、P1-7、P1-8、P1-9、P1-10 与 P2-1 的修复已经按问题独立提交（提交见下方
-  进度表），但均未合并或发布；原有其他工作树修改没有混入这些提交。
+  P1-5、P1-6、P1-7、P1-8、P1-9、P1-10、P2-1 与 P2-2 的修复已经按问题独立提交
+  （提交见下方进度表），但均未合并或发布；原有其他工作树修改没有混入这些提交。
 - 原报告大量“修复方案”和全部 18 条驳回长文在句中截断。例如 P0-1 结尾是
   `only surface the 4`，P1-1 结尾是 `Promise.resolve<string[]>(`，P1-3 结尾是
   `both loc`；P3-1 至 P3-9 的方案也全部半句结束。第 1 条驳回理由还重复了两次。
@@ -88,7 +88,7 @@ Web / Admin / UniAppX+Koishi UI / Koishi / 基础设施 / 代码质量与文档)
 | 编号 | Codex 结论 | 调整级别 | 必要性 | 最小处置与过度设计判断 |
 |------|------------|----------|--------|------------------------|
 | P2-1 | 确认，已完成本地修复与静态契约验证 | P2 | 已修复，待 CI 验收 | 新增 `guards` 分类；文档、Vue UI、Semgrep 与 Node pin 分别触发实际消费它们的 job，Node 两个版本文件还必须一致。没有让所有脚本改动触发所有重型 job。原文“零 CI”已纠正为“零个相关门禁”，secret scan 原本仍会运行。 |
-| P2-2 | 确认 | P2 | 必须 | supply-chain 契约检查 Dockerfile/Koishi 输入，但 infra filter 漏掉它们。便宜 shell contract 常跑，Koishi 特有契约放入 Koishi job；把所有机器人改动都触发整套 infra/E2E 过重。 |
+| P2-2 | 确认，已完成本地修复与全量 infra 回归 | P2 | 已修复，待 CI 验收 | 两个毫秒级静态合约改为 always-on 并纳入 Required；需要构建产物的 package contract 放进既有 Koishi job。Dockerfile/CI wiring 和机器人可部署包都不再依赖 infra filter；没有让所有机器人改动触发整套 infra/E2E。 |
 | P2-3 | 确认机制，影响未量化 | 条件性 P2，否则 P3 | 先测并做低风险修复 | 将 repeat 检测的排序/limit 下推 DB，增加 `(guildId, createdAt)` 索引和基础 retention；记录表规模与 p95。立即建设 retention WebUI/完整配置面属于过度设计。 |
 | P2-4 | 部分确认；原报告引用了一条 dead 路径 | P2 → P3 | 先测 | 当前 dashboard 仍有 recent events 与 active guards 的全扫，应下推过滤/limit 后测延迟。原文所称 admission console 全量扫描不成立，五步聚合与全面 API 重写过重。 |
 | P2-5 | 确认 | P2 → P3 | 应改 | 修复空格分隔 ID 的 destructuring，并同步真实命令名和回归测试。低频、低成本 correctness，不需要新 parser 框架。 |
@@ -113,7 +113,7 @@ Web / Admin / UniAppX+Koishi UI / Koishi / 基础设施 / 代码质量与文档)
 
 P2 唯一根因应按以下修复簇合并，避免重复设计：
 
-1. P2-1 + P2-2：CI 路径与静态契约触发。
+1. P2-1 + P2-2：CI 路径与静态契约触发，已按编号拆成两个独立提交完成。
 2. P2-13 + P2-14 + P2-15：claim 后批量上下文、逐项隔离和 lease 安全释放。
 3. P2-21 + P2-22：Oracle outcome 分类与 circuit-breaker neutral 语义。
 
@@ -176,8 +176,8 @@ P2 唯一根因应按以下修复簇合并，避免重复设计：
 1. P0-1、P1-4 与 P1-5 已完成修复、验证和独立提交；P1-5 仍需在受保护
    GitHub environment 与真实目标机执行一次带审计记录的回滚演练。
 2. P1-2 migration 指南与 P1-6 SSE shutdown 已完成修复、真实回归验证和独立提交。
-3. P2-1 CI guard 路径分类已完成修复、契约验证和独立提交；继续 P2-2 always-on
-   静态供应链合约与 Koishi package contract，随后处理 P2-6 privileged listener 生命周期。
+3. P2-1 guard 路径分类与 P2-2 always-on 静态供应链/Koishi package contract 均已完成
+   修复、全量 infra 回归和独立提交；继续 P2-6 privileged listener 生命周期。
 4. P2-7 转发 poison、P2-13/14/15 claimed batch、P2-23 outbox panic。
 5. P2-21/P2-22 breaker 分类，R-8 Redis 错误分类，P3-9 cache version unavailable。
 6. P2-9 Ansible 路径、P2-16 NULL 语义决策、P2-18 filter invalidation。
@@ -257,6 +257,10 @@ P3-1 至 P3-6、P3-8、R-5 至 R-7、R-14、R-15、R-17，以及 X-2 的配置�
   `scripts/**`、`tools/**`、文档库、Vue UI contract 和 Node pin 的触发关系，并校验
   `.node-version == .nvmrc`。合约、Bash 语法与 actionlint 通过；ShellCheck 只有该脚本原有
   单引号 `$uri` 的 SC2016 info。尚未在 GitHub PR 上观察 dorny 输出和各 job 实际调度。
+- CI P2-2：always-on `static-contracts` 定向执行 Dockerfile supply-chain 与 CI wiring，
+  且成为 `required.needs`；Koishi job 在现有 build/test 后执行 deployable package contract。
+  三个定向合约、actionlint 与全部 76 个 infra contracts（75 shell + 1 mjs）通过。未在真实
+  GitHub runner 上验证 job 调度/耗时，也未把本地合约通过表述为 branch protection 已生效。
 - image policy：2026-07-30 通过，2026-08-06 因 `review_by=2026-08-05` 失败，确认日历门禁。
 - 授权：capability/RBAC/review 定向 Go 测试通过，确认 X-1 在 Handler 前 fail-closed。
 - P2：3 个 infra/import contract 通过；Koishi 定向 29 tests 通过；outbox、externaldata、
@@ -284,6 +288,7 @@ P3-1 至 P3-6、P3-8、R-5 至 R-7、R-14、R-15、R-17，以及 X-2 的配置�
 | P1-9 | 已修复，未发布；真实 Casdoor 待验收 | Open Platform 仅按内部 user ID 请求 authoritative phone；app gateway 在边界解析 Casdoor subject。真实 PostgreSQL/Redis 覆盖 phone API、identity-token、granted/denied 审计和 provider 故障；adapter、Casdoor client、race、全包、vet、边界门禁与 lint 通过 | `fix(openplatform): read disclosed phones from Casdoor` |
 | P1-10 | 已修复，未发布；生产规模影响待观测 | 主结果集完整 drain 后显式关闭，tags/bindings 分别批量加载，查询数由 `1 + 2N` 固定为 3。真实 PostgreSQL 单连接池覆盖固定 query count、详情、空数组、排序和 6 并发；定向 race、资源全包、vet 与 lint 通过 | `fix(resource): batch related data loads` |
 | P2-1 | 已修复，待 GitHub CI 验收 | `guards` 覆盖根 scripts/tools；文档库、Vue 合约、Semgrep 和 Node pin 精确触发消费 job，两个 Node 版本文件强制同步。CI contract、Bash 语法、actionlint 与文档检查通过 | `fix(ci): route guard changes to their checks` |
+| P2-2 | 已修复，待 GitHub CI 验收 | always-on 静态 job 执行 Dockerfile/CI wiring 并纳入 Required；Koishi job 执行 deployable package contract。三个定向合约、actionlint 与全量 76 个 infra contracts 通过 | `fix(ci): make supply-chain contracts unskippable` |
 
 ### 明确不建议实施的“修复”
 
@@ -295,6 +300,8 @@ P3-1 至 P3-6、P3-8、R-5 至 R-7、R-14、R-15、R-17，以及 X-2 的配置�
 - 不让 P1-9 的 Open Platform 业务模块持有 Casdoor subject，不落库/缓存完整手机号，也不把
   authoritative provider 空值降级成成功响应。
 - 不为 P1-10 引入 ORM、DataLoader 或通用关联加载框架；两个本地批量查询已经消除该根因。
+- 不把 `bots/koishi/**` 整体加入 infra filter；构建型 package contract 复用 Koishi job，
+  静态供应链合约 always-on，避免为每次机器人改动重复执行整套浏览器/生产运维合约。
 - 不用 `COALESCE('', 0)` 隐藏 P2-16 的 NULL 数据语义。
 - 不在当前单副本部署为 P2-18 先建 Redis pub/sub/version 系统。
 - 不为 P2-23 增加无限自动 supervisor；panic 必须进入现有 retry/dead-letter。
@@ -1068,6 +1075,30 @@ Leave run-infra-contracts.sh untouched; these two re-running inside the infra jo
 2. Add `- static-contracts` to the `required` job's `needs:` list (ci.yml:637-649) so a failure turns `CI / Required` red. Without this the new job is advisory only, since `required` is what branch protection observes.
 
 3. Extend the `infra` filter at ci.yml:64 with `'scripts/**'` and `'bots/koishi/**'`. `scripts/**` is the bigger hole: scripts/check-secrets.sh, check-semgrep-custom-rules.sh and check-uniappx-shadow-files.sh currently match no filter whatsoever, so a PR touching only one of them runs zero gated jobs. `bots/koishi/**` is needed because koishi-stuhelper-package-contract.sh exercises infra/ops/package-ko
+
+**Codex 独立复核与处置（2026-07-30）**
+
+- **问题确认。**`dockerfile-supply-chain-contract.sh` 与 `ci-and-drift-contract.sh` 的确读取
+  `server/`、`clients/` 等 infra filter 之外的文件，旧 workflow 只在 infra job 中运行它们；
+  因此仅把 Web/Admin/Server Dockerfile 改成 mutable base tag 时，消费该约束的 job 会 skip。
+  `koishi-stuhelper-package-contract.sh` 同样只在 infra 全量合约中执行，而 Koishi 源码变化只
+  触发 Koishi job。现有 Required 只聚合 job result，不可能判断这些 skip 是否遗漏了消费者。
+- **静态约束改为不可跳过。**新增没有 `needs: changes`、没有 job-level `if` 的
+  `static-contracts`，每次 workflow 都 checkout 并运行 Dockerfile supply-chain 与 CI wiring
+  两个纯静态脚本；`required.needs` 显式加入该 job，失败会传递到现有 branch-protection
+  聚合检查。保留它们在 `run-infra-contracts.sh` 中，保证本地 `make check-infra-contracts`
+  仍是完整集合。
+- **构建型约束放在已有消费者。**Koishi job 的 `corepack yarn test` 已先执行 workspace
+  build；随后直接运行 deployable package contract，验证本地 workspace、编译产物、浏览器
+  dist、归档 manifest 和 secret 排除。没有把 `bots/koishi/**` 加入 infra filter，避免每次
+  机器人源码变化再重复安装 Web Playwright、浏览器依赖并执行全部生产运维合约。
+- **契约防回归。**`ci-and-drift-contract.sh` 验证 static job 同时调用两个脚本、没有
+  changes 条件、已进入 Required，并验证 Koishi job 调用了 package contract。因此后续误删
+  任一接线会由 always-on job 自身失败。
+- **验证与边界。**Dockerfile supply-chain、CI wiring、Koishi package 三个定向合约及
+  actionlint 通过；完整 `run-infra-contracts.sh` 的 75 个 shell contract 与 1 个 mjs contract
+  全部通过。未触发真实 GitHub runner，所以 job 的实际排队、容器内工具可用性和远端 Required
+  check 仍须由 PR CI 验收。没有修改 Dockerfile、发布产物或运行环境。
 
 #### P2-3. Repeat detection loads a guild's entire message ledger into memory on every message, and the ledger is never pruned
 
@@ -2682,6 +2713,7 @@ STUHELPER_REDIS_INTEGRATION
 | P1-9 | `phone.read` 解密到的仍是掩码手机号 | Codex 已完成实现：Open Platform 仅按内部 user ID 请求权威手机号，app gateway 在允许的边界解析 Casdoor subject 并调用既有 client；本地投影不再参与明文恢复。真实 PostgreSQL/Redis 覆盖 phone API、identity-token、granted/denied 审计和 provider 故障；adapter、race、全包、vet、Casdoor 边界门禁与 lint 通过。随独立修复提交入库，尚未发布；真实 Casdoor 待验收 |
 | P1-10 | Resource 逐行加载 tags/bindings 并在外层 cursor 打开时嵌套取连接 | Codex 已完成实现：先 drain/关闭主结果，再用两条批量 SQL 回填关联，查询数由 `1 + 2N` 固定为 3。真实 PostgreSQL `MaxConns=1` 覆盖 1/2 条数据的固定 query count、详情、排序、空数组和 6 并发；定向 race、资源全包、vet 与全服务端 lint 通过。随独立修复提交入库，尚未发布；生产规模影响仍待指标观测 |
 | P2-1 | Guard/toolchain 文件变化不触发消费它们的 CI 门禁 | Codex 已完成实现：新增 guards 分类，并把 docs hygiene、Vue UI contract、Semgrep 与 Node pin 精确接到实际消费 job；两个 Node 版本文件必须同步。CI wiring contract、Bash 语法、actionlint 与文档卫生通过。随独立修复提交入库，真实 GitHub paths-filter 调度待验收 |
+| P2-2 | Dockerfile/Koishi 输入可绕过只在 infra job 中运行的供应链合约 | Codex 已完成实现：Dockerfile/CI wiring 两个静态合约改为 always-on Required 依赖，Koishi package contract 接入已有 Koishi build/test job；没有扩大为所有机器人变更跑全套 infra。三个定向合约、actionlint 与全部 76 个 infra contracts 通过。随独立修复提交入库，真实 GitHub runner 待验收 |
 | X-1 | 无 scope 的 school_admin 全量可见 | Codex 已证伪；现有 capability 展开和 admin Entry 在 Handler 前返回 403，不按 P1 修复 |
 | X-2 | env 模板差集 | Codex 判定部分成立；改为分类治理，不执行 21 项全量入模板/严格集合相等方案 |
 | 其余条目 | — | 不再用“其余 41 项待修”概括；按 Codex 逐项表和四批实施顺序处置 |

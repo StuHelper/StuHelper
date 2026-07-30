@@ -92,6 +92,20 @@ jobs:
               - '.github/**'
               - '.gitleaksignore'
 
+  static-contracts:
+    name: Static file contracts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Assert supply-chain pinning and CI wiring
+        run: |
+          bash infra/ops/tests/dockerfile-supply-chain-contract.sh
+          bash infra/ops/tests/ci-and-drift-contract.sh
+
   repository-policy:
     name: Repository policy
     needs: changes
@@ -508,6 +522,9 @@ jobs:
         working-directory: bots/koishi
         run: corepack yarn test
 
+      - name: Validate deployable StuHelper package bundle
+        run: bash infra/ops/tests/koishi-stuhelper-package-contract.sh
+
       - name: Upload Koishi evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -655,6 +672,7 @@ jobs:
     if: always()
     needs:
       - changes
+      - static-contracts
       - repository-policy
       - secret-scan
       - dependency-review

@@ -116,6 +116,19 @@ sast_job_block="$(sed -n '/^  sast:$/,/^  required:$/p' "${GITHUB_CI_FILE}")"
 assert_text_contains "${repository_policy_block}" "needs\\.changes\\.outputs\\.guards == 'true'" "repository-policy job"
 assert_text_contains "${sast_job_block}" "needs\\.changes\\.outputs\\.guards == 'true'" "sast job"
 
+static_contracts_block="$(sed -n '/^  static-contracts:$/,/^  repository-policy:$/p' "${GITHUB_CI_FILE}")"
+assert_text_contains "${static_contracts_block}" 'bash infra/ops/tests/dockerfile-supply-chain-contract\.sh$' "static-contracts job"
+assert_text_contains "${static_contracts_block}" 'bash infra/ops/tests/ci-and-drift-contract\.sh$' "static-contracts job"
+if grep -Eq '^    (if|needs):' <<<"${static_contracts_block}"; then
+  fail "GitHub static file contracts must run on every workflow without a changes-job condition"
+fi
+
+koishi_job_block="$(sed -n '/^  koishi:$/,/^  infra:$/p' "${GITHUB_CI_FILE}")"
+assert_text_contains "${koishi_job_block}" 'bash infra/ops/tests/koishi-stuhelper-package-contract\.sh$' "koishi job"
+
+required_job_block="$(sed -n '/^  required:$/,/^  publish-images:$/p' "${GITHUB_CI_FILE}")"
+assert_text_contains "${required_job_block}" '^      - static-contracts$' "required job"
+
 assert_contains "${GITHUB_CI_FILE}" 'INSTALL_ADMIN: \$\{\{ matrix\.install_admin \}\}'
 assert_contains "${GITHUB_CI_FILE}" 'if \[ "\$\{INSTALL_ADMIN\}" = "true" \]; then'
 assert_not_contains "${GITHUB_CI_FILE}" 'if \[\[ "\$\{INSTALL_ADMIN\}"'
