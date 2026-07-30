@@ -44,8 +44,8 @@ Web / Admin / UniAppX+Koishi UI / Koishi / 基础设施 / 代码质量与文档)
   实际启动恢复后的 PostgreSQL 18.4 base backup 并读回探针数据，但没有登录生产主机、
   检查生产备份目录或用生产 WAL 执行目标时间点恢复，也没有观察生产锁等待或真实大表延迟。
   因此“生产已经丢失 PITR”“生产已经 OOM/死锁/永久停更”等说法仍不得当作已证实事实。
-- 当前工作树在复核开始前已经有未提交修改。Codex 对 P0-1、P1-1、P1-2、P1-3 与
-  P1-4 的修复已经按问题独立提交，但均未合并或发布；原有其他工作树修改没有混入这些提交。
+- 当前工作树在复核开始前已经有未提交修改。Codex 对 P0-1、P1-1、P1-2、P1-3、P1-4
+  与 P1-8 的修复已经按问题独立提交，但均未合并或发布；原有其他工作树修改没有混入这些提交。
 - 原报告大量“修复方案”和全部 18 条驳回长文在句中截断。例如 P0-1 结尾是
   `only surface the 4`，P1-1 结尾是 `Promise.resolve<string[]>(`，P1-3 结尾是
   `both loc`；P3-1 至 P3-9 的方案也全部半句结束。第 1 条驳回理由还重复了两次。
@@ -76,7 +76,7 @@ Web / Admin / UniAppX+Koishi UI / Koishi / 基础设施 / 代码质量与文档)
 | P1-5 | 部分确认；首次过期失败日为 2026-08-06 | P1/P2 边界 | 必须修规则 | 新版本生产部署应继续硬校验当前 image review；对“曾批准且 digest 不变”的紧急回滚设计窄范围、环境相关、可审计的豁免，并由定时 CI 提前告警。把所有生产 deploy/rollback 一律改成 report-only 会削弱供应链门禁，属于错误优化。 |
 | P1-6 | 确认，但只在存在活跃 SSE 时触发 | P1 | 必须 | 将进程 shutdown context 传入 bot-action 与 camera SSE 的 `select`，使长连接主动退出并加关闭测试。“每次 SIGTERM 都失败”措辞过度；强制所有流 10 分钟重连与本缺陷无关。 |
 | P1-7 | 确认 | P1 → P2 | 应改 | 先改 OpenAPI 的 optional auth，再生成契约、接可选认证中间件并测 owner/non-owner。它造成刷新后删除按钮消失，是 UX/契约缺陷，不是 P1 级安全事件。 |
-| P1-8 | 确认 | P1 | 必须 | 在 Service 统一校验 report 引起的 review 状态转换；已删除 review 只能结案 report，不能恢复 review。只在 Repository 加 `status <> deleted` 容易形成静默 no-op，不应作为唯一修复。 |
+| P1-8 | 确认，已完成本地修复与真实 PostgreSQL 回归验证 | P1 | 已修复，待发布 | `ProcessReport` 对非删除态复用现有管理员转换白名单；作者已删除的 review 保持终态，只结案历史 report。缺失 review 统一映射 404。没有改 schema、增加新状态或在 Repository 注入静默 no-op。真实数据库覆盖 `hide`/`delete`、重复非法转换、计数和时间戳不变；评课包全量与定向 race 测试通过。 |
 | P1-9 | 核心确认 | P1/P2 边界 | 决策后必须 | `phone_enc` 存的是掩码值，`phone.read` 却要求连续 11 位。若保留能力，按安全模型实时从 Casdoor 获取并 fail-closed；否则删除/禁用该能力与契约。不能为省事把明文手机号落库，也不能用“无手机号 200”掩盖不可用。 |
 | P1-10 | 机制确认，生产饥饿尚未量化 | P1 → P2 | 应改 | 外层 rows 未关闭时每行再发 2 次 pool 查询，存在 N+1 与并发池饥饿。先 drain 主结果并批量取 tags/bindings，补 query-count/并发测试；无需引入通用 ORM/DataLoader 框架。 |
 | X-1 | 证伪 | P1 → 不成立 | 不改 | 无 school scope 的 `school_admin` 在 `ExpandRoleGrants` 已得到零 capability，admin Entry 会在 Handler 前返回 403；定向测试也覆盖该语义。Repository 的 nil/空切片确有可读性风险，但原攻击链不可达。最多补 route-level 防回归/显式空结果，按 P3 加固，不做紧急授权模型重写。 |
@@ -163,7 +163,8 @@ P2 唯一根因应按以下修复簇合并，避免重复设计：
 1. P1-1 群命令 fail-open 已完成实现和本地验证。
 2. P1-3 物理备份命令、原子产物、证据与隔离恢复演练已完成修复、验证和独立提交；
    生产对象存储与 WAL 目标时间点演练仍是发布验收项。
-3. P1-8 删除态 review 状态机。
+3. P1-8 删除态 review 状态机已完成修复、真实 PostgreSQL 回归验证和独立提交；
+   已删除内容不会被举报处理复活，历史举报仍可正常结案。
 4. P2-10 身份证 enc/hash 导入约束。
 5. P3-7 敏感导出审计。
 6. P1-9 `phone.read` 产品决策后落地 fail-closed 方案。
@@ -213,6 +214,12 @@ R-14、R-15、R-17，以及 X-2 的配置分类治理。
   失败不发布 final/sidecar、不残留 partial/staging；物理备份过期会阻断 evidence。
   ShellCheck（排除既有 source/字面量提示）、文档卫生 5/5、75 个全量 infra contracts 均通过。
   两个临时容器、匿名卷、网络和临时目录已删除；未接触现有开发数据库。
+- 评课 P1-8：真实 PostgreSQL 顺序复现“先举报、后由作者删除、再处理举报”，分别覆盖
+  `hide` 与 `delete`。处理后 review 始终为 `deleted`，`updated_at` 不变、课程计数保持 0，
+  report 正常变为 `resolved`，后续 `restore` 被现有状态机拒绝；另测已由其他管理员隐藏的
+  review 不可重复 `hide`，事务回滚后 report 仍为 `pending`。定向测试、定向 `-race`、
+  `internal/modules/course/review` 全包测试、`go vet`、全服务端 `golangci-lint`（0 issues）
+  与文档卫生检查均通过。
 - image policy：2026-07-30 通过，2026-08-06 因 `review_by=2026-08-05` 失败，确认日历门禁。
 - 授权：capability/RBAC/review 定向 Go 测试通过，确认 X-1 在 Handler 前 fail-closed。
 - P2：3 个 infra/import contract 通过；Koishi 定向 29 tests 通过；outbox、externaldata、
@@ -233,6 +240,7 @@ R-14、R-15、R-17，以及 X-2 的配置分类治理。
 | P1-2 | 已修复，未发布 | 迁移权威改为有序 migration 集合；`000001` 锁定为初始基线，后续只新增递增 `.up/.down`；同步 Make/CI/数据库文档。文档与 CI 契约检查通过，隔离 PostgreSQL 18 实际 `up → down 1 → up` 后为 `19, dirty=false` | `docs(database): make migrations append-only` |
 | P1-3 | 已修复，未发布；生产 PITR 待验收 | 物理备份在外部 staging 以 `plain + stream` 生成，经临时 slot、`pg_verifybackup`、SHA256 和 `.partial` 原子发布；同步排除临时工件，evidence 覆盖本地/取回的逻辑与物理备份及新鲜度。真实 18.4 隔离恢复启动并读回探针；ShellCheck、文档卫生和 75 个 infra contracts 通过 | `fix(backup): verify and atomically publish base backups` |
 | P1-4 | 已修复，未发布 | 部署包只取干净 Git `HEAD`，生成后断言两个根 env 模板存在且无其他根 env；干净临时仓库实测忽略 secret/依赖不入包、未跟踪文件 fail-closed。ShellCheck、部署包/CI 契约与文档卫生通过 | `fix(deploy): preserve required env templates in bundles` |
+| P1-8 | 已修复，未发布 | Service 复用统一 review 状态机；作者删除态只结案 report，不改 review。真实 PostgreSQL 覆盖两种动作、重复转换、计数、时间戳和后续 restore；评课包全量、定向 race、vet、全服务端 lint 与文档卫生检查通过 | `fix(review): preserve deleted reviews during report handling` |
 
 ### 明确不建议实施的“修复”
 
@@ -641,7 +649,28 @@ Primary fix in server/internal/modules/course/review/service_report.go, inside t
 
 3. For action "delete": same shape — if `currentStatus == StatusDeleted`, skip SoftDeleteReview and just resolve the report (avoids pointless updated_at churn); otherwise validate with validateAdminReviewTransition("delete", currentStatus).
 
-4. Defense in depth in server/internal/modules/course/review/repository_review_query.go:162 — change UpdateReviewStatus to `UPDATE reviews SET status = $2, updated_at = NOW() WHERE id = $1 AND status <> 'deleted'`. I verified this is safe for the other callers: ser
+4. 原方案还建议在 Repository 增加 `status <> 'deleted'` 作为 defense in depth。Codex
+   **不采纳这一项**：Repository 当前只返回 `error`，无法区分“成功更新”与“条件不匹配的
+   0 rows affected”，会把状态竞争变成静默成功；而且它不能约束 `SoftDeleteReview`，也不能
+   统一 `hidden` 等其他非法源状态。正确边界是事务内 `FOR UPDATE` 读取后，由 Service 明确
+   校验和决定是否变更。
+
+**Codex 修复与复验（2026-07-30）**
+
+- 已在 `ProcessReport` 的同一事务内对 `hide`/`delete` 只读取一次 review 状态；底层查询已有
+  `FOR UPDATE`。不存在的 review 映射为 `ErrReviewNotFound`，HTTP 层新增对应 404 映射。
+- 对非 `deleted` 状态直接复用 `validateAdminReviewTransition`，因此举报入口与直接管理员入口
+  使用同一份转换白名单；非法转换会回滚，report 保持 `pending`。
+- 对 `deleted` 特意不调用 `UpdateReviewStatus` 或 `SoftDeleteReview`，只把待处理 report
+  结案为 `resolved`。这是必要的业务例外：内容已经不可见，举报已达到处置目的，但作者删除
+  仍是 review 的不可逆终态。
+- 新增真实 PostgreSQL 集成回归：先创建举报，再走真实作者删除服务，最后分别执行 `hide` 和
+  `delete`。两条路径均确认 review 仍为 `deleted`、`updated_at` 未变化、课程计数不二次扣减、
+  report 正常记录处理人/备注/时间；后续 `restore` 返回 `ErrInvalidTransition`。另覆盖
+  “其他入口已经隐藏后再次 hide”必须失败且 report 保持 pending。
+- 定向测试、定向 race 测试、整个 `internal/modules/course/review` 包、`go vet`、全服务端
+  `golangci-lint`（0 issues）和文档卫生检查均通过。修复没有修改 OpenAPI、迁移、
+  Repository SQL 或状态集合，也没有引入幂等框架/新锁，因此不属于过度设计。
 
 #### P1-9. Open-platform phone.read disclosure can never succeed: users.phone_enc holds a masked phone, but the disclosure path requires 11 consecutive digits
 
@@ -2447,6 +2476,7 @@ STUHELPER_REDIS_INTEGRATION
 | P1-2 | 迁移指南要求修改已执行的初始基线 | Codex 已完成修复：权威来源改为完整有序 migration 集合，后续 schema 变更必须新增递增 `.up/.down`；Make、CI 与数据库文档已同步。文档/契约检查通过，隔离 PostgreSQL 18 按 CI 最小权限实际完成 19 版 `up → down 1 → up`，最终无 dirty 状态。随独立修复提交入库，尚未发布 |
 | P1-3 | 物理备份命令无法生成、半成品可被同步且 evidence 不覆盖物理备份 | Codex 已完成实现：改为外部 staging 的 `plain + stream`、临时 replication slot、`pg_verifybackup`、SHA256 与 `.partial` 原子发布；同步排除临时工件，evidence 覆盖本地/取回的逻辑与物理备份及新鲜度。真实 PostgreSQL 18.4 备份在无网络隔离实例启动并读回探针，75 个 infra contracts 全部通过。随独立修复提交入库，尚未发布；生产对象存储/WAL PITR 仍须单独验收 |
 | P1-4 | 部署包丢失 env 模板 | Codex 已完成实现：部署包只取干净 Git `HEAD`，打包后断言两个根 env 模板存在且无其他根 env。临时干净仓库实测忽略 secret/依赖不入包、未跟踪文件阻断，相关部署/CI 契约通过。随独立修复提交入库，尚未发布；未执行真实远端部署/回滚 |
+| P1-8 | 举报处理可把作者已删除的评课改回隐藏态并再次发布 | Codex 已完成实现：举报入口复用统一状态机，作者删除态只结案 report、不改 review；缺失 review 映射 404。真实 PostgreSQL 覆盖 hide/delete、重复非法转换、计数、时间戳和后续 restore，评课包全量、定向 race、vet、全服务端 lint 与文档卫生检查通过。随独立修复提交入库，尚未发布 |
 | X-1 | 无 scope 的 school_admin 全量可见 | Codex 已证伪；现有 capability 展开和 admin Entry 在 Handler 前返回 403，不按 P1 修复 |
 | X-2 | env 模板差集 | Codex 判定部分成立；改为分类治理，不执行 21 项全量入模板/严格集合相等方案 |
 | 其余条目 | — | 不再用“其余 41 项待修”概括；按 Codex 逐项表和四批实施顺序处置 |

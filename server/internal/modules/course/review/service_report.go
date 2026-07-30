@@ -171,47 +171,58 @@ func (s *Service) ProcessReport(ctx context.Context, params ProcessReportParams)
 		}
 
 		var (
-			reportStatus string
-			refresh      bool
-			courseID     int64
-			teacherID    *int64
+			reportStatus  string
+			currentStatus string
+			refresh       bool
+			courseID      int64
+			teacherID     *int64
 		)
+		if params.Action != "reject" {
+			currentStatus, courseID, teacherID, err = s.repo.GetReviewStatusCourseTeacherTx(ctx, tx, report.ReviewID)
+			if err != nil {
+				if errors.Is(err, pgx.ErrNoRows) {
+					return ErrReviewNotFound
+				}
+				return err
+			}
+
+			// A user deletion is terminal for the review, but a pending report
+			// about that review can still be closed without mutating it.
+			if currentStatus != StatusDeleted {
+				if _, err := validateAdminReviewTransition(params.Action, currentStatus); err != nil {
+					return err
+				}
+			}
+		}
+
 		switch params.Action {
 		case "reject":
 			reportStatus = ReportStatusRejected
 		case "hide":
 			reportStatus = ReportStatusResolved
-			currentStatus, currentCourseID, currentTeacherID, err := s.repo.GetReviewStatusCourseTeacherTx(ctx, tx, report.ReviewID)
-			if err != nil {
-				return err
-			}
-			if err := s.repo.UpdateReviewStatus(ctx, tx, report.ReviewID, StatusHidden); err != nil {
-				return err
-			}
-			if currentStatus == StatusPublished {
-				if err := s.repo.DecrementCourseReviewCount(ctx, tx, currentCourseID); err != nil {
+			if currentStatus != StatusDeleted {
+				if err := s.repo.UpdateReviewStatus(ctx, tx, report.ReviewID, StatusHidden); err != nil {
 					return err
 				}
-				refresh = true
-				courseID = currentCourseID
-				teacherID = currentTeacherID
+				if currentStatus == StatusPublished {
+					if err := s.repo.DecrementCourseReviewCount(ctx, tx, courseID); err != nil {
+						return err
+					}
+					refresh = true
+				}
 			}
 		case "delete":
 			reportStatus = ReportStatusResolved
-			currentStatus, currentCourseID, currentTeacherID, err := s.repo.GetReviewStatusCourseTeacherTx(ctx, tx, report.ReviewID)
-			if err != nil {
-				return err
-			}
-			if err := s.repo.SoftDeleteReview(ctx, tx, report.ReviewID); err != nil {
-				return err
-			}
-			if currentStatus == StatusPublished {
-				if err := s.repo.DecrementCourseReviewCount(ctx, tx, currentCourseID); err != nil {
+			if currentStatus != StatusDeleted {
+				if err := s.repo.SoftDeleteReview(ctx, tx, report.ReviewID); err != nil {
 					return err
 				}
-				refresh = true
-				courseID = currentCourseID
-				teacherID = currentTeacherID
+				if currentStatus == StatusPublished {
+					if err := s.repo.DecrementCourseReviewCount(ctx, tx, courseID); err != nil {
+						return err
+					}
+					refresh = true
+				}
 			}
 		}
 		if refresh {

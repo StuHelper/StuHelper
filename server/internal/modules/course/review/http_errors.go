@@ -180,7 +180,12 @@ func respondGetDraftError(c *gin.Context, err error) bool {
 }
 
 func respondProcessReportError(c *gin.Context, err error) bool {
-	return response.RespondMappedErrorGroups(c, err, reviewAdminIdentityErrorMappings, reviewReportErrorMappings, reviewAdminActionErrorMappings)
+	return response.RespondMappedErrorGroups(c, err,
+		reviewAdminIdentityErrorMappings,
+		reviewReportErrorMappings,
+		reviewNotFoundErrorMappings,
+		reviewAdminActionErrorMappings,
+	)
 }
 
 func respondAdminUpdateReviewError(c *gin.Context, err error) bool {
