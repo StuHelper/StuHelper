@@ -45,8 +45,8 @@ Web / Admin / UniAppX+Koishi UI / Koishi / 基础设施 / 代码质量与文档)
   检查生产备份目录或用生产 WAL 执行目标时间点恢复，也没有观察生产锁等待或真实大表延迟。
   因此“生产已经丢失 PITR”“生产已经 OOM/死锁/永久停更”等说法仍不得当作已证实事实。
 - 当前工作树在复核开始前已经有未提交修改。Codex 对 P0-1、P1-1、P1-2、P1-3、P1-4、
-  P1-5、P1-6、P1-7、P1-8 与 P1-9 的修复已经按问题独立提交，但均未合并或发布；原有其他
-  工作树修改没有混入这些提交。
+  P1-5、P1-6、P1-7、P1-8、P1-9 与 P1-10 的修复已经按问题独立提交（P1-10 提交见下方
+  进度表），但均未合并或发布；原有其他工作树修改没有混入这些提交。
 - 原报告大量“修复方案”和全部 18 条驳回长文在句中截断。例如 P0-1 结尾是
   `only surface the 4`，P1-1 结尾是 `Promise.resolve<string[]>(`，P1-3 结尾是
   `both loc`；P3-1 至 P3-9 的方案也全部半句结束。第 1 条驳回理由还重复了两次。
@@ -79,7 +79,7 @@ Web / Admin / UniAppX+Koishi UI / Koishi / 基础设施 / 代码质量与文档)
 | P1-7 | 确认，已完成本地修复与真实路由/数据库回归 | P1 → P2 | 已修复，待发布 | OpenAPI 改为匿名、cookie、bearer 三种可选认证并声明 503，生成 bundle、Go 内嵌契约和 TS 类型；真实 GET 路由接入 optional auth 与健康门禁。PostgreSQL route-level 测试覆盖 owner、其他登录用户、匿名和认证后端故障。没有把公开列表改成强制登录、增加 ownership SQL 或让前端自行推断身份。 |
 | P1-8 | 确认，已完成本地修复与真实 PostgreSQL 回归验证 | P1 | 已修复，待发布 | `ProcessReport` 对非删除态复用现有管理员转换白名单；作者已删除的 review 保持终态，只结案历史 report。缺失 review 统一映射 404。没有改 schema、增加新状态或在 Repository 注入静默 no-op。真实数据库覆盖 `hide`/`delete`、重复非法转换、计数和时间戳不变；评课包全量与定向 race 测试通过。 |
 | P1-9 | 核心确认，已按既有安全模型完成本地修复 | P1/P2 边界 | 已修复，待真实 Casdoor 验收 | Open Platform 只传内部 user ID；app gateway 用 user repository 解析 Casdoor subject，再实时调用既有 `GetPhone`。本地只读取 `phone_enc IS NOT NULL` 作为验证状态，不再读取/解密掩码字节。真实 PostgreSQL/Redis 覆盖 phone API、identity-token、授权审计和 provider fail-closed；app adapter 覆盖身份解析失败不调用外部客户端。没有落库完整手机号、缓存 Casdoor 返回或让业务模块持有外部 subject。 |
-| P1-10 | 机制确认，生产饥饿尚未量化 | P1 → P2 | 应改 | 外层 rows 未关闭时每行再发 2 次 pool 查询，存在 N+1 与并发池饥饿。先 drain 主结果并批量取 tags/bindings，补 query-count/并发测试；无需引入通用 ORM/DataLoader 框架。 |
+| P1-10 | 机制确认，已完成本地修复与真实单连接池回归；生产影响未量化 | P1 → P2 | 已修复，待发布 | 先 drain 并显式关闭主结果，再以 2 条批量 SQL 取 tags/bindings，查询数由 `1 + 2N` 固定为 3。真实 PostgreSQL 在 `MaxConns=1` 下覆盖 1/2 条数据的固定查询数、详情查询与 6 个并发列表请求；无需 ORM/DataLoader。 |
 | X-1 | 证伪 | P1 → 不成立 | 不改 | 无 school scope 的 `school_admin` 在 `ExpandRoleGrants` 已得到零 capability，admin Entry 会在 Handler 前返回 403；定向测试也覆盖该语义。Repository 的 nil/空切片确有可读性风险，但原攻击链不可达。最多补 route-level 防回归/显式空结果，按 P3 加固，不做紧急授权模型重写。 |
 | X-2 | 部分确认，原计数错误 | P2 | 应改 | config 包运行时键为 181 个，主模板实际缺 17 个；另外 4 个分别属于 bootstrap/FGA 工具、`GIN_MODE` 和 Redis 集成测试，不能混入运行时模板。建立分类 allowlist，只要求 operator-facing 配置进入对应模板；识别并删除 `LOG_SERVICE_VERSION` 等死配置。要求所有 `getenv` 与两个模板严格集合相等会暴露危险开关并制造噪声，属于过度设计。 |
 
@@ -184,7 +184,8 @@ P2 唯一根因应按以下修复簇合并，避免重复设计：
 #### 第三批：可测量的性能与一致性
 
 1. P2-3 ledger query/retention、P2-4 dashboard 查询。
-2. P1-10 resource N+1、P2-20 materialized-view refresh timeout。
+2. P1-10 resource N+1 已完成固定三查询修复、单连接池并发验证和独立提交；继续
+   P2-20 materialized-view refresh timeout。
 3. R-11 outbox lock contention：只有指标或压测达到门槛后再改事件键/合并策略。
 4. R-16 academics bulk import：真实 connector 上线前处理，不提前建设。
 
@@ -246,6 +247,11 @@ P3-1 至 P3-6、P3-8、R-5 至 R-7、R-14、R-15、R-17，以及 X-2 的配置�
   app adapter 测试证明内部 ID 先由 user repository resolver 映射，解析失败时不调用 Casdoor。
   定向普通/race、Open Platform 全包（34.337 秒）、app/Casdoor 全包、`go vet`、Casdoor
   boundary guard 和全服务端 `golangci-lint`（0 issues）通过；没有使用真实 Casdoor 凭据或网络。
+- 资源 P1-10：真实 PostgreSQL 上另建 `MaxConns=1` 的 pgxpool。列表分别返回 1 条和 2 条
+  数据时，`Pool.Stat().AcquireCount()` 增量均为 3；详情查询同样为 3，证明查询数不随行数
+  增长。6 个并发列表请求在同一单连接池内全部于 deadline 前完成；tags/bindings 排序保持，
+  无关联项返回非 nil 空数组。定向普通/race、资源包全量、`go vet`、Casdoor boundary guard
+  与全服务端 `golangci-lint`（0 issues）通过。
 - image policy：2026-07-30 通过，2026-08-06 因 `review_by=2026-08-05` 失败，确认日历门禁。
 - 授权：capability/RBAC/review 定向 Go 测试通过，确认 X-1 在 Handler 前 fail-closed。
 - P2：3 个 infra/import contract 通过；Koishi 定向 29 tests 通过；outbox、externaldata、
@@ -271,6 +277,7 @@ P3-1 至 P3-6、P3-8、R-5 至 R-7、R-14、R-15、R-17，以及 X-2 的配置�
 | P1-7 | 已修复，未发布 | GET replies 的 OpenAPI 与真实路由均改为可选认证，认证后端故障 fail-closed 503；生成 bundle/Go/TS 契约。真实 PostgreSQL route-level 测试覆盖 owner、非 owner、匿名和故障，定向 race、review 全包、vet、lint、spec/drift 与文档检查通过 | `fix(review): preserve reply ownership on refresh` |
 | P1-8 | 已修复，未发布 | Service 复用统一 review 状态机；作者删除态只结案 report，不改 review。真实 PostgreSQL 覆盖两种动作、重复转换、计数、时间戳和后续 restore；评课包全量、定向 race、vet、全服务端 lint 与文档卫生检查通过 | `fix(review): preserve deleted reviews during report handling` |
 | P1-9 | 已修复，未发布；真实 Casdoor 待验收 | Open Platform 仅按内部 user ID 请求 authoritative phone；app gateway 在边界解析 Casdoor subject。真实 PostgreSQL/Redis 覆盖 phone API、identity-token、granted/denied 审计和 provider 故障；adapter、Casdoor client、race、全包、vet、边界门禁与 lint 通过 | `fix(openplatform): read disclosed phones from Casdoor` |
+| P1-10 | 已修复，未发布；生产规模影响待观测 | 主结果集完整 drain 后显式关闭，tags/bindings 分别批量加载，查询数由 `1 + 2N` 固定为 3。真实 PostgreSQL 单连接池覆盖固定 query count、详情、空数组、排序和 6 并发；定向 race、资源全包、vet 与 lint 通过 | `fix(resource): batch related data loads` |
 
 ### 明确不建议实施的“修复”
 
@@ -281,6 +288,7 @@ P3-1 至 P3-6、P3-8、R-5 至 R-7、R-14、R-15、R-17，以及 X-2 的配置�
 - 不用 Repository 静默 no-op 替代 P1-8 的 Service 状态机。
 - 不让 P1-9 的 Open Platform 业务模块持有 Casdoor subject，不落库/缓存完整手机号，也不把
   authoritative provider 空值降级成成功响应。
+- 不为 P1-10 引入 ORM、DataLoader 或通用关联加载框架；两个本地批量查询已经消除该根因。
 - 不用 `COALESCE('', 0)` 隐藏 P2-16 的 NULL 数据语义。
 - 不在当前单副本部署为 P2-18 先建 Redis pub/sub/version 系统。
 - 不为 P2-23 增加无限自动 supervisor；panic 必须进入现有 retry/dead-letter。
@@ -907,6 +915,30 @@ func (r *Repository) scanItems(ctx context.Context, rows pgx.Rows) ([]Item, int,
 ```
 
 2. Replace `loadTags` (line 260) and `loadBindings` (line 278) with batched versions keyed on `resource_id` (they have no ot
+
+**Codex 独立复核与处置（2026-07-30）**
+
+- **事实核心确认，原生产结论降级。**pgx v5 官方 API 说明 `Pool.Query` 取得的连接会在
+  `Rows.Close()` 后归还，`Next()` 返回 false 也会自动关闭 rows。原实现确实在外层 rows
+  尚未耗尽、连接仍被占用时逐行调用 `loadTags` 和 `loadBindings`，因此查询数为
+  `1 + 2N`，并且每个请求在扫描期间需要再取得一个连接。连接池饱和时会形成等待乃至超时。
+  但本轮没有生产并发、池占用、接口 p95 或 5 秒超时记录，不能把“20 个请求必然让整个池
+  死锁并全部 500”写成已发生事实；该项维持真实问题，级别由 P1 调整为 P2。
+- **采用最小修复。**`scanItems` 先完整扫描主结果并收集 resource IDs，检查迭代错误后显式
+  `Close()`；随后分别使用 `resource_id = ANY($1::bigint[])` 批量加载 tags 与 bindings，
+  并按资源 ID 回填。每个 Item 在扫描时初始化非 nil 空切片，保持 OpenAPI 必填数组语义；
+  两个批量查询继续显式排序，保持原先单行加载的 tag、binding 顺序。空结果不发关联查询。
+- **真实数据库验证。**测试在迁移后的 PostgreSQL 上建立 `MaxConns=1` 的独立 pgxpool。
+  分页返回 1 条与 2 条数据时，连接获取增量都严格为 3；`GetResourceByID` 也是 3，证明
+  SQL 数量不随行数增长。6 个并发列表请求共用该单连接池仍全部在 deadline 内成功；该场景
+  在旧实现中首个请求会持有唯一连接并等待自己的关联查询。另验证 tags/bindings 排序和
+  无关联资源返回 `[]` 而非 `null`。
+- **回归结果。**新增定向普通测试与 `-race` 均通过，资源模块全包、`go vet`、Casdoor
+  boundary guard 和全服务端 `golangci-lint`（0 issues）通过。未修改 schema、OpenAPI、
+  Handler 或 Service。
+- **过度设计判断。**不引入 ORM、DataLoader、通用预加载器、缓存或新索引。当前两个窄范围
+  batch helper 已将该路径固定为三次查询并解除嵌套连接获取；是否还需要合并成单条 JSON
+  聚合 SQL，应只在发布后的真实 p95/数据库指标证明有必要时再评估。
 
 
 ### P2（23 项）
@@ -2619,6 +2651,7 @@ STUHELPER_REDIS_INTEGRATION
 | P1-7 | 回复列表刷新后丢失当前用户 ownership | Codex 已完成实现：GET replies 契约与真实路由接入可选认证，声明并 fail-closed 503，bundle/Go/TS 生成物同步。真实 PostgreSQL route-level 测试覆盖 owner、其他登录用户、匿名和认证后端故障；定向 race、review 全包、vet、lint、spec/drift 与文档检查通过。随独立修复提交入库，尚未发布 |
 | P1-8 | 举报处理可把作者已删除的评课改回隐藏态并再次发布 | Codex 已完成实现：举报入口复用统一状态机，作者删除态只结案 report、不改 review；缺失 review 映射 404。真实 PostgreSQL 覆盖 hide/delete、重复非法转换、计数、时间戳和后续 restore，评课包全量、定向 race、vet、全服务端 lint 与文档卫生检查通过。随独立修复提交入库，尚未发布 |
 | P1-9 | `phone.read` 解密到的仍是掩码手机号 | Codex 已完成实现：Open Platform 仅按内部 user ID 请求权威手机号，app gateway 在允许的边界解析 Casdoor subject 并调用既有 client；本地投影不再参与明文恢复。真实 PostgreSQL/Redis 覆盖 phone API、identity-token、granted/denied 审计和 provider 故障；adapter、race、全包、vet、Casdoor 边界门禁与 lint 通过。随独立修复提交入库，尚未发布；真实 Casdoor 待验收 |
+| P1-10 | Resource 逐行加载 tags/bindings 并在外层 cursor 打开时嵌套取连接 | Codex 已完成实现：先 drain/关闭主结果，再用两条批量 SQL 回填关联，查询数由 `1 + 2N` 固定为 3。真实 PostgreSQL `MaxConns=1` 覆盖 1/2 条数据的固定 query count、详情、排序、空数组和 6 并发；定向 race、资源全包、vet 与全服务端 lint 通过。随独立修复提交入库，尚未发布；生产规模影响仍待指标观测 |
 | X-1 | 无 scope 的 school_admin 全量可见 | Codex 已证伪；现有 capability 展开和 admin Entry 在 Handler 前返回 403，不按 P1 修复 |
 | X-2 | env 模板差集 | Codex 判定部分成立；改为分类治理，不执行 21 项全量入模板/严格集合相等方案 |
 | 其余条目 | — | 不再用“其余 41 项待修”概括；按 Codex 逐项表和四批实施顺序处置 |

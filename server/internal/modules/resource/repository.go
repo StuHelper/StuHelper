@@ -219,23 +219,37 @@ func resourceExistsTx(ctx context.Context, tx pgx.Tx, resourceID int64) (bool, e
 
 func (r *Repository) scanItems(ctx context.Context, rows pgx.Rows) ([]Item, int, error) {
 	items := make([]Item, 0)
+	resourceIDs := make([]int64, 0)
+	itemIndex := make(map[int64]int)
 	total := 0
+	defer rows.Close()
+
 	for rows.Next() {
 		item, err := scanItem(rows, &total)
 		if err != nil {
 			return nil, 0, err
 		}
-		item.Tags, err = r.loadTags(ctx, item.ID)
-		if err != nil {
-			return nil, 0, err
-		}
-		item.Bindings, err = r.loadBindings(ctx, item.ID)
-		if err != nil {
-			return nil, 0, err
-		}
+		item.Tags = make([]string, 0)
+		item.Bindings = make([]Binding, 0)
+		itemIndex[item.ID] = len(items)
+		resourceIDs = append(resourceIDs, item.ID)
 		items = append(items, item)
 	}
-	return items, total, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("iterate resource items: %w", err)
+	}
+
+	// Pool.Query returns its connection only after Rows is closed. Close the
+	// fully drained parent result before the two batch lookups so this path also
+	// works with a one-connection pool.
+	rows.Close()
+	if err := r.attachTags(ctx, resourceIDs, items, itemIndex); err != nil {
+		return nil, 0, err
+	}
+	if err := r.attachBindings(ctx, resourceIDs, items, itemIndex); err != nil {
+		return nil, 0, err
+	}
+	return items, total, nil
 }
 
 func scanItem(rows pgx.Rows, total *int) (Item, error) {
@@ -257,45 +271,80 @@ func scanItem(rows pgx.Rows, total *int) (Item, error) {
 	return item, nil
 }
 
-func (r *Repository) loadTags(ctx context.Context, resourceID int64) ([]string, error) {
+func (r *Repository) attachTags(
+	ctx context.Context,
+	resourceIDs []int64,
+	items []Item,
+	itemIndex map[int64]int,
+) error {
+	if len(resourceIDs) == 0 {
+		return nil
+	}
 	ctx = withDBTable(ctx, "resource_tags")
-	rows, err := r.db.Query(ctx, `SELECT tag FROM resource_tags WHERE resource_id = $1 ORDER BY tag ASC`, resourceID)
+	rows, err := r.db.Query(ctx, `
+		SELECT resource_id, tag
+		FROM resource_tags
+		WHERE resource_id = ANY($1::bigint[])
+		ORDER BY resource_id ASC, tag ASC
+	`, resourceIDs)
 	if err != nil {
-		return nil, fmt.Errorf("load resource tags: %w", err)
+		return fmt.Errorf("load resource tags: %w", err)
 	}
 	defer rows.Close()
-	var tags []string
 	for rows.Next() {
+		var resourceID int64
 		var tag string
-		if err := rows.Scan(&tag); err != nil {
-			return nil, fmt.Errorf("scan resource tag: %w", err)
+		if err := rows.Scan(&resourceID, &tag); err != nil {
+			return fmt.Errorf("scan resource tag: %w", err)
 		}
-		tags = append(tags, tag)
+		index, ok := itemIndex[resourceID]
+		if !ok {
+			return fmt.Errorf("load resource tags: unexpected resource id %d", resourceID)
+		}
+		items[index].Tags = append(items[index].Tags, tag)
 	}
-	return tags, rows.Err()
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate resource tags: %w", err)
+	}
+	return nil
 }
 
-func (r *Repository) loadBindings(ctx context.Context, resourceID int64) ([]Binding, error) {
+func (r *Repository) attachBindings(
+	ctx context.Context,
+	resourceIDs []int64,
+	items []Item,
+	itemIndex map[int64]int,
+) error {
+	if len(resourceIDs) == 0 {
+		return nil
+	}
 	ctx = withDBTable(ctx, "resource_bindings")
 	rows, err := r.db.Query(ctx, `
-		SELECT binding_type, binding_value
+		SELECT resource_id, binding_type, binding_value
 		FROM resource_bindings
-		WHERE resource_id = $1
-		ORDER BY binding_type ASC, binding_value ASC
-	`, resourceID)
+		WHERE resource_id = ANY($1::bigint[])
+		ORDER BY resource_id ASC, binding_type ASC, binding_value ASC
+	`, resourceIDs)
 	if err != nil {
-		return nil, fmt.Errorf("load resource bindings: %w", err)
+		return fmt.Errorf("load resource bindings: %w", err)
 	}
 	defer rows.Close()
-	var bindings []Binding
 	for rows.Next() {
+		var resourceID int64
 		var item Binding
-		if err := rows.Scan(&item.Type, &item.Value); err != nil {
-			return nil, fmt.Errorf("scan resource binding: %w", err)
+		if err := rows.Scan(&resourceID, &item.Type, &item.Value); err != nil {
+			return fmt.Errorf("scan resource binding: %w", err)
 		}
-		bindings = append(bindings, item)
+		index, ok := itemIndex[resourceID]
+		if !ok {
+			return fmt.Errorf("load resource bindings: unexpected resource id %d", resourceID)
+		}
+		items[index].Bindings = append(items[index].Bindings, item)
 	}
-	return bindings, rows.Err()
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate resource bindings: %w", err)
+	}
+	return nil
 }
 
 func replaceTagsAndBindingsTx(ctx context.Context, tx pgx.Tx, resourceID int64, tags []string, bindings []Binding) error {
