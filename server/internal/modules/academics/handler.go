@@ -44,7 +44,11 @@ func NewHandler(service *Service, opts ...HandlerOption) *Handler {
 	return h
 }
 
-func (h *Handler) RegisterRoutes(api *gin.RouterGroup, authMW gin.HandlerFunc) {
+func (h *Handler) RegisterRoutes(
+	api *gin.RouterGroup,
+	authMW gin.HandlerFunc,
+	adminMiddlewares ...gin.HandlerFunc,
+) {
 	academicsGroup := api.Group("/academics")
 	academicsGroup.GET("/terms", h.listTerms)
 	academicsGroup.GET("/offerings", h.listOfferings)
@@ -57,6 +61,7 @@ func (h *Handler) RegisterRoutes(api *gin.RouterGroup, authMW gin.HandlerFunc) {
 
 	admin := api.Group("/admin/academics")
 	admin.Use(authMW)
+	admin.Use(adminMiddlewares...)
 	admin.GET("/sources", httputil.RouteHandlers(h.listSources, h.adminAuthorizers.Read)...)
 	admin.GET("/import-jobs", httputil.RouteHandlers(h.listImportJobs, h.adminAuthorizers.Read)...)
 	admin.POST("/import-jobs", httputil.RouteHandlers(h.triggerImport, h.adminAuthorizers.Update)...)

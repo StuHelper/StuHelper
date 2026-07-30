@@ -2812,6 +2812,8 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         '403':
           $ref: '#/components/responses/ErrorResponse'
+        '412':
+          $ref: '#/components/responses/ErrorResponse'
   /api/v1/admin/academics/import-jobs:
     get:
       tags:
@@ -2859,6 +2861,8 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         '403':
           $ref: '#/components/responses/ErrorResponse'
+        '412':
+          $ref: '#/components/responses/ErrorResponse'
     post:
       tags:
         - Academics
@@ -2893,6 +2897,8 @@ paths:
         '403':
           $ref: '#/components/responses/ErrorResponse'
         '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '412':
           $ref: '#/components/responses/ErrorResponse'
   /api/v1/resources:
     get:

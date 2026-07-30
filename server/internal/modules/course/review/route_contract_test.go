@@ -88,7 +88,7 @@ func TestReviewAdminStatsDoesNotUseGroupStepUpGate(t *testing.T) {
 	api := r.Group("/api/v1/course/review")
 	authMW := globalAdminCapabilityAuth(capability.AdminDashboardView, capability.AdminLogsView)
 	blockingStepUpGate := func(c *gin.Context) {
-		response.Error(c, http.StatusPreconditionRequired, errs.ErrStepUpRequired, "step-up required")
+		response.Error(c, http.StatusPreconditionFailed, errs.ErrStepUpRequired, "step-up required")
 	}
 	h.RegisterRoutes(api, authMW, authMW, blockingStepUpGate)
 
@@ -104,7 +104,7 @@ func TestReviewAdminStatsDoesNotUseGroupStepUpGate(t *testing.T) {
 	logsReq := httptest.NewRequest(http.MethodGet, "/api/v1/course/review/admin/logs", nil)
 	r.ServeHTTP(logs, logsReq)
 
-	assert.Equal(t, http.StatusPreconditionRequired, logs.Code)
+	assert.Equal(t, http.StatusPreconditionFailed, logs.Code)
 	assert.Contains(t, logs.Body.String(), string(errs.ErrStepUpRequired))
 }
 

@@ -26,7 +26,7 @@ func TestSensitiveAdminAuthorizersRequireStepUpMFA(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			w, called := exerciseStepUpMiddleware(stepUp)
 
-			assert.Equal(t, http.StatusPreconditionRequired, w.Code)
+			assert.Equal(t, http.StatusPreconditionFailed, w.Code)
 			assert.False(t, called)
 		})
 	}
@@ -54,7 +54,7 @@ func TestReviewAdminAuthorizerRequiresStepUpMFA(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/admin/reviews", nil)
 	engine.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusPreconditionRequired, w.Code)
+	assert.Equal(t, http.StatusPreconditionFailed, w.Code)
 	assert.False(t, called)
 }
 

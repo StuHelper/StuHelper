@@ -247,7 +247,7 @@ func TestRequireStepUpMFARequiresFreshProof(t *testing.T) {
 	w := httptest.NewRecorder()
 	engine.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/test", nil))
 
-	assert.Equal(t, http.StatusPreconditionRequired, w.Code)
+	assert.Equal(t, http.StatusPreconditionFailed, w.Code)
 	assert.False(t, called)
 	assertErrorCode(t, w, errs.ErrStepUpRequired)
 }

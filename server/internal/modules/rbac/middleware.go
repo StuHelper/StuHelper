@@ -199,7 +199,7 @@ func abortOnDeny(c *gin.Context, decision authorization.Decision) bool {
 	case errors.Is(decision.Error, authorization.ErrMFAEnrollmentRequired):
 		response.Forbidden(c, "mfa enrollment required", errs.ErrMFARequired)
 	case errors.Is(decision.Error, authorization.ErrStepUpRequired):
-		response.Error(c, http.StatusPreconditionRequired, errs.ErrStepUpRequired, "step-up required")
+		response.Error(c, http.StatusPreconditionFailed, errs.ErrStepUpRequired, "step-up required")
 	case decision.Error != nil:
 		response.ServiceUnavailable(c, "authorization service temporarily unavailable", errs.ErrServiceUnavailable)
 	default:

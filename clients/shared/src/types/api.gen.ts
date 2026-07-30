@@ -7567,6 +7567,7 @@ export interface operations {
             };
             401: components["responses"]["ErrorResponse"];
             403: components["responses"]["ErrorResponse"];
+            412: components["responses"]["ErrorResponse"];
         };
     };
     listAcademicImportJobs: {
@@ -7601,6 +7602,7 @@ export interface operations {
             };
             401: components["responses"]["ErrorResponse"];
             403: components["responses"]["ErrorResponse"];
+            412: components["responses"]["ErrorResponse"];
         };
     };
     triggerAcademicImport: {
@@ -7630,6 +7632,7 @@ export interface operations {
             401: components["responses"]["ErrorResponse"];
             403: components["responses"]["ErrorResponse"];
             404: components["responses"]["ErrorResponse"];
+            412: components["responses"]["ErrorResponse"];
         };
     };
     listResources: {

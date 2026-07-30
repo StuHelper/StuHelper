@@ -67,7 +67,7 @@ func TestHandleAdminListIdentitiesRequiresStepUpProof(t *testing.T) {
 
 	router.ServeHTTP(recorder, req)
 
-	require.Equal(t, http.StatusPreconditionRequired, recorder.Code)
+	require.Equal(t, http.StatusPreconditionFailed, recorder.Code)
 }
 
 func TestHandleAdminListIdentities_IncludesReviewMeta(t *testing.T) {

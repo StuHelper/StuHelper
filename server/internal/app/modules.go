@@ -129,7 +129,7 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 		),
 		academics.WithAdminAuthorizers(academicsAdminAuthorizers()),
 	)
-	academicsHandler.RegisterRoutes(api, authMW)
+	academicsHandler.RegisterRoutes(api, authMW, adminMFA...)
 
 	storage.NewHandler(
 		storageService,

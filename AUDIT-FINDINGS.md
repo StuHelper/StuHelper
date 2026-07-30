@@ -490,7 +490,7 @@ Claude 的两条 `/admin/stats` 记录是同一位置、同一 middleware 顺序
 
 | 编号 | 候选问题 | Codex 结论 | 级别 | 最小处置与边界 |
 |------|----------|------------|------|----------------|
-| U-1 | `/admin/academics` 缺少 privileged MFA/admin-entry | 部分确认 | P1 | MFA 缺口真实：独立 group 只有 auth + global capability，可触发 import；当前该 global capability 只给 super_admin，而 IAM 要求 super_admin 使用 MFA。缺少通用 admin-entry 没有额外影响，因为具体 global capability 更严格。把现有 admin MFA chain 传给该 group 或统一注册方式，不要再建第二套 MFA。 |
+| U-1 | `/admin/academics` 缺少 privileged MFA/admin-entry | 部分确认，MFA 缺口已完成本地修复与回归验证 | P1 | `/admin/academics` 三个 operation 已复用现有 production/prod-parity MFA context + privileged MFA chain，并保留精确 global capability gate；development 的既有 no-op 语义不变。独立复核还发现共享 step-up middleware 实际返回 428、而 OpenAPI/错误码/管理端约定 412；现已在共享 RBAC 边界统一为 412，并更新所有真实 step-up 断言。缺少通用 admin-entry 没有额外影响，因此没有增加重复 entry gate或建设第二套 MFA。 |
 | U-2 | 每 5 分钟丢弃 JWKS `RemoteKeySet` 缓存 | 确认，需要策略决策 | P2 | 当前 wrapper 会销毁 go-oidc 已缓存的 key，TTL 后即使是已知 kid 也必须访问 IdP；IdP 短暂不可用会 503。文档同时存在“已知 key 可离线继续”和“5 分钟后必须 fail”的冲突。必须选择并写清：复用长生命周期 RemoteKeySet 以保可用性，或保留 TTL 后 fail-closed 并修正文档、监控和测试。只随意延长 TTL 不能解决策略矛盾。 |
 | U-3 | StudentVerificationPanel 学籍邮箱流程硬编码中文 | 确认 | P3 | 标签、placeholder、状态和错误均有硬编码中文，英文 locale 会混合显示。增加 scoped 中英文 key，并按稳定状态/错误码映射；不需要引入 CMS 或新 i18n 引擎。 |
 
@@ -561,6 +561,7 @@ bar 和 issuer fallback。优先做一处根因、一组回归测试的窄修复
 |----------|------|----------|------|
 | 9 | 已修复，待发布 | Web review payload reader 保留 `like`/`dislike`，缺失字段保持可选，非法 enum fail-closed；定向 payload/voting 回归、Web 类型检查与相关静态检查通过 | `fix(review): preserve current user vote state` |
 | 44 | 已修复，待发布 | active introspection 只接受 Casdoor `access-token` purpose，refresh/missing/malformed/opaque token 均拒绝；Bearer 用户路径拒绝空白 subject，provider unavailable 与 inactive 分类保持不变；OIDC、middleware、app/auth 定向回归与服务端静态检查通过 | `fix(auth): reject refresh tokens on bearer paths` |
+| U-1 | 已修复，待发布 | 三个 academics admin operation 消费现有 admin MFA middlewares；共享 step-up 响应从错误的 428 对齐既有 412 契约，OpenAPI/生成物同步；blocking route contract、真实 MFA chain、相关包/全量 Go 回归、race、spec/drift、lint/build 与文档检查通过 | `fix(academics): require MFA for import administration` |
 
 ## Claude 原审计的确认问题分布（保留原始记录）
 

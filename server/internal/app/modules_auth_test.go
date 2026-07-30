@@ -56,7 +56,7 @@ func TestAdminMFAMiddlewaresEnforcePrivilegedEnrollmentAndFreshProof(t *testing.
 			time.Time{},
 		)
 
-		assert.Equal(t, http.StatusPreconditionRequired, w.Code)
+		assert.Equal(t, http.StatusPreconditionFailed, w.Code)
 		assert.False(t, called)
 	})
 
