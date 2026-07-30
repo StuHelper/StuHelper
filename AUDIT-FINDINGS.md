@@ -96,7 +96,7 @@ Web / Admin / UniAppX+Koishi UI / Koishi / 基础设施 / 代码质量与文档)
 | P2-6 | 确认，已完成本地修复与回归验证；真实 Console 热重载待验收 | P2 | 已修复，待发布与运行时热重载验收 | Group Guard 在 required console 子作用域注册；Group Guard 与 Core 的特权 listener 都交给 `ctx.effect` 管理，并只在 registry 仍指向本次 registration 时删除。authority 固定为 4，调用方不能降级。只做 injection 不能消除陈旧回调，无条件按 event 删除又会误删新作用域注册；无需全局 monkey patch 或修改上游 Console。 |
 | P2-7 | 条件性确认，已完成 Koishi 交付阶段修复与全量回归 | P2 | 已修复，待发布与功能启用验收 | 功能开启时，delivery 单项失败按 application 隔离、记录 `phase=delivery` 后继续，健康项正常 ACK；批末仍重抛以保留 scheduler error。ACK 失败记录 `phase=ack` 后 fail-fast，避免控制面失联时扩大重复发送。立即增加 attempts/dead-letter/schema、并行转发或 claim/lease 都不是解除单 poison 队首阻塞的必要条件。 |
 | P2-8 | 确认 | P2 → P4 | 可选 | 中英文增加 `school_email_otp`、`school_sso` 标签并可选保留 enum 原值 fallback。只是后台 i18n，不应占用 P2 修复预算。 |
-| P2-9 | 强静态证据确认；运行验证待补 | P2 | 必须 | 用 `{{ playbook_dir }}` 构造 command/copy 绝对源路径，使用 `argv` 并加窄路径契约/语法检查。当前环境没有 `ansible-playbook`，因此仍需 CI/真实 controller 验证。通用扫描所有 Ansible command/shell 的检测器过重。 |
+| P2-9 | 核心确认、原故障机理部分错误；已完成本地修复与真实 controller 回归 | P2 | 已修复，待 CI/远端发布验收 | Ansible Core 2.20.2 的 localhost connection 会把 cwd 设为 playbook basedir，因此旧脚本路径本身能找到；真正失败是相对输出参数进入脚本后，内部 `git -C` 再改变 `archive --output` 的解析基准。干净隔离仓库以旧任务真实复现 `could not open '../../generated/deploy/...'`。现改为 `playbook_dir` 绝对脚本 `argv`、脚本默认仓库绝对输出和同一绝对 upload src；固定 controller 版本、内置 default callback 的 YAML result format、三 playbook syntax check、窄路径契约和独立 bundle tag smoke 已接入 CI。没有写通用 command/shell scanner或重构远端部署；真实 SSH 上传/部署仍待验收。 |
 | P2-10 | 确认，已完成最小修复、真实 PostgreSQL 语义验证与全量 infra 回归 | P2 | 已修复，待发布 | 普通 importer 已拒绝 `sfzjh_enc`/`sfzjh_hash`，并从 normalize、临时表、copy、insert 和 conflict update 全链路移除两列：新行得到 `NULL/NULL`，重导保留既有 pair。当前仓库没有完整 pair 导入入口；在没有真实需求和密钥治理设计前不新增 CLI/API，也不能伪造空 `enc` 绕过约束。 |
 | P2-11 | 确认潜在契约缺陷 | P2 → P3 | 应改 | 统一为 `explode: true`，Handler 用 `QueryArray` 并兼容旧逗号格式，重新生成；修正或删除未使用的 Web grouped adapter。OpenAPI 与 Handler 当前都按逗号语义，真正不兼容的是默认客户端，原文“三端各不兼容”不准确。 |
 | P2-12 | 确认 | P2 | 必须 | 对会调用外部 Oracle 的 academic-match/request-otp 增加鉴权后的 Redis per-user 共享预算；测 429、用户隔离与 Redis 策略。现有全局/IP limiter 不等于完全无限流，但不足以保护昂贵 fan-out。 |
@@ -184,7 +184,7 @@ P2 唯一根因应按以下修复簇合并，避免重复设计：
 4. P2-7 Koishi 转发 poison 与 P2-13/14/15 claimed batch 均已完成隔离、全量/状态机回归
    和独立提交；P2-23 outbox panic 留待后续指令继续。
 5. P2-21/P2-22 breaker 分类，R-8 Redis 错误分类，P3-9 cache version unavailable。
-6. P2-9 Ansible 路径、P2-16 NULL 语义决策、P2-18 filter invalidation。
+6. P2-9 Ansible 路径已完成修复；继续 P2-16 NULL 语义决策、P2-18 filter invalidation。
 
 #### 第三批：可测量的性能与一致性
 
@@ -309,7 +309,8 @@ P3-1 至 P3-6、P3-8、R-5 至 R-7、R-14、R-15、R-17。X-2 的配置分类治
   review projection 定向 Go 测试通过；仍缺 Redis transport error、cache v0 故障、
   min-width override、reviewed-row action 和 lock-wait 测试。
 - P2-11 对 `openapi-fetch` 的实测确认数组被序列化为重复 `courseIDs` 参数。
-- P2-9 因当前环境未安装 `ansible-playbook`，只有静态确认，运行验收仍是 pending。
+- P2-9 后续已在隔离 venv 安装固定 `ansible-core==2.20.2`，补齐真实 controller 复现、
+  三 playbook syntax check 和修复后 bundle task 执行；仅远端 SSH 上传/部署仍 pending。
 
 ### Codex 修复进度
 
@@ -593,6 +594,7 @@ live rating bar 已完成可达表面的最小修复。优先做一处根因、�
 | WF26：反向复核 / 非法 FGA section | 部分真实 P2，已完成单 grant 隔离、可观测性与失败关闭回归 | `ListObjects` 成功返回的每个 section ID 独立经过既有 codec；解析失败项不再把 resolver 整体变成 dependency error，但也绝不进入 `orgScopedRoles`。混合列表保留合法 scope，纯无效列表展开为零 capability；OpenFGA transport/server error 在过滤前返回，继续映射 503。无效项用无 label counter 控制基数、结构化 warning 定位，并由告警要求人工 reconcile；由于 #11 的权威来源尚未决定，读路径不自动删除 tuple。 |
 | WF27：反向复核 / live rating bar | 部分真实 P2，已完成可达表面的定性可访问名称与双视口回归 | Claude 引用的通用 RatingBar 是 dead code，不能靠修改它关闭问题；真实 CourseDetailPage 的维度条改为一个具名图像语义，复用 `normalizeRatingLevel` 和现有 `review.rating.face1..5`。helper 与 policy 测试固定“不含原始 4.6”，桌面/移动 Chromium 读取“教学质量：超赞”且页面找不到精确数值。没有改评分 API、产品显示策略、dead component 或新增 ARIA 数值进度条。 |
 | WF28：X-2 / runtime env 模板差集 | 较窄 P2 真实，已完成 AST 复枚举、分类修复和 CI 接线 | 实施前 config 包有 184 个字面量运行时键、17 个未进入任一模板；Claude 的 187/21 和本文件早先的 181 都不是准确的 config 包计数。13 个 operator-facing 键进入两个模板，`LOG_SERVICE_VERSION` 删除后当前为 183 个；`AWS_CA_BUNDLE` 与两个 `LOG_*` fallback override 用显式理由保留在 3 项 allowlist。Go AST 测试遍历整个 config 包，要求字面量 key、模板/allowlist 覆盖并拒绝陈旧 allowlist；CI backend filter 同时覆盖两个模板。没有扫描或模板化全仓工具/测试变量，也没有建立一套新配置 schema/generator。 |
+| WF29：P2-9 / Ansible bundle path | 真实 P2，已完成故障机理纠正、真实 controller 修复验证和 CI 门禁 | Ansible Core 2.20.2 源码与 cwd probe 都证明 localhost task 从 playbook basedir 执行，所以旧 `../../ops` 可找到脚本；旧任务真实失败在脚本内部 `git -C` 令相对 output 再换基准。干净 clone 先复现 `git archive` 无法打开输出，再以候选改动真实执行唯一 `deploy-bundle` tag 成功，产物含两个 env 模板。实现只使用 `playbook_dir` 绝对 argv、脚本默认输出、同源 copy src 和无用 facts 禁用；固定 requirements、core-compatible callback、syntax/bundle CI 与窄契约覆盖，不扫描其他 shell task。 |
 
 ### 本轮交叉验证与尚未验证边界
 
@@ -766,6 +768,15 @@ live rating bar 已完成可达表面的最小修复。优先做一处根因、�
   build、Actionlint、文档卫生、开发/生产 env 初始化 contract 和全部 infra contracts 均通过；
   新增模板空值保持现有 scopes default、OIDC discovery、邮件默认 failover 和 TLS 非 mTLS
   行为，没有改变运行时默认值。
+- P2-9 使用隔离 venv 中固定的 Ansible Core 2.20.2 做了两层反证：通用 localhost cwd probe
+  返回 playbook basedir，固定源码也明确在 local connection 上设置
+  `_connection.cwd = _loader.get_basedir()`，因此原报告“脚本必然找不到”不成立；但在干净 clone
+  原样执行旧 task 时，脚本进入后因相对 output 配合 `git -C` 返回 128 和
+  `could not open '../../generated/deploy/bundle.*.tar.gz'`。候选修复的三个 playbook syntax
+  check 全部通过，单独执行 `--tags deploy-bundle` 为 1/1，生成的目标 tar 确实包含
+  `.env.example` 与 `.env.prod.example`。窄路径 contract、CI/drift、Actionlint、全部 infra
+  contracts 和文档卫生通过；没有连接 staging/production SSH，也没有执行 upload、preflight
+  或远端 deploy，因此这些仍是发布验收边界。
 
 测试通过只说明现有正向契约未被破坏，不能覆盖报告指出的所有负向场景。以下仍需在真正处置时
 单独验收：
@@ -819,6 +830,7 @@ live rating bar 已完成可达表面的最小修复。优先做一处根因、�
 | 反向-FGA | 已修复，待发布；生产告警投递与人工 tuple reconcile 待验收 | 无效 section grant 独立忽略、计数并 warning，合法 grant 保留，纯无效得到零 scope，真实 OpenFGA error 仍失败关闭；Prometheus warning alert 已接线。定向 race、全服务端 race、lint/build、全部 infra contracts 与 docs 通过 | `fix(authz): isolate invalid OpenFGA role scopes` |
 | 反向-RatingBar | 已修复，待发布 | 只修改可达 CourseDetailPage：维度条以定性 `role=img` 名称暴露，视觉层隐藏，复用既有 face bucket，精确 avg 不进入辅助文本。helper/policy 10/10、双视口 Chromium 2/2、全部受控 Web unit 516/516、type-check、ESLint、production build 与 docs 通过 | `fix(web): describe course rating bars qualitatively` |
 | X-2 / I-2 | 已修复，待 CI/发布验收 | 实施前 AST 精确枚举 184 runtime keys / 17 missing；13 个 operator-facing 键补入两模板，删除死 `LOG_SERVICE_VERSION`，3 个兼容 override 留在带理由 allowlist。当前 183 runtime keys 全覆盖；全服务端 race/lint/build、Actionlint、docs、dev/prod env 初始化和全部 infra contracts 通过，模板改动已接入 Backend job | `fix(config): keep runtime env templates complete` |
+| P2-9 | 已修复，待 CI/远端发布验收 | 旧任务在干净 clone 的真实 Ansible Core 2.20.2 中找到脚本后，于相对 output + `git -C` 处稳定失败；候选改动三 playbook syntax 通过，`deploy-bundle` tag 1/1 并生成含两个 env 模板的目标 tar。固定 controller requirements、core-compatible callback、窄路径/CI contract、Actionlint、全部 infra contracts 和 docs 通过；未连接远端 | `fix(deploy): anchor Ansible bundle paths` |
 
 ## Claude 原审计的确认问题分布（保留原始记录）
 

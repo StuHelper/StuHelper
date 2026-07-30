@@ -3,7 +3,7 @@ type: guide
 audience: ops
 status: current
 authoritative-source: this file
-last-verified: 2026-07-29
+last-verified: 2026-07-31
 ---
 
 # 一键启动与部署
@@ -330,3 +330,15 @@ make ansible-rollback-prod
 - `infra/ansible/inventory/production.ini`
 
 仓库里已经给了同目录示例文件，可以直接改。
+
+控制端使用仓库固定的 Ansible Core 版本；建议安装到项目内的忽略目录，避免污染系统 Python：
+
+```bash
+python3 -m venv .venv/ansible
+.venv/ansible/bin/pip install --requirement infra/ansible/requirements.txt
+export PATH="$PWD/.venv/ansible/bin:$PATH"
+```
+
+部署 playbook 在控制端以 `playbook_dir` 锚定 bundle 构建脚本和上传文件；构建脚本自行使用
+仓库绝对路径发布 `infra/generated/deploy/stuhelper-deploy-bundle.tar.gz`。不要重新传入相对
+输出路径：脚本内部的 `git -C` 会改变 Git 子进程解析该路径的基准。

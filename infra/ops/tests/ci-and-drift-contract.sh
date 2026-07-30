@@ -140,7 +140,7 @@ infra_job_block="$(sed -n '/^  infra:$/,/^  runtime-image-security:$/p' "${GITHU
 if grep -Eq '^    container:' <<<"${infra_job_block}"; then
   fail "GitHub infrastructure contracts require the hosted runner Docker CLI and must not run in a job container"
 fi
-if ! grep -Eq '^[[:space:]]+sudo apt-get install --yes curl jq openssl$' <<<"${infra_job_block}"; then
+if ! grep -Eq '^[[:space:]]+sudo apt-get install --yes curl jq openssl python3-venv$' <<<"${infra_job_block}"; then
   fail "GitHub infrastructure contracts must install host dependencies with sudo"
 fi
 if ! grep -Eq '^[[:space:]]+run: pnpm --filter @stuhelper/web exec playwright install --with-deps chromium$' <<<"${infra_job_block}"; then

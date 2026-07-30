@@ -565,7 +565,23 @@ jobs:
       - name: Install contract dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install --yes curl jq openssl
+          sudo apt-get install --yes curl jq openssl python3-venv
+
+      - name: Install pinned Ansible controller
+        run: |
+          python3 -m venv "${RUNNER_TEMP}/stuhelper-ansible"
+          "${RUNNER_TEMP}/stuhelper-ansible/bin/pip" install \
+            --disable-pip-version-check \
+            --requirement infra/ansible/requirements.txt
+          echo "${RUNNER_TEMP}/stuhelper-ansible/bin" >> "${GITHUB_PATH}"
+
+      - name: Validate Ansible playbooks and bundle path
+        working-directory: infra/ansible
+        run: |
+          ansible-playbook -i inventory/staging.example.ini --syntax-check playbooks/bootstrap.yml
+          ansible-playbook -i inventory/staging.example.ini --syntax-check playbooks/deploy.yml
+          ansible-playbook -i inventory/staging.example.ini --syntax-check playbooks/rollback.yml
+          ansible-playbook -i inventory/staging.example.ini playbooks/deploy.yml --tags deploy-bundle
 
       - name: Install browser client dependencies used by smoke contracts
         working-directory: clients
