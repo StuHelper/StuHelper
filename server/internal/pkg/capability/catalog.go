@@ -16,6 +16,7 @@ const (
 	UserSchoolUpdate   = "user:school:update"
 	UserSystemRead     = "user:system:read"
 	UserSystemUpdate   = "user:system:update"
+	IAMGrantsManage    = "iam:grants:manage"
 
 	AdmissionPolicyRead     = "admission:policy:read"
 	AdmissionPolicyUpdate   = "admission:policy:update"
@@ -43,6 +44,7 @@ var roleCapabilities = map[string][]string{
 		UserStudentRead, UserStudentReview,
 		UserSchoolRead, UserSchoolUpdate,
 		UserSystemRead, UserSystemUpdate,
+		IAMGrantsManage,
 		AdmissionPolicyRead, AdmissionPolicyUpdate,
 		AdmissionFreshmanRead, AdmissionFreshmanReview,
 		AdmissionSessionRead, AdmissionSessionManage,
@@ -87,6 +89,7 @@ var AdminEntryCapabilities = []string{
 	UserSchoolUpdate,
 	UserSystemRead,
 	UserSystemUpdate,
+	IAMGrantsManage,
 	AdmissionPolicyRead,
 	AdmissionPolicyUpdate,
 	AdmissionFreshmanRead,

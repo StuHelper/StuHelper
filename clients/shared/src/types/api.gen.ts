@@ -3293,6 +3293,94 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/authorization/grants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 查询管理员授权账本
+         * @description 查询 PostgreSQL 授权唯一管理真源。需要全局 `iam:grants:manage`
+         *     capability；返回期望状态与 OpenFGA 投影状态，便于识别 pending/failed grant。
+         */
+        get: operations["listAuthorizationGrants"];
+        put?: never;
+        /**
+         * 创建或恢复管理员授权
+         * @description 在同一 PostgreSQL 事务中写入 grant desired state、不可变审计和 outbox。
+         *     返回成功只表示期望状态已接受；只有 `projectionStatus=applied` 后授权才会生效。
+         *     需要全局 `iam:grants:manage` capability 和最近 5 分钟内的 step-up MFA。
+         */
+        post: operations["createAuthorizationGrant"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/authorization/grants/{grantID}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取单条管理员授权 */
+        get: operations["getAuthorizationGrant"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/authorization/grants/{grantID}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 撤销管理员授权
+         * @description 先提交 PostgreSQL `desiredState=revoked`，因此请求成功后撤权围栏立即拒绝，
+         *     不等待 OpenFGA tuple 删除完成。不能撤销最后一名已生效 super_admin。
+         *     需要全局 `iam:grants:manage` capability 和最近 5 分钟内的 step-up MFA。
+         */
+        post: operations["revokeAuthorizationGrant"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/authorization/grants/{grantID}/reconcile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 重新对账并投影管理员授权
+         * @description 针对账本中的当前 desired state 增加 revision、写入审计并重新生成 outbox 投影。
+         *     不接受任意 OpenFGA tuple。重放期间 grant 进入 pending：授予 fail-closed，撤销继续被围栏拒绝。
+         *     需要全局 `iam:grants:manage` capability 和最近 5 分钟内的 step-up MFA。
+         */
+        post: operations["reconcileAuthorizationGrant"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/admission/policies": {
         parameters: {
             query?: never;
@@ -4335,6 +4423,84 @@ export interface components {
             /** @enum {string} */
             profileVerificationStatus: "unverified" | "pending" | "verified" | "rejected";
             studentVerified: boolean;
+        };
+        /**
+         * @description StuHelper 固定管理员角色；角色与 scope 组合由服务端白名单校验。
+         * @enum {string}
+         */
+        AuthorizationRole: "super_admin" | "school_admin" | "section_admin" | "section_moderator" | "section_reviewer";
+        /**
+         * @description PostgreSQL 授权账本中的期望状态。
+         * @enum {string}
+         */
+        AuthorizationDesiredState: "granted" | "revoked";
+        /**
+         * @description 授权期望状态向 OpenFGA 运行时关系面的投影状态。
+         * @enum {string}
+         */
+        AuthorizationProjectionStatus: "pending" | "applied" | "failed";
+        AuthorizationGrant: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            subjectUserID: number;
+            subjectUsername: string;
+            subjectDisplayName: string;
+            role: components["schemas"]["AuthorizationRole"];
+            /**
+             * Format: int64
+             * @description school_admin 与 section_* 角色必填；super_admin 不得提供。
+             */
+            schoolID?: number;
+            /** @description section_* 角色必填；当前只接受受支持的 review-moderation section ID。 */
+            sectionID?: string;
+            desiredState: components["schemas"]["AuthorizationDesiredState"];
+            projectionStatus: components["schemas"]["AuthorizationProjectionStatus"];
+            /**
+             * Format: int64
+             * @description grant/revoke/reconcile 每次变更时单调递增，用于隔离陈旧 outbox 投影。
+             */
+            revision: number;
+            reason: string;
+            /** Format: date-time */
+            activatedAt?: string;
+            /** Format: date-time */
+            revokedAt?: string;
+            /** Format: date-time */
+            projectedAt?: string;
+            /** @description 最近一次终态投影失败的脱敏错误摘要。 */
+            lastError?: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        AuthorizationGrantList: {
+            list: components["schemas"]["AuthorizationGrant"][];
+            total: number;
+        };
+        CreateAuthorizationGrantRequest: {
+            /** Format: int64 */
+            subjectUserID: number;
+            role: components["schemas"]["AuthorizationRole"];
+            /**
+             * Format: int64
+             * @description school_admin 与 section_* 角色必填；super_admin 不得提供。
+             */
+            schoolID?: number;
+            /** @description section_* 角色必填；其他角色不得提供。 */
+            sectionID?: string;
+            /** @description 必填的授权业务理由，会写入不可变审计。 */
+            reason: string;
+        };
+        AuthorizationGrantMutationRequest: {
+            /** @description 必填的撤销或对账理由，会写入不可变审计。 */
+            reason: string;
+        };
+        AuthorizationGrantMutationResult: {
+            grant: components["schemas"]["AuthorizationGrant"];
+            /** @description false 表示相同目标状态已生效，本次请求按幂等成功处理。 */
+            changed: boolean;
         };
         OpenPlatformScopeDefinition: {
             scope: components["schemas"]["OpenPlatformScope"];
@@ -5659,6 +5825,8 @@ export interface components {
         ResourceIDPath: number;
         /** @description 存储挂载点 ID */
         MountIDPath: number;
+        /** @description 授权账本 ID */
+        GrantID: number;
     };
     requestBodies: never;
     headers: never;
@@ -11771,6 +11939,175 @@ export interface operations {
             401: components["responses"]["ErrorResponse"];
             403: components["responses"]["ErrorResponse"];
             404: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    listAuthorizationGrants: {
+        parameters: {
+            query?: {
+                subjectUserID?: number;
+                role?: components["schemas"]["AuthorizationRole"];
+                desiredState?: components["schemas"]["AuthorizationDesiredState"];
+                projectionStatus?: components["schemas"]["AuthorizationProjectionStatus"];
+                /** @description 页码 */
+                page?: components["parameters"]["PageParam"];
+                /** @description 每页数量 */
+                pageSize?: components["parameters"]["PageSizeParam"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 授权账本分页列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["AuthorizationGrantList"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    createAuthorizationGrant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateAuthorizationGrantRequest"];
+            };
+        };
+        responses: {
+            /** @description 授权期望状态已创建或恢复 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["AuthorizationGrantMutationResult"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            412: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    getAuthorizationGrant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 授权账本 ID */
+                grantID: components["parameters"]["GrantID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 授权详情 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["AuthorizationGrant"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    revokeAuthorizationGrant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 授权账本 ID */
+                grantID: components["parameters"]["GrantID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuthorizationGrantMutationRequest"];
+            };
+        };
+        responses: {
+            /** @description 撤权期望状态已提交 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["AuthorizationGrantMutationResult"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+            412: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    reconcileAuthorizationGrant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 授权账本 ID */
+                grantID: components["parameters"]["GrantID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuthorizationGrantMutationRequest"];
+            };
+        };
+        responses: {
+            /** @description 对账投影已重新入队 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["AuthorizationGrantMutationResult"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+            412: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
         };
     };

@@ -151,6 +151,57 @@ func TestAuthorizationGrantRevisionSupersedesPendingProjection(t *testing.T) {
 	assert.Empty(t, projector.snapshot())
 }
 
+func TestAuthorizationReconcileRequeuesCurrentDesiredStateFailClosed(t *testing.T) {
+	ctx := context.Background()
+	postgres := postgresfixture.Start(t)
+	repo := NewRepository(postgres.DB)
+	projector := newFakeProjectionClient()
+	service := NewService(repo, WithProjectionClient(projector))
+
+	actorID := seedAuthorizationUser(t, postgres, "reconcile-actor")
+	targetID := seedAuthorizationUser(t, postgres, "reconcile-target")
+	schoolID := seedAuthorizationSchool(t, postgres, 4111010008)
+
+	created, err := service.CreateGrant(ctx, CreateGrantInput{
+		SubjectUserID: targetID,
+		Role:          RoleSchoolAdmin,
+		SchoolID:      &schoolID,
+		Reason:        "school administration",
+		ActorUserID:   actorID,
+	})
+	require.NoError(t, err)
+	require.NoError(t, service.ProcessProjectionBatch(ctx))
+
+	reconciled, err := service.ReconcileGrant(ctx, ReconcileGrantInput{
+		GrantID:     created.Grant.ID,
+		Reason:      "repair serving projection",
+		ActorUserID: actorID,
+	})
+	require.NoError(t, err)
+	assert.True(t, reconciled.Changed)
+	assert.Equal(t, DesiredGranted, reconciled.Grant.DesiredState)
+	assert.Equal(t, ProjectionPending, reconciled.Grant.ProjectionStatus)
+	assert.Greater(t, reconciled.Grant.Revision, created.Grant.Revision)
+	assertAuthorizationOutboxStatus(t, postgres, created.Grant.ID, outbox.StatusPending)
+	assertAuthorizationAuditCount(t, postgres, created.Grant.ID, "reconcile", 1)
+
+	duringReconcile, err := repo.ResolveAccessSnapshot(ctx, "reconcile-target-subject")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"user"}, duringReconcile.Roles)
+
+	require.NoError(t, service.ProcessProjectionBatch(ctx))
+	applied, err := repo.GetGrant(ctx, created.Grant.ID)
+	require.NoError(t, err)
+	assert.Equal(t, ProjectionApplied, applied.ProjectionStatus)
+
+	projection := ProjectionApplied
+	list, err := service.ListGrants(ctx, ListGrantsFilter{Projection: &projection})
+	require.NoError(t, err)
+	require.Len(t, list.Items, 1)
+	assert.Equal(t, created.Grant.ID, list.Items[0].ID)
+	assert.NotEmpty(t, list.Items[0].SubjectUsername)
+}
+
 func TestAuthorizationPreventsRevokingLastAppliedSuperAdmin(t *testing.T) {
 	ctx := context.Background()
 	postgres := postgresfixture.Start(t)

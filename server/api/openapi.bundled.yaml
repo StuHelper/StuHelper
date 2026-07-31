@@ -8168,6 +8168,238 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         '500':
           $ref: '#/components/responses/ErrorResponse'
+  /api/v1/admin/authorization/grants:
+    get:
+      tags:
+        - Admin
+      operationId: listAuthorizationGrants
+      summary: 查询管理员授权账本
+      description: |
+        查询 PostgreSQL 授权唯一管理真源。需要全局 `iam:grants:manage`
+        capability；返回期望状态与 OpenFGA 投影状态，便于识别 pending/failed grant。
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: subjectUserID
+          in: query
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+        - name: role
+          in: query
+          schema:
+            $ref: '#/components/schemas/AuthorizationRole'
+        - name: desiredState
+          in: query
+          schema:
+            $ref: '#/components/schemas/AuthorizationDesiredState'
+        - name: projectionStatus
+          in: query
+          schema:
+            $ref: '#/components/schemas/AuthorizationProjectionStatus'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 授权账本分页列表
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AuthorizationGrantList'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+    post:
+      tags:
+        - Admin
+      operationId: createAuthorizationGrant
+      summary: 创建或恢复管理员授权
+      description: |
+        在同一 PostgreSQL 事务中写入 grant desired state、不可变审计和 outbox。
+        返回成功只表示期望状态已接受；只有 `projectionStatus=applied` 后授权才会生效。
+        需要全局 `iam:grants:manage` capability 和最近 5 分钟内的 step-up MFA。
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAuthorizationGrantRequest'
+      responses:
+        '201':
+          description: 授权期望状态已创建或恢复
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AuthorizationGrantMutationResult'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '412':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/admin/authorization/grants/{grantID}:
+    get:
+      tags:
+        - Admin
+      operationId: getAuthorizationGrant
+      summary: 获取单条管理员授权
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/GrantID'
+      responses:
+        '200':
+          description: 授权详情
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AuthorizationGrant'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/admin/authorization/grants/{grantID}/revoke:
+    post:
+      tags:
+        - Admin
+      operationId: revokeAuthorizationGrant
+      summary: 撤销管理员授权
+      description: |
+        先提交 PostgreSQL `desiredState=revoked`，因此请求成功后撤权围栏立即拒绝，
+        不等待 OpenFGA tuple 删除完成。不能撤销最后一名已生效 super_admin。
+        需要全局 `iam:grants:manage` capability 和最近 5 分钟内的 step-up MFA。
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/GrantID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthorizationGrantMutationRequest'
+      responses:
+        '200':
+          description: 撤权期望状态已提交
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AuthorizationGrantMutationResult'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '412':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
+  /api/v1/admin/authorization/grants/{grantID}/reconcile:
+    post:
+      tags:
+        - Admin
+      operationId: reconcileAuthorizationGrant
+      summary: 重新对账并投影管理员授权
+      description: |
+        针对账本中的当前 desired state 增加 revision、写入审计并重新生成 outbox 投影。
+        不接受任意 OpenFGA tuple。重放期间 grant 进入 pending：授予 fail-closed，撤销继续被围栏拒绝。
+        需要全局 `iam:grants:manage` capability 和最近 5 分钟内的 step-up MFA。
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/GrantID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthorizationGrantMutationRequest'
+      responses:
+        '200':
+          description: 对账投影已重新入队
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AuthorizationGrantMutationResult'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '412':
+          $ref: '#/components/responses/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/ErrorResponse'
   /api/v1/admin/admission/policies:
     get:
       tags:
@@ -10852,6 +11084,161 @@ components:
             - rejected
         studentVerified:
           type: boolean
+    AuthorizationRole:
+      type: string
+      description: StuHelper 固定管理员角色；角色与 scope 组合由服务端白名单校验。
+      enum:
+        - super_admin
+        - school_admin
+        - section_admin
+        - section_moderator
+        - section_reviewer
+    AuthorizationDesiredState:
+      type: string
+      description: PostgreSQL 授权账本中的期望状态。
+      enum:
+        - granted
+        - revoked
+    AuthorizationProjectionStatus:
+      type: string
+      description: 授权期望状态向 OpenFGA 运行时关系面的投影状态。
+      enum:
+        - pending
+        - applied
+        - failed
+    AuthorizationGrant:
+      type: object
+      required:
+        - id
+        - subjectUserID
+        - subjectUsername
+        - subjectDisplayName
+        - role
+        - desiredState
+        - projectionStatus
+        - revision
+        - reason
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: integer
+          format: int64
+          minimum: 1
+        subjectUserID:
+          type: integer
+          format: int64
+          minimum: 1
+        subjectUsername:
+          type: string
+        subjectDisplayName:
+          type: string
+        role:
+          $ref: '#/components/schemas/AuthorizationRole'
+        schoolID:
+          type: integer
+          format: int64
+          minimum: 1
+          description: school_admin 与 section_* 角色必填；super_admin 不得提供。
+        sectionID:
+          type: string
+          minLength: 1
+          description: section_* 角色必填；当前只接受受支持的 review-moderation section ID。
+        desiredState:
+          $ref: '#/components/schemas/AuthorizationDesiredState'
+        projectionStatus:
+          $ref: '#/components/schemas/AuthorizationProjectionStatus'
+        revision:
+          type: integer
+          format: int64
+          minimum: 1
+          description: grant/revoke/reconcile 每次变更时单调递增，用于隔离陈旧 outbox 投影。
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+        activatedAt:
+          type: string
+          format: date-time
+        revokedAt:
+          type: string
+          format: date-time
+        projectedAt:
+          type: string
+          format: date-time
+        lastError:
+          type: string
+          maxLength: 1000
+          description: 最近一次终态投影失败的脱敏错误摘要。
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    AuthorizationGrantList:
+      type: object
+      required:
+        - list
+        - total
+      properties:
+        list:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuthorizationGrant'
+        total:
+          type: integer
+          minimum: 0
+    CreateAuthorizationGrantRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - subjectUserID
+        - role
+        - reason
+      properties:
+        subjectUserID:
+          type: integer
+          format: int64
+          minimum: 1
+        role:
+          $ref: '#/components/schemas/AuthorizationRole'
+        schoolID:
+          type: integer
+          format: int64
+          minimum: 1
+          description: school_admin 与 section_* 角色必填；super_admin 不得提供。
+        sectionID:
+          type: string
+          minLength: 1
+          description: section_* 角色必填；其他角色不得提供。
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: 必填的授权业务理由，会写入不可变审计。
+    AuthorizationGrantMutationRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - reason
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: 必填的撤销或对账理由，会写入不可变审计。
+    AuthorizationGrantMutationResult:
+      type: object
+      required:
+        - grant
+        - changed
+      properties:
+        grant:
+          $ref: '#/components/schemas/AuthorizationGrant'
+        changed:
+          type: boolean
+          description: false 表示相同目标状态已生效，本次请求按幂等成功处理。
     OpenPlatformScopeDefinition:
       type: object
       required:
@@ -13990,3 +14377,12 @@ components:
       schema:
         type: integer
         format: int64
+    GrantID:
+      name: grantID
+      in: path
+      required: true
+      description: 授权账本 ID
+      schema:
+        type: integer
+        format: int64
+        minimum: 1

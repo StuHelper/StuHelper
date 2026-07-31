@@ -83,10 +83,17 @@ type RevokeGrantInput struct {
 	ActorUserID int64
 }
 
+type ReconcileGrantInput struct {
+	GrantID     int64
+	Reason      string
+	ActorUserID int64
+}
+
 type ListGrantsFilter struct {
 	SubjectUserID *int64
 	Role          *Role
 	DesiredState  *DesiredState
+	Projection    *ProjectionStatus
 	Limit         int
 	Offset        int
 }

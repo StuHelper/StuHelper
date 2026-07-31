@@ -53,6 +53,56 @@ func normalizeRevokeGrantInput(input RevokeGrantInput) (RevokeGrantInput, error)
 	return input, nil
 }
 
+func normalizeReconcileGrantInput(input ReconcileGrantInput) (ReconcileGrantInput, error) {
+	input.Reason = strings.TrimSpace(input.Reason)
+	if input.GrantID <= 0 || input.ActorUserID <= 0 {
+		return ReconcileGrantInput{}, ErrInvalidGrant
+	}
+	if err := validateReason(input.Reason); err != nil {
+		return ReconcileGrantInput{}, err
+	}
+	return input, nil
+}
+
+func normalizeListGrantsFilter(filter ListGrantsFilter) (ListGrantsFilter, error) {
+	if filter.SubjectUserID != nil && *filter.SubjectUserID <= 0 {
+		return ListGrantsFilter{}, ErrInvalidGrant
+	}
+	if filter.Role != nil && !isSupportedRole(*filter.Role) {
+		return ListGrantsFilter{}, ErrInvalidGrant
+	}
+	if filter.DesiredState != nil &&
+		*filter.DesiredState != DesiredGranted &&
+		*filter.DesiredState != DesiredRevoked {
+		return ListGrantsFilter{}, ErrInvalidGrant
+	}
+	if filter.Projection != nil &&
+		*filter.Projection != ProjectionPending &&
+		*filter.Projection != ProjectionApplied &&
+		*filter.Projection != ProjectionFailed {
+		return ListGrantsFilter{}, ErrInvalidGrant
+	}
+	if filter.Limit <= 0 {
+		filter.Limit = 50
+	}
+	if filter.Limit > 100 {
+		filter.Limit = 100
+	}
+	if filter.Offset < 0 {
+		return ListGrantsFilter{}, ErrInvalidGrant
+	}
+	return filter, nil
+}
+
+func isSupportedRole(role Role) bool {
+	switch role {
+	case RoleSuperAdmin, RoleSchoolAdmin, RoleSectionAdmin, RoleSectionModerator, RoleSectionReviewer:
+		return true
+	default:
+		return false
+	}
+}
+
 func validateReason(reason string) error {
 	if reason == "" || len([]rune(reason)) > maxReasonLength {
 		return fmt.Errorf("%w: reason must contain 1-%d characters", ErrInvalidGrant, maxReasonLength)

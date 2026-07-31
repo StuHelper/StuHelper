@@ -13,6 +13,7 @@ import (
 	"github.com/StuHelper/StuHelper/server/internal/modules/academics"
 	"github.com/StuHelper/StuHelper/server/internal/modules/admission"
 	"github.com/StuHelper/StuHelper/server/internal/modules/auth"
+	authorizationmodule "github.com/StuHelper/StuHelper/server/internal/modules/authorization"
 	"github.com/StuHelper/StuHelper/server/internal/modules/notification"
 	"github.com/StuHelper/StuHelper/server/internal/modules/resource"
 	"github.com/StuHelper/StuHelper/server/internal/modules/storage"
@@ -57,6 +58,16 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 	rt.fgaClient = fgaClient
 
 	userRepo := user.NewRepository(rt.database, crypto.GetHMACKey())
+	authorizationRepo := authorizationmodule.NewRepository(rt.database)
+	authorizationService := authorizationmodule.NewService(
+		authorizationRepo,
+		authorizationmodule.WithProjectionClient(fgaClient),
+	)
+	authorizationService.StartBackgroundJobs(bgCtx, startBackgroundTask)
+	authorizationHandler := authorizationmodule.NewHandler(
+		authorizationService,
+		authorizationAdminAuthorizers(),
+	)
 	roleScopeResolver, err := platformauth.NewRoleScopeResolver(fgaClient, userRepo.GetInternalUserID)
 	if err != nil {
 		return err
@@ -217,7 +228,16 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 	userService.StartBackgroundJobs(bgCtx, startBackgroundTask)
 	rt.registerUserRoutes(api, userHandler, authMW)
 	botHandler.RegisterRoutes(api)
-	rt.registerAdminRoutes(api, userRepo, userHandler, authHandler, admissionHandler, openPlatformHandler, authMW)
+	rt.registerAdminRoutes(
+		api,
+		userRepo,
+		userHandler,
+		authHandler,
+		authorizationHandler,
+		admissionHandler,
+		openPlatformHandler,
+		authMW,
+	)
 
 	courseModule.StartBackgroundJobs(bgCtx, startBackgroundTask)
 

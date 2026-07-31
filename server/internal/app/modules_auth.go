@@ -9,6 +9,7 @@ import (
 
 	"github.com/StuHelper/StuHelper/server/internal/modules/admission"
 	"github.com/StuHelper/StuHelper/server/internal/modules/auth"
+	authorizationmodule "github.com/StuHelper/StuHelper/server/internal/modules/authorization"
 	"github.com/StuHelper/StuHelper/server/internal/modules/rbac"
 	"github.com/StuHelper/StuHelper/server/internal/modules/user"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/config"
@@ -103,6 +104,7 @@ func (rt *Runtime) registerAdminRoutes(
 	userRepo user.MFAContextRepository,
 	userHandler *user.Handler,
 	authHandler *auth.Handler,
+	authorizationHandler *authorizationmodule.Handler,
 	admissionHandler *admission.Handler,
 	openPlatformHandler adminRouteRegistrar,
 	authMW gin.HandlerFunc,
@@ -112,6 +114,7 @@ func (rt *Runtime) registerAdminRoutes(
 	middlewares = append(middlewares, adminEntryAuthorizer())
 	adminGroup.Use(middlewares...)
 	authHandler.RegisterAdminRoutes(adminGroup)
+	authorizationHandler.RegisterAdminRoutes(adminGroup)
 	userHandler.RegisterAdminRoutes(adminGroup)
 	admissionHandler.RegisterAdminRoutes(adminGroup)
 	if openPlatformHandler != nil {

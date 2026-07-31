@@ -135,25 +135,8 @@ func (r *Repository) RevokeGrant(ctx context.Context, input RevokeGrantInput) (M
 			return nil
 		}
 
-		if before.Role == RoleSuperAdmin &&
-			before.DesiredState == DesiredGranted &&
-			before.ProjectionStatus == ProjectionApplied {
-			if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, superAdminMutationAdvisoryLock); err != nil {
-				return fmt.Errorf("lock super admin mutation: %w", err)
-			}
-			var activeCount int
-			if err := tx.QueryRow(ctx, `
-				SELECT COUNT(*)
-				FROM authorization_grants
-				WHERE role = 'super_admin'
-				  AND desired_state = 'granted'
-				  AND projection_status = 'applied'
-			`).Scan(&activeCount); err != nil {
-				return fmt.Errorf("count active super admins: %w", err)
-			}
-			if activeCount <= 1 {
-				return ErrLastSuperAdmin
-			}
+		if err := ensureSuperAdminCanLeaveAppliedTx(ctx, tx, before); err != nil {
+			return err
 		}
 
 		updated, err := revokeGrantTx(ctx, tx, before, input)
@@ -172,11 +155,41 @@ func (r *Repository) RevokeGrant(ctx context.Context, input RevokeGrantInput) (M
 	return result, nil
 }
 
+func (r *Repository) ReconcileGrant(ctx context.Context, input ReconcileGrantInput) (MutationResult, error) {
+	var result MutationResult
+	err := r.db.WithTx(db.WithTableHint(ctx, authorizationGrantsTable), func(ctx context.Context, tx pgx.Tx) error {
+		before, err := getGrantForUpdateTx(ctx, tx, input.GrantID)
+		if err != nil {
+			return err
+		}
+		if err := ensureSuperAdminCanLeaveAppliedTx(ctx, tx, before); err != nil {
+			return err
+		}
+
+		updated, err := reconcileGrantTx(ctx, tx, before, input)
+		if err != nil {
+			return err
+		}
+		result = MutationResult{Grant: updated, Changed: true}
+		if err := enqueueProjectionTx(ctx, tx, updated); err != nil {
+			return err
+		}
+		return insertGrantAuditTx(ctx, tx, "reconcile", input.ActorUserID, input.Reason, before, updated)
+	})
+	if err != nil {
+		return MutationResult{}, err
+	}
+	return result, nil
+}
+
 func (r *Repository) GetGrant(ctx context.Context, grantID int64) (Grant, error) {
 	ctx = db.WithTableHint(ctx, authorizationGrantsTable)
-	grant, err := scanGrant(r.db.QueryRow(ctx, `
-		SELECT `+grantColumns+`
+	grant, err := scanGrantWithSubjectOnly(r.db.QueryRow(ctx, `
+		SELECT `+grantColumns+`,
+		       u.username,
+		       COALESCE(NULLIF(u.username, ''), u.casdoor_subject)
 		FROM authorization_grants g
+		JOIN users u ON u.id = g.subject_user_id
 		WHERE g.id = $1
 	`, grantID))
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -214,6 +227,9 @@ func (r *Repository) ListGrants(ctx context.Context, filter ListGrantsFilter) (G
 	}
 	if filter.DesiredState != nil {
 		add(*filter.DesiredState, "g.desired_state = $%d")
+	}
+	if filter.Projection != nil {
+		add(*filter.Projection, "g.projection_status = $%d")
 	}
 	args = append(args, filter.Limit, filter.Offset)
 	limitPosition := len(args) - 1
@@ -440,6 +456,55 @@ func revokeGrantTx(ctx context.Context, tx pgx.Tx, before Grant, input RevokeGra
 	return grant, nil
 }
 
+func reconcileGrantTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	before Grant,
+	input ReconcileGrantInput,
+) (Grant, error) {
+	grant, err := scanGrant(tx.QueryRow(ctx, `
+		UPDATE authorization_grants
+		SET projection_status = 'pending',
+		    revision = revision + 1,
+		    reason = $2,
+		    updated_by_user_id = $3,
+		    projected_at = NULL,
+		    last_error = NULL,
+		    updated_at = NOW()
+		WHERE id = $1
+		RETURNING `+strings.ReplaceAll(grantColumns, "g.", "")+`
+	`, before.ID, input.Reason, input.ActorUserID))
+	if err != nil {
+		return Grant{}, fmt.Errorf("reconcile authorization grant: %w", err)
+	}
+	return grant, nil
+}
+
+func ensureSuperAdminCanLeaveAppliedTx(ctx context.Context, tx pgx.Tx, grant Grant) error {
+	if grant.Role != RoleSuperAdmin ||
+		grant.DesiredState != DesiredGranted ||
+		grant.ProjectionStatus != ProjectionApplied {
+		return nil
+	}
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, superAdminMutationAdvisoryLock); err != nil {
+		return fmt.Errorf("lock super admin mutation: %w", err)
+	}
+	var activeCount int
+	if err := tx.QueryRow(ctx, `
+		SELECT COUNT(*)
+		FROM authorization_grants
+		WHERE role = 'super_admin'
+		  AND desired_state = 'granted'
+		  AND projection_status = 'applied'
+	`).Scan(&activeCount); err != nil {
+		return fmt.Errorf("count active super admins: %w", err)
+	}
+	if activeCount <= 1 {
+		return ErrLastSuperAdmin
+	}
+	return nil
+}
+
 func enqueueProjectionTx(ctx context.Context, tx pgx.Tx, grant Grant) error {
 	payload, err := json.Marshal(ProjectionPayload{
 		GrantID:      grant.ID,
@@ -609,6 +674,35 @@ func scanGrantWithSubject(row pgx.Row, total *int) (Grant, error) {
 	)
 	if err != nil {
 		return Grant{}, fmt.Errorf("scan authorization grant list: %w", err)
+	}
+	return grant, nil
+}
+
+func scanGrantWithSubjectOnly(row pgx.Row) (Grant, error) {
+	var grant Grant
+	err := row.Scan(
+		&grant.ID,
+		&grant.SubjectUserID,
+		&grant.Role,
+		&grant.SchoolID,
+		&grant.SectionID,
+		&grant.DesiredState,
+		&grant.ProjectionStatus,
+		&grant.Revision,
+		&grant.Reason,
+		&grant.CreatedByUserID,
+		&grant.UpdatedByUserID,
+		&grant.ActivatedAt,
+		&grant.RevokedAt,
+		&grant.ProjectedAt,
+		&grant.LastError,
+		&grant.CreatedAt,
+		&grant.UpdatedAt,
+		&grant.SubjectUsername,
+		&grant.SubjectDisplayName,
+	)
+	if err != nil {
+		return Grant{}, fmt.Errorf("scan authorization grant: %w", err)
 	}
 	return grant, nil
 }

@@ -1,0 +1,237 @@
+/api/v1/admin/authorization/grants:
+  get:
+    tags: [Admin]
+    operationId: listAuthorizationGrants
+    summary: 查询管理员授权账本
+    description: |
+      查询 PostgreSQL 授权唯一管理真源。需要全局 `iam:grants:manage`
+      capability；返回期望状态与 OpenFGA 投影状态，便于识别 pending/failed grant。
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: subjectUserID
+        in: query
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: role
+        in: query
+        schema:
+          $ref: '../components/schemas/authorization.yaml#/AuthorizationRole'
+      - name: desiredState
+        in: query
+        schema:
+          $ref: '../components/schemas/authorization.yaml#/AuthorizationDesiredState'
+      - name: projectionStatus
+        in: query
+        schema:
+          $ref: '../components/schemas/authorization.yaml#/AuthorizationProjectionStatus'
+      - $ref: '../components/parameters/common.yaml#/PageParam'
+      - $ref: '../components/parameters/common.yaml#/PageSizeParam'
+    responses:
+      '200':
+        description: 授权账本分页列表
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/authorization.yaml#/AuthorizationGrantList'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+  post:
+    tags: [Admin]
+    operationId: createAuthorizationGrant
+    summary: 创建或恢复管理员授权
+    description: |
+      在同一 PostgreSQL 事务中写入 grant desired state、不可变审计和 outbox。
+      返回成功只表示期望状态已接受；只有 `projectionStatus=applied` 后授权才会生效。
+      需要全局 `iam:grants:manage` capability 和最近 5 分钟内的 step-up MFA。
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/authorization.yaml#/CreateAuthorizationGrantRequest'
+    responses:
+      '201':
+        description: 授权期望状态已创建或恢复
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/authorization.yaml#/AuthorizationGrantMutationResult'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '412':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/authorization/grants/{grantID}:
+  get:
+    tags: [Admin]
+    operationId: getAuthorizationGrant
+    summary: 获取单条管理员授权
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - $ref: '#/components/parameters/GrantID'
+    responses:
+      '200':
+        description: 授权详情
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/authorization.yaml#/AuthorizationGrant'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/authorization/grants/{grantID}/revoke:
+  post:
+    tags: [Admin]
+    operationId: revokeAuthorizationGrant
+    summary: 撤销管理员授权
+    description: |
+      先提交 PostgreSQL `desiredState=revoked`，因此请求成功后撤权围栏立即拒绝，
+      不等待 OpenFGA tuple 删除完成。不能撤销最后一名已生效 super_admin。
+      需要全局 `iam:grants:manage` capability 和最近 5 分钟内的 step-up MFA。
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - $ref: '#/components/parameters/GrantID'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/authorization.yaml#/AuthorizationGrantMutationRequest'
+    responses:
+      '200':
+        description: 撤权期望状态已提交
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/authorization.yaml#/AuthorizationGrantMutationResult'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '412':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/authorization/grants/{grantID}/reconcile:
+  post:
+    tags: [Admin]
+    operationId: reconcileAuthorizationGrant
+    summary: 重新对账并投影管理员授权
+    description: |
+      针对账本中的当前 desired state 增加 revision、写入审计并重新生成 outbox 投影。
+      不接受任意 OpenFGA tuple。重放期间 grant 进入 pending：授予 fail-closed，撤销继续被围栏拒绝。
+      需要全局 `iam:grants:manage` capability 和最近 5 分钟内的 step-up MFA。
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - $ref: '#/components/parameters/GrantID'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/authorization.yaml#/AuthorizationGrantMutationRequest'
+    responses:
+      '200':
+        description: 对账投影已重新入队
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/authorization.yaml#/AuthorizationGrantMutationResult'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '412':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+components:
+  parameters:
+    GrantID:
+      name: grantID
+      in: path
+      required: true
+      description: 授权账本 ID
+      schema:
+        type: integer
+        format: int64
+        minimum: 1

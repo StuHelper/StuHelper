@@ -85,6 +85,41 @@ func (s *Service) RevokeGrant(ctx context.Context, input RevokeGrantInput) (Muta
 	return result, nil
 }
 
+func (s *Service) ReconcileGrant(ctx context.Context, input ReconcileGrantInput) (MutationResult, error) {
+	input, err := normalizeReconcileGrantInput(input)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	exists, err := s.repo.UserExists(ctx, input.ActorUserID)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	if !exists {
+		return MutationResult{}, ErrActorUserNotFound
+	}
+	result, err := s.repo.ReconcileGrant(ctx, input)
+	if err != nil {
+		return MutationResult{}, fmt.Errorf("reconcile authorization grant: %w", err)
+	}
+	return result, nil
+}
+
 func (s *Service) ListGrants(ctx context.Context, filter ListGrantsFilter) (GrantList, error) {
+	var err error
+	filter, err = normalizeListGrantsFilter(filter)
+	if err != nil {
+		return GrantList{}, err
+	}
 	return s.repo.ListGrants(ctx, filter)
+}
+
+func (s *Service) GetGrant(ctx context.Context, grantID int64) (Grant, error) {
+	if grantID <= 0 {
+		return Grant{}, ErrInvalidGrant
+	}
+	return s.repo.GetGrant(ctx, grantID)
+}
+
+func (s *Service) ResolveInternalUserID(ctx context.Context, casdoorSubject string) (int64, error) {
+	return s.repo.ResolveInternalUserID(ctx, casdoorSubject)
 }
