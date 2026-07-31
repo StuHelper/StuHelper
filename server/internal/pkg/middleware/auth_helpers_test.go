@@ -28,7 +28,7 @@ func TestSetClaimsToContextAndGetters(t *testing.T) {
 		displayName: "Tester",
 		avatar:      &avatar,
 		roles:       []string{"student", "school_admin"},
-		orgScopedRoles: map[string][]string{
+		scopedRoleGrants: map[string][]string{
 			"school_admin": {"school-1"},
 		},
 	})
@@ -66,7 +66,7 @@ func TestAuthContextGettersAreNilSafe(t *testing.T) {
 	assert.Empty(t, GetDisplayName(nil))
 	assert.Empty(t, GetAvatar(nil))
 	assert.Nil(t, GetTokenScopes(nil))
-	assert.Nil(t, GetOrgScopedRoles(nil))
+	assert.Nil(t, GetScopedRoleGrants(nil))
 	assert.Nil(t, GetRoles(nil))
 	assert.Nil(t, GetCapabilities(nil))
 	assert.Nil(t, GetGlobalCapabilities(nil))
@@ -96,7 +96,7 @@ func TestAuthContextSliceGettersReturnCopies(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Set(CtxKeyTokenScopes, []string{"scope:read"})
-	c.Set(CtxKeyOrgScopedRoles, map[string][]string{
+	c.Set(CtxKeyScopedRoleGrants, map[string][]string{
 		" school_admin ": {" school-2 ", "school-1", "school-2", ""},
 		" ":              {"ignored"},
 	})
@@ -114,15 +114,15 @@ func TestAuthContextSliceGettersReturnCopies(t *testing.T) {
 	tokenScopes[0] = "changed"
 	assert.Equal(t, []string{"scope:read"}, GetTokenScopes(c))
 
-	orgScopedRoles := GetOrgScopedRoles(c)
+	scopedRoleGrants := GetScopedRoleGrants(c)
 	require.Equal(t, map[string][]string{
 		"school_admin": {"school-1", "school-2"},
-	}, orgScopedRoles)
-	orgScopedRoles["school_admin"][0] = "changed"
-	orgScopedRoles["other"] = []string{"changed"}
+	}, scopedRoleGrants)
+	scopedRoleGrants["school_admin"][0] = "changed"
+	scopedRoleGrants["other"] = []string{"changed"}
 	assert.Equal(t, map[string][]string{
 		"school_admin": {"school-1", "school-2"},
-	}, GetOrgScopedRoles(c))
+	}, GetScopedRoleGrants(c))
 
 	roles := GetRoles(c)
 	roles[0] = "changed"

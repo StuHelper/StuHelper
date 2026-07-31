@@ -8,9 +8,4 @@ type Input struct {
 	Username       string
 	Email          string
 	AvatarURL      *string
-	Roles          []string
-	// RolesAuthoritative 仅在 Roles 来自刚签发并完成验签、且显式包含合法 roles claim
-	// 的 ID token 时为 true。旧 access token、userinfo 或缺失/畸形 claim 不得据此
-	// 增删平台级 OpenFGA role tuple。
-	RolesAuthoritative bool
 }

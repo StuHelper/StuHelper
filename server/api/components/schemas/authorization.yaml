@@ -147,3 +147,13 @@ AuthorizationGrantMutationResult:
     changed:
       type: boolean
       description: false 表示相同目标状态已生效，本次请求按幂等成功处理。
+
+AuthorizationProjectionReconcileResult:
+  type: object
+  additionalProperties: false
+  required: [queued]
+  properties:
+    queued:
+      type: integer
+      minimum: 0
+      description: 本次原子写入 outbox 的授权记录数量。

@@ -40,7 +40,7 @@ func TestSetClaimsToContextPropagatesAuthTimeAndMFAProof(t *testing.T) {
 	assert.False(t, GetMFAEnrollmentActive(c))
 }
 
-func TestSetClaimsToContextNormalizesOrgScopedRoles(t *testing.T) {
+func TestSetClaimsToContextNormalizesScopedRoleGrants(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -48,45 +48,53 @@ func TestSetClaimsToContextNormalizesOrgScopedRoles(t *testing.T) {
 	setClaimsToContext(c, &authResult{
 		userID: "casdoor-user-1",
 		roles:  []string{"school_admin"},
-		orgScopedRoles: map[string][]string{
+		scopedRoleGrants: map[string][]string{
 			" school_admin ": {" 4111010002 ", "4111010001", "4111010002", " "},
 			" ":              {"ignored"},
 		},
 	})
 
-	value, exists := c.Get(CtxKeyOrgScopedRoles)
+	value, exists := c.Get(CtxKeyScopedRoleGrants)
 	require.True(t, exists)
 	assert.Equal(t, map[string][]string{
 		"school_admin": {"4111010001", "4111010002"},
 	}, value)
 }
 
-type fakeRoleScopeResolver struct {
+type fakeAccessSnapshotResolver struct {
+	roles  []string
 	scopes map[string][]string
 	err    error
 }
 
-func (f fakeRoleScopeResolver) ResolveRoleScopes(context.Context, string, []string) (map[string][]string, error) {
-	return f.scopes, f.err
+func (f fakeAccessSnapshotResolver) ResolveAccessSnapshot(
+	context.Context,
+	string,
+) ([]string, map[string][]string, error) {
+	return f.roles, f.scopes, f.err
 }
 
-type countingRoleScopeResolver struct {
+type countingAccessSnapshotResolver struct {
 	calls int
 }
 
-func (f *countingRoleScopeResolver) ResolveRoleScopes(context.Context, string, []string) (map[string][]string, error) {
+func (f *countingAccessSnapshotResolver) ResolveAccessSnapshot(
+	context.Context,
+	string,
+) ([]string, map[string][]string, error) {
 	f.calls++
-	return map[string][]string{"school_admin": {"4111010001"}}, nil
+	return []string{"user", "school_admin"}, map[string][]string{"school_admin": {"4111010001"}}, nil
 }
 
-func TestWithResolvedRoleScopesMergesIntoAuthResult(t *testing.T) {
-	result, err := withResolvedRoleScopes(context.Background(), &authResult{
+func TestWithResolvedAccessSnapshotDiscardsProviderAuthorizationClaims(t *testing.T) {
+	result, err := withResolvedAccessSnapshot(context.Background(), &authResult{
 		userID: "casdoor-user-1",
-		roles:  []string{"school_admin"},
-		orgScopedRoles: map[string][]string{
+		roles:  []string{"super_admin"},
+		scopedRoleGrants: map[string][]string{
 			" school_admin ": {"4111010002", " 4111010001 ", "4111010002", ""},
 		},
-	}, fakeRoleScopeResolver{
+	}, fakeAccessSnapshotResolver{
+		roles: []string{"user", "school_admin"},
 		scopes: map[string][]string{
 			"school_admin": {"4111010003", " 4111010002 "},
 			" ":            {"ignored"},
@@ -94,33 +102,49 @@ func TestWithResolvedRoleScopesMergesIntoAuthResult(t *testing.T) {
 	})
 
 	require.NoError(t, err)
+	assert.Equal(t, []string{"user", "school_admin"}, result.roles)
 	assert.Equal(t, map[string][]string{
-		"school_admin": {"4111010001", "4111010002", "4111010003"},
-	}, result.orgScopedRoles)
+		"school_admin": {"4111010002", "4111010003"},
+	}, result.scopedRoleGrants)
 }
 
-func TestWithResolvedRoleScopesResolvesAuthenticatedTokens(t *testing.T) {
-	resolver := &countingRoleScopeResolver{}
+func TestWithResolvedAccessSnapshotResolvesAuthenticatedTokens(t *testing.T) {
+	resolver := &countingAccessSnapshotResolver{}
 
-	result, err := withResolvedRoleScopes(context.Background(), &authResult{
+	result, err := withResolvedAccessSnapshot(context.Background(), &authResult{
 		userID: "casdoor-user-1",
-		roles:  []string{"school_admin"},
+		roles:  []string{"super_admin"},
 	}, resolver)
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, resolver.calls)
-	assert.Equal(t, []string{"4111010001"}, result.orgScopedRoles["school_admin"])
+	assert.Equal(t, []string{"user", "school_admin"}, result.roles)
+	assert.Equal(t, []string{"4111010001"}, result.scopedRoleGrants["school_admin"])
 }
 
-func TestWithResolvedRoleScopesMarksBackendUnavailable(t *testing.T) {
-	expectedErr := errors.New("openfga unavailable")
+func TestWithResolvedAccessSnapshotMarksBackendUnavailable(t *testing.T) {
+	expectedErr := errors.New("postgres unavailable")
 
-	_, err := withResolvedRoleScopes(context.Background(), &authResult{
+	_, err := withResolvedAccessSnapshot(context.Background(), &authResult{
 		userID: "casdoor-user-1",
 		roles:  []string{"school_admin"},
-	}, fakeRoleScopeResolver{err: expectedErr})
+	}, fakeAccessSnapshotResolver{err: expectedErr})
 
-	require.ErrorIs(t, err, errRoleScopeUnavailable)
+	require.ErrorIs(t, err, errAccessSnapshotUnavailable)
 	require.ErrorIs(t, err, expectedErr)
 	assert.True(t, authBackendUnavailable(err))
+}
+
+func TestWithResolvedAccessSnapshotWithoutResolverUsesIdentityOnlyRole(t *testing.T) {
+	result, err := withResolvedAccessSnapshot(context.Background(), &authResult{
+		userID: "casdoor-user-1",
+		roles:  []string{"super_admin"},
+		scopedRoleGrants: map[string][]string{
+			"school_admin": {"4111010001"},
+		},
+	}, nil)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"user"}, result.roles)
+	assert.Nil(t, result.scopedRoleGrants)
 }

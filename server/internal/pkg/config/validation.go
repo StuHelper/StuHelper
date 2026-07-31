@@ -1002,8 +1002,6 @@ func validateCasdoorAdminCredentials(cfg CasdoorConfig, required bool) []string 
 		"APP_PROVISIONING", cfg.AppProvisioningClientID, cfg.AppProvisioningClientSecret, cfg.AppProvisioningApplication)...)
 	errs = append(errs, validateCasdoorCredentialSet(required || userProfileCredentialConfigured(cfg),
 		"USER_PROFILE", cfg.UserProfileClientID, cfg.UserProfileClientSecret, cfg.UserProfileApplication)...)
-	errs = append(errs, validateCasdoorCredentialSet(required || roleSyncCredentialConfigured(cfg),
-		"ROLE_SYNC", cfg.RoleSyncClientID, cfg.RoleSyncClientSecret, cfg.RoleSyncApplication)...)
 	errs = append(errs, validateCasdoorCredentialSet(required || userLookupCredentialConfigured(cfg),
 		"USER_LOOKUP", cfg.UserLookupClientID, cfg.UserLookupClientSecret, cfg.UserLookupApplication)...)
 	return errs
@@ -1019,12 +1017,6 @@ func userProfileCredentialConfigured(cfg CasdoorConfig) bool {
 	return !configStringMissing(cfg.UserProfileClientID) ||
 		!configStringMissing(cfg.UserProfileClientSecret) ||
 		!configStringMissing(cfg.UserProfileApplication)
-}
-
-func roleSyncCredentialConfigured(cfg CasdoorConfig) bool {
-	return !configStringMissing(cfg.RoleSyncClientID) ||
-		!configStringMissing(cfg.RoleSyncClientSecret) ||
-		!configStringMissing(cfg.RoleSyncApplication)
 }
 
 func userLookupCredentialConfigured(cfg CasdoorConfig) bool {

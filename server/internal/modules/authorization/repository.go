@@ -19,6 +19,31 @@ import (
 
 const authorizationGrantsTable = "authorization_grants"
 const superAdminMutationAdvisoryLock int64 = 0x53545541555448
+const superAdminBootstrapAdvisoryLock int64 = 0x535455424F4F54
+
+var errConcurrentGrantInsert = errors.New("authorization grant was inserted concurrently")
+
+type grantAuditActor struct {
+	actorType string
+	userID    string
+}
+
+func adminGrantAuditActor(userID int64) grantAuditActor {
+	return grantAuditActor{
+		actorType: "admin",
+		userID:    strconv.FormatInt(userID, 10),
+	}
+}
+
+var bootstrapGrantAuditActor = grantAuditActor{
+	actorType: "system",
+	userID:    "authorization-bootstrap",
+}
+
+var reconciliationGrantAuditActor = grantAuditActor{
+	actorType: "system",
+	userID:    "authorization-reconciliation",
+}
 
 const grantColumns = `
 	g.id,
@@ -60,21 +85,37 @@ func (r *Repository) UserExists(ctx context.Context, userID int64) (bool, error)
 	return exists, nil
 }
 
-func (r *Repository) ResolveInternalUserID(ctx context.Context, casdoorSubject string) (int64, error) {
+func (r *Repository) ResolveInternalUserIDByUsername(ctx context.Context, username string) (int64, error) {
 	ctx = db.WithTableHint(ctx, "users")
 	var userID int64
 	err := r.db.QueryRow(ctx, `
 		SELECT id
 		FROM users
-		WHERE casdoor_subject = $1
-	`, strings.TrimSpace(casdoorSubject)).Scan(&userID)
+		WHERE lower(username) = lower($1)
+	`, strings.TrimSpace(username)).Scan(&userID)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return 0, ErrActorUserNotFound
+		return 0, ErrTargetUserNotFound
 	}
 	if err != nil {
-		return 0, fmt.Errorf("resolve authorization actor: %w", err)
+		return 0, fmt.Errorf("resolve authorization target username: %w", err)
 	}
 	return userID, nil
+}
+
+func (r *Repository) HasDesiredSuperAdmin(ctx context.Context) (bool, error) {
+	ctx = db.WithTableHint(ctx, authorizationGrantsTable)
+	var exists bool
+	if err := r.db.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM authorization_grants
+			WHERE role = 'super_admin'
+			  AND desired_state = 'granted'
+		)
+	`).Scan(&exists); err != nil {
+		return false, fmt.Errorf("check desired super admin: %w", err)
+	}
+	return exists, nil
 }
 
 func (r *Repository) SchoolExists(ctx context.Context, schoolID int64) (bool, error) {
@@ -94,14 +135,23 @@ func (r *Repository) CreateOrRestoreGrant(ctx context.Context, input CreateGrant
 			return err
 		}
 
-		switch {
-		case errors.Is(err, ErrGrantNotFound):
+		if errors.Is(err, ErrGrantNotFound) {
 			created, createErr := insertGrantTx(ctx, tx, input)
+			if errors.Is(createErr, errConcurrentGrantInsert) {
+				before, createErr = findGrantForUpdateTx(ctx, tx, input)
+			}
 			if createErr != nil {
 				return createErr
 			}
-			result = MutationResult{Grant: created, Changed: true}
-		case before.DesiredState == DesiredGranted && before.ProjectionStatus == ProjectionApplied:
+			if before.ID == 0 {
+				result = MutationResult{Grant: created, Changed: true}
+			}
+		}
+
+		switch {
+		case result.Changed:
+			// The insert path already populated the mutation result.
+		case before.DesiredState == DesiredGranted:
 			result = MutationResult{Grant: before, Changed: false}
 			return nil
 		default:
@@ -115,7 +165,15 @@ func (r *Repository) CreateOrRestoreGrant(ctx context.Context, input CreateGrant
 		if err := enqueueProjectionTx(ctx, tx, result.Grant); err != nil {
 			return err
 		}
-		return insertGrantAuditTx(ctx, tx, "grant", input.ActorUserID, input.Reason, before, result.Grant)
+		return insertGrantAuditTx(
+			ctx,
+			tx,
+			"grant",
+			adminGrantAuditActor(input.ActorUserID),
+			input.Reason,
+			before,
+			result.Grant,
+		)
 	})
 	if err != nil {
 		return MutationResult{}, err
@@ -130,12 +188,12 @@ func (r *Repository) RevokeGrant(ctx context.Context, input RevokeGrantInput) (M
 		if err != nil {
 			return err
 		}
-		if before.DesiredState == DesiredRevoked && before.ProjectionStatus == ProjectionApplied {
+		if before.DesiredState == DesiredRevoked {
 			result = MutationResult{Grant: before, Changed: false}
 			return nil
 		}
 
-		if err := ensureSuperAdminCanLeaveAppliedTx(ctx, tx, before); err != nil {
+		if err := ensureSuperAdminCanBeRevokedTx(ctx, tx, before); err != nil {
 			return err
 		}
 
@@ -147,7 +205,15 @@ func (r *Repository) RevokeGrant(ctx context.Context, input RevokeGrantInput) (M
 		if err := enqueueProjectionTx(ctx, tx, updated); err != nil {
 			return err
 		}
-		return insertGrantAuditTx(ctx, tx, "revoke", input.ActorUserID, input.Reason, before, updated)
+		return insertGrantAuditTx(
+			ctx,
+			tx,
+			"revoke",
+			adminGrantAuditActor(input.ActorUserID),
+			input.Reason,
+			before,
+			updated,
+		)
 	})
 	if err != nil {
 		return MutationResult{}, err
@@ -162,10 +228,6 @@ func (r *Repository) ReconcileGrant(ctx context.Context, input ReconcileGrantInp
 		if err != nil {
 			return err
 		}
-		if err := ensureSuperAdminCanLeaveAppliedTx(ctx, tx, before); err != nil {
-			return err
-		}
-
 		updated, err := reconcileGrantTx(ctx, tx, before, input)
 		if err != nil {
 			return err
@@ -174,10 +236,270 @@ func (r *Repository) ReconcileGrant(ctx context.Context, input ReconcileGrantInp
 		if err := enqueueProjectionTx(ctx, tx, updated); err != nil {
 			return err
 		}
-		return insertGrantAuditTx(ctx, tx, "reconcile", input.ActorUserID, input.Reason, before, updated)
+		return insertGrantAuditTx(
+			ctx,
+			tx,
+			"reconcile",
+			adminGrantAuditActor(input.ActorUserID),
+			input.Reason,
+			before,
+			updated,
+		)
 	})
 	if err != nil {
 		return MutationResult{}, err
+	}
+	return result, nil
+}
+
+func (r *Repository) ReconcileAll(ctx context.Context, input ReconcileAllInput) (int, error) {
+	queued := 0
+	err := r.db.WithTx(db.WithTableHint(ctx, authorizationGrantsTable), func(ctx context.Context, tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, `
+			SELECT `+grantColumns+`
+			FROM authorization_grants g
+			ORDER BY g.id
+			FOR UPDATE
+		`)
+		if err != nil {
+			return fmt.Errorf("lock authorization grants for rebuild: %w", err)
+		}
+		grants := make([]Grant, 0)
+		for rows.Next() {
+			grant, scanErr := scanGrant(rows)
+			if scanErr != nil {
+				rows.Close()
+				return fmt.Errorf("scan authorization grant for rebuild: %w", scanErr)
+			}
+			grants = append(grants, grant)
+		}
+		if err := rows.Err(); err != nil {
+			rows.Close()
+			return fmt.Errorf("authorization rebuild rows: %w", err)
+		}
+		rows.Close()
+
+		for _, before := range grants {
+			after, err := reconcileGrantTx(ctx, tx, before, ReconcileGrantInput{
+				GrantID:     before.ID,
+				Reason:      input.Reason,
+				ActorUserID: input.ActorUserID,
+			})
+			if err != nil {
+				return err
+			}
+			if err := enqueueProjectionTx(ctx, tx, after); err != nil {
+				return err
+			}
+			if err := insertGrantAuditTx(
+				ctx,
+				tx,
+				"reconcile",
+				adminGrantAuditActor(input.ActorUserID),
+				input.Reason,
+				before,
+				after,
+			); err != nil {
+				return err
+			}
+			queued++
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	return queued, nil
+}
+
+func (r *Repository) ListGrantsForReconciliation(
+	ctx context.Context,
+	afterID int64,
+	limit int,
+) ([]Grant, error) {
+	ctx = db.WithTableHint(ctx, authorizationGrantsTable)
+	if afterID < 0 || limit <= 0 || limit > 500 {
+		return nil, ErrInvalidGrant
+	}
+	rows, err := r.db.Query(ctx, `
+		SELECT `+grantColumns+`
+		FROM authorization_grants g
+		WHERE g.id > $1
+		ORDER BY g.id
+		LIMIT $2
+	`, afterID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list authorization grants for reconciliation: %w", err)
+	}
+	defer rows.Close()
+
+	grants := make([]Grant, 0, limit)
+	for rows.Next() {
+		grant, scanErr := scanGrant(rows)
+		if scanErr != nil {
+			return nil, fmt.Errorf("scan authorization grant for reconciliation: %w", scanErr)
+		}
+		grants = append(grants, grant)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("authorization reconciliation rows: %w", err)
+	}
+	return grants, nil
+}
+
+func (r *Repository) ReconcileGrantsAsSystem(
+	ctx context.Context,
+	grantIDs []int64,
+	reason string,
+) (int, error) {
+	if len(grantIDs) == 0 {
+		return 0, nil
+	}
+	queued := 0
+	err := r.db.WithTx(db.WithTableHint(ctx, authorizationGrantsTable), func(ctx context.Context, tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, `
+			SELECT `+grantColumns+`
+			FROM authorization_grants g
+			WHERE g.id = ANY($1::bigint[])
+			ORDER BY g.id
+			FOR UPDATE
+		`, grantIDs)
+		if err != nil {
+			return fmt.Errorf("lock drifted authorization grants: %w", err)
+		}
+		grants := make([]Grant, 0, len(grantIDs))
+		for rows.Next() {
+			grant, scanErr := scanGrant(rows)
+			if scanErr != nil {
+				rows.Close()
+				return fmt.Errorf("scan drifted authorization grant: %w", scanErr)
+			}
+			grants = append(grants, grant)
+		}
+		if err := rows.Err(); err != nil {
+			rows.Close()
+			return fmt.Errorf("drifted authorization grant rows: %w", err)
+		}
+		rows.Close()
+		if len(grants) != len(grantIDs) {
+			return ErrGrantNotFound
+		}
+
+		for _, before := range grants {
+			after, err := reconcileGrantTx(ctx, tx, before, ReconcileGrantInput{
+				GrantID: before.ID,
+				Reason:  reason,
+			})
+			if err != nil {
+				return err
+			}
+			if err := enqueueProjectionTx(ctx, tx, after); err != nil {
+				return err
+			}
+			if err := insertGrantAuditTx(
+				ctx,
+				tx,
+				"reconcile",
+				reconciliationGrantAuditActor,
+				reason,
+				before,
+				after,
+			); err != nil {
+				return err
+			}
+			queued++
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	return queued, nil
+}
+
+func (r *Repository) BootstrapSuperAdmins(
+	ctx context.Context,
+	input BootstrapSuperAdminsInput,
+) (BootstrapSuperAdminsResult, error) {
+	var result BootstrapSuperAdminsResult
+	err := r.db.WithTx(db.WithTableHint(ctx, authorizationGrantsTable), func(ctx context.Context, tx pgx.Tx) error {
+		if _, err := tx.Exec(
+			ctx,
+			`SELECT pg_advisory_xact_lock($1)`,
+			superAdminBootstrapAdvisoryLock,
+		); err != nil {
+			return fmt.Errorf("lock super admin bootstrap: %w", err)
+		}
+
+		var desiredExists bool
+		if err := tx.QueryRow(ctx, `
+			SELECT EXISTS (
+				SELECT 1
+				FROM authorization_grants
+				WHERE role = 'super_admin'
+				  AND desired_state = 'granted'
+			)
+		`).Scan(&desiredExists); err != nil {
+			return fmt.Errorf("check super admin bootstrap state: %w", err)
+		}
+		if desiredExists {
+			result.Skipped = true
+			return nil
+		}
+
+		result.Grants = make([]Grant, 0, len(input.SubjectUserIDs))
+		for _, subjectUserID := range input.SubjectUserIDs {
+			var userExists bool
+			if err := tx.QueryRow(
+				ctx,
+				`SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)`,
+				subjectUserID,
+			).Scan(&userExists); err != nil {
+				return fmt.Errorf("check bootstrap target user: %w", err)
+			}
+			if !userExists {
+				return ErrTargetUserNotFound
+			}
+
+			createInput := CreateGrantInput{
+				SubjectUserID: subjectUserID,
+				Role:          RoleSuperAdmin,
+				Reason:        input.Reason,
+			}
+			before, err := findGrantForUpdateTx(ctx, tx, createInput)
+			if err != nil && !errors.Is(err, ErrGrantNotFound) {
+				return err
+			}
+
+			var grant Grant
+			if errors.Is(err, ErrGrantNotFound) {
+				grant, err = insertGrantTx(ctx, tx, createInput)
+			} else {
+				grant, err = restoreGrantTx(ctx, tx, before, createInput)
+			}
+			if err != nil {
+				return err
+			}
+			if err := enqueueProjectionTx(ctx, tx, grant); err != nil {
+				return err
+			}
+			if err := insertGrantAuditTx(
+				ctx,
+				tx,
+				"grant",
+				bootstrapGrantAuditActor,
+				input.Reason,
+				before,
+				grant,
+			); err != nil {
+				return err
+			}
+			result.Grants = append(result.Grants, grant)
+		}
+		return nil
+	})
+	if err != nil {
+		return BootstrapSuperAdminsResult{}, err
 	}
 	return result, nil
 }
@@ -187,7 +509,7 @@ func (r *Repository) GetGrant(ctx context.Context, grantID int64) (Grant, error)
 	grant, err := scanGrantWithSubjectOnly(r.db.QueryRow(ctx, `
 		SELECT `+grantColumns+`,
 		       u.username,
-		       COALESCE(NULLIF(u.username, ''), u.casdoor_subject)
+		       COALESCE(NULLIF(u.username, ''), 'user-' || u.id::text)
 		FROM authorization_grants g
 		JOIN users u ON u.id = g.subject_user_id
 		WHERE g.id = $1
@@ -238,7 +560,7 @@ func (r *Repository) ListGrants(ctx context.Context, filter ListGrantsFilter) (G
 	rows, err := r.db.Query(ctx, `
 		SELECT `+grantColumns+`,
 		       u.username,
-		       COALESCE(NULLIF(u.username, ''), u.casdoor_subject),
+		       COALESCE(NULLIF(u.username, ''), 'user-' || u.id::text),
 		       COUNT(*) OVER()
 		FROM authorization_grants g
 		JOIN users u ON u.id = g.subject_user_id
@@ -267,40 +589,40 @@ func (r *Repository) ListGrants(ctx context.Context, filter ListGrantsFilter) (G
 	return GrantList{Items: items, Total: total}, nil
 }
 
-func (r *Repository) ResolveAccessSnapshot(ctx context.Context, casdoorSubject string) (AccessSnapshot, error) {
+func (r *Repository) ResolveAccessSnapshotByUserID(ctx context.Context, userID int64) (AccessSnapshot, error) {
 	ctx = db.WithTableHint(ctx, authorizationGrantsTable)
-	var snapshot AccessSnapshot
-	var verifiedStudent bool
-	var freshmanProvisional bool
+	if userID <= 0 {
+		return AccessSnapshot{}, ErrActorUserNotFound
+	}
+	snapshot := AccessSnapshot{InternalUserID: userID}
+	var (
+		userExists          bool
+		verifiedStudent     bool
+		freshmanProvisional bool
+	)
 	err := r.db.QueryRow(ctx, `
 		SELECT
-			u.id,
+			EXISTS (SELECT 1 FROM users u WHERE u.id = $1),
 			EXISTS (
 				SELECT 1
 				FROM user_profiles p
-				WHERE p.user_id = u.id
+				WHERE p.user_id = $1
 				  AND p.verification_status = 'verified'
 			),
 			EXISTS (
 				SELECT 1
 				FROM user_verification_credentials c
-				WHERE c.user_id = u.id
+				WHERE c.user_id = $1
 				  AND c.kind = 'freshman_material_manual'
 				  AND c.revoked_at IS NULL
 				  AND (c.expires_at IS NULL OR c.expires_at > NOW())
 			)
-		FROM users u
-		WHERE u.casdoor_subject = $1
-	`, strings.TrimSpace(casdoorSubject)).Scan(
-		&snapshot.InternalUserID,
-		&verifiedStudent,
-		&freshmanProvisional,
-	)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return AccessSnapshot{}, ErrActorUserNotFound
-	}
+	`, userID).Scan(&userExists, &verifiedStudent, &freshmanProvisional)
 	if err != nil {
-		return AccessSnapshot{}, fmt.Errorf("resolve authorization subject: %w", err)
+		return AccessSnapshot{}, fmt.Errorf("resolve authorization subject facts: %w", err)
+	}
+	if !userExists {
+		return AccessSnapshot{}, ErrActorUserNotFound
 	}
 
 	roleSet := map[string]struct{}{"user": {}}
@@ -317,7 +639,7 @@ func (r *Repository) ResolveAccessSnapshot(ctx context.Context, casdoorSubject s
 		FROM authorization_grants
 		WHERE subject_user_id = $1
 		  AND desired_state = 'granted'
-		  AND projection_status = 'applied'
+		  AND activated_at IS NOT NULL
 		ORDER BY role, school_id, section_id
 	`, snapshot.InternalUserID)
 	if err != nil {
@@ -402,12 +724,16 @@ func insertGrantTx(ctx context.Context, tx pgx.Tx, input CreateGrantInput) (Gran
 		) VALUES (
 			$1, $2, $3, $4,
 			'granted', 'pending', 1, $5,
-			$6, $6,
+			NULLIF($6, 0), NULLIF($6, 0),
 			NOW(), NOW()
 		)
+		ON CONFLICT DO NOTHING
 		RETURNING `+strings.ReplaceAll(grantColumns, "g.", "")+`
 	`, input.SubjectUserID, input.Role, input.SchoolID, input.SectionID, input.Reason, input.ActorUserID))
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Grant{}, errConcurrentGrantInsert
+		}
 		return Grant{}, fmt.Errorf("insert authorization grant: %w", err)
 	}
 	return grant, nil
@@ -420,7 +746,7 @@ func restoreGrantTx(ctx context.Context, tx pgx.Tx, before Grant, input CreateGr
 		    projection_status = 'pending',
 		    revision = revision + 1,
 		    reason = $2,
-		    updated_by_user_id = $3,
+		    updated_by_user_id = NULLIF($3, 0),
 		    activated_at = NULL,
 		    revoked_at = NULL,
 		    projected_at = NULL,
@@ -467,7 +793,7 @@ func reconcileGrantTx(
 		SET projection_status = 'pending',
 		    revision = revision + 1,
 		    reason = $2,
-		    updated_by_user_id = $3,
+		    updated_by_user_id = NULLIF($3, 0),
 		    projected_at = NULL,
 		    last_error = NULL,
 		    updated_at = NOW()
@@ -480,10 +806,10 @@ func reconcileGrantTx(
 	return grant, nil
 }
 
-func ensureSuperAdminCanLeaveAppliedTx(ctx context.Context, tx pgx.Tx, grant Grant) error {
+func ensureSuperAdminCanBeRevokedTx(ctx context.Context, tx pgx.Tx, grant Grant) error {
 	if grant.Role != RoleSuperAdmin ||
 		grant.DesiredState != DesiredGranted ||
-		grant.ProjectionStatus != ProjectionApplied {
+		grant.ActivatedAt == nil {
 		return nil
 	}
 	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, superAdminMutationAdvisoryLock); err != nil {
@@ -495,7 +821,7 @@ func ensureSuperAdminCanLeaveAppliedTx(ctx context.Context, tx pgx.Tx, grant Gra
 		FROM authorization_grants
 		WHERE role = 'super_admin'
 		  AND desired_state = 'granted'
-		  AND projection_status = 'applied'
+		  AND activated_at IS NOT NULL
 	`).Scan(&activeCount); err != nil {
 		return fmt.Errorf("count active super admins: %w", err)
 	}
@@ -531,7 +857,7 @@ func insertGrantAuditTx(
 	ctx context.Context,
 	tx pgx.Tx,
 	action string,
-	actorUserID int64,
+	actor grantAuditActor,
 	reason string,
 	before Grant,
 	after Grant,
@@ -543,8 +869,8 @@ func insertGrantAuditTx(
 	event := audit.EventFromContext(ctx, audit.Event{
 		Type:          audit.EventType("iam.authorization_grant." + action + "_requested"),
 		Category:      "admin_operation",
-		ActorType:     "admin",
-		UserID:        strconv.FormatInt(actorUserID, 10),
+		ActorType:     actor.actorType,
+		UserID:        actor.userID,
 		ResourceType:  "authorization_grant",
 		ResourceID:    strconv.FormatInt(after.ID, 10),
 		ScopeSchoolID: nullableSchoolID(after.SchoolID),

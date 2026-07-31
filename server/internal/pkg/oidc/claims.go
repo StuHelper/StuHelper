@@ -1,10 +1,7 @@
 package oidc
 
 import (
-	"bytes"
 	"encoding/json"
-	"fmt"
-	"sort"
 	"strings"
 	"time"
 )
@@ -27,18 +24,6 @@ type Claims struct {
 	// Callers use it to retain revocation state for the token's real remaining
 	// lifetime instead of a local cookie/session policy TTL.
 	ExpiresAt int64 `json:"-"`
-
-	// 解析后的角色列表（如 ["school_admin", "verified_student"]）
-	Roles []string `json:"-"`
-
-	// RolesClaimPresent 仅在配置的 roles claim 明确存在且结构解析成功时为 true。
-	// 它只记录 claim provenance；调用方仍须判断当前 token 是否足够新、可作为角色投影权威。
-	RolesClaimPresent bool `json:"-"`
-
-	// OrgScopedRoles 是 StuHelper 内部的 school-scope grant 载体：roleName → schoolID 列表。
-	// Casdoor roles claim 保持扁平；学校作用域必须来自 DB/OpenFGA 投影，不能从 role 名嵌入解析。
-	// 例：{"school_admin": ["4111010001", "4111010002"]} 表示该用户在学校 4111010001 和 4111010002 上拥有 school_admin grant。
-	OrgScopedRoles map[string][]string `json:"-"`
 }
 
 // GetUserID 返回 OIDC subject（唯一用户标识）
@@ -84,110 +69,6 @@ func (c *Claims) MFAProofVerifiedAt() time.Time {
 		return time.Time{}
 	}
 	return MFAProofVerifiedAt(c.AMR, c.AuthTime)
-}
-
-func defaultRolesClaim(value string) string {
-	trimmed := strings.TrimSpace(value)
-	if trimmed == "" {
-		return "roles"
-	}
-	return trimmed
-}
-
-// ParseProviderRolesFromRaw extracts roles from the provider-neutral flat roles claim.
-// Casdoor role projection is intentionally flat; resource scope is resolved from DB/OpenFGA.
-func ParseProviderRolesFromRaw(rawJSON []byte, rolesClaim string) ([]string, error) {
-	return parseFlatRolesClaim(rawJSON, defaultRolesClaim(rolesClaim))
-}
-
-func parseFlatRolesClaim(rawJSON []byte, rolesClaim string) ([]string, error) {
-	roles, _, err := parseFlatRolesProjection(rawJSON, rolesClaim)
-	return roles, err
-}
-
-func parseFlatRolesProjection(rawJSON []byte, rolesClaim string) ([]string, bool, error) {
-	var raw map[string]json.RawMessage
-	if err := json.Unmarshal(rawJSON, &raw); err != nil {
-		return nil, false, fmt.Errorf("unmarshal raw claims: %w", err)
-	}
-	roleData, ok := raw[rolesClaim]
-	if !ok {
-		return nil, false, nil
-	}
-	roles, err := parseRoleNames(roleData, rolesClaim)
-	if err != nil {
-		return nil, false, err
-	}
-	sort.Strings(roles)
-	return roles, true, nil
-}
-
-func parseRoleNames(roleData json.RawMessage, rolesClaim string) ([]string, error) {
-	trimmedRoleData := bytes.TrimSpace(roleData)
-	if len(trimmedRoleData) == 0 || trimmedRoleData[0] != '[' {
-		return nil, fmt.Errorf("roles claim %q must be a string array or role object array", rolesClaim)
-	}
-
-	var list []string
-	if err := json.Unmarshal(trimmedRoleData, &list); err == nil {
-		return dedupeRoles(list), nil
-	}
-
-	var anyList []any
-	if err := json.Unmarshal(trimmedRoleData, &anyList); err == nil {
-		roles, err := rolesFromClaimItems(anyList, rolesClaim)
-		if err != nil {
-			return nil, err
-		}
-		return dedupeRoles(roles), nil
-	}
-
-	return nil, fmt.Errorf("roles claim %q must be a string array or role object array", rolesClaim)
-}
-
-func rolesFromClaimItems(items []any, rolesClaim string) ([]string, error) {
-	roles := make([]string, 0, len(items))
-	for _, item := range items {
-		switch value := item.(type) {
-		case string:
-			roles = append(roles, value)
-		case map[string]any:
-			role, err := roleNameFromClaimObject(value, rolesClaim)
-			if err != nil {
-				return nil, err
-			}
-			roles = append(roles, role)
-		default:
-			return nil, fmt.Errorf("roles claim %q contains unsupported role item", rolesClaim)
-		}
-	}
-	return roles, nil
-}
-
-func roleNameFromClaimObject(value map[string]any, rolesClaim string) (string, error) {
-	name, ok := value["name"].(string)
-	trimmed := strings.TrimSpace(name)
-	if !ok || trimmed == "" {
-		return "", fmt.Errorf("roles claim %q contains role object without string name", rolesClaim)
-	}
-	return trimmed, nil
-}
-
-func dedupeRoles(roles []string) []string {
-	seen := make(map[string]struct{}, len(roles))
-	out := make([]string, 0, len(roles))
-	for _, role := range roles {
-		trimmed := strings.TrimSpace(role)
-		if trimmed == "" {
-			continue
-		}
-		if _, ok := seen[trimmed]; ok {
-			continue
-		}
-		seen[trimmed] = struct{}{}
-		out = append(out, trimmed)
-	}
-	return out
 }
 
 func appIDFromRawClaims(rawJSON []byte) string {

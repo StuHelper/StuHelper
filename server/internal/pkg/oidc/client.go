@@ -21,7 +21,6 @@ type Client struct {
 	verifier          *gooidc.IDTokenVerifier
 	oauth2Cfg         oauth2.Config
 	oauth2Configs     map[string]oauth2.Config
-	rolesClaim        string
 	metricName        string
 	httpClient        *http.Client
 	introspectionURL  string
@@ -87,7 +86,6 @@ func NewClient(ctx context.Context, cfg config.CasdoorConfig) (*Client, error) {
 		verifier:          verifier,
 		oauth2Cfg:         oauth2Cfg,
 		oauth2Configs:     oauth2Configs,
-		rolesClaim:        defaultRolesClaim(cfg.RolesClaim),
 		metricName:        "casdoor_oidc",
 		httpClient:        httpClient,
 		introspectionURL:  introspectionURL,

@@ -23,10 +23,9 @@ func (rt *Runtime) initAuthModule(
 	api *gin.RouterGroup,
 	bgCtx context.Context,
 	piiCipher *pii.Cipher,
-	roleScopeResolver middleware.RoleScopeResolver,
+	accessResolver middleware.AccessSnapshotResolver,
 ) (*auth.Handler, gin.HandlerFunc, gin.HandlerFunc, error) {
-	userSyncRepo := user.NewUserSyncRepository(rt.database, crypto.GetHMACKey()).
-		WithRoleFGAClient(rt.fgaClient)
+	userSyncRepo := user.NewUserSyncRepository(rt.database, crypto.GetHMACKey())
 	rt.warnPendingUserHashBackfill(bgCtx, userSyncRepo)
 	oidcSubjectValidator, err := rt.initOIDCSubjectValidator()
 	if err != nil {
@@ -58,10 +57,20 @@ func (rt *Runtime) initAuthModule(
 		CookieDomain: rt.cfg.Token.CookieDomain,
 		CookieSecure: rt.cfg.Token.CookieSecure,
 	}
-	authMW := middleware.AuthMiddlewareWithConfigAndRoleScopeResolver(rt.oidcClient, rt.tokenService, authCookieConfig, roleScopeResolver)
+	authMW := middleware.AuthMiddlewareWithConfigAndAccessSnapshotResolver(
+		rt.oidcClient,
+		rt.tokenService,
+		authCookieConfig,
+		accessResolver,
+	)
 	authHandler.RegisterRoutesWithAuthMiddleware(api, authMW)
 
-	optionalAuthMW := middleware.OptionalAuthMiddlewareWithRoleScopeResolver(rt.oidcClient, rt.tokenService, authCookieConfig, roleScopeResolver)
+	optionalAuthMW := middleware.OptionalAuthMiddlewareWithAccessSnapshotResolver(
+		rt.oidcClient,
+		rt.tokenService,
+		authCookieConfig,
+		accessResolver,
+	)
 	return authHandler, authMW, optionalAuthMW, nil
 }
 

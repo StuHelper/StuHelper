@@ -45,17 +45,17 @@ func setupAdminHandlerTestRouterWithRole(
 	t *testing.T,
 	repo *mockRepo,
 	roles []string,
-	orgScopedRoles map[string][]string,
+	scopedRoleGrants map[string][]string,
 ) *gin.Engine {
 	t.Helper()
-	return setupAdminHandlerTestRouterWithRoleAndProof(t, repo, roles, orgScopedRoles, time.Now())
+	return setupAdminHandlerTestRouterWithRoleAndProof(t, repo, roles, scopedRoleGrants, time.Now())
 }
 
 func setupAdminHandlerTestRouterWithRoleAndProof(
 	t *testing.T,
 	repo *mockRepo,
 	roles []string,
-	orgScopedRoles map[string][]string,
+	scopedRoleGrants map[string][]string,
 	proofAt time.Time,
 	opts ...ServiceOption,
 ) *gin.Engine {
@@ -80,10 +80,10 @@ func setupAdminHandlerTestRouterWithRoleAndProof(
 	// 模拟 AuthMiddleware 注入用户信息和能力快照
 	admin.Use(func(c *gin.Context) {
 		c.Set(appmiddleware.CtxKeyUserID, "external-user-123")
-		snapshot := capability.BuildUserAccessSnapshot(capability.ExpandRoleGrants(roles, orgScopedRoles))
+		snapshot := capability.BuildUserAccessSnapshot(capability.ExpandRoleGrants(roles, scopedRoleGrants))
 		c.Set(appmiddleware.CtxKeyRoles, roles)
-		if orgScopedRoles != nil {
-			c.Set(appmiddleware.CtxKeyOrgScopedRoles, orgScopedRoles)
+		if scopedRoleGrants != nil {
+			c.Set(appmiddleware.CtxKeyScopedRoleGrants, scopedRoleGrants)
 		}
 		c.Set(appmiddleware.CtxKeyCapabilities, snapshot.Capabilities)
 		c.Set(appmiddleware.CtxKeyGlobalCapabilities, snapshot.GlobalCapabilities)

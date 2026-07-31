@@ -136,10 +136,8 @@ func TestOIDCClient_IntegrationFlows(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "user-oidc-1", claims.GetUserID())
 	assert.Equal(t, "oidc-client", claims.GetAppID())
-	assert.Contains(t, claims.Roles, "school_admin")
 	assert.Contains(t, claims.AMR, "totp")
 	assert.False(t, claims.MFAProofVerifiedAt().IsZero())
-	assert.Nil(t, claims.OrgScopedRoles)
 	assert.Greater(t, claims.ExpiresAt, time.Now().Add(59*time.Minute).Unix())
 	assert.LessOrEqual(t, claims.ExpiresAt, time.Now().Add(time.Hour).Unix())
 
@@ -153,9 +151,7 @@ func TestOIDCClient_IntegrationFlows(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, result.Active)
 	assert.Equal(t, "oidc-client", result.GetAppID())
-	assert.Contains(t, result.Roles, "school_admin")
 	assert.False(t, result.MFAProofVerifiedAt().IsZero())
-	assert.Nil(t, result.OrgScopedRoles)
 
 	raw, err := marshalIDTokenClaims(mustVerifyIDToken(t, client, idToken))
 	require.NoError(t, err)

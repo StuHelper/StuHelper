@@ -552,6 +552,6 @@ SELECT id, 4111010006, '["20211001"]'::jsonb, '20211001', 'verified', 'ldap', NO
 FROM users WHERE username = 'test_admin'
 ON CONFLICT (user_id) DO NOTHING;
 
--- 角色现由 Casdoor flat roles + Go RoleCapabilities 管理，无需 DB 分配
+-- 管理员角色由 authorization_grants 管理并投影至 OpenFGA；开发 seed 不预置特权主体。
 
 COMMIT;

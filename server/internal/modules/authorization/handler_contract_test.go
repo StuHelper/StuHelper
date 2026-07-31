@@ -2,6 +2,7 @@ package authorization
 
 import (
 	"bytes"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -48,7 +49,13 @@ func TestAuthorizationMutationsRequireStepUpMFA(t *testing.T) {
 
 func TestNewAuthorizationHandlerRequiresService(t *testing.T) {
 	assert.PanicsWithValue(t, "authorization.NewHandler: service is required", func() {
-		NewHandler(nil, AdminAuthorizers{})
+		NewHandler(nil, AdminAuthorizers{}, nil)
+	})
+}
+
+func TestNewAuthorizationHandlerRequiresInternalUserResolver(t *testing.T) {
+	assert.PanicsWithValue(t, "authorization.NewHandler: internal user resolver is required", func() {
+		NewHandler(&Service{repo: &Repository{}}, AdminAuthorizers{}, nil)
 	})
 }
 
@@ -77,6 +84,7 @@ func authorizationRouteContractRouter(grants []capability.Grant) *gin.Engine {
 			Manage:    rbac.RequireGlobalCapability(capability.IAMGrantsManage),
 			StepUpMFA: rbac.RequireStepUpMFA(),
 		},
+		func(_ context.Context, _ string) (int64, error) { return 1, nil },
 	)
 	handler.RegisterAdminRoutes(api)
 	return router

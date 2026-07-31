@@ -13,11 +13,9 @@ import (
 )
 
 const (
-	freshmanProjectionDedupePrefix              = "freshman-provisional-role:"
 	admissionVerificationProjectionStream       = "admission_verification_projection"
 	admissionVerificationProjectionDedupePrefix = "admission-verification-projection:"
 	admissionProfileProjectionDedupePrefix      = "user-profile-projection:"
-	admissionVerifiedRoleDedupePrefix           = "verified-student-role:"
 )
 
 func (r *Repository) GetLatestSessionByUserID(
@@ -145,19 +143,13 @@ func (r *Repository) HasPendingAdmissionProjection(ctx context.Context, userID i
 			  AND (
 			    (stream = $1 AND dedupe_key = $2)
 			    OR (stream = $3 AND dedupe_key = $4)
-			    OR (stream = $5 AND dedupe_key = $6)
-			    OR (stream = $7 AND dedupe_key = $8)
 			  )
 		)
 	`,
-		outbox.StreamIAMCasdoorRoleSync,
-		freshmanProjectionDedupeKey(userID),
 		admissionVerificationProjectionStream,
 		admissionVerificationProjectionDedupeKey(userID),
 		outbox.StreamIAMOpenFGATupleSync,
 		admissionProfileProjectionDedupeKey(userID),
-		outbox.StreamIAMCasdoorRoleSync,
-		admissionVerifiedStudentRoleDedupeKey(userID),
 	).Scan(&exists)
 	if err != nil {
 		return false, fmt.Errorf("HasPendingAdmissionProjection: %w", err)
@@ -183,18 +175,10 @@ func scanVerificationCredential(row pgx.Row) (*VerificationCredential, error) {
 	return &credential, nil
 }
 
-func freshmanProjectionDedupeKey(userID int64) string {
-	return fmt.Sprintf("%s%d", freshmanProjectionDedupePrefix, userID)
-}
-
 func admissionVerificationProjectionDedupeKey(userID int64) string {
 	return fmt.Sprintf("%s%d", admissionVerificationProjectionDedupePrefix, userID)
 }
 
 func admissionProfileProjectionDedupeKey(userID int64) string {
 	return fmt.Sprintf("%s%d", admissionProfileProjectionDedupePrefix, userID)
-}
-
-func admissionVerifiedStudentRoleDedupeKey(userID int64) string {
-	return fmt.Sprintf("%s%d", admissionVerifiedRoleDedupePrefix, userID)
 }

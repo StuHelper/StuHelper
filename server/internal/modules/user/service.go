@@ -265,7 +265,6 @@ type Service struct {
 	redisClient         *redis.Client
 	studentEmailSender  StudentEmailSender
 	generateOTP         func() (string, error)
-	onRoleSync          RoleSyncFunc
 	profileFGA          profileFGAClient
 	photoStore          identityPhotoStore
 	profileIdentitySync profileIdentitySyncGateway
@@ -273,18 +272,7 @@ type Service struct {
 	studentDirectory    studentDirectoryLookup
 }
 
-// RoleSyncFunc 角色同步回调。
-// 当用户认证状态变化时调用：approved=true 添加角色，approved=false 移除角色。
-// userID 是内部 users.id，role 是 Casdoor 扁平角色名称。
-type RoleSyncFunc func(ctx context.Context, userID int64, role string, approved bool) error
-
 type ServiceOption func(*Service)
-
-func WithRoleSyncFunc(fn RoleSyncFunc) ServiceOption {
-	return func(s *Service) {
-		s.onRoleSync = fn
-	}
-}
 
 func WithProfileFGAClient(client profileFGAClient) ServiceOption {
 	return func(s *Service) {

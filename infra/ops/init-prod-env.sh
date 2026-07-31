@@ -194,9 +194,6 @@ fi
 if placeholder_or_empty "${CASDOOR_INTROSPECTION_CLIENT_SECRET:-}"; then
   upsert_env_file "${SECRETS_ENV_FILE}" "CASDOOR_INTROSPECTION_CLIENT_SECRET" "prod-casdoor-introspection-$(random_hex 24)"
 fi
-if placeholder_or_empty "${CASDOOR_ROLE_SYNC_CLIENT_SECRET:-}"; then
-  upsert_env_file "${SECRETS_ENV_FILE}" "CASDOOR_ROLE_SYNC_CLIENT_SECRET" "prod-casdoor-role-sync-$(random_hex 24)"
-fi
 if placeholder_or_empty "${CASDOOR_USER_LOOKUP_CLIENT_SECRET:-}"; then
   upsert_env_file "${SECRETS_ENV_FILE}" "CASDOOR_USER_LOOKUP_CLIENT_SECRET" "prod-casdoor-user-lookup-$(random_hex 24)"
 fi
@@ -273,7 +270,6 @@ ensure_prod_default "CASDOOR_PUBLIC_AUTH_BASE_URL" "${CASDOOR_PUBLIC_AUTH_BASE_U
 ensure_prod_default "CASDOOR_REDIRECT_URI" "${CASDOOR_REDIRECT_URI:-}" "https://stuhelper.com/api/v1/auth/callback" "REPLACE_WITH_CASDOOR_REDIRECT_URI" "http://localhost:8080/api/v1/auth/callback"
 ensure_prod_default "CASDOOR_CLIENT_ID" "${CASDOOR_CLIENT_ID:-}" "REPLACE_WITH_CASDOOR_CLIENT_ID" "stuhelper-web"
 ensure_value "CASDOOR_ORGANIZATION" "${CASDOOR_ORGANIZATION:-}" "stuhelper"
-ensure_value "CASDOOR_ROLES_CLAIM" "${CASDOOR_ROLES_CLAIM:-}" "roles"
 ensure_prod_default "CASDOOR_BOOTSTRAP_ENABLED" "${CASDOOR_BOOTSTRAP_ENABLED:-}" "true" "false"
 ensure_value "CASDOOR_BOOTSTRAP_ENV_FILE" "${CASDOOR_BOOTSTRAP_ENV_FILE:-}" ".env.casdoor-bootstrap.local"
 ensure_value "CASDOOR_ADMIN_CLIENT_ID" "${CASDOOR_ADMIN_CLIENT_ID:-}" "stuhelper-admin"
@@ -351,8 +347,6 @@ ensure_prod_default "CASDOOR_USER_PROFILE_CLIENT_ID" "${CASDOOR_USER_PROFILE_CLI
 ensure_prod_default "CASDOOR_USER_PROFILE_APPLICATION" "${CASDOOR_USER_PROFILE_APPLICATION:-}" "casdoor-admin-user-profile" "REPLACE_WITH_CASDOOR_USER_PROFILE_APPLICATION"
 ensure_prod_default "CASDOOR_INTROSPECTION_CLIENT_ID" "${CASDOOR_INTROSPECTION_CLIENT_ID:-}" "casdoor-token-introspection" "REPLACE_WITH_CASDOOR_INTROSPECTION_CLIENT_ID"
 ensure_prod_default "CASDOOR_INTROSPECTION_APPLICATION" "${CASDOOR_INTROSPECTION_APPLICATION:-}" "casdoor-token-introspection" "REPLACE_WITH_CASDOOR_INTROSPECTION_APPLICATION"
-ensure_prod_default "CASDOOR_ROLE_SYNC_CLIENT_ID" "${CASDOOR_ROLE_SYNC_CLIENT_ID:-}" "casdoor-admin-role-sync" "REPLACE_WITH_CASDOOR_ROLE_SYNC_CLIENT_ID"
-ensure_prod_default "CASDOOR_ROLE_SYNC_APPLICATION" "${CASDOOR_ROLE_SYNC_APPLICATION:-}" "casdoor-admin-role-sync" "REPLACE_WITH_CASDOOR_ROLE_SYNC_APPLICATION"
 ensure_prod_default "CASDOOR_USER_LOOKUP_CLIENT_ID" "${CASDOOR_USER_LOOKUP_CLIENT_ID:-}" "casdoor-admin-user-lookup" "REPLACE_WITH_CASDOOR_USER_LOOKUP_CLIENT_ID"
 ensure_prod_default "CASDOOR_USER_LOOKUP_APPLICATION" "${CASDOOR_USER_LOOKUP_APPLICATION:-}" "casdoor-admin-user-lookup" "REPLACE_WITH_CASDOOR_USER_LOOKUP_APPLICATION"
 ensure_prod_default "CASDOOR_TOKEN_PROBE_SMOKE_CLIENT_ID" "${CASDOOR_TOKEN_PROBE_SMOKE_CLIENT_ID:-}" "casdoor-token-probe-smoke" "REPLACE_WITH_CASDOOR_TOKEN_PROBE_SMOKE_CLIENT_ID"

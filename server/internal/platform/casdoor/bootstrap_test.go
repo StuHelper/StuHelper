@@ -11,10 +11,9 @@ import (
 
 func TestBootstrapCreatesMissingObjects(t *testing.T) {
 	apps := &fakeApplicationAPI{addOK: true}
-	roles := &fakeRoleAPI{}
 	orgs := &fakeOrganizationAPI{addOK: true}
 	providers := &fakeProviderAPI{addOK: true}
-	client := newBootstrapTestClient(t, bootstrapAPIs{apps: apps, roles: roles, orgs: orgs, providers: providers})
+	client := newBootstrapTestClient(t, bootstrapAPIs{apps: apps, orgs: orgs, providers: providers})
 
 	err := client.Bootstrap(context.Background(), validBootstrapPlan())
 
@@ -36,11 +35,6 @@ func TestBootstrapCreatesMissingObjects(t *testing.T) {
 	require.NotNil(t, apps.added)
 	assert.Equal(t, "stuhelper-web", apps.added.Name)
 	assert.Equal(t, "stuhelper", apps.added.Organization)
-	require.NotNil(t, roles.added)
-	assert.Equal(t, "verified_student", roles.added.Name)
-	assert.Equal(t, "stuhelper", roles.added.Owner)
-	assert.Contains(t, roles.getProfileURL, "/users/stuhelper/")
-	assert.Contains(t, roles.addProfileURL, "/users/stuhelper/")
 	require.NotNil(t, providers.added)
 	assert.Equal(t, "stuhelper-sms", providers.added.Name)
 	assert.Equal(t, "stuhelper", providers.added.Owner)
@@ -50,10 +44,9 @@ func TestBootstrapCreatesMissingObjects(t *testing.T) {
 
 func TestBootstrapUpdatesExistingObjects(t *testing.T) {
 	apps := &fakeApplicationAPI{existing: &casdoorsdk.Application{Name: "stuhelper-web"}, updateOK: true}
-	roles := &fakeRoleAPI{role: &casdoorsdk.Role{Name: "verified_student", DisplayName: "old"}}
 	orgs := &fakeOrganizationAPI{existing: &casdoorsdk.Organization{Name: "stuhelper"}, updateOK: true}
 	providers := &fakeProviderAPI{existing: &casdoorsdk.Provider{Name: "stuhelper-sms"}, updateOK: true}
-	client := newBootstrapTestClient(t, bootstrapAPIs{apps: apps, roles: roles, orgs: orgs, providers: providers})
+	client := newBootstrapTestClient(t, bootstrapAPIs{apps: apps, orgs: orgs, providers: providers})
 
 	err := client.Bootstrap(context.Background(), validBootstrapPlan())
 
@@ -62,21 +55,18 @@ func TestBootstrapUpdatesExistingObjects(t *testing.T) {
 	assert.Equal(t, "StuHelper", orgs.updated.DisplayName)
 	assert.Nil(t, apps.added)
 	assert.Equal(t, "stuhelper-web", apps.updated.Name)
-	assert.Nil(t, roles.added)
-	assert.Equal(t, "Verified Student", roles.updated.DisplayName)
 	assert.Nil(t, providers.added)
 	assert.Equal(t, "https://api.example.com/internal/sms/send", providers.updated.Endpoint)
 }
 
 func TestBootstrapUsesTargetOrganizationWhenCredentialIsBuiltIn(t *testing.T) {
 	apps := &fakeApplicationAPI{addOK: true}
-	roles := &fakeRoleAPI{}
 	orgs := &fakeOrganizationAPI{addOK: true}
 	providers := &fakeProviderAPI{addOK: true}
 	credential := validCredential()
 	credential.Purpose = PurposeBootstrap
 	credential.Organization = "built-in"
-	client, err := newBootstrapClient(credential, apps, roles, orgs, providers)
+	client, err := newBootstrapClient(credential, apps, orgs, providers)
 	require.NoError(t, err)
 
 	err = client.Bootstrap(context.Background(), validBootstrapPlan())
@@ -84,10 +74,6 @@ func TestBootstrapUsesTargetOrganizationWhenCredentialIsBuiltIn(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, apps.added)
 	assert.Equal(t, "stuhelper", apps.added.Organization)
-	require.NotNil(t, roles.added)
-	assert.Equal(t, "stuhelper", roles.added.Owner)
-	assert.Contains(t, roles.getProfileURL, "/users/stuhelper/")
-	assert.Contains(t, roles.addProfileURL, "/users/stuhelper/")
 	require.NotNil(t, providers.added)
 	assert.Equal(t, "stuhelper", providers.added.Owner)
 	assert.Contains(t, providers.getProfileURL, "/users/stuhelper/")
@@ -123,7 +109,6 @@ func TestNewBootstrapClientRequiresBootstrapPurpose(t *testing.T) {
 func TestBootstrapRejectsIncompleteProvider(t *testing.T) {
 	client := newBootstrapTestClient(t, bootstrapAPIs{
 		apps:      &fakeApplicationAPI{},
-		roles:     &fakeRoleAPI{},
 		orgs:      &fakeOrganizationAPI{},
 		providers: &fakeProviderAPI{},
 	})
@@ -155,11 +140,6 @@ func validBootstrapPlan() BootstrapPlan {
 			ExpireInHours:        1,
 			RefreshExpireInHours: 24,
 		}},
-		Roles: []RoleSpec{{
-			Name:        "verified_student",
-			DisplayName: "Verified Student",
-			Description: "StuHelper verified student projection",
-		}},
 		Providers: []ProviderSpec{{
 			Name:        "stuhelper-sms",
 			DisplayName: "StuHelper SMS",
@@ -174,7 +154,6 @@ func validBootstrapPlan() BootstrapPlan {
 
 type bootstrapAPIs struct {
 	apps      *fakeApplicationAPI
-	roles     *fakeRoleAPI
 	orgs      *fakeOrganizationAPI
 	providers *fakeProviderAPI
 }
@@ -183,7 +162,7 @@ func newBootstrapTestClient(t *testing.T, apis bootstrapAPIs) *Client {
 	t.Helper()
 	credential := validCredential()
 	credential.Purpose = PurposeBootstrap
-	client, err := newBootstrapClient(credential, apis.apps, apis.roles, apis.orgs, apis.providers)
+	client, err := newBootstrapClient(credential, apis.apps, apis.orgs, apis.providers)
 	require.NoError(t, err)
 	return client
 }

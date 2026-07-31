@@ -298,120 +298,6 @@ func TestProcessExternalSyncJob_UserProfileProjectionUsesCurrentRejectedState(t 
 	assert.Equal(t, []fga.Tuple{{User: "school:4111010006", Relation: "school", Object: "user_profile:123"}}, fgaClient.deleteCalls[0])
 }
 
-func TestProcessExternalSyncJob_VerifiedStudentRoleUsesCurrentProfileState(t *testing.T) {
-	var synced externalSyncRoleCall
-	repo := &mockRepo{
-		onGetProfileByUserID: func(_ context.Context, userID int64) (*Profile, error) {
-			require.Equal(t, int64(42), userID)
-			return &Profile{UserID: userID, VerificationStatus: StatusRejected}, nil
-		},
-	}
-	svc, err := NewService(
-		repo,
-		[]byte("test-hmac-key-at-least-32-chars!"),
-		&fakeEncryptor{},
-		WithRoleSyncFunc(func(_ context.Context, userID int64, role string, approved bool) error {
-			synced = externalSyncRoleCall{UserID: userID, Role: role, Approved: approved}
-			return nil
-		}),
-	)
-	require.NoError(t, err)
-	payload, err := json.Marshal(verifiedStudentRoleSyncPayload{
-		UserID:   42,
-		Role:     verifiedStudentRoleName,
-		Approved: true,
-	})
-	require.NoError(t, err)
-
-	err = svc.processExternalSyncJob(context.Background(), ExternalSyncJob{
-		JobType: externalSyncJobTypeVerifiedStudentRole,
-		Payload: payload,
-	})
-
-	require.NoError(t, err)
-	assert.Equal(t, externalSyncRoleCall{UserID: 42, Role: verifiedStudentRoleName, Approved: false}, synced)
-}
-
-func TestProcessExternalSyncJob_VerifiedStudentRoleKeepsCurrentVerifiedState(t *testing.T) {
-	var synced externalSyncRoleCall
-	repo := &mockRepo{
-		onGetProfileByUserID: func(_ context.Context, userID int64) (*Profile, error) {
-			require.Equal(t, int64(42), userID)
-			return &Profile{UserID: userID, VerificationStatus: StatusVerified}, nil
-		},
-	}
-	svc, err := NewService(
-		repo,
-		[]byte("test-hmac-key-at-least-32-chars!"),
-		&fakeEncryptor{},
-		WithRoleSyncFunc(func(_ context.Context, userID int64, role string, approved bool) error {
-			synced = externalSyncRoleCall{UserID: userID, Role: role, Approved: approved}
-			return nil
-		}),
-	)
-	require.NoError(t, err)
-	payload, err := json.Marshal(verifiedStudentRoleSyncPayload{
-		UserID:   42,
-		Role:     verifiedStudentRoleName,
-		Approved: false,
-	})
-	require.NoError(t, err)
-
-	err = svc.processExternalSyncJob(context.Background(), ExternalSyncJob{
-		JobType: externalSyncJobTypeVerifiedStudentRole,
-		Payload: payload,
-	})
-
-	require.NoError(t, err)
-	assert.Equal(t, externalSyncRoleCall{UserID: 42, Role: verifiedStudentRoleName, Approved: true}, synced)
-}
-
-func TestProcessExternalSyncJob_RetryOnRoleSyncFailure(t *testing.T) {
-	retryMarked := false
-	nextRetry := time.Time{}
-	var lastError string
-	repo := &mockRepo{
-		onGetProfileByUserID: func(_ context.Context, userID int64) (*Profile, error) {
-			require.Equal(t, int64(42), userID)
-			return &Profile{UserID: userID, VerificationStatus: StatusVerified}, nil
-		},
-		onClaimExternalSyncJobs: func(_ context.Context, limit int, _ time.Duration) ([]ExternalSyncJob, error) {
-			require.Equal(t, externalSyncBatchSize, limit)
-			payload, err := json.Marshal(verifiedStudentRoleSyncPayload{UserID: 42, Role: verifiedStudentRoleName, Approved: true})
-			require.NoError(t, err)
-			return []ExternalSyncJob{{ID: 1, JobType: externalSyncJobTypeVerifiedStudentRole, Payload: payload}}, nil
-		},
-		onMarkExternalSyncJobFailure: func(_ context.Context, jobID int64, _ time.Time, nextAttemptAt time.Time, errMsg string, terminal bool) error {
-			retryMarked = true
-			assert.Equal(t, int64(1), jobID)
-			nextRetry = nextAttemptAt
-			lastError = errMsg
-			assert.False(t, terminal)
-			return nil
-		},
-	}
-	svc, err := NewService(
-		repo,
-		[]byte("test-hmac-key-at-least-32-chars!"),
-		&fakeEncryptor{},
-		WithRoleSyncFunc(func(_ context.Context, userID int64, role string, approved bool) error {
-			assert.Equal(t, int64(42), userID)
-			assert.Equal(t, verifiedStudentRoleName, role)
-			assert.True(t, approved)
-			return errors.New("casdoor unavailable")
-		}),
-	)
-	require.NoError(t, err)
-
-	startedAt := time.Now()
-	err = svc.processExternalSyncBatch(context.Background())
-	require.NoError(t, err)
-	assert.True(t, retryMarked)
-	assert.Contains(t, lastError, "casdoor unavailable")
-	assert.True(t, nextRetry.After(startedAt.Add(2*time.Second)))
-	assert.True(t, nextRetry.Before(startedAt.Add(6*time.Second)))
-}
-
 func TestProcessExternalSyncJob_ProjectsAdmissionVerification(t *testing.T) {
 	gateway := &fakeAdmissionProjectionGateway{}
 	schoolID := int64(4111010006)
@@ -642,7 +528,6 @@ func TestVerifyStudent_EnqueuesProjectionInsideTransaction(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, enqueued, externalSyncJobTypeUserProfileProjection+":"+userProfileProjectionKey(1))
 	assert.NotContains(t, enqueued, externalSyncJobTypeAdmissionVerification+":"+admissionVerificationProjectionKey(1))
-	assert.NotContains(t, enqueued, externalSyncJobTypeVerifiedStudentRole+":"+verifiedStudentRoleSyncKey(1))
 }
 
 func TestVerifyStudent_EnqueuesAdmissionProjectionWhenVerified(t *testing.T) {
@@ -672,7 +557,6 @@ func TestVerifyStudent_EnqueuesAdmissionProjectionWhenVerified(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, enqueued, externalSyncJobTypeUserProfileProjection+":"+userProfileProjectionKey(1))
 	assert.Contains(t, enqueued, externalSyncJobTypeAdmissionVerification+":"+admissionVerificationProjectionKey(1))
-	assert.Contains(t, enqueued, externalSyncJobTypeVerifiedStudentRole+":"+verifiedStudentRoleSyncKey(1))
 }
 
 func TestReconcileUserProfileProjectionsRequeuesWithinLimit(t *testing.T) {
@@ -692,13 +576,11 @@ func TestReconcileUserProfileProjectionsRequeuesWithinLimit(t *testing.T) {
 
 	requeued, err := svc.ReconcileUserProfileProjections(context.Background(), 100)
 	require.NoError(t, err)
-	assert.Equal(t, 5, requeued)
-	require.Len(t, enqueued, 5)
+	assert.Equal(t, 3, requeued)
+	require.Len(t, enqueued, 3)
 	assertProfileProjectionTestJob(t, enqueued[0], 42, true)
 	assertAdmissionProjectionTestJob(t, enqueued[1], 42, true)
-	assertRoleSyncTestJob(t, enqueued[2], 42, true)
-	assertProfileProjectionTestJob(t, enqueued[3], 43, false)
-	assertRoleSyncTestJob(t, enqueued[4], 43, false)
+	assertProfileProjectionTestJob(t, enqueued[2], 43, false)
 }
 
 func TestReconcileUserProfileProjectionsStopsAboveThreshold(t *testing.T) {
@@ -747,17 +629,6 @@ type externalSyncTestJob struct {
 	jobType   string
 	dedupeKey string
 	payload   []byte
-}
-
-func assertRoleSyncTestJob(t *testing.T, job externalSyncTestJob, userID int64, approved bool) {
-	t.Helper()
-	assert.Equal(t, externalSyncJobTypeVerifiedStudentRole, job.jobType)
-	assert.Equal(t, verifiedStudentRoleSyncKey(userID), job.dedupeKey)
-	var payload verifiedStudentRoleSyncPayload
-	require.NoError(t, json.Unmarshal(job.payload, &payload))
-	assert.Equal(t, userID, payload.UserID)
-	assert.Equal(t, verifiedStudentRoleName, payload.Role)
-	assert.Equal(t, approved, payload.Approved)
 }
 
 func assertProfileProjectionTestJob(t *testing.T, job externalSyncTestJob, userID int64, approved bool) {

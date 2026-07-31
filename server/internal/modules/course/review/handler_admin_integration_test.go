@@ -97,7 +97,7 @@ func withAdminContext(method, target, body string) (*httptest.ResponseRecorder, 
 	c.Set(middleware.CtxKeyUserID, "admin-user-1")
 	c.Set(middleware.CtxKeyUsername, "admin-root")
 	c.Set(middleware.CtxKeyRoles, []string{"super_admin"})
-	c.Set(middleware.CtxKeyOrgScopedRoles, map[string][]string{})
+	c.Set(middleware.CtxKeyScopedRoleGrants, map[string][]string{})
 	return w, c
 }
 
@@ -484,21 +484,21 @@ func TestReviewHandler_AdminModerationHonorsSchoolScopedRoles(t *testing.T) {
 	w, c := withAdminContext(http.MethodPut, "/admin/reviews/"+reviewA, `{"action":"hide","reason":"spam"}`)
 	c.Params = gin.Params{{Key: "reviewID", Value: reviewA}}
 	c.Set(middleware.CtxKeyRoles, []string{"school_admin"})
-	c.Set(middleware.CtxKeyOrgScopedRoles, map[string][]string{"school_admin": {"4111010006"}})
+	c.Set(middleware.CtxKeyScopedRoleGrants, map[string][]string{"school_admin": {"4111010006"}})
 	h.AdminUpdateReview(c)
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 
 	w, c = withAdminContext(http.MethodPut, "/admin/reviews/"+reviewB, `{"action":"hide","reason":"spam"}`)
 	c.Params = gin.Params{{Key: "reviewID", Value: reviewB}}
 	c.Set(middleware.CtxKeyRoles, []string{"school_admin"})
-	c.Set(middleware.CtxKeyOrgScopedRoles, map[string][]string{"school_admin": {"4111010006"}})
+	c.Set(middleware.CtxKeyScopedRoleGrants, map[string][]string{"school_admin": {"4111010006"}})
 	h.AdminUpdateReview(c)
 	require.Equal(t, http.StatusForbidden, w.Code, w.Body.String())
 
 	w, c = withAdminContext(http.MethodPost, "/admin/reviews/"+reviewA+"/edit", `{"title":"管理员修订","content":"管理员修订后的内容","reason":"规范化"}`)
 	c.Params = gin.Params{{Key: "reviewID", Value: reviewA}}
 	c.Set(middleware.CtxKeyRoles, []string{"school_admin"})
-	c.Set(middleware.CtxKeyOrgScopedRoles, map[string][]string{"school_admin": {"4111010006"}})
+	c.Set(middleware.CtxKeyScopedRoleGrants, map[string][]string{"school_admin": {"4111010006"}})
 	h.AdminEditReviewContent(c)
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 
@@ -506,7 +506,7 @@ func TestReviewHandler_AdminModerationHonorsSchoolScopedRoles(t *testing.T) {
 	c.Params = gin.Params{{Key: "reviewID", Value: reviewA}}
 	c.Set(middleware.CtxKeyUserID, "section-moderator")
 	c.Set(middleware.CtxKeyRoles, []string{"section_moderator"})
-	c.Set(middleware.CtxKeyOrgScopedRoles, map[string][]string{"section_moderator": {reviewModerationSectionID(4111010006)}})
+	c.Set(middleware.CtxKeyScopedRoleGrants, map[string][]string{"section_moderator": {reviewModerationSectionID(4111010006)}})
 	h.AdminEditReviewContent(c)
 	require.Equal(t, http.StatusForbidden, w.Code, w.Body.String())
 }
@@ -532,7 +532,7 @@ func TestReviewHandler_AdminDeleteUsesFGAAdminRelation(t *testing.T) {
 	w, c := withAdminContext(http.MethodPut, "/admin/reviews/"+reviewID, `{"action":"delete","reason":"admin delete"}`)
 	c.Params = gin.Params{{Key: "reviewID", Value: reviewID}}
 	c.Set(middleware.CtxKeyRoles, []string{"school_admin"})
-	c.Set(middleware.CtxKeyOrgScopedRoles, map[string][]string{"school_admin": {"4111010006"}})
+	c.Set(middleware.CtxKeyScopedRoleGrants, map[string][]string{"school_admin": {"4111010006"}})
 	h.AdminUpdateReview(c)
 
 	require.Equal(t, http.StatusForbidden, w.Code, w.Body.String())
@@ -596,7 +596,7 @@ func TestReviewHandler_ReportModerationRespectsScopedRolesAndListScope(t *testin
 
 	w, c := withAdminContext(http.MethodGet, "/admin/reports?status=pending", "")
 	c.Set(middleware.CtxKeyRoles, []string{"section_moderator"})
-	c.Set(middleware.CtxKeyOrgScopedRoles, map[string][]string{"section_moderator": {reviewModerationSectionID(4111010006)}})
+	c.Set(middleware.CtxKeyScopedRoleGrants, map[string][]string{"section_moderator": {reviewModerationSectionID(4111010006)}})
 	h.ListReports(c)
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 
@@ -614,14 +614,14 @@ func TestReviewHandler_ReportModerationRespectsScopedRolesAndListScope(t *testin
 	w, c = withAdminContext(http.MethodPut, "/admin/reports/"+reportA, `{"action":"reject","note":"handled"}`)
 	c.Params = gin.Params{{Key: "reportID", Value: reportA}}
 	c.Set(middleware.CtxKeyRoles, []string{"section_moderator"})
-	c.Set(middleware.CtxKeyOrgScopedRoles, map[string][]string{"section_moderator": {reviewModerationSectionID(4111010006)}})
+	c.Set(middleware.CtxKeyScopedRoleGrants, map[string][]string{"section_moderator": {reviewModerationSectionID(4111010006)}})
 	h.ProcessReport(c)
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 
 	w, c = withAdminContext(http.MethodPut, "/admin/reports/"+reportB, `{"action":"reject","note":"handled"}`)
 	c.Params = gin.Params{{Key: "reportID", Value: reportB}}
 	c.Set(middleware.CtxKeyRoles, []string{"section_moderator"})
-	c.Set(middleware.CtxKeyOrgScopedRoles, map[string][]string{"section_moderator": {reviewModerationSectionID(4111010006)}})
+	c.Set(middleware.CtxKeyScopedRoleGrants, map[string][]string{"section_moderator": {reviewModerationSectionID(4111010006)}})
 	h.ProcessReport(c)
 	require.Equal(t, http.StatusForbidden, w.Code, w.Body.String())
 }

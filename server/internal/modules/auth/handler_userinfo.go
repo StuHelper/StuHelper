@@ -38,7 +38,7 @@ func (h *Handler) GetCurrentUser(c *gin.Context) {
 	displayName := middleware.GetDisplayName(c)
 	email := middleware.GetEmail(c)
 	avatarURL := nullableString(avatar)
-	if !h.syncCurrentUser(c, userID, username, email, avatarURL, roles) {
+	if !h.syncCurrentUser(c, userID, username, email, avatarURL) {
 		return
 	}
 	response.Success(c, h.buildUserPayload(
@@ -58,17 +58,12 @@ func (h *Handler) syncCurrentUser(
 	username,
 	email string,
 	avatarURL *string,
-	roles []string,
 ) bool {
 	if err := h.svc.SyncOIDCUser(c.Request.Context(), UserSyncInput{
 		CasdoorSubject: userID,
 		Username:       username,
 		Email:          email,
 		AvatarURL:      avatarURL,
-		Roles:          roles,
-		// /auth/me 可能由较旧的 access token 驱动，只同步 shadow profile，
-		// 不得据此重新授予或撤销平台级 OpenFGA role tuple。
-		RolesAuthoritative: false,
 	}); err != nil {
 		logger.FromGin(c).Error("failed to sync current user",
 			zap.String("user_id", userID),
@@ -133,8 +128,8 @@ func hasRole(roles []string, expected string) bool {
 	return false
 }
 
-func buildAccessSnapshotForRoles(roles []string, orgScopedRoles map[string][]string) capability.UserAccessSnapshot {
-	return capability.BuildUserAccessSnapshot(capability.ExpandRoleGrants(roles, orgScopedRoles))
+func buildAccessSnapshotForRoles(roles []string, scopedRoleGrants map[string][]string) capability.UserAccessSnapshot {
+	return capability.BuildUserAccessSnapshot(capability.ExpandRoleGrants(roles, scopedRoleGrants))
 }
 
 func nullableString(value string) *string {

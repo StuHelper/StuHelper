@@ -44,6 +44,7 @@ var (
 	ErrLastSuperAdmin      = errors.New("cannot revoke the last active super admin")
 	ErrProjectionStale     = errors.New("authorization projection revision is stale")
 	ErrProjectionMalformed = errors.New("authorization projection payload is malformed")
+	ErrReconciliationLimit = errors.New("authorization projection reconciliation threshold exceeded")
 )
 
 type Grant struct {
@@ -87,6 +88,25 @@ type ReconcileGrantInput struct {
 	GrantID     int64
 	Reason      string
 	ActorUserID int64
+}
+
+type ReconcileAllInput struct {
+	Reason      string
+	ActorUserID int64
+}
+
+type ReconcileAllResult struct {
+	Queued int
+}
+
+type BootstrapSuperAdminsInput struct {
+	SubjectUserIDs []int64
+	Reason         string
+}
+
+type BootstrapSuperAdminsResult struct {
+	Grants  []Grant
+	Skipped bool
 }
 
 type ListGrantsFilter struct {

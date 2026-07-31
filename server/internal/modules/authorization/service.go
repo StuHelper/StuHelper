@@ -104,6 +104,47 @@ func (s *Service) ReconcileGrant(ctx context.Context, input ReconcileGrantInput)
 	return result, nil
 }
 
+func (s *Service) ReconcileAll(ctx context.Context, input ReconcileAllInput) (ReconcileAllResult, error) {
+	input, err := normalizeReconcileAllInput(input)
+	if err != nil {
+		return ReconcileAllResult{}, err
+	}
+	exists, err := s.repo.UserExists(ctx, input.ActorUserID)
+	if err != nil {
+		return ReconcileAllResult{}, err
+	}
+	if !exists {
+		return ReconcileAllResult{}, ErrActorUserNotFound
+	}
+	queued, err := s.repo.ReconcileAll(ctx, input)
+	if err != nil {
+		return ReconcileAllResult{}, fmt.Errorf("reconcile all authorization grants: %w", err)
+	}
+	return ReconcileAllResult{Queued: queued}, nil
+}
+
+// BootstrapSuperAdmins atomically creates the first set of super-admin desired
+// grants. It is intentionally separate from the authenticated admin mutation
+// path so the audit log identifies the break-glass system operation instead of
+// falsely attributing it to one of the target users.
+func (s *Service) BootstrapSuperAdmins(
+	ctx context.Context,
+	input BootstrapSuperAdminsInput,
+) (BootstrapSuperAdminsResult, error) {
+	input, err := normalizeBootstrapSuperAdminsInput(input)
+	if err != nil {
+		return BootstrapSuperAdminsResult{}, err
+	}
+	result, err := s.repo.BootstrapSuperAdmins(ctx, input)
+	if err != nil {
+		return BootstrapSuperAdminsResult{}, fmt.Errorf(
+			"bootstrap authorization super admins: %w",
+			err,
+		)
+	}
+	return result, nil
+}
+
 func (s *Service) ListGrants(ctx context.Context, filter ListGrantsFilter) (GrantList, error) {
 	var err error
 	filter, err = normalizeListGrantsFilter(filter)
@@ -120,6 +161,17 @@ func (s *Service) GetGrant(ctx context.Context, grantID int64) (Grant, error) {
 	return s.repo.GetGrant(ctx, grantID)
 }
 
-func (s *Service) ResolveInternalUserID(ctx context.Context, casdoorSubject string) (int64, error) {
-	return s.repo.ResolveInternalUserID(ctx, casdoorSubject)
+func (s *Service) ResolveInternalUserIDByUsername(ctx context.Context, username string) (int64, error) {
+	return s.repo.ResolveInternalUserIDByUsername(ctx, username)
+}
+
+func (s *Service) HasDesiredSuperAdmin(ctx context.Context) (bool, error) {
+	return s.repo.HasDesiredSuperAdmin(ctx)
+}
+
+func (s *Service) ResolveAccessSnapshotByUserID(
+	ctx context.Context,
+	userID int64,
+) (AccessSnapshot, error) {
+	return s.repo.ResolveAccessSnapshotByUserID(ctx, userID)
 }

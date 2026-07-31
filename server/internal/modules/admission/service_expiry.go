@@ -3,7 +3,6 @@ package admission
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -71,9 +70,6 @@ func (s *Service) runMemberBlacklistExpiryBatch(ctx context.Context) {
 }
 
 func (s *Service) ProcessExpiredFreshmanCredentials(ctx context.Context) (int, error) {
-	if s.projection == nil {
-		return 0, ErrAdmissionProjectionUnavailable
-	}
 	items, err := s.repo.ListExpiredFreshmanCredentials(ctx, s.now(), outbox.IAMWorkerBatchSize)
 	if err != nil {
 		return 0, err
@@ -123,9 +119,6 @@ func (s *Service) processExpiredFreshmanCredential(
 			return nil
 		}
 		updated = true
-		if err := s.projection.EnqueueFreshmanProvisionalRoleSyncTx(ctx, tx, item.UserID, false); err != nil {
-			return fmt.Errorf("enqueue freshman provisional role removal: %w", err)
-		}
 		return s.repo.InsertAuditEventTx(ctx, tx, freshmanExpiryAuditEvent(ctx, item))
 	})
 	return updated, err

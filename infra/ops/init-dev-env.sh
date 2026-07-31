@@ -285,15 +285,6 @@ fi
 if placeholder_or_empty "${CASDOOR_INTROSPECTION_APPLICATION:-}"; then
   upsert_env_file "${ENV_FILE}" "CASDOOR_INTROSPECTION_APPLICATION" "casdoor-token-introspection"
 fi
-if placeholder_or_empty "${CASDOOR_ROLE_SYNC_CLIENT_ID:-}"; then
-  upsert_env_file "${ENV_FILE}" "CASDOOR_ROLE_SYNC_CLIENT_ID" "casdoor-admin-role-sync"
-fi
-if placeholder_or_empty "${CASDOOR_ROLE_SYNC_CLIENT_SECRET:-}"; then
-  upsert_env_file "${ENV_FILE}" "CASDOOR_ROLE_SYNC_CLIENT_SECRET" "dev-casdoor-role-sync-$(random_hex 16)"
-fi
-if placeholder_or_empty "${CASDOOR_ROLE_SYNC_APPLICATION:-}"; then
-  upsert_env_file "${ENV_FILE}" "CASDOOR_ROLE_SYNC_APPLICATION" "casdoor-admin-role-sync"
-fi
 if placeholder_or_empty "${CASDOOR_USER_LOOKUP_CLIENT_ID:-}"; then
   upsert_env_file "${ENV_FILE}" "CASDOOR_USER_LOOKUP_CLIENT_ID" "casdoor-admin-user-lookup"
 fi
@@ -413,7 +404,6 @@ ensure_dev_default "CASDOOR_PUBLIC_AUTH_BASE_URL" "${CASDOOR_PUBLIC_AUTH_BASE_UR
 ensure_dev_default "CASDOOR_REDIRECT_URI" "${CASDOOR_REDIRECT_URI:-}" "http://localhost:8080/api/v1/auth/callback" "http://127.0.0.1:28080/api/v1/auth/callback" "http://stuhelper.com/api/v1/auth/callback" "https://stuhelper.com/api/v1/auth/callback"
 ensure_dev_default "CASDOOR_ADDITIONAL_REDIRECT_URIS" "${CASDOOR_ADDITIONAL_REDIRECT_URIS:-}" "http://localhost:3000/api/v1/auth/callback,http://127.0.0.1:3000/api/v1/auth/callback,http://join.localhost:3000/api/v1/auth/callback" "http://localhost:28000/api/v1/auth/callback,http://127.0.0.1:28000/api/v1/auth/callback,http://join.localhost:28000/api/v1/auth/callback"
 ensure_value "CASDOOR_ORGANIZATION" "${CASDOOR_ORGANIZATION:-}" "stuhelper"
-ensure_value "CASDOOR_ROLES_CLAIM" "${CASDOOR_ROLES_CLAIM:-}" "roles"
 ensure_dev_default "CASDOOR_BOOTSTRAP_ENABLED" "${CASDOOR_BOOTSTRAP_ENABLED:-}" "false" "true"
 ensure_dev_pattern_default "CASDOOR_BOOTSTRAP_ENV_FILE" "${CASDOOR_BOOTSTRAP_ENV_FILE:-}" ".env.casdoor-bootstrap.local" "*/.run/prod-parity/.env.casdoor-bootstrap.local"
 ensure_dev_default "CASDOOR_ADMIN_REDIRECT_URI" "${CASDOOR_ADMIN_REDIRECT_URI:-}" "http://localhost:8080/api/v1/auth/callback" "http://127.0.0.1:28080/api/v1/auth/callback" "http://stuhelper.com/api/v1/auth/callback" "https://stuhelper.com/api/v1/auth/callback"

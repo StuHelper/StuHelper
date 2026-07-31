@@ -224,7 +224,6 @@ type CasdoorConfig struct {
 	IntrospectionClientID       string
 	IntrospectionClientSecret   string
 	Organization                string // Casdoor organization 名称
-	RolesClaim                  string // 角色 claim 名称，默认 roles
 	AppProvisioningClientID     string
 	AppProvisioningClientSecret string
 	AppProvisioningApplication  string
@@ -233,10 +232,6 @@ type CasdoorConfig struct {
 	UserProfileClientSecret     string
 	UserProfileApplication      string
 	UserProfileCertificate      string
-	RoleSyncClientID            string
-	RoleSyncClientSecret        string
-	RoleSyncApplication         string
-	RoleSyncCertificate         string
 	UserLookupClientID          string
 	UserLookupClientSecret      string
 	UserLookupApplication       string
@@ -407,7 +402,6 @@ func loadCasdoorConfig() CasdoorConfig {
 		IntrospectionClientID:       getEnv("CASDOOR_INTROSPECTION_CLIENT_ID", ""),
 		IntrospectionClientSecret:   getEnv("CASDOOR_INTROSPECTION_CLIENT_SECRET", ""),
 		Organization:                getEnv("CASDOOR_ORGANIZATION", ""),
-		RolesClaim:                  getEnv("CASDOOR_ROLES_CLAIM", "roles"),
 		AppProvisioningClientID:     getEnv("CASDOOR_APP_PROVISIONING_CLIENT_ID", ""),
 		AppProvisioningClientSecret: getEnv("CASDOOR_APP_PROVISIONING_CLIENT_SECRET", ""),
 		AppProvisioningApplication:  getEnv("CASDOOR_APP_PROVISIONING_APPLICATION", ""),
@@ -416,10 +410,6 @@ func loadCasdoorConfig() CasdoorConfig {
 		UserProfileClientSecret:     getEnv("CASDOOR_USER_PROFILE_CLIENT_SECRET", ""),
 		UserProfileApplication:      getEnv("CASDOOR_USER_PROFILE_APPLICATION", ""),
 		UserProfileCertificate:      getEnv("CASDOOR_USER_PROFILE_CERTIFICATE", ""),
-		RoleSyncClientID:            getEnv("CASDOOR_ROLE_SYNC_CLIENT_ID", ""),
-		RoleSyncClientSecret:        getEnv("CASDOOR_ROLE_SYNC_CLIENT_SECRET", ""),
-		RoleSyncApplication:         getEnv("CASDOOR_ROLE_SYNC_APPLICATION", ""),
-		RoleSyncCertificate:         getEnv("CASDOOR_ROLE_SYNC_CERTIFICATE", ""),
 		UserLookupClientID:          getEnv("CASDOOR_USER_LOOKUP_CLIENT_ID", ""),
 		UserLookupClientSecret:      getEnv("CASDOOR_USER_LOOKUP_CLIENT_SECRET", ""),
 		UserLookupApplication:       getEnv("CASDOOR_USER_LOOKUP_APPLICATION", ""),

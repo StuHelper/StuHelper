@@ -64,6 +64,43 @@ func normalizeReconcileGrantInput(input ReconcileGrantInput) (ReconcileGrantInpu
 	return input, nil
 }
 
+func normalizeReconcileAllInput(input ReconcileAllInput) (ReconcileAllInput, error) {
+	input.Reason = strings.TrimSpace(input.Reason)
+	if input.ActorUserID <= 0 {
+		return ReconcileAllInput{}, ErrInvalidGrant
+	}
+	if err := validateReason(input.Reason); err != nil {
+		return ReconcileAllInput{}, err
+	}
+	return input, nil
+}
+
+func normalizeBootstrapSuperAdminsInput(
+	input BootstrapSuperAdminsInput,
+) (BootstrapSuperAdminsInput, error) {
+	input.Reason = strings.TrimSpace(input.Reason)
+	if err := validateReason(input.Reason); err != nil {
+		return BootstrapSuperAdminsInput{}, err
+	}
+	if len(input.SubjectUserIDs) == 0 {
+		return BootstrapSuperAdminsInput{}, ErrInvalidGrant
+	}
+	seen := make(map[int64]struct{}, len(input.SubjectUserIDs))
+	normalized := make([]int64, 0, len(input.SubjectUserIDs))
+	for _, userID := range input.SubjectUserIDs {
+		if userID <= 0 {
+			return BootstrapSuperAdminsInput{}, ErrInvalidGrant
+		}
+		if _, ok := seen[userID]; ok {
+			continue
+		}
+		seen[userID] = struct{}{}
+		normalized = append(normalized, userID)
+	}
+	input.SubjectUserIDs = normalized
+	return input, nil
+}
+
 func normalizeListGrantsFilter(filter ListGrantsFilter) (ListGrantsFilter, error) {
 	if filter.SubjectUserID != nil && *filter.SubjectUserID <= 0 {
 		return ListGrantsFilter{}, ErrInvalidGrant

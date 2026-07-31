@@ -3371,10 +3371,34 @@ export interface paths {
         /**
          * 重新对账并投影管理员授权
          * @description 针对账本中的当前 desired state 增加 revision、写入审计并重新生成 outbox 投影。
-         *     不接受任意 OpenFGA tuple。重放期间 grant 进入 pending：授予 fail-closed，撤销继续被围栏拒绝。
+         *     不接受任意 OpenFGA tuple。尚未首次激活的 grant 继续 fail-closed；已经激活的 grant
+         *     在修复期间仍由 PostgreSQL activation fence 授权，撤销则始终由 desired-state 围栏拒绝。
          *     需要全局 `iam:grants:manage` capability 和最近 5 分钟内的 step-up MFA。
          */
         post: operations["reconcileAuthorizationGrant"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/authorization/projections/reconcile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 从授权账本重建全部 OpenFGA 投影
+         * @description 对授权账本中的每一条当前 desired state 增加 revision、写入逐条不可变审计并重新投递
+         *     精确 OpenFGA tuple。接口不接受任意 relation/object，因此不能绕过固定角色和 scope 白名单。
+         *     已激活授权在修复期间继续由 PostgreSQL activation fence 生效；撤销记录继续立即拒绝。
+         *     需要全局 `iam:grants:manage` capability 和最近 5 分钟内的 step-up MFA。
+         */
+        post: operations["reconcileAllAuthorizationProjections"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4501,6 +4525,10 @@ export interface components {
             grant: components["schemas"]["AuthorizationGrant"];
             /** @description false 表示相同目标状态已生效，本次请求按幂等成功处理。 */
             changed: boolean;
+        };
+        AuthorizationProjectionReconcileResult: {
+            /** @description 本次原子写入 outbox 的授权记录数量。 */
+            queued: number;
         };
         OpenPlatformScopeDefinition: {
             scope: components["schemas"]["OpenPlatformScope"];
@@ -12107,6 +12135,37 @@ export interface operations {
             403: components["responses"]["ErrorResponse"];
             404: components["responses"]["ErrorResponse"];
             409: components["responses"]["ErrorResponse"];
+            412: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    reconcileAllAuthorizationProjections: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuthorizationGrantMutationRequest"];
+            };
+        };
+        responses: {
+            /** @description 全量投影已原子重新入队 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["AuthorizationProjectionReconcileResult"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
             412: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
         };

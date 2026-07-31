@@ -142,7 +142,7 @@ func scopedSectionModeratorAuth() gin.HandlerFunc {
 		snapshot := capability.BuildUserAccessSnapshot(capability.ExpandRoleGrants(roles, scopes))
 		c.Set(middleware.CtxKeyUserID, "section-moderator-1")
 		c.Set(middleware.CtxKeyRoles, roles)
-		c.Set(middleware.CtxKeyOrgScopedRoles, scopes)
+		c.Set(middleware.CtxKeyScopedRoleGrants, scopes)
 		c.Set(middleware.CtxKeyCapabilities, snapshot.Capabilities)
 		c.Set(middleware.CtxKeyGlobalCapabilities, snapshot.GlobalCapabilities)
 		c.Set(middleware.CtxKeyCapabilityGrants, snapshot.CapabilityGrants)

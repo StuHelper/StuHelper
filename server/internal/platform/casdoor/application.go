@@ -316,6 +316,15 @@ func applicationGrantRequiresRedirect(grantTypes []string) bool {
 	return containsString(grantTypes, "authorization_code") || containsString(grantTypes, "implicit")
 }
 
+func containsString(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
+}
+
 func validateRedirectURI(redirect string) error {
 	if strings.Contains(redirect, "*") {
 		return fmt.Errorf("casdoor: wildcard redirect URI is forbidden: %s", redirect)

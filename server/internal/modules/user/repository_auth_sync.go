@@ -3,22 +3,11 @@ package user
 import (
 	"context"
 	"fmt"
-	"strconv"
 
-	"github.com/StuHelper/StuHelper/server/internal/pkg/audit"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/crypto"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/db"
-	"github.com/StuHelper/StuHelper/server/internal/pkg/fga"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/usersync"
 )
-
-const superAdminRoleName = "super_admin"
-
-type roleFGAClient interface {
-	WriteMissingTuples(ctx context.Context, desired []fga.Tuple) error
-	TupleExists(ctx context.Context, tuple fga.Tuple) (bool, error)
-	DeleteTuplesIgnoringMissing(ctx context.Context, tuples []fga.Tuple) error
-}
 
 // AuthSyncInput 认证同步输入，别名到 usersync.Input。
 type AuthSyncInput = usersync.Input
@@ -28,7 +17,6 @@ type AuthSyncInput = usersync.Input
 type UserSyncRepository struct {
 	db      *db.DB
 	hmacKey []byte
-	roleFGA roleFGAClient
 }
 
 // NewUserSyncRepository 创建用户同步仓储
@@ -37,11 +25,6 @@ func NewUserSyncRepository(database *db.DB, hmacKey []byte) *UserSyncRepository 
 		db:      database,
 		hmacKey: hmacKey,
 	}
-}
-
-func (r *UserSyncRepository) WithRoleFGAClient(client roleFGAClient) *UserSyncRepository {
-	r.roleFGA = client
-	return r
 }
 
 // UpsertUser 同步 OIDC / SSO 登录用户到本地 shadow user 表。
@@ -56,8 +39,7 @@ func (r *UserSyncRepository) UpsertUser(ctx context.Context, input AuthSyncInput
 		return fmt.Errorf("UpsertUser: compute user_hash: %w", err)
 	}
 
-	var userID int64
-	err = r.db.QueryRow(ctx, `
+	_, err = r.db.Exec(ctx, `
 		INSERT INTO users (casdoor_subject, username, email, avatar_url, user_hash, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
 		ON CONFLICT (casdoor_subject) DO UPDATE SET
@@ -66,77 +48,11 @@ func (r *UserSyncRepository) UpsertUser(ctx context.Context, input AuthSyncInput
 			avatar_url = COALESCE(EXCLUDED.avatar_url, users.avatar_url),
 			user_hash = COALESCE(EXCLUDED.user_hash, users.user_hash),
 			updated_at = NOW()
-		RETURNING id
-	`, input.CasdoorSubject, input.Username, emptyToNil(input.Email), input.AvatarURL, userHash).Scan(&userID)
+	`, input.CasdoorSubject, input.Username, emptyToNil(input.Email), input.AvatarURL, userHash)
 	if err != nil {
 		return fmt.Errorf("UpsertUser: %w", err)
 	}
-	return r.syncGlobalRoleRelations(ctx, userID, input.Roles, input.RolesAuthoritative)
-}
-
-func (r *UserSyncRepository) syncGlobalRoleRelations(
-	ctx context.Context,
-	userID int64,
-	roles []string,
-	rolesAuthoritative bool,
-) error {
-	if r.roleFGA == nil || !rolesAuthoritative {
-		return nil
-	}
-	if userID <= 0 {
-		return fmt.Errorf("sync global role relations: userID is required")
-	}
-	tuple := fga.Tuple{
-		User:     "user:" + strconv.FormatInt(userID, 10),
-		Relation: superAdminRoleName,
-		Object:   "ecosystem:stuhelper",
-	}
-
-	if hasSyncRole(roles, superAdminRoleName) {
-		if err := r.roleFGA.WriteMissingTuples(ctx, []fga.Tuple{tuple}); err != nil {
-			return fmt.Errorf("sync global role relations: write super_admin tuple: %w", err)
-		}
-		return nil
-	}
-
-	exists, err := r.roleFGA.TupleExists(ctx, tuple)
-	if err != nil {
-		return fmt.Errorf("sync global role relations: read super_admin tuple: %w", err)
-	}
-	if !exists {
-		return nil
-	}
-	if err := r.roleFGA.DeleteTuplesIgnoringMissing(ctx, []fga.Tuple{tuple}); err != nil {
-		return fmt.Errorf("sync global role relations: delete super_admin tuple: %w", err)
-	}
-	audit.LogContext(ctx, globalRoleRevocationAuditEvent(userID))
 	return nil
-}
-
-func globalRoleRevocationAuditEvent(userID int64) audit.Event {
-	return audit.Event{
-		Type:         audit.EventType("iam.role.revoke"),
-		Category:     "authorization",
-		ActorType:    "system",
-		ResourceType: "iam.role",
-		ResourceID:   "user:" + strconv.FormatInt(userID, 10),
-		Action:       "revoke",
-		Result:       "success",
-		Details: map[string]any{
-			"role":             superAdminRoleName,
-			"object":           "ecosystem:stuhelper",
-			"authority_source": "fresh_oidc_roles_claim",
-		},
-	}
-}
-
-func hasSyncRole(roles []string, expected string) bool {
-	for _, role := range roles {
-		if role == expected {
-			return true
-		}
-	}
-	return false
 }
 
 // ExistsByCasdoorSubject 检查 casdoor_subject 对应的用户是否仍然存在。

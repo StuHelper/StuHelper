@@ -1,6 +1,7 @@
 package authorization
 
 import (
+	"context"
 	"errors"
 	"strconv"
 	"strings"
@@ -21,15 +22,27 @@ type AdminAuthorizers struct {
 }
 
 type Handler struct {
-	service     *Service
-	authorizers AdminAuthorizers
+	service               *Service
+	authorizers           AdminAuthorizers
+	resolveInternalUserID func(context.Context, string) (int64, error)
 }
 
-func NewHandler(service *Service, authorizers AdminAuthorizers) *Handler {
+func NewHandler(
+	service *Service,
+	authorizers AdminAuthorizers,
+	resolveInternalUserID func(context.Context, string) (int64, error),
+) *Handler {
 	if service == nil {
 		panic("authorization.NewHandler: service is required")
 	}
-	return &Handler{service: service, authorizers: authorizers}
+	if resolveInternalUserID == nil {
+		panic("authorization.NewHandler: internal user resolver is required")
+	}
+	return &Handler{
+		service:               service,
+		authorizers:           authorizers,
+		resolveInternalUserID: resolveInternalUserID,
+	}
 }
 
 func (h *Handler) RegisterAdminRoutes(admin *gin.RouterGroup) {
@@ -47,6 +60,10 @@ func (h *Handler) RegisterAdminRoutes(admin *gin.RouterGroup) {
 	grants.POST(
 		"/:grantID/reconcile",
 		httputil.RouteHandlers(h.reconcileGrant, h.authorizers.Manage, h.authorizers.StepUpMFA)...,
+	)
+	admin.POST(
+		"/authorization/projections/reconcile",
+		httputil.RouteHandlers(h.reconcileAll, h.authorizers.Manage, h.authorizers.StepUpMFA)...,
 	)
 }
 
@@ -90,6 +107,10 @@ type grantListResponse struct {
 type grantMutationResponse struct {
 	Grant   grantResponse `json:"grant"`
 	Changed bool          `json:"changed"`
+}
+
+type projectionReconcileResponse struct {
+	Queued int `json:"queued"`
 }
 
 func (h *Handler) listGrants(c *gin.Context) {
@@ -206,8 +227,31 @@ func (h *Handler) reconcileGrant(c *gin.Context) {
 	})
 }
 
+func (h *Handler) reconcileAll(c *gin.Context) {
+	request, ok := parseMutationRequest(c)
+	if !ok {
+		return
+	}
+	actorID, ok := h.resolveActor(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.ReconcileAll(c.Request.Context(), ReconcileAllInput{
+		Reason:      request.Reason,
+		ActorUserID: actorID,
+	})
+	if err != nil {
+		h.respondError(c, "reconcile_all", 0, err)
+		return
+	}
+	response.Success(c, projectionReconcileResponse(result))
+}
+
 func (h *Handler) resolveActor(c *gin.Context) (int64, bool) {
-	actorID, err := h.service.ResolveInternalUserID(c.Request.Context(), middleware.GetUserID(c))
+	actorID, err := h.resolveInternalUserID(
+		c.Request.Context(),
+		middleware.GetUserID(c),
+	)
 	if err == nil {
 		return actorID, true
 	}

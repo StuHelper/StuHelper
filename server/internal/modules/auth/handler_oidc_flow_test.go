@@ -239,7 +239,6 @@ func TestHandleWebCallback_Success(t *testing.T) {
 	assert.Equal(t, "oidc@example.com", repo.upsertInput.Email)
 	require.NotNil(t, repo.upsertInput.AvatarURL)
 	assert.Equal(t, "https://cdn.example.com/oidc.png", *repo.upsertInput.AvatarURL)
-	assert.True(t, repo.upsertInput.RolesAuthoritative)
 
 	cookies := w.Result().Cookies()
 	var hasAccess, hasRefresh, hasSession bool
@@ -265,7 +264,7 @@ func TestHandleWebCallback_Success(t *testing.T) {
 	assert.LessOrEqual(t, session.AccessTokenExpiresAt, time.Now().Add(time.Hour).Unix())
 }
 
-func TestHandleWebCallback_InvalidRolesClaimCannotAuthorizeRoleReconciliation(t *testing.T) {
+func TestHandleWebCallbackInvalidRolesClaimDoesNotAffectIdentitySync(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	provider := newFakeOIDCProviderWithTokenPayloadForClaims(t,
 		func(issueIDTokenWithClaims func(map[string]any) string, _ func() string) map[string]any {
@@ -294,8 +293,7 @@ func TestHandleWebCallback_InvalidRolesClaimCannotAuthorizeRoleReconciliation(t 
 
 	require.Equal(t, http.StatusFound, w.Code)
 	assert.Equal(t, "oidc-user-1", repo.upsertInput.CasdoorSubject)
-	assert.Empty(t, repo.upsertInput.Roles)
-	assert.False(t, repo.upsertInput.RolesAuthoritative)
+	assert.Equal(t, "oidc-tester", repo.upsertInput.Username)
 }
 
 func TestHandleWebCallback_RejectsSubjectValidationFailure(t *testing.T) {
@@ -406,12 +404,10 @@ func TestRefreshOIDCToken_Success(t *testing.T) {
 	assert.LessOrEqual(t, session.AccessTokenExpiresAt, time.Now().Add(time.Hour).Unix())
 	avatarURL := "https://cdn.example.com/oidc.png"
 	assert.Equal(t, UserSyncInput{
-		CasdoorSubject:     "oidc-user-1",
-		Username:           "oidc-tester",
-		Email:              "oidc@example.com",
-		AvatarURL:          &avatarURL,
-		Roles:              []string{"school_admin"},
-		RolesAuthoritative: true,
+		CasdoorSubject: "oidc-user-1",
+		Username:       "oidc-tester",
+		Email:          "oidc@example.com",
+		AvatarURL:      &avatarURL,
 	}, repo.upsertInput)
 }
 
@@ -631,7 +627,7 @@ func TestExchangeNative_Success(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "refreshToken")
 	assert.Contains(t, w.Body.String(), "sessionID")
 	assert.Equal(t, "oidc-user-1", repo.upsertInput.CasdoorSubject)
-	assert.True(t, repo.upsertInput.RolesAuthoritative)
+	assert.Equal(t, "oidc-tester", repo.upsertInput.Username)
 }
 
 func TestExchangeNative_RejectsSubjectValidationFailure(t *testing.T) {

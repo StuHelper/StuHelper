@@ -91,7 +91,6 @@ compose_env=(
   CASDOOR_APP_PROVISIONING_CLIENT_SECRET=casdoor-provisioning-dummy
   CASDOOR_USER_PROFILE_CLIENT_SECRET=casdoor-profile-dummy
   CASDOOR_INTROSPECTION_CLIENT_SECRET=casdoor-introspection-dummy
-  CASDOOR_ROLE_SYNC_CLIENT_SECRET=casdoor-role-sync-dummy
   CASDOOR_USER_LOOKUP_CLIENT_SECRET=casdoor-user-lookup-dummy
   BACKEND_IMAGE_REF=example.invalid/stuhelper/backend:test
   FRONTEND_IMAGE_REF=example.invalid/stuhelper/frontend:test

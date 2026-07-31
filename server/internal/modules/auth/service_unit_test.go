@@ -53,7 +53,7 @@ func futureAccessTokenExpiryUnix() int64 {
 	return futureAccessTokenExpiry().Unix()
 }
 
-func TestSyncOIDCUser_ForwardsRoles(t *testing.T) {
+func TestSyncOIDCUserForwardsIdentityProjection(t *testing.T) {
 	repo := &recordingUserSyncRepo{}
 	svc, _ := newAuthServiceForTest(t)
 	svc.userSyncRepo = repo
@@ -61,10 +61,10 @@ func TestSyncOIDCUser_ForwardsRoles(t *testing.T) {
 	input := UserSyncInput{
 		CasdoorSubject: "oidc-admin",
 		Username:       "admin",
-		Roles:          []string{"super_admin"},
+		Email:          "admin@example.com",
 	}
 	require.NoError(t, svc.SyncOIDCUser(context.Background(), input))
-	assert.Equal(t, []string{"super_admin"}, repo.upsertInput.Roles)
+	assert.Equal(t, input, repo.upsertInput)
 }
 
 func TestNewService(t *testing.T) {

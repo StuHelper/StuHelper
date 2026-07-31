@@ -15,13 +15,6 @@ type OrganizationSpec struct {
 	DefaultApplication string
 }
 
-type RoleSpec struct {
-	Owner       string
-	Name        string
-	DisplayName string
-	Description string
-}
-
 type ProviderSpec struct {
 	Owner       string
 	Name        string
@@ -43,7 +36,6 @@ type ProviderSpec struct {
 type BootstrapPlan struct {
 	Organization OrganizationSpec
 	Applications []ApplicationSpec
-	Roles        []RoleSpec
 	Providers    []ProviderSpec
 }
 
@@ -57,14 +49,6 @@ func (c *Client) Bootstrap(ctx context.Context, plan BootstrapPlan) error {
 			app.Organization = targetOrganization
 		}
 		if err := c.EnsureApplication(ctx, app); err != nil {
-			return err
-		}
-	}
-	for _, role := range plan.Roles {
-		if role.Owner == "" {
-			role.Owner = targetOrganization
-		}
-		if err := c.EnsureRole(ctx, role); err != nil {
 			return err
 		}
 	}
@@ -113,28 +97,6 @@ func (c *Client) EnsureApplication(ctx context.Context, spec ApplicationSpec) er
 	return c.updateApplication(ctx, app, existing)
 }
 
-func (c *Client) EnsureRole(ctx context.Context, spec RoleSpec) error {
-	role, err := c.buildRole(spec)
-	if err != nil {
-		return err
-	}
-	existing, err := c.getRoleForBootstrap(ctx, role.Owner, role.Name)
-	if err != nil {
-		return err
-	}
-	if existing == nil {
-		return c.call(ctx, "create role "+role.Name, func() (bool, error) {
-			return c.roles.AddRole(role)
-		}, role.Owner)
-	}
-	existing.DisplayName = role.DisplayName
-	existing.Description = role.Description
-	existing.IsEnabled = role.IsEnabled
-	return c.call(ctx, "update role "+role.Name, func() (bool, error) {
-		return c.roles.UpdateRoleForColumns(existing, []string{"displayName", "description", "isEnabled"})
-	}, role.Owner)
-}
-
 func (c *Client) EnsureProvider(ctx context.Context, spec ProviderSpec) error {
 	provider, err := c.buildProvider(spec)
 	if err != nil {
@@ -160,24 +122,6 @@ func (c *Client) buildOrganization(spec OrganizationSpec) (*casdoorsdk.Organizat
 		return nil, err
 	}
 	return newBootstrapOrganization(spec), nil
-}
-
-func (c *Client) buildRole(spec RoleSpec) (*casdoorsdk.Role, error) {
-	spec, err := normalizeRoleSpec(spec)
-	if err != nil {
-		return nil, err
-	}
-	owner := spec.Owner
-	if owner == "" {
-		owner = c.credential.Organization
-	}
-	return &casdoorsdk.Role{
-		Owner:       owner,
-		Name:        spec.Name,
-		DisplayName: spec.DisplayName,
-		Description: spec.Description,
-		IsEnabled:   true,
-	}, nil
 }
 
 func (c *Client) buildProvider(spec ProviderSpec) (*casdoorsdk.Provider, error) {
@@ -217,25 +161,6 @@ func normalizeOrganizationSpec(spec OrganizationSpec) (OrganizationSpec, error) 
 	}
 	if spec.DisplayName == "" {
 		return OrganizationSpec{}, errors.New("casdoor: organization display name is required")
-	}
-	return spec, nil
-}
-
-func normalizeRoleSpec(spec RoleSpec) (RoleSpec, error) {
-	spec.Owner = strings.TrimSpace(spec.Owner)
-	spec.Name = strings.TrimSpace(spec.Name)
-	spec.DisplayName = strings.TrimSpace(spec.DisplayName)
-	spec.Description = strings.TrimSpace(spec.Description)
-	if err := validateName("role name", spec.Name); err != nil {
-		return RoleSpec{}, err
-	}
-	if spec.Owner != "" {
-		if err := validateName("role owner", spec.Owner); err != nil {
-			return RoleSpec{}, err
-		}
-	}
-	if spec.DisplayName == "" {
-		return RoleSpec{}, errors.New("casdoor: role display name is required")
 	}
 	return spec, nil
 }
@@ -296,17 +221,6 @@ func (c *Client) getOrganization(ctx context.Context, name string) (*casdoorsdk.
 		return getErr
 	})
 	return org, err
-}
-
-func (c *Client) getRoleForBootstrap(ctx context.Context, owner string, name string) (*casdoorsdk.Role, error) {
-	var role *casdoorsdk.Role
-	credential := credentialForOrganization(c.credential, owner)
-	err := withSDKConfig(ctx, credential, "get role "+name, func() error {
-		var getErr error
-		role, getErr = c.roles.GetRole(name)
-		return getErr
-	})
-	return role, err
 }
 
 func (c *Client) getProvider(ctx context.Context, owner string, name string) (*casdoorsdk.Provider, error) {

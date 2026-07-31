@@ -26,7 +26,6 @@ import (
 	"github.com/StuHelper/StuHelper/server/internal/pkg/logger"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/middleware"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/sms"
-	platformauth "github.com/StuHelper/StuHelper/server/internal/platform/authorization"
 	platformcasdoor "github.com/StuHelper/StuHelper/server/internal/platform/casdoor"
 	"github.com/StuHelper/StuHelper/server/internal/platform/serviceaccount"
 )
@@ -64,16 +63,18 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 		authorizationmodule.WithProjectionClient(fgaClient),
 	)
 	authorizationService.StartBackgroundJobs(bgCtx, startBackgroundTask)
+	authorizationIdentity := newAuthorizationIdentityAdapter(userRepo, authorizationService)
 	authorizationHandler := authorizationmodule.NewHandler(
 		authorizationService,
 		authorizationAdminAuthorizers(),
+		authorizationIdentity.ResolveInternalUserID,
 	)
-	roleScopeResolver, err := platformauth.NewRoleScopeResolver(fgaClient, userRepo.GetInternalUserID)
-	if err != nil {
-		return err
-	}
-
-	authHandler, authMW, optionalAuthMW, err := rt.initAuthModule(api, bgCtx, piiCipher, roleScopeResolver)
+	authHandler, authMW, optionalAuthMW, err := rt.initAuthModule(
+		api,
+		bgCtx,
+		piiCipher,
+		authorizationIdentity,
+	)
 	if err != nil {
 		return err
 	}
@@ -203,8 +204,7 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 		admission.WithAdmissionMaterialStore(
 			newAdmissionMaterialStorageAdapter(storageService, storage.DefaultMountKey),
 		),
-		admission.WithOperatorAccessGateway(rt.initAdmissionOperatorAccess(userRepo)),
-		admission.WithFreshmanProjectionGateway(admissionUserGateway),
+		admission.WithOperatorAccessGateway(rt.initAdmissionOperatorAccess(authorizationService)),
 		admission.WithSchoolSSOExchanger(admission.NewOIDCSchoolSSOExchanger(rt.oidcClient)),
 		admission.WithAdmissionPublicBaseURL(rt.cfg.Admission.PublicBaseURL),
 	)
@@ -319,13 +319,8 @@ func (rt *Runtime) initUserService(
 		photoStore = user.WithIdentityPhotoStore(newIdentityPhotoStorageAdapter(storageService, storage.DefaultMountKey))
 	}
 
-	roleSyncFn, err := rt.initCasdoorRoleSync(userRepo)
-	if err != nil {
-		return nil, err
-	}
 	options := []user.ServiceOption{
 		user.WithProfileFGAClient(fgaClient),
-		user.WithRoleSyncFunc(roleSyncFn),
 		user.WithStudentEmailOTP(rt.redisClient.GetClient(), schoolEmailSender),
 		user.WithLDAPClientFactory(newLDAPAuthClient),
 		photoStore,
@@ -351,14 +346,6 @@ func (rt *Runtime) initCasdoorUserProfileGateway(
 	return newCasdoorUserProfileGateway(client, casdoorSubjectByUserID), nil
 }
 
-func (rt *Runtime) initCasdoorRoleSync(userRepo *user.Repository) (user.RoleSyncFunc, error) {
-	client, err := rt.newCasdoorRoleSyncClient()
-	if err != nil {
-		return nil, err
-	}
-	return platformcasdoor.BuildRoleSyncFunc(client, userRepo.GetCasdoorSubject), nil
-}
-
 func (rt *Runtime) initBotCredentialVerifier(ctx context.Context) (*serviceaccount.Verifier, error) {
 	if strings.TrimSpace(rt.cfg.Bot.ServiceToken) == "" {
 		return nil, nil
@@ -379,45 +366,12 @@ func (rt *Runtime) initBotCredentialVerifier(ctx context.Context) (*serviceaccou
 	return verifier, nil
 }
 
-func (rt *Runtime) newCasdoorRoleSyncClient() (*platformcasdoor.RoleSyncClient, error) {
-	cfg := rt.cfg.Casdoor
-	if !casdoorRoleSyncConfigured(cfg) {
-		return nil, nil
-	}
-	client, err := platformcasdoor.NewRoleSyncClient(casdoorRoleSyncCredential(cfg), casdoorUserLookupCredential(cfg))
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize Casdoor role sync client: %w", err)
-	}
-	return client, nil
-}
-
-func casdoorRoleSyncConfigured(cfg config.CasdoorConfig) bool {
-	return !configStringMissing(cfg.RoleSyncClientID) ||
-		!configStringMissing(cfg.RoleSyncClientSecret) ||
-		!configStringMissing(cfg.RoleSyncApplication) ||
-		!configStringMissing(cfg.UserLookupClientID) ||
-		!configStringMissing(cfg.UserLookupClientSecret) ||
-		!configStringMissing(cfg.UserLookupApplication)
-}
-
 func configStringMissing(value string) bool {
 	return strings.TrimSpace(value) == ""
 }
 
 func objectStorageConfigured(cfg config.ObjectStorageConfig) bool {
 	return !configStringMissing(cfg.Endpoint)
-}
-
-func casdoorRoleSyncCredential(cfg config.CasdoorConfig) platformcasdoor.Credential {
-	return platformcasdoor.Credential{
-		Purpose:      platformcasdoor.PurposeRoleSync,
-		Endpoint:     cfg.Issuer,
-		ClientID:     cfg.RoleSyncClientID,
-		ClientSecret: cfg.RoleSyncClientSecret,
-		Certificate:  cfg.RoleSyncCertificate,
-		Organization: cfg.Organization,
-		Application:  cfg.RoleSyncApplication,
-	}
 }
 
 func casdoorUserLookupCredential(cfg config.CasdoorConfig) platformcasdoor.Credential {

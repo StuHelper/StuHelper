@@ -1186,7 +1186,6 @@ func TestValidate_ProductionRequiresCasdoorAdminCredentials(t *testing.T) {
 	c := validProductionConfigForTest()
 	c.Casdoor.AppProvisioningClientID = ""
 	c.Casdoor.UserProfileClientSecret = ""
-	c.Casdoor.RoleSyncClientSecret = ""
 	c.Casdoor.UserLookupApplication = ""
 
 	err := c.validate(nil)
@@ -1194,7 +1193,6 @@ func TestValidate_ProductionRequiresCasdoorAdminCredentials(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "CASDOOR_APP_PROVISIONING_CLIENT_ID is required")
 	assert.Contains(t, err.Error(), "CASDOOR_USER_PROFILE_CLIENT_SECRET is required")
-	assert.Contains(t, err.Error(), "CASDOOR_ROLE_SYNC_CLIENT_SECRET is required")
 	assert.Contains(t, err.Error(), "CASDOOR_USER_LOOKUP_APPLICATION is required")
 }
 
@@ -1206,9 +1204,6 @@ func TestValidate_ProductionRejectsBlankCasdoorAdminCredentials(t *testing.T) {
 	c.Casdoor.UserProfileClientID = "  "
 	c.Casdoor.UserProfileClientSecret = "  "
 	c.Casdoor.UserProfileApplication = "  "
-	c.Casdoor.RoleSyncClientID = "  "
-	c.Casdoor.RoleSyncClientSecret = "  "
-	c.Casdoor.RoleSyncApplication = "  "
 	c.Casdoor.UserLookupClientID = "  "
 	c.Casdoor.UserLookupClientSecret = "  "
 	c.Casdoor.UserLookupApplication = "  "
@@ -1223,9 +1218,6 @@ func TestValidate_ProductionRejectsBlankCasdoorAdminCredentials(t *testing.T) {
 		"CASDOOR_USER_PROFILE_CLIENT_ID is required",
 		"CASDOOR_USER_PROFILE_CLIENT_SECRET is required",
 		"CASDOOR_USER_PROFILE_APPLICATION is required",
-		"CASDOOR_ROLE_SYNC_CLIENT_ID is required",
-		"CASDOOR_ROLE_SYNC_CLIENT_SECRET is required",
-		"CASDOOR_ROLE_SYNC_APPLICATION is required",
 		"CASDOOR_USER_LOOKUP_CLIENT_ID is required",
 		"CASDOOR_USER_LOOKUP_CLIENT_SECRET is required",
 		"CASDOOR_USER_LOOKUP_APPLICATION is required",
@@ -1427,21 +1419,6 @@ func TestValidate_DevelopmentRejectsPartialCasdoorUserProfileCredential(t *testi
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "CASDOOR_USER_PROFILE_CLIENT_SECRET is required")
 	assert.Contains(t, err.Error(), "CASDOOR_USER_PROFILE_APPLICATION is required")
-}
-
-func TestValidate_DevelopmentRejectsPartialCasdoorRoleSyncCredential(t *testing.T) {
-	c := validProductionConfigForTest()
-	c.App.Env = "development"
-	c.Token.CookieSecure = false
-	c.Casdoor.RoleSyncClientID = "role-sync-client"
-	c.Casdoor.RoleSyncClientSecret = ""
-	c.Casdoor.RoleSyncApplication = ""
-
-	err := c.validate(nil)
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "CASDOOR_ROLE_SYNC_CLIENT_SECRET is required")
-	assert.Contains(t, err.Error(), "CASDOOR_ROLE_SYNC_APPLICATION is required")
 }
 
 func TestValidate_RejectsInvalidTraceSampleRatio(t *testing.T) {
@@ -1972,9 +1949,6 @@ func validProductionConfigForTest() *Config {
 			UserProfileClientID:         "user-profile-client",
 			UserProfileClientSecret:     "user-profile-secret",
 			UserProfileApplication:      "stuhelper-user-profile",
-			RoleSyncClientID:            "role-sync-client",
-			RoleSyncClientSecret:        "role-sync-secret",
-			RoleSyncApplication:         "stuhelper-role-sync",
 			UserLookupClientID:          "user-lookup-client",
 			UserLookupClientSecret:      "user-lookup-secret",
 			UserLookupApplication:       "stuhelper-user-lookup",

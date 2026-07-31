@@ -6,9 +6,6 @@ import (
 	"fmt"
 
 	gooidc "github.com/coreos/go-oidc/v3/oidc"
-	"go.uber.org/zap"
-
-	"github.com/StuHelper/StuHelper/server/internal/pkg/logger"
 )
 
 // VerifyIDToken 验证 ID Token 并返回解析后的 Claims
@@ -58,15 +55,6 @@ func (c *Client) verifyIDToken(ctx context.Context, expectedClientID, rawIDToken
 
 func (c *Client) decorateIDTokenClaims(rawJSON []byte, claims *Claims) {
 	claims.AppID = appIDFromRawClaims(rawJSON)
-	claims.Roles = nil
-	claims.RolesClaimPresent = false
-	roles, claimPresent, parseErr := parseFlatRolesProjection(rawJSON, defaultRolesClaim(c.rolesClaim))
-	if parseErr != nil {
-		logger.L().Warn("oidc: failed to parse roles from id_token", zap.Error(parseErr))
-		return
-	}
-	claims.Roles = roles
-	claims.RolesClaimPresent = claimPresent
 }
 
 func (c *Client) verifyIDTokenAudience(audience []string, expectedClientID string) error {

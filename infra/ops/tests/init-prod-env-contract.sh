@@ -243,8 +243,6 @@ assert_env_value "${fresh_env}" "CASDOOR_USER_PROFILE_CLIENT_ID" "casdoor-admin-
 assert_env_value "${fresh_env}" "CASDOOR_USER_PROFILE_APPLICATION" "casdoor-admin-user-profile"
 assert_env_value "${fresh_env}" "CASDOOR_INTROSPECTION_CLIENT_ID" "casdoor-token-introspection"
 assert_env_value "${fresh_env}" "CASDOOR_INTROSPECTION_APPLICATION" "casdoor-token-introspection"
-assert_env_value "${fresh_env}" "CASDOOR_ROLE_SYNC_CLIENT_ID" "casdoor-admin-role-sync"
-assert_env_value "${fresh_env}" "CASDOOR_ROLE_SYNC_APPLICATION" "casdoor-admin-role-sync"
 assert_env_value "${fresh_env}" "CASDOOR_USER_LOOKUP_CLIENT_ID" "casdoor-admin-user-lookup"
 assert_env_value "${fresh_env}" "CASDOOR_USER_LOOKUP_APPLICATION" "casdoor-admin-user-lookup"
 assert_env_value "${fresh_env}" "CASDOOR_TOKEN_PROBE_SMOKE_CLIENT_ID" "casdoor-token-probe-smoke"
@@ -326,7 +324,6 @@ assert_file_contains "${fresh_secrets}" '^CASDOOR_UNIAPP_CLIENT_SECRET=prod-casd
 assert_file_contains "${fresh_secrets}" '^CASDOOR_APP_PROVISIONING_CLIENT_SECRET=prod-casdoor-app-provisioning-[0-9a-f]+$'
 assert_file_contains "${fresh_secrets}" '^CASDOOR_USER_PROFILE_CLIENT_SECRET=prod-casdoor-user-profile-[0-9a-f]+$'
 assert_file_contains "${fresh_secrets}" '^CASDOOR_INTROSPECTION_CLIENT_SECRET=prod-casdoor-introspection-[0-9a-f]+$'
-assert_file_contains "${fresh_secrets}" '^CASDOOR_ROLE_SYNC_CLIENT_SECRET=prod-casdoor-role-sync-[0-9a-f]+$'
 assert_file_contains "${fresh_secrets}" '^CASDOOR_USER_LOOKUP_CLIENT_SECRET=prod-casdoor-user-lookup-[0-9a-f]+$'
 assert_file_contains "${fresh_secrets}" '^CASDOOR_TOKEN_PROBE_SMOKE_CLIENT_SECRET=prod-casdoor-token-probe-smoke-[0-9a-f]+$'
 assert_env_value "${fresh_secrets}" "OBJECT_STORAGE_SECRET_ACCESS_KEY" "REPLACE_WITH_OBJECT_STORAGE_SECRET_ACCESS_KEY"
@@ -419,8 +416,6 @@ assert_env_value "${legacy_env}" "CASDOOR_USER_PROFILE_CLIENT_ID" "casdoor-admin
 assert_env_value "${legacy_env}" "CASDOOR_USER_PROFILE_APPLICATION" "casdoor-admin-user-profile"
 assert_env_value "${legacy_env}" "CASDOOR_INTROSPECTION_CLIENT_ID" "casdoor-token-introspection"
 assert_env_value "${legacy_env}" "CASDOOR_INTROSPECTION_APPLICATION" "casdoor-token-introspection"
-assert_env_value "${legacy_env}" "CASDOOR_ROLE_SYNC_CLIENT_ID" "casdoor-admin-role-sync"
-assert_env_value "${legacy_env}" "CASDOOR_ROLE_SYNC_APPLICATION" "casdoor-admin-role-sync"
 assert_env_value "${legacy_env}" "CASDOOR_USER_LOOKUP_CLIENT_ID" "casdoor-admin-user-lookup"
 assert_env_value "${legacy_env}" "CASDOOR_USER_LOOKUP_APPLICATION" "casdoor-admin-user-lookup"
 assert_env_value "${legacy_env}" "CASDOOR_TOKEN_PROBE_SMOKE_CLIENT_ID" "casdoor-token-probe-smoke"

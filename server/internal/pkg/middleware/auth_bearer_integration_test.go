@@ -86,7 +86,7 @@ func testBearerProviderJWT(t *testing.T, tokenType string) string {
 	return header + "." + base64.RawURLEncoding.EncodeToString(payload) + ".test-signature"
 }
 
-func TestAuthMiddleware_BearerUsesFlatCasdoorRoles(t *testing.T) {
+func TestAuthMiddleware_BearerIgnoresCasdoorBusinessRoles(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	tokenSvc := newTokenServiceForMiddlewareTest(t)
@@ -108,11 +108,12 @@ func TestAuthMiddleware_BearerUsesFlatCasdoorRoles(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusOK, w.Code)
-	assert.Contains(t, w.Body.String(), `"school_admin"`)
+	assert.Contains(t, w.Body.String(), `"roles":["user"]`)
+	assert.NotContains(t, w.Body.String(), `"school_admin"`)
 	assert.Contains(t, w.Body.String(), `"hasScopedSchoolRead":false`)
 }
 
-func TestAuthMiddlewareWithRoleScopeResolverBuildsScopedGrants(t *testing.T) {
+func TestAuthMiddlewareWithAccessSnapshotResolverBuildsScopedGrants(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	tokenSvc := newTokenServiceForMiddlewareTest(t)
@@ -120,7 +121,8 @@ func TestAuthMiddlewareWithRoleScopeResolverBuildsScopedGrants(t *testing.T) {
 	defer server.Close()
 
 	r := gin.New()
-	r.Use(AuthMiddlewareWithRoleScopeResolver(oidcClient, tokenSvc, fakeRoleScopeResolver{
+	r.Use(AuthMiddlewareWithAccessSnapshotResolver(oidcClient, tokenSvc, fakeAccessSnapshotResolver{
+		roles:  []string{"user", "school_admin"},
 		scopes: map[string][]string{"school_admin": {"4111010001"}},
 	}))
 	r.GET("/me", func(c *gin.Context) {
@@ -140,7 +142,7 @@ func TestAuthMiddlewareWithRoleScopeResolverBuildsScopedGrants(t *testing.T) {
 	assert.Contains(t, w.Body.String(), `"hasGlobalStudentRead":false`)
 }
 
-func TestAuthMiddlewareWithRoleScopeResolverFailureReturns503(t *testing.T) {
+func TestAuthMiddlewareWithAccessSnapshotResolverFailureReturns503(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	tokenSvc := newTokenServiceForMiddlewareTest(t)
@@ -148,7 +150,7 @@ func TestAuthMiddlewareWithRoleScopeResolverFailureReturns503(t *testing.T) {
 	defer server.Close()
 
 	r := gin.New()
-	r.Use(AuthMiddlewareWithRoleScopeResolver(oidcClient, tokenSvc, fakeRoleScopeResolver{
+	r.Use(AuthMiddlewareWithAccessSnapshotResolver(oidcClient, tokenSvc, fakeAccessSnapshotResolver{
 		err: context.Canceled,
 	}))
 	r.GET("/me", func(c *gin.Context) { c.Status(http.StatusOK) })

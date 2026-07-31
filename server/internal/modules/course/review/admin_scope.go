@@ -105,7 +105,7 @@ func scopedSchoolSet(c *gin.Context, role string) map[int64]struct{} {
 }
 
 func scopedStringSet(c *gin.Context, role string) map[string]struct{} {
-	scopedRoles := middleware.GetOrgScopedRoles(c)
+	scopedRoles := middleware.GetScopedRoleGrants(c)
 	rawSchoolIDs := scopedRoles[role]
 	if len(rawSchoolIDs) == 0 {
 		return nil

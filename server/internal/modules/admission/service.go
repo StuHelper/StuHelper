@@ -37,11 +37,12 @@ type AcademicStudent struct {
 }
 
 type OperatorAccessGateway interface {
-	UserHasCapability(ctx context.Context, userID int64, capabilityName string) (bool, error)
-}
-
-type FreshmanProjectionGateway interface {
-	EnqueueFreshmanProvisionalRoleSyncTx(ctx context.Context, tx db.Tx, userID int64, approved bool) error
+	UserHasCapabilityInSchool(
+		ctx context.Context,
+		userID int64,
+		capabilityName string,
+		schoolID int64,
+	) (bool, error)
 }
 
 type SchoolSSOExchanger interface {
@@ -64,7 +65,6 @@ type Service struct {
 	emailSender       SchoolEmailSender
 	academicLookup    AcademicStudentLookupGateway
 	operatorAccess    OperatorAccessGateway
-	projection        FreshmanProjectionGateway
 	schoolSSO         SchoolSSOExchanger
 
 	beforeFreshmanApplicationCreate               func()
@@ -93,10 +93,6 @@ func WithAcademicStudentLookupGateway(gateway AcademicStudentLookupGateway) Serv
 
 func WithOperatorAccessGateway(gateway OperatorAccessGateway) ServiceOption {
 	return func(s *Service) { s.operatorAccess = gateway }
-}
-
-func WithFreshmanProjectionGateway(gateway FreshmanProjectionGateway) ServiceOption {
-	return func(s *Service) { s.projection = gateway }
 }
 
 func WithSchoolSSOExchanger(exchanger SchoolSSOExchanger) ServiceOption {

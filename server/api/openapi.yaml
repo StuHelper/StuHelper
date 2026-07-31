@@ -473,6 +473,8 @@ paths:
     $ref: "paths/admin-authorization.yaml#/~1api~1v1~1admin~1authorization~1grants~1{grantID}~1revoke"
   /api/v1/admin/authorization/grants/{grantID}/reconcile:
     $ref: "paths/admin-authorization.yaml#/~1api~1v1~1admin~1authorization~1grants~1{grantID}~1reconcile"
+  /api/v1/admin/authorization/projections/reconcile:
+    $ref: "paths/admin-authorization.yaml#/~1api~1v1~1admin~1authorization~1projections~1reconcile"
 
   # ── Admin: Admission ──
   /api/v1/admin/admission/policies:
@@ -760,6 +762,8 @@ components:
       $ref: "components/schemas/authorization.yaml#/AuthorizationGrantMutationRequest"
     AuthorizationGrantMutationResult:
       $ref: "components/schemas/authorization.yaml#/AuthorizationGrantMutationResult"
+    AuthorizationProjectionReconcileResult:
+      $ref: "components/schemas/authorization.yaml#/AuthorizationProjectionReconcileResult"
 
     # Open Platform
     OpenPlatformScopeDefinition:

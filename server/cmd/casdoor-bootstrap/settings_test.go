@@ -1,18 +1,13 @@
 package main
 
 import (
-	"regexp"
-	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/StuHelper/StuHelper/server/internal/pkg/capability"
 	"github.com/StuHelper/StuHelper/server/internal/platform/casdoor"
 )
-
-var flatRoleNamePattern = regexp.MustCompile(`^[a-z]+(_[a-z]+)*$`)
 
 func TestLoadSettingsBuildsBootstrapPlan(t *testing.T) {
 	settings, err := loadSettings(testEnv(completeEnv()))
@@ -22,7 +17,7 @@ func TestLoadSettingsBuildsBootstrapPlan(t *testing.T) {
 	assert.Equal(t, "https://sso.example.com", settings.credential.Endpoint)
 	assert.Equal(t, "stuhelper", settings.credential.Organization)
 	assert.Equal(t, "stuhelper", settings.plan.Organization.Name)
-	require.Len(t, settings.plan.Applications, 9)
+	require.Len(t, settings.plan.Applications, 8)
 	assert.Equal(t, "stuhelper-web", settings.plan.Applications[0].Name)
 	assert.Equal(t, "stuhelper-admin", settings.plan.Applications[1].Name)
 	assert.Equal(t, "stuhelper-uniapp", settings.plan.Applications[2].Name)
@@ -30,19 +25,16 @@ func TestLoadSettingsBuildsBootstrapPlan(t *testing.T) {
 	assert.Equal(t, "casdoor-admin-app-provisioning", settings.plan.Applications[3].Name)
 	assert.Equal(t, "casdoor-token-introspection", settings.plan.Applications[4].Name)
 	assert.Equal(t, "casdoor-admin-user-profile", settings.plan.Applications[5].Name)
-	assert.Equal(t, "casdoor-admin-role-sync", settings.plan.Applications[6].Name)
-	assert.Equal(t, "casdoor-admin-user-lookup", settings.plan.Applications[7].Name)
-	assert.Equal(t, "casdoor-token-probe-smoke", settings.plan.Applications[8].Name)
+	assert.Equal(t, "casdoor-admin-user-lookup", settings.plan.Applications[6].Name)
+	assert.Equal(t, "casdoor-token-probe-smoke", settings.plan.Applications[7].Name)
 	assert.Equal(t, []string{"client_credentials"}, settings.plan.Applications[3].GrantTypes)
 	assert.Equal(t, []string{"client_credentials"}, settings.plan.Applications[4].GrantTypes)
 	assert.Equal(t, []string{"client_credentials"}, settings.plan.Applications[5].GrantTypes)
 	assert.Equal(t, []string{"https://api.example.com/api/v1/auth/callback"}, settings.plan.Applications[0].RedirectURIs)
-	assert.Equal(t, []string{"authorization_code", "refresh_token"}, settings.plan.Applications[8].GrantTypes)
-	assert.Equal(t, []string{"https://www.example.com/open-platform/token-probe/callback"}, settings.plan.Applications[8].RedirectURIs)
-	assert.Equal(t, "JWT-Custom", settings.plan.Applications[8].TokenFormat)
-	assert.Equal(t, []string{}, settings.plan.Applications[8].TokenFields)
-	require.Len(t, settings.plan.Roles, 8)
-	assert.Equal(t, "super_admin", settings.plan.Roles[0].Name)
+	assert.Equal(t, []string{"authorization_code", "refresh_token"}, settings.plan.Applications[7].GrantTypes)
+	assert.Equal(t, []string{"https://www.example.com/open-platform/token-probe/callback"}, settings.plan.Applications[7].RedirectURIs)
+	assert.Equal(t, "JWT-Custom", settings.plan.Applications[7].TokenFormat)
+	assert.Equal(t, []string{}, settings.plan.Applications[7].TokenFields)
 	require.Len(t, settings.plan.Providers, 1)
 	assert.Equal(t, "stuhelper-sms", settings.plan.Providers[0].Name)
 	assert.Equal(t, "Custom HTTP SMS", settings.plan.Providers[0].Type)
@@ -97,28 +89,9 @@ func TestLoadApplicationBootstrapSettingsUsesAppProvisioningCredential(t *testin
 	assert.Equal(t, casdoor.PurposeAppProvisioning, settings.credential.Purpose)
 	assert.Equal(t, "casdoor-admin-app-provisioning", settings.credential.ClientID)
 	assert.Equal(t, "stuhelper", settings.credential.Organization)
-	require.Len(t, settings.applications, 9)
+	require.Len(t, settings.applications, 8)
 	assert.Equal(t, "stuhelper-web", settings.applications[0].Name)
-	assert.Equal(t, "casdoor-token-probe-smoke", settings.applications[8].Name)
-}
-
-func TestFlatRoleCatalogMatchesAuthorizationRoles(t *testing.T) {
-	expected := []string{
-		"super_admin",
-		"school_admin",
-		"section_admin",
-		"section_moderator",
-		"section_reviewer",
-		"verified_student",
-		"freshman_provisional",
-		"user",
-	}
-	bootstrapRoles := roleNames(flatRoleCatalog())
-	assert.Equal(t, expected, bootstrapRoles)
-	assert.ElementsMatch(t, capabilityRoleNames(), bootstrapRoles)
-	for _, role := range bootstrapRoles {
-		assert.Truef(t, flatRoleNamePattern.MatchString(role), "role %q must stay flat and ID-free", role)
-	}
+	assert.Equal(t, "casdoor-token-probe-smoke", settings.applications[7].Name)
 }
 
 func TestLoadSettingsRequiresDedicatedBootstrapCredential(t *testing.T) {
@@ -198,9 +171,6 @@ func completeEnv() map[string]string {
 		"CASDOOR_INTROSPECTION_CLIENT_ID":         "casdoor-token-introspection",
 		"CASDOOR_INTROSPECTION_CLIENT_SECRET":     "introspection-secret",
 		"CASDOOR_INTROSPECTION_APPLICATION":       "casdoor-token-introspection",
-		"CASDOOR_ROLE_SYNC_CLIENT_ID":             "casdoor-admin-role-sync",
-		"CASDOOR_ROLE_SYNC_CLIENT_SECRET":         "role-sync-secret",
-		"CASDOOR_ROLE_SYNC_APPLICATION":           "casdoor-admin-role-sync",
 		"CASDOOR_USER_LOOKUP_CLIENT_ID":           "casdoor-admin-user-lookup",
 		"CASDOOR_USER_LOOKUP_CLIENT_SECRET":       "user-lookup-secret",
 		"CASDOOR_USER_LOOKUP_APPLICATION":         "casdoor-admin-user-lookup",
@@ -224,22 +194,4 @@ func testEnv(values map[string]string) envReader {
 	return func(key string) string {
 		return values[key]
 	}
-}
-
-func roleNames(roles []casdoor.RoleSpec) []string {
-	names := make([]string, 0, len(roles))
-	for _, role := range roles {
-		names = append(names, role.Name)
-	}
-	return names
-}
-
-func capabilityRoleNames() []string {
-	roleCapabilities := capability.GetRoleCapabilities()
-	roles := make([]string, 0, len(roleCapabilities))
-	for role := range roleCapabilities {
-		roles = append(roles, role)
-	}
-	slices.Sort(roles)
-	return roles
 }

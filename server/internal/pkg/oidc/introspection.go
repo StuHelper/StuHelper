@@ -13,28 +13,24 @@ import (
 	"time"
 
 	gooidc "github.com/coreos/go-oidc/v3/oidc"
-	"go.uber.org/zap"
 	"golang.org/x/oauth2"
 
 	"github.com/StuHelper/StuHelper/server/internal/pkg/config"
-	"github.com/StuHelper/StuHelper/server/internal/pkg/logger"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/metrics"
 )
 
 // IntrospectionResult Token 内省结果
 type IntrospectionResult struct {
-	Active         bool                `json:"active"`
-	Sub            string              `json:"sub"`
-	Username       string              `json:"username"`
-	Email          string              `json:"email"`
-	Name           string              `json:"name"`
-	Scope          string              `json:"scope"`
-	AMR            []string            `json:"amr,omitempty"`
-	AuthTime       int64               `json:"auth_time,omitempty"`
-	ExpiresAt      int64               `json:"exp,omitempty"`
-	AppID          string              `json:"-"`
-	Roles          []string            `json:"-"` // 从原始 JSON 解析
-	OrgScopedRoles map[string][]string `json:"-"`
+	Active    bool     `json:"active"`
+	Sub       string   `json:"sub"`
+	Username  string   `json:"username"`
+	Email     string   `json:"email"`
+	Name      string   `json:"name"`
+	Scope     string   `json:"scope"`
+	AMR       []string `json:"amr,omitempty"`
+	AuthTime  int64    `json:"auth_time,omitempty"`
+	ExpiresAt int64    `json:"exp,omitempty"`
+	AppID     string   `json:"-"`
 }
 
 func (r *IntrospectionResult) GetAppID() string {
@@ -171,12 +167,6 @@ func parseIntrospectionResult(rawJSON json.RawMessage) (IntrospectionResult, err
 
 func (c *Client) decorateIntrospectionResult(result *IntrospectionResult, rawJSON json.RawMessage) {
 	result.AppID = appIDFromRawClaims(rawJSON)
-	roles, parseErr := ParseProviderRolesFromRaw(rawJSON, c.rolesClaim)
-	if parseErr != nil {
-		logger.L().Warn("oidc: failed to parse roles from introspection response", zap.Error(parseErr))
-		return
-	}
-	result.Roles = roles
 }
 
 func discoveredIntrospectionEndpoint(provider *gooidc.Provider, configured string) (string, error) {

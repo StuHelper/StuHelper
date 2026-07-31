@@ -28,6 +28,7 @@ func (s *Service) StartBackgroundJobs(
 		panic("authorization.Service.StartBackgroundJobs: projection client is required")
 	}
 	start("authorization grant projection worker", s.runProjectionWorker)
+	start("authorization grant projection reconciliation", s.runProjectionReconciliationLoop)
 }
 
 func (s *Service) runProjectionWorker(ctx context.Context) {

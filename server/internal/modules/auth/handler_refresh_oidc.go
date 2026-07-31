@@ -158,12 +158,10 @@ func (h *Handler) fetchOIDCRefreshPayload(c *gin.Context, appKey, oldRefreshToke
 		userID:               newClaims.GetUserID(),
 		accessTokenExpiresAt: newClaims.ExpiresAt,
 		userSync: UserSyncInput{
-			CasdoorSubject:     newClaims.GetUserID(),
-			Username:           newClaims.GetUsername(),
-			Email:              newClaims.GetEmail(),
-			AvatarURL:          newClaims.GetAvatar(),
-			Roles:              newClaims.Roles,
-			RolesAuthoritative: newClaims.RolesClaimPresent,
+			CasdoorSubject: newClaims.GetUserID(),
+			Username:       newClaims.GetUsername(),
+			Email:          newClaims.GetEmail(),
+			AvatarURL:      newClaims.GetAvatar(),
 		},
 	}, true
 }

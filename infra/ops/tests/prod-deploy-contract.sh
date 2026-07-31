@@ -64,7 +64,6 @@ object_storage_secret_reject_line="$(line_number 'reject_placeholder OBJECT_STOR
 object_storage_local_reject_line="$(line_number 'reject_local_value OBJECT_STORAGE_ENDPOINT')"
 user_profile_require_line="$(line_number 'require_nonempty CASDOOR_USER_PROFILE_CLIENT_SECRET')"
 introspection_require_line="$(line_number 'require_nonempty CASDOOR_INTROSPECTION_CLIENT_SECRET')"
-role_sync_require_line="$(line_number 'require_nonempty CASDOOR_ROLE_SYNC_CLIENT_SECRET')"
 user_lookup_require_line="$(line_number 'require_nonempty CASDOOR_USER_LOOKUP_CLIENT_SECRET')"
 token_probe_smoke_client_require_line="$(line_number 'require_nonempty CASDOOR_TOKEN_PROBE_SMOKE_CLIENT_ID')"
 token_probe_smoke_secret_require_line="$(line_number 'require_nonempty CASDOOR_TOKEN_PROBE_SMOKE_CLIENT_SECRET')"
@@ -162,11 +161,8 @@ fi
 if (( introspection_require_line <= user_profile_require_line )); then
   fail "Casdoor introspection validation should be grouped after user-profile validation"
 fi
-if (( role_sync_require_line <= introspection_require_line )); then
-  fail "Casdoor role-sync validation should be grouped after introspection validation"
-fi
-if (( user_lookup_require_line <= role_sync_require_line )); then
-  fail "Casdoor user-lookup validation should be grouped after role-sync validation"
+if (( user_lookup_require_line <= introspection_require_line )); then
+  fail "Casdoor user-lookup validation should be grouped after introspection validation"
 fi
 if (( token_probe_smoke_client_require_line <= user_lookup_require_line )); then
   fail "Casdoor token probe smoke app validation should be grouped after user-lookup validation"

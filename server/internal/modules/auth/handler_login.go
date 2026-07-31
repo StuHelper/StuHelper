@@ -176,12 +176,10 @@ func (h *Handler) handleWebCallback(c *gin.Context, ctx context.Context, input w
 
 	// 同步本地 shadow user；登录成功必须意味着内部主体已经就绪。
 	if syncErr := h.svc.SyncOIDCUser(ctx, UserSyncInput{
-		CasdoorSubject:     claims.GetUserID(),
-		Username:           claims.GetUsername(),
-		Email:              claims.GetEmail(),
-		AvatarURL:          claims.GetAvatar(),
-		Roles:              claims.Roles,
-		RolesAuthoritative: claims.RolesClaimPresent,
+		CasdoorSubject: claims.GetUserID(),
+		Username:       claims.GetUsername(),
+		Email:          claims.GetEmail(),
+		AvatarURL:      claims.GetAvatar(),
 	}); syncErr != nil {
 		logger.FromGin(c).Error("user sync failed",
 			zap.String("user_id", claims.GetUserID()),
@@ -636,12 +634,10 @@ func (h *Handler) ExchangeNative(c *gin.Context) {
 
 	// 同步本地 shadow user
 	if syncErr := h.svc.SyncOIDCUser(ctx, UserSyncInput{
-		CasdoorSubject:     claims.GetUserID(),
-		Username:           claims.GetUsername(),
-		Email:              claims.GetEmail(),
-		AvatarURL:          claims.GetAvatar(),
-		Roles:              claims.Roles,
-		RolesAuthoritative: claims.RolesClaimPresent,
+		CasdoorSubject: claims.GetUserID(),
+		Username:       claims.GetUsername(),
+		Email:          claims.GetEmail(),
+		AvatarURL:      claims.GetAvatar(),
 	}); syncErr != nil {
 		logger.FromGin(c).Error("native exchange: user sync failed",
 			zap.String("user_id", claims.GetUserID()), zap.Error(syncErr))
