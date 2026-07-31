@@ -214,6 +214,12 @@ P3-1 至 P3-6、P3-8、R-5 至 R-7、R-14、R-15、R-17。X-2 的配置分类治
   不使用无法克隆函数的 `structuredClone`）。修复后 Admin 全量 lint 为 0 warning / 0 error，
   两段 TypeScript 检查、31 files / 153 tests 与 production build 全部通过；未修改路由或授权
   语义，也未引入新 clone 工具。
+- 同轮首次补跑 Admin production-preview 全量 Playwright 时，原有 capability route E2E
+  仍断言受限管理员直达已过滤的 `/open-platform/apps` 后显示旧 404；桌面/移动均稳定失败。
+  失败快照实际显示 P0-1 的预期安全行为：路由被回退到该角色可访问的 `/analytics`，且
+  Open Platform API 请求数为 0，并非受限页面或数据被放行。现已把测试同步为同时断言
+  可访问首页 URL/标题、无 404 和零越权 API 请求；production-preview 双视口定向 2/2
+  通过。未为满足旧断言把安全回退改回 404，也未扩大路由授权模型。
 - Koishi P1-1：缺 Session、私聊无 guild 的 authority 策略、显式 guild 越权和跨群数据隔离
   定向测试随相关 shared settings 共 14/14 通过；Koishi 全工作区 build、全量 unit
   593/593 和 Vue UI contracts 通过。
@@ -334,7 +340,7 @@ P3-1 至 P3-6、P3-8、R-5 至 R-7、R-14、R-15、R-17。X-2 的配置分类治
 
 | 编号 | 状态 | 实现与验证 | 独立提交 |
 |------|------|------------|----------|
-| P0-1 | 已修复，未发布；累计 lint 回归已收口 | 按已过滤路由推导首页；redirect 必须命中可访问路由，否则回退。完成性审计发现并修复原实现文件的 5 个 ESLint 门禁错误，未改行为。Admin 全量 lint 0 warning/error、两段 TypeScript 检查、31 files / 153 tests 和 production build 通过 | `fix(admin): route users to an accessible home`；`fix(admin): keep route resolution checks lint clean` |
+| P0-1 | 已修复，未发布；累计 lint 与浏览器契约回归已收口 | 按已过滤路由推导首页；redirect 必须命中可访问路由，否则回退。完成性审计发现并修复原实现文件的 5 个 ESLint 门禁错误；另把仍期待旧 404 的 Admin E2E 同步为断言受限路由安全回退到可访问首页且 Open Platform API 请求为 0。Admin 全量 lint 0 warning/error、两段 TypeScript 检查、31 files / 153 tests、production build 和双视口定向 E2E 2/2 通过 | `fix(admin): route users to an accessible home`；`fix(admin): keep route resolution checks lint clean`；`test(admin): align filtered-route E2E with safe fallback` |
 | P1-1 | 已修复，未发布 | 缺 Session fail-closed；私聊无 guild 仍校验 policy 且禁止无范围查询；显式 guild 保留并按目标群授权。定向 14 tests、Koishi build、全量 593 tests 和 UI contracts 通过 | `fix(koishi): fail closed without a guild context` |
 | P1-2 | 已修复，未发布 | 迁移权威改为有序 migration 集合；`000001` 锁定为初始基线，后续只新增递增 `.up/.down`；同步 Make/CI/数据库文档。文档与 CI 契约检查通过，隔离 PostgreSQL 18 实际 `up → down 1 → up` 后为 `19, dirty=false` | `docs(database): make migrations append-only` |
 | P1-3 | 已修复，未发布；生产 PITR 待验收 | 物理备份在外部 staging 以 `plain + stream` 生成，经临时 slot、`pg_verifybackup`、SHA256 和 `.partial` 原子发布；同步排除临时工件，evidence 覆盖本地/取回的逻辑与物理备份及新鲜度。真实 18.4 隔离恢复启动并读回探针；ShellCheck、文档卫生和 75 个 infra contracts 通过 | `fix(backup): verify and atomically publish base backups` |
@@ -3838,7 +3844,7 @@ STUHELPER_REDIS_INTEGRATION
 
 | 编号 | 问题 | 状态 |
 |------|------|------|
-| P0-1 | Admin 落地页 404 循环 | Codex 已完成实现：按 capability-filtered route/menu 推导首页，并对 redirect 做可访问路由校验。2026-07-31 累计回归另发现并收口两个实现文件的 5 个 ESLint 门禁错误；Admin 全量 lint 0 warning/error、两段 TypeScript 检查、31 files / 153 tests 和 production build 通过。原功能提交与 lint follow-up 均独立入库，尚未发布 |
+| P0-1 | Admin 落地页 404 循环 | Codex 已完成实现：按 capability-filtered route/menu 推导首页，并对 redirect 做可访问路由校验。2026-07-31 累计回归另发现并收口两个实现文件的 5 个 ESLint 门禁错误；首次全量浏览器回归发现旧 E2E 仍期待受限路径落到 404，快照确认真实行为是安全回退 `/analytics` 且越权 API 请求为 0，测试已同步并双视口 2/2 通过。Admin 全量 lint 0 warning/error、两段 TypeScript 检查、31 files / 153 tests 和 production build 通过。功能、lint 与浏览器契约 follow-up 均独立入库，尚未发布 |
 | P1-1 | 私聊空 guild 绕过策略并跨群读取复核队列 | Codex 已完成实现：缺 Session fail-closed；无 guild 仍校验 authority policy 且在数据访问前返回上下文提示；显式 guild 保持目标群授权与过滤。定向 14 tests、Koishi 全量 593 tests、build 和 UI contracts 通过。随独立修复提交入库，尚未发布 |
 | P1-2 | 迁移指南要求修改已执行的初始基线 | Codex 已完成修复：权威来源改为完整有序 migration 集合，后续 schema 变更必须新增递增 `.up/.down`；Make、CI 与数据库文档已同步。文档/契约检查通过，隔离 PostgreSQL 18 按 CI 最小权限实际完成 19 版 `up → down 1 → up`，最终无 dirty 状态。随独立修复提交入库，尚未发布 |
 | P1-3 | 物理备份命令无法生成、半成品可被同步且 evidence 不覆盖物理备份 | Codex 已完成实现：改为外部 staging 的 `plain + stream`、临时 replication slot、`pg_verifybackup`、SHA256 与 `.partial` 原子发布；同步排除临时工件，evidence 覆盖本地/取回的逻辑与物理备份及新鲜度。真实 PostgreSQL 18.4 备份在无网络隔离实例启动并读回探针，75 个 infra contracts 全部通过。随独立修复提交入库，尚未发布；生产对象存储/WAL PITR 仍须单独验收 |
