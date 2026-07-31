@@ -23,6 +23,11 @@ type OpenPlatformResourceType = components['schemas']['OpenPlatformResourceType'
 type OpenPlatformResourceGrantRequest = components['schemas']['OpenPlatformResourceGrantRequest']
 type OpenPlatformResourceGrantResult =
   operations['listAdminOpenPlatformResourceGrants']['responses'][200]['content']['application/json']['data']
+type AuthorizationRole = components['schemas']['AuthorizationRole']
+type AuthorizationDesiredState = components['schemas']['AuthorizationDesiredState']
+type AuthorizationProjectionStatus = components['schemas']['AuthorizationProjectionStatus']
+type CreateAuthorizationGrantRequest = components['schemas']['CreateAuthorizationGrantRequest']
+type AuthorizationGrantMutationRequest = components['schemas']['AuthorizationGrantMutationRequest']
 
 export const createAdminApi = (client: ApiClient) => ({
   getStats: () =>
@@ -81,6 +86,37 @@ export const createAdminApi = (client: ApiClient) => ({
 
   deleteSensitiveWord: (id: string) =>
     client.DELETE('/api/v1/course/review/admin/sensitive-words/{sensitiveWordID}', { params: { path: { sensitiveWordID: id } } }),
+
+  getAuthorizationGrants: (params?: {
+    desiredState?: AuthorizationDesiredState
+    page?: number
+    pageSize?: number
+    projectionStatus?: AuthorizationProjectionStatus
+    role?: AuthorizationRole
+    subjectUserID?: number
+  }) =>
+    client.GET('/api/v1/admin/authorization/grants', { params: { query: params } }),
+
+  createAuthorizationGrant: (data: CreateAuthorizationGrantRequest) =>
+    client.POST('/api/v1/admin/authorization/grants', { body: data }),
+
+  getAuthorizationGrant: (grantID: number) =>
+    client.GET('/api/v1/admin/authorization/grants/{grantID}', { params: { path: { grantID } } }),
+
+  revokeAuthorizationGrant: (grantID: number, data: AuthorizationGrantMutationRequest) =>
+    client.POST('/api/v1/admin/authorization/grants/{grantID}/revoke', {
+      body: data,
+      params: { path: { grantID } },
+    }),
+
+  reconcileAuthorizationGrant: (grantID: number, data: AuthorizationGrantMutationRequest) =>
+    client.POST('/api/v1/admin/authorization/grants/{grantID}/reconcile', {
+      body: data,
+      params: { path: { grantID } },
+    }),
+
+  reconcileAllAuthorizationProjections: (data: AuthorizationGrantMutationRequest) =>
+    client.POST('/api/v1/admin/authorization/projections/reconcile', { body: data }),
 
   getOpenPlatformApps: (params?: { page?: number; pageSize?: number; status?: OpenPlatformAppStatus }) =>
     client.GET('/api/v1/admin/open-platform/apps', { params: { query: params } }),

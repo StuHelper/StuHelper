@@ -19,6 +19,10 @@
       "schoolConfig": "学校配置",
       "systemConfig": "系统配置"
     },
+    "authorization": {
+      "title": "访问控制",
+      "grants": "授权账本"
+    },
     "openPlatform": {
       "title": "开放平台",
       "apps": "应用审核",
@@ -31,6 +35,7 @@
   "common": {
     "all": "全部",
     "query": "查询",
+    "reset": "重置",
     "edit": "编辑",
     "delete": "删除",
     "confirm": "确定",
@@ -61,6 +66,63 @@
     "ldapConfigInvalid": "LDAP 连接配置无效，请检查地址、Base DN 和绑定账号",
     "systemConfigNotFound": "系统配置项不存在",
     "requestFailed": "请求失败，请稍后重试"
+  },
+  "authorization": {
+    "create": "发放授权",
+    "rebuild": "重建全部投影",
+    "controlPlane": {
+      "database": "PostgreSQL 期望状态",
+      "databaseHint": "唯一管理真源",
+      "fence": "激活与撤权围栏",
+      "fenceHint": "新授权先投影；撤权立即生效",
+      "projection": "OpenFGA 运行时投影",
+      "projectionHint": "可从账本完整重建"
+    },
+    "subject": "授权主体",
+    "subjectUserId": "用户 ID",
+    "subjectUserIdPlaceholder": "输入不可变的 StuHelper 用户 ID",
+    "role": "角色",
+    "scope": "作用域",
+    "schoolId": "学校 ID",
+    "reason": "变更理由",
+    "reasonPlaceholder": "说明业务理由、工单或事件编号",
+    "desiredState": "期望状态",
+    "projectionStatus": "投影状态",
+    "revision": "修订",
+    "lastError": "最近错误",
+    "active": "已激活",
+    "notActive": "尚未激活",
+    "global": "全局",
+    "createTitle": "发放新的管理员授权",
+    "createHint": "提交后先进入 pending；只有 OpenFGA 写入并读回确认后，新授权才会激活。",
+    "revoke": "撤销",
+    "reconcile": "重新投影",
+    "revokePrompt": "撤权会先写入数据库围栏并立即拒绝访问。请输入撤销理由。",
+    "reconcilePrompt": "重新投影固定角色与作用域，不允许填写任意 tuple。请输入对账理由。",
+    "rebuildPrompt": "将账本中的全部期望状态重新投影到 OpenFGA。已激活授权不会因修复暂时失效。请输入灾备或对账理由。",
+    "created": "授权已进入投影队列",
+    "revoked": "撤权围栏已生效",
+    "reconciled": "授权已重新进入投影队列",
+    "rebuilt": "已重新投递 {count} 条授权投影",
+    "validation": {
+      "subjectRequired": "请输入有效的用户 ID",
+      "schoolRequired": "该角色必须指定有效的学校 ID",
+      "reasonRequired": "请输入变更理由"
+    },
+    "roles": {
+      "super_admin": "超级管理员",
+      "school_admin": "学校管理员",
+      "section_admin": "分区管理员",
+      "section_moderator": "分区版主",
+      "section_reviewer": "分区审核员"
+    },
+    "states": {
+      "granted": "已授予",
+      "revoked": "已撤销",
+      "pending": "待投影",
+      "applied": "已应用",
+      "failed": "投影失败"
+    }
   },
   "content": {
     "reviews": {

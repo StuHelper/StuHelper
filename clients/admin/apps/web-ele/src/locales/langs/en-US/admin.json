@@ -19,6 +19,10 @@
       "schoolConfig": "School Config",
       "systemConfig": "System Config"
     },
+    "authorization": {
+      "title": "Access Control",
+      "grants": "Authorization Ledger"
+    },
     "openPlatform": {
       "title": "Open Platform",
       "apps": "App Review",
@@ -31,6 +35,7 @@
   "common": {
     "all": "All",
     "query": "Search",
+    "reset": "Reset",
     "edit": "Edit",
     "delete": "Delete",
     "confirm": "Confirm",
@@ -61,6 +66,63 @@
     "ldapConfigInvalid": "LDAP connection settings are invalid. Check the URL, Base DN, and bind account.",
     "systemConfigNotFound": "System configuration item does not exist.",
     "requestFailed": "Request failed. Please try again later."
+  },
+  "authorization": {
+    "create": "Grant access",
+    "rebuild": "Rebuild all projections",
+    "controlPlane": {
+      "database": "PostgreSQL desired state",
+      "databaseHint": "Sole management source",
+      "fence": "Activation and revoke fence",
+      "fenceHint": "Project before grant; revoke immediately",
+      "projection": "OpenFGA serving projection",
+      "projectionHint": "Fully rebuildable from the ledger"
+    },
+    "subject": "Principal",
+    "subjectUserId": "User ID",
+    "subjectUserIdPlaceholder": "Enter the immutable StuHelper user ID",
+    "role": "Role",
+    "scope": "Scope",
+    "schoolId": "School ID",
+    "reason": "Change reason",
+    "reasonPlaceholder": "Add the business reason, ticket, or incident ID",
+    "desiredState": "Desired state",
+    "projectionStatus": "Projection status",
+    "revision": "Revision",
+    "lastError": "Latest error",
+    "active": "Activated",
+    "notActive": "Not activated",
+    "global": "Global",
+    "createTitle": "Grant administrator access",
+    "createHint": "The grant starts pending and activates only after OpenFGA write and read-back verification.",
+    "revoke": "Revoke",
+    "reconcile": "Re-project",
+    "revokePrompt": "Revocation commits the database fence first and denies access immediately. Enter a reason.",
+    "reconcilePrompt": "Re-project the fixed role and scope; arbitrary tuples are not accepted. Enter a reason.",
+    "rebuildPrompt": "Re-project every desired state from the ledger. Active grants remain available during repair. Enter a recovery or reconciliation reason.",
+    "created": "Grant queued for projection",
+    "revoked": "Revocation fence is active",
+    "reconciled": "Grant queued for projection again",
+    "rebuilt": "Queued {count} authorization projections",
+    "validation": {
+      "subjectRequired": "Enter a valid user ID",
+      "schoolRequired": "This role requires a valid school ID",
+      "reasonRequired": "Enter a change reason"
+    },
+    "roles": {
+      "super_admin": "Super administrator",
+      "school_admin": "School administrator",
+      "section_admin": "Section administrator",
+      "section_moderator": "Section moderator",
+      "section_reviewer": "Section reviewer"
+    },
+    "states": {
+      "granted": "Granted",
+      "revoked": "Revoked",
+      "pending": "Pending",
+      "applied": "Applied",
+      "failed": "Failed"
+    }
   },
   "content": {
     "reviews": {
