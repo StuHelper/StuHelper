@@ -1,36 +1,31 @@
 ---
 type: design
 audience: maintainers, backend-dev, ops
-status: draft
-authoritative-source: this file for the StuHelper IAM v2 target architecture
-created: 2026-05-01
-last-verified: 2026-05-30
-supersedes: 2026-05-01-casdoor-open-platform-iam-design.md
-related:
-  - open-platform-v1.md (current B/2B Open Platform baseline and target)
-  - docs/design/authorization-model.md
-  - docs/design/auth-and-session.md
-scope: Casdoor-centered IAM target architecture; Open Platform scope and consent live in separate current spec
+status: current
+authoritative-source: this file for target architecture; runtime truth remains source code and migrations
+last-verified: 2026-07-31
 ---
 
-# StuHelper IAM v2 — Casdoor 身份平台
+# StuHelper IAM 架构
 
-## 1. 决策记录
+## 1. 范围
 
-- **IDP 决策**：Casdoor 是最终方案，由项目 owner 直接决策；不再做选型 ADR；不再保留 Zitadel/Keycloak 候选。
-- **迁移性质**：绿地架构，不做兼容数据迁移；历史 Zitadel external subject、session、token 全部失效，要求所有用户重新登录。
-- **范围拆分**：本文只覆盖 IAM 目标架构（身份、登录、一方应用 registry、授权决策入口、SMS/Email 通道、Zitadel 退役）。开放平台已拆出独立 spec [`open-platform-v1.md`](open-platform-v1.md)，当前 B/2B baseline 是：Casdoor / `sso.stuhelper.com` 作为公开 OIDC issuer，StuHelper Open Platform 只承载业务 app registry、scope、consent、API 和审计。
+本文描述 StuHelper 的 IAM 架构：身份、登录、一方应用 registry、授权决策入口、SMS / Email 通道。
 
-> 本 spec 取代 `2026-05-01-casdoor-open-platform-iam-design.md`（commit 8295a1e7）。旧 spec 把 IAM 切换与开放平台 v1 混写，并把 Casdoor Casbin Enforce 引入业务授权路径，已被本文从架构上修正。
+身份提供方的选择理由见 [ADR-0007](../adr/0007-casdoor-as-sole-identity-provider.md)。
+授权控制面的长期决策见
+[ADR-0008](../adr/0008-postgresql-authorization-control-plane.md)。
 
-## 2. 目标架构（4 层 + 1 网关）
+开放平台是独立产品域，由 [`open-platform-v1.md`](open-platform-v1.md) 定义：Casdoor / `sso.stuhelper.com` 作为公开 OIDC issuer，StuHelper Open Platform 承载业务 app registry、scope、consent、API 和审计。
+
+## 2. 架构（4 层 + 1 网关）
 
 | 层 | 权威 / 职责 | 严格不能做的 |
 |----|-------------|--------------|
-| **Casdoor** | 身份与一方/三方登录应用 registry：用户生命周期、登录方式、Provider、MFA、会话、token 签发、扁平角色投影、公开 OIDC issuer `sso.stuhelper.com` | 业务授权决策；学生认证/QQ 绑定真源；不向业务模块暴露 Casbin / Enforce / GetPermissions |
-| **StuHelper DB** | 业务事实真相源：实名认证、学生认证、学校归属、手机号验证投影、QQ 绑定、课程/评课/资源 owner、Open Platform consent | 完整手机号真相源 |
-| **StuHelper Authorization Service** | **业务模块唯一授权入口**：组合 token 主体、DB 事实、OpenFGA 检查；统一 fail-closed | — |
-| **OpenFGA** | 资源关系权威：owner/author/school_admin/section_admin/section_moderator/section_reviewer/app→resource 关系 | 直接被业务模块调用；参与登录决策；承担粗粒度 RBAC（已在 Casdoor 解决） |
+| **Casdoor** | 身份与一方/三方登录应用 registry：用户生命周期、登录方式、Provider、MFA、会话、token 签发、公开 OIDC issuer `sso.stuhelper.com` | 任何 StuHelper 业务授权、业务角色目录或 role membership；学生认证/QQ 绑定真源；向业务模块暴露 Casbin / Enforce / GetPermissions |
+| **StuHelper DB** | 业务事实和授权管理真相源：授权授予账本、实名认证、学生认证、学校归属、手机号验证投影、QQ 绑定、课程/评课/资源 owner、Open Platform consent | 完整手机号真相源 |
+| **StuHelper Authorization Service** | **业务模块唯一授权入口**：组合 token 主体、DB-derived access snapshot、撤权栅栏、DB 事实与 OpenFGA 检查；统一 fail-closed | — |
+| **OpenFGA** | 可从 DB 重建的运行时关系判定面：owner/author/school_admin/section_admin/section_moderator/section_reviewer/app→resource 关系 | 作为人员授权管理真源；直接被业务 handler 调用；参与登录认证 |
 | **Open Platform** | `stuhelper.com` 上的第三方应用元数据、业务 scope 审批、用户 consent、Disclosure/Open API、审计、限流、吊销 | 签发独立公开 issuer；恢复独立身份普通用户入口；把 Casdoor `Properties` 当业务数据 API |
 
 ```text
@@ -46,8 +41,8 @@ StuHelper API
     │
     │ ┌──────────────────────────────────────┐
     │ │ Authorization Service (单一 PDP)     │
-    │ │   ├─ token 主体 (Casdoor JWT claim)  │
-    │ │   ├─ DB 业务事实查询                 │
+    │ │   ├─ token 主体 (Casdoor sub/aud)    │
+    │ │   ├─ DB 授权快照、撤权栅栏与业务事实 │
     │ │   └─ OpenFGA 资源关系检查            │
     │ └──────────────────────────────────────┘
     ▼
@@ -84,21 +79,20 @@ Casdoor 承载：
 
 **Redirect 安全 gate**：若当前 Casdoor 版本存在未修复 open redirect advisory，Casdoor 前置网关必须对 `/login/oauth/authorize` 的 `client_id + redirect_uri` 执行 StuHelper DB 精确白名单校验；没有该网关校验不得开放第三方 OAuth。
 
-### 3.3 角色目录（扁平）
+### 3.3 StuHelper 业务角色不进入 Casdoor
 
-Casdoor 仅存以下 7 个扁平角色，**不编码学校 ID 或板块名**：
+Casdoor 不创建或维护 `super_admin`、`school_admin`、`section_admin`、
+`section_moderator`、`section_reviewer`、`verified_student`、
+`freshman_provisional` 或 `user` 的 role catalog/membership。
 
-```
-super_admin
-school_admin
-section_admin
-section_moderator
-section_reviewer
-verified_student
-user
-```
+- `super_admin`、`school_admin` 与 `section_*` 来自 PostgreSQL
+  `authorization_grants`；
+- `verified_student` / `freshman_provisional` 是 DB 业务事实派生的 access snapshot 标签；
+- `user` 是通过认证的主体在 StuHelper 内部获得的基础角色；
+- 学校归属、板块归属与资源所属由 DB 事实及其 OpenFGA serving projection 表达。
 
-学校归属、板块归属、资源所属由 OpenFGA tuple 表达（如 `school_admin → school:4111010006`），或由业务 DB 查询。`verified_student` 仅作为粗粒度入口闸门，**不作为业务事实证据**——敏感判断必须查 DB（见 §6）。
+OIDC token 中即使遗留 `roles` 字段，也只能用于迁移遥测，不得进入 Capability 展开、后台
+入口、MFA role gate 或资源授权。
 
 ### 3.4 Provider
 
@@ -146,7 +140,7 @@ bootstrap 必须创建并校验：
 
 #### 3.5.4 MFA 审计
 
-MFA 注册、禁用、reset、recovery code 使用、step-up 失败、step-up 成功 全部进 `audit_events`，保留 1 年（高于现行 90 天管理员操作审计基线，因敏感度更高）。具体保留期见 §14.3。
+MFA 注册、禁用、reset、recovery code 使用、step-up 失败、step-up 成功 全部进 `audit_events`，保留 1 年（高于现行 90 天管理员操作审计基线，因敏感度更高）。具体保留期见 §13.3。
 
 #### 3.5.5 Enforcement 机制（capability gate）
 
@@ -169,7 +163,7 @@ MFA 注册、禁用、reset、recovery code 使用、step-up 失败、step-up �
 
 | 场景 | C1=Yes（精准强制） | C1=No（org 全员强制） |
 |------|---------------------|---------------------|
-| `super_admin` / `school_admin` 强制 MFA | 直接用 Casdoor 角色级 Required | 接受 org 全员强制 MFA（项目当前用户量小，可承受），或在 Authorization Service 层以本地 MFA proof 兜底拒绝未完成 MFA 的 admin 操作 |
+| `super_admin` / `school_admin` 强制 MFA | Authorization Service 读取 DB-derived role、DB enrollment 与登录层 MFA proof | Casdoor org 级 Required 可作为全员登录加固，但不能把 Casdoor role 当作管理员判据 |
 
 | 场景 | C2/C3/C4/C5/C6 全部 Yes | 任一 No |
 |------|------------------------|--------|
@@ -188,9 +182,9 @@ MFA 注册、禁用、reset、recovery code 使用、step-up 失败、step-up �
 **强制规则（capability 无关）**：
 
 - super_admin / school_admin 任一 admin 入口或 admin 操作前，Authorization Service 必须同时确认 MFA enrollment + MFA proof；缺 enrollment → `403 mfa_enrollment_required`，缺 proof 或 proof 过期 → `412 step_up_required`；
-- MFA enrollment **仅以 DB `user_mfa_enrollment` 为准**（§3.5.6 ownership 模型）；Casdoor 投影漂移**仅触发** drift check / alert，**不阻断**授权放行（除非 exec-plan 明确选择 stricter fail-closed 模式）；
+- privileged MFA enrollment **仅以 DB `user_mfa_enrollment` 为准**（§3.5.6 ownership 模型）；Casdoor MFA 状态只作为登录层 hint，不能授予管理员角色；
 - 无论 Casdoor 是否签发 `amr` claim，MFA enrollment 状态始终由 StuHelper DB 表 `user_mfa_enrollment`（实施时新建）作为真相源；`amr` 只能参与 `mfa_proof` 判断；
-- MFA enrollment 的 ownership 模型与同步方向见 §3.5.6（不通过 §6.5 outbox 反向同步——outbox 是 DB → Casdoor 单向）。
+- MFA enrollment 的 ownership 模型见 §3.5.6；授权 outbox 只投影 OpenFGA，不反向创建 Casdoor 业务角色。
 
 #### 3.5.6 MFA Enrollment Ownership
 
@@ -210,7 +204,7 @@ MFA 注册、禁用、reset、recovery code 使用、step-up 失败、step-up �
 
 - Authorization Service 检查 MFA enrollment 状态时**只以 DB 为授权证据**；
 - Casdoor MFA 状态 / `amr` claim 只能作为登录层 MFA hint 或 `mfa_proof` 的来源之一，不替代 DB enrollment；
-- 冲突时按 §6.3 一致性矩阵处理（DB 为准；Casdoor 投影漂移触发即时同步 + 告警）；
+- 冲突时以 DB privileged enrollment 为准；Casdoor MFA 状态不进入业务角色决策；
 - Authorization Service 放行 admin 操作时必须另查当前 session 的 `mfa_proof`（见 §3.5.5），不能把 enrollment 当 proof 使用。
 
 **对普通用户 MFA**（非 privileged）：
@@ -242,7 +236,7 @@ MFA 注册、禁用、reset、recovery code 使用、step-up 失败、step-up �
 
 #### 3.6.2 机器身份硬约束
 
-- 机器身份**不进入** §3.3 的 7 个人类角色目录；
+- 机器身份**不进入** §3.3 的人类 access snapshot 角色集合；
 - 机器身份**不使用** `school_admin` / `section_admin` 等人类角色；
 - 机器身份的授权模型：**capability + audience + scope** + （可选）resource relation；
 - 在 `AuthorizationService.Authorize` 中按 `Subject.AppID` 维度走独立决策路径，与人类用户路径分离；
@@ -253,7 +247,7 @@ MFA 注册、禁用、reset、recovery code 使用、step-up 失败、step-up �
 
 - service account 不允许做"用户身份的代理"——禁止用 service account 模拟真实用户调用敏感端点；
 - 真实用户的敏感操作必须走人类 OIDC + MFA，不允许通过 service account 绕过；
-- service account 的审计事件保留 3 年（见 §14.3）。
+- service account 的审计事件保留 3 年（见 §13.3）。
 
 #### 3.6.4 Koishi service token 升级路径
 
@@ -358,9 +352,11 @@ type AuthorizationService interface {
 }
 
 type Subject struct {
-    UserID string   // StuHelper 内部 ID
-    AppID  string   // OAuth client（一方或第三方）
-    Roles  []string // 来自 Casdoor JWT，仅作为粗粒度 hint
+    ProviderSubject string   // Casdoor sub，仅用于映射 StuHelper users.id
+    UserID          string   // StuHelper 内部 ID
+    AppID           string   // OAuth client（一方或第三方）
+    Roles           []string // DB-derived access snapshot，不来自 provider claim
+    Grants          []Grant  // DB-derived capability grants
 }
 
 type Decision struct {
@@ -374,13 +370,15 @@ type Decision struct {
 
 ```text
 1. 校验 token（本地 JWKS 或 introspection，按 token 类型）
-2. 提取 Subject (user_id, app_id, roles claim)
-3. 按 action 决定是否需要：
+2. 提取认证主体 (Casdoor sub, app_id)，映射 StuHelper `users.id`
+3. 从 DB 授权账本与 DB 业务事实加载 access snapshot；忽略 provider role claim
+4. 按 action 决定是否需要：
    - 业务 DB 事实（实名 / 学生认证 / 学校 / 手机号验证投影 / QQ 绑定）
+   - DB grant desired-state 撤权栅栏
    - OpenFGA 资源关系
-4. 并行加载所需事实
-5. 组合判断（按 §6 一致性矩阵处理冲突）
-6. 任一依赖不可用 → fail-closed
+5. 并行加载所需事实
+6. 组合判断（按 §6 一致性矩阵处理冲突）
+7. 任一必需依赖不可用 → fail-closed
 ```
 
 ### 5.3 决策示例
@@ -390,7 +388,7 @@ type Decision struct {
 Authorize(subject, "review.create", course)
 // → DB: identity_verified=true ∧ student_verified=true ∧ school_id matches course.school
 // → OpenFGA: 无（创建不需要资源关系）
-// → token role: verified_student（仅作为投影一致性 hint，不作为证据）
+// → access snapshot 中可派生 verified_student，但敏感判断仍以 DB 事实为准
 
 // 删除评课
 Authorize(subject, "review.delete", review)
@@ -402,7 +400,7 @@ Authorize(subject, "review.delete", review)
 Authorize(subject, "profile.view_identity", profile)
 // → DB: profile 状态、profile.school
 // → OpenFGA: subject 是 profile.owner OR admin from profile.school
-// → token role: super_admin / school_admin 用于粗粒度入口（仍需 OpenFGA 关系细化）
+// → DB role: super_admin / school_admin 用于入口，具体资源仍需撤权栅栏 + OpenFGA
 ```
 
 ## 6. 业务事实权威与一致性
@@ -421,35 +419,42 @@ Authorize(subject, "profile.view_identity", profile)
 | 课程归属学校 | StuHelper DB |
 | 评课/举报/资源 owner | StuHelper DB + OpenFGA（写双份） |
 
-### 6.2 投影同步（DB → Casdoor 角色）
+### 6.2 授权账本与投影状态机
 
-业务事实变更通过 outbox 同步到 Casdoor 扁平角色（如 `verified_student` 标记）：
+管理员授权写入 PostgreSQL `authorization_grants`，再通过 transactional outbox 投影为
+OpenFGA direct tuple。Casdoor 不参与投影。
 
-- 模式：transactional outbox + 后台 worker
-- SLA：p95 < 60s，p99 < 5min
-- 重试：线性退避（详细参数见 §6.5.3）；超过 max_attempts 后进入"长期 failed"状态，由漂移对账任务（§6.5.4）人工修复
-- 死信告警：Prometheus alert，运维介入
+- 授予：同一事务写 `desired=granted, projection=pending`、审计和 outbox；OpenFGA 写入并
+  验证后标记 `projection=applied`，此时才进入授权快照；
+- 撤销：同一事务先写 `desired=revoked, projection=pending`，DB 撤权栅栏立即拒绝；worker
+  以 `on_missing=ignore` 删除 tuple 并验证后标记 applied；
+- 每次状态改变递增 revision，worker 只能完成与当前 revision 相同的任务；
+- SLA：p95 < 60s，p99 < 5min；超出 SLA 告警，但不能绕过 pending/deny 语义；
+- 超过 max attempts 进入 `dead_letter`，必须显式 replay 或由受控 reconciliation 重建。
 
 ### 6.3 一致性冲突矩阵（核心规则）
 
-| 状态 | DB | Casdoor 投影 | 决策 | 理由 |
-|------|----|--------------|------|------|
-| 一致 ON | ✓ | ✓ | 放行 | 正常路径 |
-| 一致 OFF | ✗ | ✗ | 按操作决定 | 正常路径 |
-| **DB ON, Casdoor OFF** | ✓ | ✗ | **以 DB 为准放行** + 触发即时同步 + 漂移告警 | DB 是真相源；Casdoor 投影只是缓存 |
-| **DB OFF, Casdoor ON** | ✗ | ✓ | **拒绝**敏感操作 + 触发即时撤销 + 漂移告警 | Casdoor 角色可能陈旧；不能让旧 claim 续命 |
-| DB unavailable, 操作需 DB 事实 | ? | * | 503 | fail-closed |
-| Casdoor 不可用，已签发 JWT 在本地有效期内 | * | * | 身份验证仍可放行（标准 OIDC RS 行为） | 见 §8 |
+| DB desired | Projection | OpenFGA | 决策 | 理由 |
+|------------|------------|---------|------|------|
+| granted | applied | tuple exists | 放行 capability；资源操作继续做 FGA check | 正常路径 |
+| granted | pending/failed | missing/unknown | **拒绝** | 授予尚未安全生效 |
+| revoked | pending/failed | tuple may exist | **立即拒绝** | DB 撤权栅栏优先，陈旧 tuple 不能续命 |
+| revoked | applied | tuple absent | 拒绝 | 正常撤权完成 |
+| DB unavailable | * | * | 503 | fail-closed |
+| OpenFGA unavailable，操作需要资源关系 | applied | ? | 503 | 不能把依赖故障降级成无关系或默认允许 |
+| Casdoor unavailable，已签发 token 仍可本地验证 | * | * | 认证可继续；授权仍按 DB/FGA | 身份故障域不成为业务角色真源 |
 
 ### 6.4 不可妥协的规则
 
 > **敏感操作绝不信任 JWT claim 的 `verified_*` 字段，必查 DB。**
-> Casdoor 角色 claim 仅作为粗粒度入口闸门（"是否进入这块功能"），不作为业务事实证据（"是否真的是已认证学生"）。
+> Casdoor 角色 claim 不作为入口闸门，也不作为业务事实证据。
 
 具体清单：
 - 发布评课、看评课全文、查看实名审核、查看学籍审核、参与板块讨论 → 必查 DB；
-- 普通页面浏览、列表页摘要、登录态展示 → 可信任 claim 粗粒度判断；
-- 管理面进入闸门 → 信任 claim 角色；具体资源操作 → 仍走 Authorization Service + OpenFGA。
+- 普通页面浏览、列表页摘要、登录态展示 → 使用 DB-derived access snapshot；
+- 管理面进入闸门 → 使用 snapshot capability；具体资源操作 → 撤权栅栏 +
+  Authorization Service + OpenFGA；
+- provider role claim 只能作为迁移期观测字段，不能影响 allow/deny。
 
 ### 6.5 Outbox 与 drift reconciliation 具体化
 
@@ -459,11 +464,13 @@ Authorize(subject, "profile.view_identity", profile)
 
 | Stream | 用途 |
 |--------|------|
-| `iam_casdoor_role_sync` | DB 业务事实变更 → Casdoor 用户角色 add/remove |
+| `iam_authorization_grant_projection` | DB 授权 desired state → OpenFGA direct tuple |
 | `iam_casdoor_user_projection` | 用户元数据变更 → Casdoor 用户记录更新 |
 | `iam_openfga_tuple_sync` | DB 资源关系变更 → OpenFGA tuple 写入 / 删除 |
 
-现行 `user_profile_projection` job 更新的是 `user_profile:{id}` 的 owner/school OpenFGA tuple，因此必须落在 `iam_openfga_tuple_sync`。`iam_casdoor_user_projection` 仅预留给未来 Casdoor 用户元数据投影；不得承载 profile tuple sync。
+`user_profile_projection` job 更新 `user_profile:{id}` 的 owner/school OpenFGA tuple，因此落在
+`iam_openfga_tuple_sync`。`iam_casdoor_user_projection` 只允许同步身份侧用户元数据，
+不得承载角色或 profile tuple sync。
 
 #### 6.5.2 Worker 机制
 
@@ -473,47 +480,45 @@ Authorize(subject, "profile.view_identity", profile)
 
 #### 6.5.3 重试与 DLQ 语义
 
-> **重要**：现行 outbox（`server/internal/pkg/outbox/repository.go`）的 `failed` 状态**不是** terminal DLQ。`claimQuery` 通过 `status='failed' AND available_at <= NOW()` 把 failed 行重新 claim（`repository.go:146`）；`markRetryQuery` 把每次失败都写回 `failed` 并更新 `available_at` 与 `attempt_count`（`repository.go:177`）。退避策略是**线性**：`(attemptCount+1) * RetryBaseBackoff`（`worker.go:105`），**不是指数**。本节按现行语义对齐，不臆造新状态。
-
-**v2 表达"已死信"的方式 — 必须改 worker 层（不是纯文档约定）**：
-
-> 现有通用 `ClaimJobs()`（`repository.go:138`）只判断 `status='failed' AND available_at <= NOW()`，不过滤 `attempt_count`。如果只是"claim 后由业务代码跳过"，超阈值行会每 2 秒反复被 claim → reject → alert，造成噪音风暴且永不停止。要让超阈值行真正"停止处理"，必须改 worker 层。
-
-**已选方案 B**：`WorkerConfig.MaxAttempts` 达到阈值时，worker 把 `available_at` 设为远未来（100 年），状态保持 `failed`。后续 `ClaimJobs` 自然跳过。该行为只对显式设置 `MaxAttempts` 的 worker 生效；IAM worker 统一通过 `outbox.IAMWorkerConfig` 设置，非 IAM worker（如 resource cleanup）保持旧语义。
-
-超阈值事件**触发一次** `outbox_job_failures_total{terminal="true"}` 指标增量，并由 Prometheus `StuHelperOutboxTerminalFailures` 告警接管；不重复触发。漂移对账任务（§6.5.4）按夜间扫描 `WHERE status='failed' AND available_at > NOW() + INTERVAL '1 year'` 找出长期 failed 行，纳入人工修复队列。
+现行 outbox 的 `failed` 是可重试状态；达到 `WorkerConfig.MaxAttempts` 后写入真实
+`dead_letter`。terminal failure 只增加一次
+`outbox_job_failures_total{terminal="true"}` 并触发
+`StuHelperOutboxTerminalFailures`。恢复必须使用显式 replay API/运维命令，不能靠把
+`available_at` 写到远未来伪装终态。
 
 **v2 退避策略（沿用现行实现）**：
 
 - `RetryBaseBackoff` 配置为 5 秒（统一由 `outbox.IAMWorkerConfig` 设置）；
 - 实际退避：`(attempt_count+1) * 5s`（attempt 0→5s、attempt 1→10s、attempt 2→15s、attempt 3→20s、attempt 4→25s）——`worker.go:103` 在 `markRetry` 之前用当前 `AttemptCount`，所以首次失败是 5s 不是 10s；
 - `MaxBackoff` cap 5 分钟（统一由 `outbox.IAMWorkerConfig` 设置）；
-- 如未来需要**指数退避**或**独立 terminal DLQ status**，必须改 worker 实现 + 加 schema migration，**不在 IAM v2 范围**。
+- 如未来需要指数退避，必须改 worker 实现与测试；当前不为授权模块复制第二套 worker。
 
 #### 6.5.4 Drift Reconciliation
 
 - **周期**：每日凌晨 3 点全量对账（cron）；
 - **对账维度**：
-  - DB `user_profiles` ↔ Casdoor `verified_student` 角色；
-  - DB `user_identities` ↔ Casdoor 用户元数据投影（如启用）；
+  - DB `authorization_grants` desired state ↔ OpenFGA 固定管理员 direct tuple；
   - 业务表 review/profile owner ↔ OpenFGA `author` / `owner` tuple；
 - **漂移处理**：
   - 单次漂移条数 < 阈值（建议 100）→ 自动修复（重新写 outbox 事件）；
   - 漂移条数 ≥ 阈值 → 暂停自动修复 + 告警 + 人工确认后再放行；
   - 修复结果落审计。
 - **当前落地**：
-  - `user_profiles` 每日 reconciliation 重新入队 `verified_student_role` 与 `user_profile_projection` 两类任务；前者修复 Casdoor `verified_student` 角色，后者修复 OpenFGA `user_profile:{id}` 的 `owner` / `school` tuple。
+  - `authorization_grants` reconciliation 按 grant revision 重新入队管理员 tuple 投影；
+  - `user_profiles` 每日 reconciliation 只重新入队 `user_profile_projection`，修复 OpenFGA `user_profile:{id}` 的 `owner` / `school` tuple；
   - `reviews` / `review_reports` 每日 reconciliation 重新入队 `review_relations` 与 `report_relations`，通过现有 worker 修复 OpenFGA `review:{id}` 的 `author` / `course` / `school` tuple 与 `report:{id}` 的 `reporter` / `review` / `school` tuple。
 
 #### 6.5.5 Dedupe 与幂等
 
 - outbox 行使用 `dedupe_key` 字段（已存在）确保同一业务事件不重复入队；
-- OpenFGA tuple Write 不天然幂等：worker 必须 Read-before-Write 检查存在性，避免重复 Write 增加 store 体积；删除同理；
-- Casdoor role assignment 是天然幂等（重复 add 同一 role 不报错），无需额外 Read。
+- 授权 job 的 dedupe key 固定为 grant ID，payload 携带 grant revision 与 desired state；
+- OpenFGA 写使用既有 `WriteMissingTuples`，删除使用
+  `DeleteTuplesIgnoringMissing`，并在 completion 前验证目标状态；
+- DB completion 使用 `WHERE id=? AND revision=? AND desired_state=?`，旧任务不得覆盖新状态。
 
 ## 7. OpenFGA
 
-继续作为资源关系权威。
+继续作为运行时资源关系判定面；人员授权的管理权威在 PostgreSQL。
 
 ### 7.1 模型（OpenFGA 1.x DSL）
 
@@ -608,7 +613,7 @@ type open_platform_app
 - **StuHelper 内部资源 mutation 授权**：业务模块可通过注入的授权接口执行 request-time OpenFGA `Check`，但不能直接构造具体 fga client；
 - 列表、筛选和 UI 范围展示继续使用登录时物化 scope；单条 mutation 以 OpenFGA `Check` 作为资源级权威决策。
 
-## 8. Token 与 JWKS 语义（修正版）
+## 8. Token 与 JWKS 语义
 
 ### 8.1 浏览器 Cookie token（Web/Admin）
 
@@ -625,7 +630,7 @@ type open_platform_app
 
 ### 8.3 Casdoor JWT 字段最小化（access + ID token 同 payload）
 
-> **重要**：Casdoor 把 access token 与 ID token 都签成 JWT 且**共用同一份 claim payload**（参考 [Casdoor Token Overview](https://casdoor.org/docs/token/overview/)）。这与 Zitadel 不同——Zitadel 的 access token 通常是 opaque（视配置）、ID token 单独 JWT 可分别配置 claim。本节按 Casdoor 实际语义写：**最小化适用于所有 Casdoor 签发的 JWT，access token 同样不得携带敏感字段**。
+> **重要**：Casdoor 把 access token 与 ID token 都签成 JWT 且**共用同一份 claim payload**（参考 [Casdoor Token Overview](https://casdoor.org/docs/token/overview/)）。因此**最小化适用于所有 Casdoor 签发的 JWT，access token 同样不得携带敏感字段**。
 
 JWT（access + ID token 同 payload）允许包含：
 
@@ -705,12 +710,10 @@ StuHelper /internal/sms/send  (server/internal/pkg/sms/handler.go)
 
 **保持不变的**：`pkg/sms/tencent.go`（TC3-HMAC-SHA256 签名、模板、限流、审计、回滚）继续承载。Casdoor 仅作为登录验证码触发方。
 
-**变更点**：
-- 取消 Zitadel Action 触发链路；
+**链路约定**：
 - Casdoor 配置 Custom HTTP SMS Provider，URL 指向 `/internal/sms/send`；
 - Casdoor Custom HTTP SMS Provider 按 `application/x-www-form-urlencoded` 发送 `phoneNumber` 与验证码字段。StuHelper bootstrap 必须把 provider `title` 固定为 `content`，并在 provider endpoint 注入 `?internal_key=...`，因为 Casdoor Provider 不支持给该回调配置 Bearer Authorization header；
-- `/internal/sms/send` handler 保留 `Authorization: Bearer <SMS_INTERNAL_KEY>` + JSON body 作为内部诊断/手动调用入口，但 Casdoor 生产链路使用 query key + form body；
-- `sms/handler.go` 第 12 行注释从 "Zitadel Action" 改为 "Casdoor Custom HTTP SMS Provider"。
+- `/internal/sms/send` handler 保留 `Authorization: Bearer <SMS_INTERNAL_KEY>` + JSON body 作为内部诊断/手动调用入口，Casdoor 生产链路使用 query key + form body。
 
 **禁止**：Casdoor 直连腾讯云 SMS API（避免模板/签名/限流/审计配置散到 IDP）。
 
@@ -718,7 +721,7 @@ StuHelper /internal/sms/send  (server/internal/pkg/sms/handler.go)
 
 类似模式：StuHelper 内部 email service + Casdoor SMTP/Custom HTTP Provider。当前若无 email 发送链路，可延后到 v2 实施时补建。
 
-## 10. 失败语义（修正矩阵）
+## 10. 失败语义
 
 | 失败场景 | 决策 |
 |----------|------|
@@ -726,189 +729,26 @@ StuHelper /internal/sms/send  (server/internal/pkg/sms/handler.go)
 | **Casdoor 不可用，已签发 JWT 在本地有效期内** | **身份验证放行，进入业务授权检查** |
 | Casdoor 不可用，需 introspection（bearer 路径） | 503 |
 | Casdoor 不可用，需 refresh / login / userinfo / 未知 kid JWKS 拉取 | 503 |
-| Casdoor 不可用，需 application 创建/吊销/角色同步 | 503（管理面） |
+| Casdoor 不可用，需 application 创建/吊销或用户资料维护 | 503（管理面） |
 | Authorization Service 决策 = Deny | 403 |
 | 业务 DB 不可用 + 操作需要业务事实 | 503 |
 | OpenFGA 不可用 + 操作需要资源关系 | 503 |
-| Outbox 同步失败 | 告警；不阻塞读路径；敏感写路径仍由 Authorization Service 强制 DB 核对 |
+| 授权 outbox 投影失败 | grant 保持 pending 或 revoked 并拒绝；重试/dead-letter 告警 |
 | Casdoor SDK 出口 ban-list 被违反（CI 检查） | 构建失败 |
 
 > 受保护操作不允许从已认证静默降级为匿名；不允许用缓存 claim 续命跨 token 自然过期；不允许 mock 成功路径。
 
-## 11. 迁移：从 Zitadel 到 Casdoor
-
-### 11.1 代码替换清单
-
-| 文件 | 操作 | 说明 |
-|------|------|------|
-| `server/internal/pkg/oidc/management.go` | **删除** | Zitadel Management API client；Casdoor SDK 替代 |
-| `server/internal/pkg/oidc/client.go:55` | 修改 | 移除 `urn:zitadel:iam:org:project:id:zitadel:aud` scope；改为 Casdoor scope（按 Casdoor 文档配置）|
-| `server/internal/pkg/oidc/client.go:106-115` | 修改 | 移除 `ParseRolesFromRaw` 中的 Zitadel 项目角色解析；改为 Casdoor JWT 的 `roles` claim 解析 |
-| `server/internal/pkg/oidc/claims.go` | 修改 | `Claims.OrgScopedRoles` 不再从 Zitadel org-scoped role claim 解析；仅作为 StuHelper 内部 school-scope grant 载体，最终来源必须是 DB/OpenFGA 投影 |
-| `server/internal/pkg/oidc/` 其余 | 保留并 provider-neutral 化 | 标准 OIDC discovery / auth code+PKCE / token exchange / refresh / introspection 是协议层，可复用 |
-| `server/internal/app/runtime.go:214` | 修改 | `oidc.NewClient(ctx, rt.cfg.Zitadel)` → `oidc.NewClient(ctx, rt.cfg.Casdoor)` |
-| `server/internal/app/modules.go:146` | 修改 | issuer 配置切到 Casdoor |
-| `server/internal/pkg/middleware/auth.go:74-76` | 修改注释 | "Zitadel introspection" 改为 "Casdoor introspection" |
-| `server/internal/pkg/sms/handler.go:11-12` | 修改注释 | "Zitadel Action" 改为 "Casdoor Custom HTTP SMS Provider" |
-| `server/internal/pkg/config/config.go` + `validation.go` | 修改 | `ZitadelConfig` → `CasdoorConfig`；`ZITADEL_*` → `CASDOOR_*` env vars |
-| `server/internal/platform/casdoor/` | **新增** | Casdoor SDK 封装包；按 §4 出口白名单 |
-| `server/internal/platform/authorization/` | **新增** | Authorization Service 实现；按 §5 接口 |
-| `server/internal/pkg/capability/capability.go` | 调整 | 保留 capability 概念，但角色来源切到 Casdoor 扁平角色；移除嵌入 ID 的角色 |
-
-### 11.2 配置替换
-
-```bash
-# 全局 grep 替换清单（实施时按文件分批）
-ZITADEL_ISSUER          → CASDOOR_ENDPOINT
-ZITADEL_CLIENT_ID       → CASDOOR_CLIENT_ID
-ZITADEL_CLIENT_SECRET   → CASDOOR_CLIENT_SECRET
-ZITADEL_REDIRECT_URI    → CASDOOR_REDIRECT_URI
-ZITADEL_PROJECT_ID      → CASDOOR_ORGANIZATION  # Casdoor 用 organization 而非 project
-ZITADEL_MANAGEMENT_PAT  → 拆分为 CASDOOR_ROLE_SYNC_* / CASDOOR_USER_LOOKUP_* / CASDOOR_APP_PROVISIONING_*（禁止万能 token）
-ZITADEL_PUBLIC_SCHEME   → 移除（不需要）
-ZITADEL_EXTERNALPORT    → CASDOOR_PORT (按 Casdoor 部署)
-```
-
-`.env.example` 全文重写，删除所有 `ZITADEL_*`。
-
-### 11.3 基础设施
-
-| 当前 | 操作 | 目标 |
-|------|------|------|
-| `infra/zitadel/` (Traefik + zitadel-api + zitadel-login) | **删除** | — |
-| Docker compose `zitadel*` services | **删除** | — |
-| Volume `stuhelper_zitadel_bootstrap` (PAT 持久化) | **删除** | — |
-| PostgreSQL `zitadel` database | **删除** | — |
-| `infra/casdoor/` | **新增** | Casdoor 单容器 + 配置 |
-| PostgreSQL `casdoor` database + `casdoor_db_user` | **新增** | 隔离 |
-| Network `zitadel-internal` | **删除** | — |
-| Network `casdoor-internal` | **新增** | 替代 |
-
-### 11.4 数据模型收口（绿地：已落入 baseline schema）
-
-**项目当前状态**：开发中，未部署生产；按"绿地 + 无兼容"原则，`users.casdoor_subject` 已直接落入 baseline schema，不再保留 `external_id` 旧列兼容路径。
-
-#### 11.4.1 Schema 调整
-
-`users` 表直接使用 Casdoor 语义列：
-
-```sql
-casdoor_subject character varying(255) NOT NULL
-```
-
-#### 11.4.2 数据 truncate
-
-由于项目无生产用户，直接清空所有用户派生数据，由首次 Casdoor 登录重新 provision。
-
-**关键约束**：
-- `users` 表的依赖**分两类**——FK 到 `users.id`（CASCADE 自动级联）与字符串 `user_hash` 关联（**不会被 CASCADE 级联**，必须显式 TRUNCATE）；
-- 实施 PR 不得依赖本 spec 的硬编码表清单；必须在迁移前用 SQL 查询自动生成完整清单（见下方"清单生成查询"），避免 schema 演进后 spec 过期。
-
-**清单生成查询**（在实施 PR 中实际执行，结果纳入 PR 描述）：
-
-```sql
--- (1) FK 到 users.id 的表
-SELECT conrelid::regclass AS table_name
-  FROM pg_constraint
- WHERE confrelid = 'users'::regclass AND contype = 'f';
-
--- (2) 含 user_hash 列的表
-SELECT table_name
-  FROM information_schema.columns
- WHERE column_name = 'user_hash'
-   AND table_schema = current_schema();
-
--- (3) 含 admin_user_id 等字符串 admin 标识列的表
-SELECT table_name, column_name
-  FROM information_schema.columns
- WHERE column_name IN ('admin_user_id', 'reviewer_user_id', 'approver_user_id')
-   AND table_schema = current_schema();
-```
-
-**当前 schema 下的清单（仅作 `server/migrations/000001_initial_schema.up.sql` 的初始化参考；后续 baseline 更新可能改变表结构，例如某些 user_hash 列改为 user_id FK——`不可复制执行`，必须以上方"清单生成查询"实际跑出的结果为准）**：
-
-```sql
-BEGIN;
-
--- 类 1：FK 到 users.id（CASCADE 会自动级联）
-TRUNCATE TABLE
-  users,
-  user_identities,
-  user_profiles
-RESTART IDENTITY CASCADE;
-
--- 类 2：通过 user_hash 字符串关联（CASCADE 不覆盖，必须显式列出）
-TRUNCATE TABLE
-  reviews,
-  review_votes,
-  review_reports,
-  review_drafts,
-  review_replies,
-  course_favorites,
-  notifications
-RESTART IDENTITY CASCADE;
-
--- 类 3：审计事件（旧 admin_operation_logs 已从 baseline schema 移除；
---        现有 audit_events.category 约束只允许 'audit' / 'admin_operation' / 'domain_event'
---        见 server/migrations/000001_initial_schema.up.sql；
---        绿地阶段所有历史审计行为均关联旧 user_id / 旧 admin_user_id 字符串，可一并清空）
-TRUNCATE TABLE audit_events RESTART IDENTITY CASCADE;
-
-COMMIT;
-```
-
-> 业务实体表（如 `courses`、`teachers`、`departments`、`terms`、`course_categories`、`rating_dimensions`、`course_rating_stats`、`teacher_rating_stats`、`sensitive_words`、`school_configs`、`system_configs`、`academic.buaa_students`）通常**不**清空——这些是业务参考数据，与用户身份无关。但若开发数据库中含污染数据，实施 PR 应单独评估。
-
-#### 11.4.3 代码同步修改
-
-| 文件 | 修改 |
-|------|------|
-| `server/migrations/000001_initial_schema.up.sql` | `users` 表只保留 `casdoor_subject`，不保留 `external_id` 双列或 rename 兼容路径 |
-| `server/internal/modules/user/repository_auth_sync.go` | 所有用户同步查询直接读写 `casdoor_subject` / `CasdoorSubject` |
-| `server/internal/modules/user/` 其它文件 | 身份侧外部 subject 统一使用 `casdoor_subject` / `CasdoorSubject`；教务导入域的 `academic_* external_id` 不在此范围 |
-
-#### 11.4.4 运行时缓存清理
-
-- Redis 全量 flush（按 session / token blacklist / OIDC state / OTP 等 prefix）；
-- 现有 token blacklist 不迁移；
-- shadow user 表：跟随 §11.4.2 truncate，不保留（首次 Casdoor 登录重建）。
-
-#### 11.4.5 禁止做的事
-
-- **禁止**保留旧 Zitadel `external_id` 值并尝试映射到 Casdoor `name`：两个 IDP 的 subject 命名空间不重合，强行映射会引入数据污染；
-- **禁止**只清空列值不改名：列名 `external_id` 在 Casdoor 语境下含义错误，且 `NOT NULL UNIQUE` 约束不允许 NULL；
-- **禁止**为兼容旧数据保留双列：违反 memory 中的 "no compat shims" 原则。
-
-### 11.5 退役顺序
-
-> **关键时序约束**：以下步骤**必须严格按序**执行；不允许并行。项目已采纳 "no compat shim" 原则，baseline schema 已直接使用 `casdoor_subject`，不再保留 `external_id` 双列、rename SQL 或运行时兼容层。
-
-```
-1. 在新分支实施 §11.1 - §11.3 代码 / 配置 / infra 修改
-2. Casdoor 容器上线，bootstrap 创建 organization / applications / roles / providers
-3. CI 检查：Casdoor SDK 出口 ban-list、env var 全量替换、ZITADEL_* 零引用
-4. Staging 环境跑 §15 验证策略全集
-5. 切换生产：
-   a. Casdoor 部署
-   b. 后端切流（蓝绿或维护窗口；项目无生产用户，可大胆切）
-   c. 清空 Redis 缓存（session / token blacklist / OIDC state / OTP 等）；按 §11.4.2 truncate 清单清空 user-derived DB 数据
-   d. 验证一方应用 OIDC 登录（web / admin / uniapp）
-   e. Zitadel 容器停止
-   f. infra/zitadel/ + 相关 volume / db / network 删除
-6. 文档更新（authorization-model.md / auth-and-session.md / security-model.md / .env.example）
-7. 旧 spec 文件归档或删除
-```
-
-## 12. Bootstrap
+## 11. Bootstrap
 
 生产 bootstrap 必须**自动化且幂等**。
 
 创建并校验：
 - Casdoor organization `stuhelper`；
 - Applications：`stuhelper-web`、`stuhelper-admin`、`stuhelper-uniapp`；
-- 7 个扁平 role（§3.3）；
 - Custom HTTP SMS Provider → `/internal/sms/send`；
 - Custom SMTP / HTTP Email Provider（仅当 `CASDOOR_EMAIL_PROVIDER_ENABLED=true`；当前默认延后）；
+- PostgreSQL authorization schema 与至少两名已验证的 bootstrap `super_admin` grant；
+- OpenFGA 管理员 tuple 与 DB grant revision 一致。
 - Certificate / public key（按 Casdoor 数据初始化文档）；
 - 初始管理员账号（密码从 env 读，启动后强制修改提示）。
 
@@ -916,7 +756,7 @@ COMMIT;
 
 参考：[Casdoor 数据初始化](https://casdoor.org/docs/deployment/data-initialization/)、[Casdoor SMS Provider](https://casdoor.org/docs/provider/sms/overview/)。
 
-## 13. 包边界
+## 12. 包边界
 
 ```text
 server/internal/platform/casdoor/
@@ -950,7 +790,7 @@ server/internal/modules/*    (业务模块)
   授权检查仅通过 platform/authorization/AuthorizationService
 ```
 
-### 13.1 架构硬规则（CI 检查 + code review 强制）
+### 12.1 架构硬规则（CI 检查 + code review 强制）
 
 #### 规则 A：`casdoor_subject` ↔ `users.id` 边界
 
@@ -976,14 +816,14 @@ CI 增加 grep 检查（与 §4.3 同模式）：业务模块禁止出现 `casdo
 - 当前落地约束：`verified_student` role outbox worker 必须同时配置 `CASDOOR_ROLE_SYNC_*` 与 `CASDOOR_USER_LOOKUP_*` 两组凭据；role 更新与 user lookup 不共用 secret；
 - 每个 credential 配置最小 Casdoor 权限；
 - 每个 secret 独立轮换（不联动）；
-- 所有 Casdoor admin API 调用落审计：调用方 service account / 操作 / 目标 / 结果 / request_id（保留期见 §14.3）；
+- 所有 Casdoor admin API 调用落审计：调用方 service account / 操作 / 目标 / 结果 / request_id（保留期见 §13.3）；
 - admin credential **禁止**进入业务模块；只在 `platform/casdoor/` 内使用。
 
-## 14. 安全与隐私基线
+## 13. 安全与隐私基线
 
 > 本节列出的是通用安全基线，**与 IDP 选型无关**；保留在 spec 中作为实施清单，不作为 Casdoor 选型论据。
 
-### 14.1 通用基线
+### 13.1 通用基线
 
 1. PKCE 强制（public client 必须，confidential client 推荐）；
 2. redirect URI 精确匹配，生产禁 wildcard；
@@ -996,7 +836,7 @@ CI 增加 grep 检查（与 §4.3 同模式）：业务模块禁止出现 `casdo
 9. 敏感操作审计：写日志含 request_id / user_id / app_id / decision；
 10. 生产 bootstrap 必须验证所有依赖；缺关键依赖启动失败。
 
-### 14.2 登录暴力 / 账号锁定
+### 13.2 登录暴力 / 账号锁定
 
 | 维度 | 阈值（默认值，可配置但不得低于此基线） | 行动 |
 |------|--------------------------------------|------|
@@ -1008,9 +848,9 @@ CI 增加 grep 检查（与 §4.3 同模式）：业务模块禁止出现 `casdo
 
 - **错误响应防枚举**：账号不存在 / 密码错误 / 账户锁定 → 返回**统一**错误码 + 文案；不在响应中暴露用户存在性；
 - **承担方**：Casdoor 内置限流承担账户级 + OTP 级；StuHelper 边缘层（API gateway / middleware）补足 IP 级；
-- 锁定事件 + 解锁事件落审计（保留期见 §14.3）。
+- 锁定事件 + 解锁事件落审计（保留期见 §13.3）。
 
-### 14.3 IAM 自身审计保留
+### 13.3 IAM 自身审计保留
 
 复用现行 `audit_events` 表（定义在 `server/migrations/000001_initial_schema.up.sql`）。**不**新增 `event_category` 字段——现有 schema 已有 `category` (CHECK IN 'audit'/'admin_operation'/'domain_event') + `event_type` (TEXT) + `action` + `resource_type` 四个分类维度，足以表达 IAM 事件类别。IAM 事件按以下映射写入：
 
@@ -1043,7 +883,7 @@ CI 增加 grep 检查（与 §4.3 同模式）：业务模块禁止出现 `casdo
 
 > 高保留期项（3 年）出于合规与争议溯源需要，不得低于此基线。低保留期项可视存储成本调整，但不得低于 90 天。
 
-### 14.4 JWKS / 签名密钥与 Client Secret 存储
+### 13.4 JWKS / 签名密钥与 Client Secret 存储
 
 #### 14.4.1 Token 签名密钥
 
@@ -1061,7 +901,7 @@ CI 增加 grep 检查（与 §4.3 同模式）：业务模块禁止出现 `casdo
 - **v1 方案**：复用现有应用层 `pkg/crypto` 接口加密 client secret；密钥从环境变量注入（与现行 PII 加密一致）；
 - **未来演进**：若引入 Vault / KMS，迁移路径独立 PR，不在 IAM v2 范围；
 - **Open Platform app secret**：注册时只展示**一次**；后续仅显示前 8 位 + `***`；轮换时同样只展示一次；旧 secret 立即失效；
-- **Casdoor admin credential**（§13.1 规则 B 拆分的 4 个）：同 `pkg/crypto` 加密存储；运行时通过 secret 注入而非配置文件硬编码。
+- **Casdoor admin credential**（§12.1 规则 B 拆分的 4 个）：同 `pkg/crypto` 加密存储；运行时通过 secret 注入而非配置文件硬编码。
 
 #### 14.4.3 Secret 不进 Git / log
 
@@ -1069,28 +909,28 @@ CI 增加 grep 检查（与 §4.3 同模式）：业务模块禁止出现 `casdo
 - 应用日志 / 审计日志中 token / secret / refresh token 必须**脱敏**（仅记前 8 位 hash）；
 - error response 中**绝不**回显 secret / token 内容。
 
-## 15. 验证策略
+## 14. 验证策略
 
 自动化检查至少覆盖：
 
-1. Casdoor bootstrap 创建 organization / applications / 7 个 role / SMS Provider；当 `CASDOOR_EMAIL_PROVIDER_ENABLED=true` 时还必须创建 SMTP / HTTP Email Provider；
+1. Casdoor bootstrap 创建 organization / applications / SMS Provider，且不创建 StuHelper 业务 role；当 `CASDOOR_EMAIL_PROVIDER_ENABLED=true` 时还必须创建 SMTP / HTTP Email Provider；
 2. 一方应用 OIDC 登录 happy path（web / admin / uniapp）；
-3. **投影一致性 case A**：DB `student_verified=true`、Casdoor 角色未同步 → 敏感操作放行（DB 为准）+ 漂移告警触发；
-4. **投影一致性 case B**：DB `student_verified=false`、Casdoor 仍有 `verified_student` 角色 → 敏感操作拒绝 + 即时撤销触发；
+3. **授予闭环**：DB pending + outbox → OpenFGA write/verify → applied → `/auth/me` 与后台入口生效；
+4. **撤权闭环**：DB desired=revoked 提交后立即 deny，OpenFGA delete 失败/重试期间也不能续命；
 5. **Token 本地校验**：Casdoor 容器停止后，已签发未过期 JWT 仍可本地 JWKS 校验通过；
 6. **Casdoor 不可用 fail-closed**：login / refresh / userinfo / management 全部 503；
 7. **OpenFGA 不可用**：资源关系操作 503；
 8. **业务 DB 不可用**：业务事实操作 503；
 9. **SDK 出口 ban-list**：CI grep 业务模块零 `casdoorsdk` import、零 `Enforce` 调用；
-10. **env var 替换完整**：CI grep `ZITADEL_` 在 `server/`、`infra/`、`.env.example` 内零引用；
 11. **资源授权**：owner 可编辑自己的 review；
 12. **资源授权**：school admin 只能管理本学校 review（OpenFGA tuple 边界）；
 13. **资源授权**：section moderator 只能管理被授予的板块；
-14. **角色目录**：Casdoor role 列表完全等于 §3.3 的 7 个扁平角色，无嵌入 ID；
+14. **IdP 隔离**：伪造或遗留 Casdoor `roles` claim 不能改变 access snapshot、后台入口或 FGA tuple；
 15. **SMS 转发链路**：Casdoor 登录验证码 → `/internal/sms/send` → 腾讯云 API；端点鉴权失败 401。
 16. **Casdoor capability gate**：`infra/ops/casdoor-capability-probe.sh` 在测试 Casdoor 实例上生成 step-up URL、检查 `amr` / `auth_time` / `acr` claim，并按显式开关验证 refresh token 是否 single-use。
+17. **故障恢复**：并发 grant/revoke、重复投递、dead-letter replay、reconciliation 与最后一名 super_admin 保护。
 
-## 16. Open Platform 边界
+## 15. Open Platform 边界
 
 第三方应用注册、scope 目录、scope 审批、用户 consent、disclosure API、按 app/user 限流、审计、吊销 → 见 [`open-platform-v1.md`](open-platform-v1.md)。
 
@@ -1102,37 +942,25 @@ IAM 与 Open Platform 的稳定分工：
 - Scope consent 在业务 DB 而非 OpenFGA 中建模，理由见 [`open-platform-v1.md`](open-platform-v1.md)。
 - OpenFGA 只承载未来“应用 → 具体资源”的关系授权。
 
-当前 Open Platform v1 baseline 已落地。后续运营面、撤销 UI、限流、指标、生产准入探针和资源 API v1.1 由 [`current-project-open-items.md`](../internal/exec-plans/active/current-project-open-items.md) 跟踪。
+Open Platform v1 baseline 的边界见 [`open-platform-v1.md`](open-platform-v1.md)。
 
-## 17. 后续实施阶段
+## 16. 设计立场
 
-本文是设计文档，**不是实施计划**。后续实施计划应拆为独立 exec-plan：
+Casdoor 承载身份与应用 registry。它**不**承载 StuHelper 业务角色或授权事实，
+**不**进入业务授权决策路径。
 
-1. Casdoor 基础设施 + bootstrap；
-2. `platform/casdoor/` SDK 封装（按出口白名单）；
-3. `platform/authorization/` 服务实现；
-4. `pkg/oidc/` provider-neutral 化；
-5. 业务模块迁移到 Authorization Service（移除直接 Casdoor / FGA 调用）；
-6. Outbox 同步（DB → Casdoor 角色）；
-7. SMS Provider 切换；Email Provider 在 email service 落地后按 `CASDOOR_EMAIL_PROVIDER_ENABLED=true` 单独启用；
-8. Zitadel 退役（代码 / infra / env / data）；
-9. 文档同步（`authorization-model.md` / `auth-and-session.md` / `security-model.md`）；
-10. 验证策略落地；
-11. Open Platform 生产运营面与资源 API v1.1 按 [`open-platform-v1.md`](open-platform-v1.md) 的下一步拆独立计划。
+StuHelper Authorization Service 是业务模块**唯一**授权入口，组合 token 主体、
+DB-derived access snapshot、撤权栅栏、DB 事实与 OpenFGA 关系；统一 fail-closed。
 
-## 18. 最终设计立场
+PostgreSQL 授权账本是人员授权唯一管理权威。OpenFGA 是可重建的运行时资源关系判定面，
+仅作为 Authorization Service 或投影 worker 的内部依赖，不直接被业务 handler 调用。
 
-Casdoor 承载身份与应用 registry，并提供少量扁平粗粒度角色投影。它**不**承载 StuHelper 业务事实，**不**进入业务授权决策路径。
-
-StuHelper Authorization Service 是业务模块**唯一**授权入口，组合 token 主体、DB 事实、OpenFGA 关系；统一 fail-closed。
-
-OpenFGA 是资源关系权威，但仅作为 Authorization Service 内部依赖，不直接被业务模块调用。
-
-业务 DB 是实名、学生认证、学校归属、手机号验证投影、QQ 绑定与所有业务实体的真相源；完整手机号真相源在 Casdoor。Casdoor 角色 claim 与业务事实冲突时，**敏感操作以 DB 为准**。
+业务 DB 是授权授予、实名、学生认证、学校归属、手机号验证投影、QQ 绑定与所有业务实体的
+真相源；完整手机号真相源在 Casdoor。Casdoor 角色 claim 永远不能覆盖 DB 授权事实。
 
 开放平台是独立产品域，不把业务 scope 和用户 consent 混进 Casdoor 或 OpenFGA。
 
-## 19. 参考
+## 17. 参考
 
 - Casdoor OIDC 应用与登录：<https://casdoor.org/docs/how-to-connect/oidc-client/>
 - Casdoor SMS Provider：<https://casdoor.org/docs/provider/sms/overview/>

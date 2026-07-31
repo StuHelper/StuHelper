@@ -2,7 +2,7 @@
 type: design
 audience: backend-dev, ops
 status: current
-authoritative-source: server/internal/modules/auth/ + server/internal/modules/user/repository_auth_sync.go + server/internal/pkg/fga/ + server/internal/pkg/outbox/ + server/internal/pkg/audit/
+authoritative-source: server/internal/modules/auth/ + server/internal/modules/authorization/ + server/internal/platform/authorization/ + server/internal/pkg/fga/ + server/internal/pkg/outbox/ + server/internal/pkg/audit/
 last-verified: 2026-07-31
 ---
 
@@ -33,28 +33,31 @@ last-verified: 2026-07-31
   移除已泄漏的已知 key，先在 provider 撤下该 key、撤销受影响 session，再滚动重启 API
   verifier；不要靠任意分钟数的应用侧 TTL 猜测撤权窗口。
 
-## 平台角色 OpenFGA 投影
+## 授权账本与 OpenFGA 投影
 
-Casdoor 的扁平 `super_admin` role 投影到 `ecosystem:stuhelper#super_admin` 时，必须区分角色
-内容与角色来源。只有刚签发、完成验签、且明确包含结构合法 `roles` claim 的 ID token 才能
-作为增删平台级 tuple 的权威输入。
+PostgreSQL `authorization_grants` 是 `super_admin`、`school_admin` 与 `section_*` 人员授权的
+唯一管理真源。Casdoor `roles` claim、Casdoor role membership、`/userinfo`、introspection
+和旧 access/ID token 均不得创建、续期、撤销或恢复 StuHelper 授权。
 
-- Web 登录、原生登录和 provider refresh 返回的新 ID token 可以触发 reconcile；
-- `/auth/me`、旧 access token、`/userinfo` 或 introspection 结果只能参与当前请求授权和
-  shadow profile 更新，不得重新授予或撤销平台级 tuple；
-- claim 缺失、`null`、结构畸形或解析失败时必须跳过 tuple mutation，不能把空角色切片误当成
-  撤权信号；
-- 撤权前必须按完整 `user + relation + object` 精确读取 direct tuple，不能用可能包含 computed
-  userset 的 `Check` 代替；安全撤权读取使用 higher consistency；
-- 删除必须显式使用 OpenFGA `on_missing=ignore` 保持并发与重试幂等，OpenFGA 读取或写入失败时
-  认证同步 fail-closed；实际撤权记录 `iam.role.revoke` 审计事件；
-- 本规则只适用于平台级扁平角色；school/section scope 继续以 StuHelper DB / OpenFGA 业务投影
-  为权威，不得从 Casdoor role 名推导。
+- grant/revoke 必须在同一 DB 事务写 desired state、`audit_events` 与
+  `domain_event_outbox`；任一步失败整体回滚；
+- 授予先写 `desired=granted, projection=pending`，只有 OpenFGA 精确 tuple 写入并验证后才能
+  标记 `projection=applied` 并进入授权快照；
+- 撤销先写 `desired=revoked`；授权快照和 Authorization Service 必须立即拒绝，随后才异步
+  删除 OpenFGA tuple。不得等 token 到期、缓存 TTL 或 tuple 删除成功后才撤权；
+- 每次 mutation 单调增加 grant revision。worker 只允许完成与 payload revision 相同的期望
+  状态；并发 grant/revoke 和 outbox supersession 必须由 revision fencing 收敛；
+- OpenFGA 删除使用完整 `user + relation + object`、higher-consistency 读取/验证和
+  `on_missing=ignore`，保持重试与并发幂等；
+- dead-letter 只能通过受审计的 replay/reconcile 恢复；reconciliation 从 DB desired state
+  重建 OpenFGA，不能反向把未知 tuple 导入 DB；
+- mutation 只接受 ADR-0008 固定的 role/scope 组合，不提供任意 tuple 写入 API；
+- 最后一名 active `super_admin` 不得撤销，判断和 mutation 必须处于同一加锁事务。
 
 ## School / Section Scope 完整性
 
-OpenFGA 查询本身失败时，role scope resolution 必须 fail-closed 并返回依赖不可用；不得把
-网络、超时或服务端错误降级成“没有 scope”。
+DB 授权快照查询失败时必须 fail-closed 并返回依赖不可用；不得把网络、超时或服务端错误
+降级成“没有 scope”。资源级 OpenFGA 查询失败时同样 fail-closed。
 
 单个 `section` grant 的 object ID 无法按受支持的 review-moderation codec 解析时，应把该
 grant 视为无效权限并忽略，不能让它授予 capability，也不能让同一用户的其他合法 scope
@@ -64,9 +67,9 @@ grant 视为无效权限并忽略，不能让它授予 capability，也不能让
 - 记录包含内部 FGA user、固定 role 和无效 section ID 的 warning；
 - 触发 `StuHelperInvalidOpenFGARoleScope` 告警，由值班人员定位并清理陈旧 tuple。
 
-运行时不得自动删除 tuple：当前仓库尚未确定 scoped role 的权威 provisioning 来源，读路径
-无权猜测某条 tuple 是否应被永久撤销。只有无效 grant 时对应 scoped role 展开为零 capability；
-合法 grant 继续生效。
+普通读路径不得自动删除 tuple。授权投影 worker 和 reconciliation 可以依据 DB desired state
+精确删除受支持的管理员 tuple；任何不在 DB 账本且无法归属的 tuple 只告警，不在请求热路径
+猜测或清理。
 
 ## 后台任务生命周期
 
@@ -140,9 +143,11 @@ WHERE id IN (
 
 ## Scope 术语
 
-Casdoor JWT role claim 只承载扁平角色名。学校和资源范围来自 StuHelper DB / OpenFGA 投影，不从 Casdoor role 名或 token claim 中解析。
+Casdoor JWT role claim 不参与 StuHelper 授权。角色和学校/资源范围来自 PostgreSQL 授权账本，
+OpenFGA 只承载可重建的运行时关系投影。
 
 - 新代码使用 `school scope`、`section scope`、`ScopeSchoolIDs`、`ScopeSectionIDs`；
 - `org` / `OrgScopedRoles` 属于历史 Zitadel 语义，只能作为迁移期内部兼容字段存在；
 - 新业务授权必须通过 `CapabilityGrants`、DB 业务事实和 OpenFGA 资源关系表达；
-- 禁止新增从 OIDC claim 解析 school/resource scope 的逻辑。
+- 禁止新增从 OIDC claim 解析 role、school 或 resource scope 的逻辑；
+- `/auth/me`、后台导航和 API middleware 必须使用同一份 DB-derived access snapshot。
