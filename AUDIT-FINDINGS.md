@@ -220,6 +220,13 @@ P3-1 至 P3-6、P3-8、R-5 至 R-7、R-14、R-15、R-17。X-2 的配置分类治
   Open Platform API 请求数为 0，并非受限页面或数据被放行。现已把测试同步为同时断言
   可访问首页 URL/标题、无 404 和零越权 API 请求；production-preview 双视口定向 2/2
   通过。未为满足旧断言把安全回退改回 404，也未扩大路由授权模型。
+- 首次 Admin 全量 Playwright 的另一个失败是移动端用户菜单偶发在点击“退出登录”前自行
+  卸载；隔离重复可稳定得到 2 pass / 1 fail。根因不是认证请求，而是 click 模式仍创建
+  `useHoverToggle`：初始化的 500 ms leave timer 在 watcher 被暂停后仍存活，较早打开的
+  菜单会被旧 timer 关闭。`disable()` 现在只额外清理该 hook 自己的 pending timers；
+  确定性 fake-timer 回归 1/1、移动退出连续 10/10、Admin unit 32 files / 154 tests、
+  类型检查、全量 lint、production build 和最终双视口 Playwright 214/214 通过。没有修改
+  logout/OIDC 语义、关闭全局动画或增加重试掩盖竞态；该项按低级/P3 UX 稳定性缺口记录。
 - Koishi P1-1：缺 Session、私聊无 guild 的 authority 策略、显式 guild 越权和跨群数据隔离
   定向测试随相关 shared settings 共 14/14 通过；Koishi 全工作区 build、全量 unit
   593/593 和 Vue UI contracts 通过。
@@ -340,7 +347,7 @@ P3-1 至 P3-6、P3-8、R-5 至 R-7、R-14、R-15、R-17。X-2 的配置分类治
 
 | 编号 | 状态 | 实现与验证 | 独立提交 |
 |------|------|------------|----------|
-| P0-1 | 已修复，未发布；累计 lint 与浏览器契约回归已收口 | 按已过滤路由推导首页；redirect 必须命中可访问路由，否则回退。完成性审计发现并修复原实现文件的 5 个 ESLint 门禁错误；另把仍期待旧 404 的 Admin E2E 同步为断言受限路由安全回退到可访问首页且 Open Platform API 请求为 0。Admin 全量 lint 0 warning/error、两段 TypeScript 检查、31 files / 153 tests、production build 和双视口定向 E2E 2/2 通过 | `fix(admin): route users to an accessible home`；`fix(admin): keep route resolution checks lint clean`；`test(admin): align filtered-route E2E with safe fallback` |
+| P0-1 | 已修复，未发布；累计 lint 与浏览器契约回归已收口 | 按已过滤路由推导首页；redirect 必须命中可访问路由，否则回退。完成性审计发现并修复原实现文件的 5 个 ESLint 门禁错误；另把仍期待旧 404 的 Admin E2E 同步为断言受限路由安全回退到可访问首页且 Open Platform API 请求为 0。Admin 全量 lint 0 warning/error、两段 TypeScript 检查、production build、双视口定向 E2E 2/2 和最终全量 E2E 214/214 通过；unit 最终为 32 files / 154 tests（含 N-2 新回归） | `fix(admin): route users to an accessible home`；`fix(admin): keep route resolution checks lint clean`；`test(admin): align filtered-route E2E with safe fallback` |
 | P1-1 | 已修复，未发布 | 缺 Session fail-closed；私聊无 guild 仍校验 policy 且禁止无范围查询；显式 guild 保留并按目标群授权。定向 14 tests、Koishi build、全量 593 tests 和 UI contracts 通过 | `fix(koishi): fail closed without a guild context` |
 | P1-2 | 已修复，未发布 | 迁移权威改为有序 migration 集合；`000001` 锁定为初始基线，后续只新增递增 `.up/.down`；同步 Make/CI/数据库文档。文档与 CI 契约检查通过，隔离 PostgreSQL 18 实际 `up → down 1 → up` 后为 `19, dirty=false` | `docs(database): make migrations append-only` |
 | P1-3 | 已修复，未发布；生产 PITR 待验收 | 物理备份在外部 staging 以 `plain + stream` 生成，经临时 slot、`pg_verifybackup`、SHA256 和 `.partial` 原子发布；同步排除临时工件，evidence 覆盖本地/取回的逻辑与物理备份及新鲜度。真实 18.4 隔离恢复启动并读回探针；ShellCheck、文档卫生和 75 个 infra contracts 通过 | `fix(backup): verify and atomically publish base backups` |
@@ -628,6 +635,7 @@ Claude 的两条 `/admin/stats` 记录是同一位置、同一 middleware 顺序
 | 编号 | Codex 结论 | 级别 | 真实机制、必要修复与边界 |
 |------|------------|------|--------------------------|
 | N-1 | 确认，已完成本地修复、固定版本源码/运行实例与真实 Redis 交叉验证 | P1 | 当前固定镜像证据对应 Casdoor v3.125.0，而旧代码注释中的 3.31.1 已过时；结论本身仍真实。运行中的固定 digest discovery 只有 `/api/logout`，实测旧 `token=<refresh>&token_type_hint=refresh_token` 在无浏览器 session 时返回 `status=ok` no-op，非法 `id_token_hint` 则以 HTTP 200 返回 `status=error`。现在 session 分别加密保存 provider access/refresh token，refresh Lua 原子轮换两份密文；仅对与 discovery issuer 同源且路径精确为 `/api/logout` 的 endpoint 发送 `id_token_hint=<provider access>`，并要求 2xx + JSON `status=ok`，真正的 `revocation_endpoint` 仍独立走 RFC 7009。正常 Casdoor refresh 已删除旧 row，不再错误 logout 已消失的旧 family；refresh 阶段未提交的新 family 会补偿撤销。旧 session 的当前设备 logout 复用已匹配 hash 的 access，logout-all 先完成本地撤销，再用加密 refresh rotation 后立即撤销替代 family；两种 provider 凭据都缺失会明确失败，仅精确 `invalid_grant` 可视为已失效，其他错误 fail-closed。本地 contract 忠实模拟 `expires_in=0` 共享 row，证明 access introspection 与 refresh grant 同时失效；一次性真实 Redis 8.8.1 验证两份密文原子轮换和 logout 取最新 family，容器已删除。没有引入通用 IdP logout 框架、provider token 表、迁移任务或每请求额外查询；生产受控账号端到端仍待发布验收。 |
+| N-2 | 确认，已完成本地修复与长套件交叉验证 | P3 | Admin 用户下拉框在 click 模式下仍初始化 hover watcher；watcher 虽立即暂停，但初始化排队的 500 ms leave timer 未被取消，用户较早打开菜单时会被旧 timer 关闭。首次全量 Playwright 的移动退出用例因此超时，隔离重复 3 次也复现 1 次。最小修复只让 `useHoverToggle.disable()` 清理自身 pending timers；确定性 fake-timer 回归、移动连续 10 次、Admin 154 unit、类型/lint/build 与双视口 214 E2E 全部通过。未改 logout/OIDC、全局动画、菜单组件架构或测试超时。 |
 
 ### 对新版报告 I-1、I-2、I-3 的复核
 
@@ -1013,6 +1021,7 @@ live rating bar 已完成可达表面的最小修复。优先做一处根因、�
 | 17 | 已修复，待发布；生产 Casdoor 降级与 OpenFGA 撤权待验收 | 新 ID token 的合法 roles claim 才能触发 reconcile，`/auth/me`/缺失/畸形 claim 均不 mutation；exact direct tuple higher-consistency Read、`on_missing=ignore` 删除、失败关闭和 `iam.role.revoke` 有负向测试。四包定向/race、全服务端 race、lint/build 与真实 OpenFGA v1.18.1 临时 store 写入/重复撤权/清理验证通过 | `fix(auth): reconcile authoritative super admin roles` |
 | 18 | 已修复，待发布；生产 Casdoor TTL/真实登出待验收 | 已验证 provider `exp` 随 session 保存并在 refresh 原子轮换；新 token 强制不超过 session lease/30 天，logout/logout-all 逐 token 写真实 TTL，legacy 仅按受约束 PTTL 回退，无 TTL fail-closed；并消除 tracked logout 的 5 分钟二次覆盖。四包定向/race、全服务端 race、lint/build/docs 与真实 Redis 8.8.1 PTTL/hard-cap 验证通过 | `fix(auth): revoke access tokens through verified expiry` |
 | N-1 | 已修复，待发布；生产 Casdoor 受控账号 token-family 撤销待验收 | session 加密保存并原子轮换 provider access/refresh；issuer 同源且路径精确的 Casdoor `/api/logout` 使用 `id_token_hint` 并校验 JSON `status=ok`，RFC 7009 路径保持独立；正常 refresh 不重复 revoke 旧 row，refresh 阶段未提交 family 补偿撤销，logout-all 先做本地撤销，legacy family 通过 refresh-rotate-logout bridge。固定镜像源码/运行实例无状态探针、忠实 contract、三包定向/race、全服务端 race、lint/build/docs 与真实 Redis 8.8.1 轮换验证通过 | `fix(auth): revoke Casdoor token families correctly` |
+| N-2 | 已修复，待发布；低级 UX 稳定性项 | click 模式暂停 hover watcher 时同步清理已排队的 enter/leave timers，避免早期开启的用户菜单被旧 500 ms timer 关闭。修复前移动退出隔离 2 pass / 1 fail；修复后确定性 unit 1/1、移动连续 10/10、Admin 全量 32 files / 154 tests、类型/lint/build 和双视口 E2E 214/214 通过 | `fix(admin): cancel disabled hover timers` |
 | 45 | 已修复，待发布 | 5 条 admission token route 的 RequestLogger、Recovery 与两类 body-limit 告警统一记录 route template；404/405 固定 `unmatched`。handler 前后/未匹配负向测试与 raw-path logger 静态扫描通过；middleware 定向/全包 race、全服务端 race、lint/build/docs/diff 检查均通过 | `fix(logging): keep dynamic path credentials out of logs` |
 | 51 | 已修复，待发布 | blacklisted token 只有在 referenced session 存在、当前 refresh hash 非空且与提交 hash 不同时才是真 reuse；session 缺失、hash 相同或 attribution 缺失只返回 revoked。rotated/logout-complete/blacklist-before-delete/missing-ref 回归验证其他设备和 metric 语义；auth 全包/race、全服务端 race、lint/build/docs 通过 | `fix(auth): distinguish revoked refresh tokens from reuse` |
 | 57 | 已修复，待发布 | 公共评课访问事实同时接收完整与 global capability 集合，只有 global `admin:reviews:manage` 能推出平台级管理/全文；普通学生能力不变。school scope、section scope、global grant 的正文裁剪回归、评课全包 race、全服务端 race、lint/build/docs/diff 均通过，未扩 DTO/SQL | `fix(authz): preserve scoped review access boundaries` |
@@ -3844,7 +3853,7 @@ STUHELPER_REDIS_INTEGRATION
 
 | 编号 | 问题 | 状态 |
 |------|------|------|
-| P0-1 | Admin 落地页 404 循环 | Codex 已完成实现：按 capability-filtered route/menu 推导首页，并对 redirect 做可访问路由校验。2026-07-31 累计回归另发现并收口两个实现文件的 5 个 ESLint 门禁错误；首次全量浏览器回归发现旧 E2E 仍期待受限路径落到 404，快照确认真实行为是安全回退 `/analytics` 且越权 API 请求为 0，测试已同步并双视口 2/2 通过。Admin 全量 lint 0 warning/error、两段 TypeScript 检查、31 files / 153 tests 和 production build 通过。功能、lint 与浏览器契约 follow-up 均独立入库，尚未发布 |
+| P0-1 | Admin 落地页 404 循环 | Codex 已完成实现：按 capability-filtered route/menu 推导首页，并对 redirect 做可访问路由校验。2026-07-31 累计回归另发现并收口两个实现文件的 5 个 ESLint 门禁错误；首次全量浏览器回归发现旧 E2E 仍期待受限路径落到 404，快照确认真实行为是安全回退 `/analytics` 且越权 API 请求为 0，测试已同步并双视口 2/2 通过。Admin 全量 lint 0 warning/error、两段 TypeScript 检查、production build 和最终 214/214 浏览器场景通过；unit 最终为 32 files / 154 tests（含独立 N-2 回归）。功能、lint 与浏览器契约 follow-up 均独立入库，尚未发布 |
 | P1-1 | 私聊空 guild 绕过策略并跨群读取复核队列 | Codex 已完成实现：缺 Session fail-closed；无 guild 仍校验 authority policy 且在数据访问前返回上下文提示；显式 guild 保持目标群授权与过滤。定向 14 tests、Koishi 全量 593 tests、build 和 UI contracts 通过。随独立修复提交入库，尚未发布 |
 | P1-2 | 迁移指南要求修改已执行的初始基线 | Codex 已完成修复：权威来源改为完整有序 migration 集合，后续 schema 变更必须新增递增 `.up/.down`；Make、CI 与数据库文档已同步。文档/契约检查通过，隔离 PostgreSQL 18 按 CI 最小权限实际完成 19 版 `up → down 1 → up`，最终无 dirty 状态。随独立修复提交入库，尚未发布 |
 | P1-3 | 物理备份命令无法生成、半成品可被同步且 evidence 不覆盖物理备份 | Codex 已完成实现：改为外部 staging 的 `plain + stream`、临时 replication slot、`pg_verifybackup`、SHA256 与 `.partial` 原子发布；同步排除临时工件，evidence 覆盖本地/取回的逻辑与物理备份及新鲜度。真实 PostgreSQL 18.4 备份在无网络隔离实例启动并读回探针，75 个 infra contracts 全部通过。随独立修复提交入库，尚未发布；生产对象存储/WAL PITR 仍须单独验收 |
