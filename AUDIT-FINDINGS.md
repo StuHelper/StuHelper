@@ -738,6 +738,47 @@ live rating bar 已完成可达表面的最小修复。优先做一处根因、�
 
 本轮并行代理均以只读复审为主，主代理对关键链路再次交叉检查。执行结果：
 
+#### 2026-07-31 主对话累计完成性门禁
+
+为避免把不同提交时点的局部绿灯误当成当前整体状态，主对话在所有 P0/P1/P2 处置完成后
+重新执行了一轮跨域回归，并对文档中的提交引用做闭包检查：
+
+- 提交闭包：从本文件提取 62 个 Conventional Commit subject，与当前 `git log` 精确比对，
+  `missing=[]`。本轮完成性检查发现的 Admin lint、评价删除旧 E2E、Admin 受限路由旧 E2E
+  和用户菜单 timer 竞态均已分别更新本文并独立提交，没有用一次聚合提交掩盖问题来源。
+- 后端：`make test` 的 `go test -race -p 1 ./...`、`make lint`（0 issues）与
+  `make build` 通过；OpenAPI lint、生成代码 drift、文档/API 同步检查也通过，后者覆盖
+  194 paths / 17 prefixes。构建未产生跟踪文件差异。
+- Shared / Web：Shared 12 files / 71 tests 通过；Web 当前全部跟踪 unit 为
+  82 files / 518 tests，类型检查、跟踪文件 ESLint、production build 均通过。
+  production-preview Playwright 最终为 363 passed / 1 designed skip；#35 首击确认前
+  DELETE=0、确认后唯一 DELETE 的桌面/移动场景包含在该结果中。
+- Admin：32 files / 154 unit、两段 TypeScript 检查、全仓 lint 0 warning / 0 error、
+  production build 均通过。第一次全量 E2E 的 3 个失败已逐一分型：两个是 P0-1 后仍期待
+  旧 404 的测试契约，一个是 N-2 真实 500 ms timer 竞态；分别修复后最终双视口
+  Playwright 214/214 通过。
+- UniAppX：只纳入 Git 跟踪的 8 files / 58 unit 和 `surface.spec.ts`，type-check、正式
+  H5 build、8 个 tabBar 资源契约与桌面/移动 72/72 E2E 通过。仓库已明确不支持
+  mp-weixin，因此没有用 H5 结果冒充微信开发者工具或真机验收。
+- Koishi：全工作区 build、Vue UI contracts、611/611 unit、startup smoke 与真实
+  Console Chromium 46/46 通过；日志中的 401/connection-refused 为测试固定的故障分支，
+  对应断言均通过，不是被忽略的套件失败。
+- 基础设施：`make check-infra-contracts` 当前实际执行 77 个 shell/Node 契约并全部通过，
+  覆盖 admission、Casdoor/OpenFGA、CI/deploy、镜像供应链、备份恢复、可观测性、
+  PostgreSQL/Redis、生产部署/回滚和公开认证浏览器 smoke。
+- 隔离边界：用户未跟踪的 UniAppX/Web probe、`AUDIT-REPORT.md`、LICENSE 与正在编辑的
+  文档稿均未纳入受控测试计数或提交；两个用户已暂存的文档重命名在每次 `--only` 提交后
+  仍保持 staged。Web 全仓聚合 lint 会扫描用户未跟踪的临时测试并因其中的 unused import
+  失败，因此 Web lint 证据明确使用 Git 跟踪文件集合，未修改或删除用户探针来制造绿灯。
+
+这轮本地回归没有替代 GitHub Required checks、真实生产部署、受控 Casdoor/OpenFGA 授权
+闭环或生产指标观察。按本报告重新分级后的 P0/P1/P2 根问题，当前唯一没有授权代码实现的
+是 #11；其运行时保持 fail-closed，但受支持的 scoped grant 生命周期仍不可用，必须先由
+owner 选择 A/B/C 真源方案及 Casdoor role membership ownership。P3 产品/体验项仍按优先级
+另行处理，不能为了“待办归零”混入本轮高、中级修复。
+
+#### 分项交叉验证记录
+
 - 后端：U-1/412 修复后执行 `go test ./... -count=1` 全部通过；`rbac`、`app`、
   `academics`、`auth`、`user`、`course/review` 的定向 race 也通过。#18 深挖的
   `token`/`oidc`/`auth` 基线、#45 的 `middleware`/`metrics` 基线以及 #57 的
