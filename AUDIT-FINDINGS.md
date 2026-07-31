@@ -558,6 +558,25 @@ role 物理上都无法工作”不准确；真正缺少的是**受支持、可�
 ADR-0008 固定了 grant/revoke 状态机、撤权栅栏、revision fencing、最后一名 super_admin
 保护、迁移和回滚边界。#11 从 **P1 decision-blocked** 转为 **P1 implementation-in-progress**。
 
+**实施阶段 1：DB 授权账本与投影状态机（2026-07-31）**
+
+- 新增 `000020_authorization_grants` migration：固定五类管理员 role/scope 组合、DB 外键与
+  check、`desired_state` / `projection_status`、单调 revision、active/projection 索引和
+  `NULLS NOT DISTINCT` 唯一约束；没有创建任意 relation/object 存储。
+- 新增 `modules/authorization` Repository/Service：grant/revoke 在同一 PostgreSQL 事务内
+  写账本、`audit_events` 与既有 `domain_event_outbox`；重复 applied grant/revoke 幂等，
+  pending/failed 重试递增 revision；最后一名 applied super_admin 由事务级 advisory lock
+  和同事务计数保护。
+- 新增专用 `iam_authorization_grant_projection` stream，worker 只映射固定 tuple：
+  ecosystem `super_admin`、school `admin`、三类 section relation。授予必须
+  write + higher-consistency exact read 后才 applied；撤销在 DB desired state 提交后已被
+  access snapshot 排除，再执行 `on_missing=ignore` delete + exact absence verify。
+- DB access snapshot 当前已能从 applied grant、`user_profiles` 与有效 freshman credential
+  派生角色和 scope；尚未接入认证 middleware，因此本阶段不声称运行时已经切换。
+- 真实 PostgreSQL 18 migration/事务回归覆盖 grant → pending deny → projection → allow →
+  revoke fence deny → tuple delete、并发版本覆盖、最后一名 super_admin、重复操作以及故意
+  删除 `audit_events` 后账本/outbox 整体回滚；模块与 outbox race 测试通过。
+
 ### 对 Claude 第二轮 14 个“驳回标签”的反向复核
 
 Claude 的两条 `/admin/stats` 记录是同一位置、同一 middleware 顺序和同一影响，合并为一个
