@@ -33,7 +33,7 @@ make dev-up
 
 1. 初始化本地 `.env`（补齐可运行的开发密钥与默认值）
 2. 启动 PostgreSQL / Redis / Casdoor / OpenFGA / SeaweedFS mini / migration / seed（Docker；SeaweedFS 仅用于本地 S3 同构验证）
-3. 验证 Casdoor OIDC metadata，从本地 Casdoor 内置应用读取一次性 bootstrap 凭据，并幂等创建 StuHelper 的 Web / Admin / UniApp first-party applications、flat roles 和启用的 providers
+3. 验证 Casdoor OIDC metadata，从本地 Casdoor 内置应用读取一次性 bootstrap 凭据，并幂等创建 StuHelper 的 Web / Admin / UniApp first-party applications 和启用的 providers；Casdoor bootstrap 不创建 StuHelper 业务角色
 4. 自动初始化 OpenFGA Store、Model、基础 tuples
 5. 生成桶级本地身份配置，预创建应用 / 备份 bucket，并上传开发资源 seed
 6. 生成 `.env.generated`
@@ -154,7 +154,7 @@ make prod-deploy
 1. 校验生产共享配置、secret backend、应用不可变镜像引用、基础设施镜像扫描策略及例外有效期、外部 HTTPS S3 与 PostgreSQL/Redis TLS 配置
 2. 渲染 Prometheus / Alertmanager 生成配置并启动 Redis、OpenFGA 和可观测性组件；生产 Compose 不启动本地对象存储
 3. 在迁移前生成 PostgreSQL 备份，通过 rclone 上传到已预配的外部备份 bucket，并执行取回 evidence
-4. 执行数据库迁移，幂等创建 / 校验 Casdoor organization、first-party applications、flat roles、启用的 provider，并初始化 OpenFGA 派生配置
+4. 执行数据库迁移，幂等创建 / 校验 Casdoor organization、first-party applications、启用的 provider，初始化 OpenFGA 派生配置，并以 PostgreSQL `authorization_grants` 引导/管理 StuHelper 管理员授权
 5. 启动 `app` / `frontend` / `admin`，绑定宿主机 `127.0.0.1:18080` / `18000` / `18001`
 6. 执行业务、公网浏览器和 Observability Smoke Check
 

@@ -36,7 +36,7 @@ make dev-up
 - 生成开发环境变量
 - 把会参与数据库派生值和 PII 解密的本地开发 HMAC / AES 密钥以 `0600` 权限持久化到 `${XDG_STATE_HOME:-~/.local/state}/stuhelper/dev/crypto.env`；重克隆仓库但继续使用同一 Docker 数据卷时会自动恢复这些密钥，避免健康检查通过但用户资料因密钥漂移而不可读
 - 启动 PostgreSQL / Redis / Casdoor / OpenFGA / SeaweedFS mini（Docker，仅本地 S3 同构验证）
-- 验证 Casdoor OIDC metadata；本地开发会从 Casdoor 内置应用读取一次性 bootstrap 凭据，并幂等创建 StuHelper 的 Web / Admin / UniApp first-party applications、flat roles 和启用的 providers；生产路径会使用独立 bootstrap 凭据执行同一套对象收敛
+- 验证 Casdoor OIDC metadata；本地开发会从 Casdoor 内置应用读取一次性 bootstrap 凭据，并幂等创建 StuHelper 的 Web / Admin / UniApp first-party applications 和启用的 providers（不创建 StuHelper 业务角色）；生产路径会使用独立 bootstrap 凭据执行同一套身份对象收敛
 - 初始化 OpenFGA Store 和 Model
 - 按桶隔离身份并预创建应用 / 备份 bucket，上传开发资源 seed
 - 数据库迁移和开发 seed

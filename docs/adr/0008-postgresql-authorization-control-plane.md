@@ -12,6 +12,10 @@ last-verified: 2026-07-31
 **Status**: accepted
 **Deciders**: 项目 owner
 
+> **仓库实施状态（2026-07-31）**：已完成代码、迁移、OpenAPI、管理后台、bootstrap、
+> Casdoor 业务角色链路退役和本地自动化验证；真实生产发布、存量授权盘点/迁移及受控账号
+> 验收仍属于发布步骤，不能由本地绿灯替代。
+
 ## Context
 
 StuHelper 已使用 Casdoor OIDC 认证用户、Capability 表达功能入口，并使用 OpenFGA 判断资源关系。
@@ -49,7 +53,7 @@ StuHelper 已使用 Casdoor OIDC 认证用户、Capability 表达功能入口，
 ```text
 DB desired=granted, projection=pending + audit + outbox
   -> OpenFGA write / higher-consistency verify
-  -> DB projection=applied
+  -> DB projection=applied, activated_at=<首次验证时间>
   -> 授权快照开始包含该 grant
 ```
 
@@ -69,6 +73,9 @@ DB desired=revoked, projection=pending
 - outbox 重试、重复投递、并发 grant/revoke 由 grant revision 和 outbox revision fencing
   保证只有最新 desired state 可以完成；
 - dead-letter 必须可显式重放，并由 reconciliation 从 DB 重建 OpenFGA。
+- `activated_at` 是稳定的授予围栏：新建或恢复的 grant 在首次验证前为空；已激活 grant
+  做 reconcile 时保留该值，所以临时 `projection=pending/failed` 不会把所有管理员锁在
+  DB 控制面之外。`projection_status` 表示投影健康，不替代撤权围栏。
 
 ## 固定授权类型
 
@@ -92,7 +99,33 @@ DB desired=revoked, projection=pending
 - 原因必填，审计记录 actor、target、role、scope、revision、before/after 与 outcome；
 - 不能撤销最后一个已生效且 desired=granted 的 `super_admin`；
 - 重复 grant/revoke 是幂等成功，不产生扩大权限的旁路；
+- 并发重复 grant 由数据库唯一约束与 `ON CONFLICT` 收敛为一个 revision、一个审计和一个
+  outbox 任务；pending grant 的重复创建不会偷偷变成 reconcile；
 - DB、审计或 outbox 任一步失败，事务整体回滚；OpenFGA 故障不返回“授权已生效”。
+
+## 实施落点
+
+| 能力 | 仓库落点 |
+|------|----------|
+| 授权账本 | `server/migrations/000020_authorization_grants.*.sql` |
+| 旧 Casdoor role job 退役 | `server/migrations/000021_retire_casdoor_role_projection.*.sql` |
+| 稳定激活围栏索引 | `server/migrations/000022_authorization_activation_fence.*.sql` |
+| 管理 Service / Repository / worker | `server/internal/modules/authorization/` |
+| 受限 OpenAPI | `/api/v1/admin/authorization/grants*` 与 `/api/v1/admin/authorization/projections/reconcile` |
+| 管理后台 | `/authorization/grants`，需要全局 `iam:grants:manage` |
+| 首次管理员引导 | `infra/ops/authorization-bootstrap-super-admin.sh` |
+
+首次生产 bootstrap 是一个单事务、系统身份审计的 break-glass 操作：先解析已经登录并存在于
+`users` 表的目标，再一次性写入至少两名 `super_admin` 的 grant、审计和 outbox；任一目标、
+审计或 outbox 失败全部回滚。只要已经存在任一 `desired=granted` 的 `super_admin`，后续
+部署整体跳过，不能借自动部署复活已撤销账号。
+
+投影恢复提供两层入口：
+
+- 每个 grant 的显式 reconcile，以及需要 step-up MFA 的全量 rebuild API；
+- 每日 03:20 的受控 drift reconciliation：逐个以 higher-consistency 精确读取 DB 管理的
+  direct tuple，只重排 failed、超时 pending 或实际不一致的 grant；漂移超过阈值时停止
+  自动修复并触发现有 IAM drift 告警。未知、无 DB grant 的 tuple 不会被反向导入或自动删除。
 
 ## 一致性与缓存
 
@@ -102,10 +135,11 @@ DB desired=revoked, projection=pending
 
 ## 迁移与回滚
 
-切换前必须先把现有直接 OpenFGA 管理员 tuple 导入 DB 账本并验证投影一致，至少保留两名
-可用 `super_admin`。切换后：
+切换前必须先盘点现有直接 OpenFGA 管理员 tuple，并用受审查的目标名单在 DB 账本重建；
+不得把未知 tuple 自动反向导入。完成全量 projection reconcile 并验证至少两名可用
+`super_admin` 后才能切换流量。切换后：
 
-- provider `roles` 仅可暂时作为遥测字段，不能参与 allow/deny；
+- provider `roles` 不再解析或进入 access snapshot，不能参与 allow/deny；
 - Casdoor 中遗留业务 role/membership 先冻结写入，再清理；
 - 旧 Casdoor role-sync credential、worker、配置和 bootstrap catalog 在代码切换完成后移除。
 

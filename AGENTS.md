@@ -77,7 +77,7 @@ SSO ───┘      │     └── 对象存储 (MinIO/S3)
 | 课程与评课 | `modules/course` + `course/review` |
 | 用户系统 | `modules/user` + `modules/ldap` |
 | 通知 | `modules/notification` |
-| 授权 | `pkg/capability` + `modules/rbac/middleware.go` + `pkg/fga` |
+| 授权 | `modules/authorization` + `platform/authorization` + `pkg/capability` + `pkg/fga` |
 
 ## 后端分层
 
@@ -91,9 +91,10 @@ SQL 只写在 Repository，业务判断只放在 Service，响应统一通过 `r
 
 ## 授权模型
 
-1. **Casdoor 角色 claim** — Token claims 提供身份侧扁平角色输入
-2. **Capability** — 后端静态展开，零 DB 查询
-3. **OpenFGA** — 资源级关系判断（谁能操作哪条 review/report）
+1. **Casdoor** — 只证明身份、会话与登录层 MFA；provider role claim 不参与授权
+2. **PostgreSQL 授权账本** — `authorization_grants` 是管理员 role/scope 唯一管理真源
+3. **Capability** — 从 DB-derived access snapshot 静态展开功能权限
+4. **OpenFGA** — DB 可重建的资源关系运行时投影（谁能操作哪条 review/report）
 
 ## 共享契约链路
 
@@ -114,7 +115,7 @@ server/api/openapi.yaml
 | 数据 | 存储 |
 |------|------|
 | 身份与登录 | Casdoor |
-| 业务数据 | PostgreSQL |
+| 业务数据 / 授权期望状态 | PostgreSQL |
 | 缓存 / 黑名单 / 限流 | Redis |
 | 资源关系 | OpenFGA |
 | 指标 / 日志 / Trace | Prometheus / Loki / Tempo |

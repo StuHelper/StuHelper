@@ -8,6 +8,11 @@ last-verified: 2026-07-31
 
 # StuHelper IAM 架构
 
+> **实施状态（2026-07-31）**：PostgreSQL 授权控制面、OpenFGA 固定投影、DB-derived
+> access snapshot、管理 API/后台、每日 drift reconcile、首次双管理员 bootstrap 与
+> Casdoor 业务角色链路退役已落入仓库。真实生产存量盘点、发布和受控账号闭环仍须按
+> release runbook 执行，不属于本地代码已验证结论。
+
 ## 1. 范围
 
 本文描述 StuHelper 的 IAM 架构：身份、登录、一方应用 registry、授权决策入口、SMS / Email 通道。
@@ -347,7 +352,7 @@ type AuthorizationService interface {
     // Authorize 单次决策。fail-closed：任何依赖不可用都返回 Deny + Error。
     Authorize(ctx context.Context, subject Subject, action Action, resource Resource) Decision
 
-    // BatchAuthorize 列表/批量场景，复用同一份 Casdoor / DB / FGA 上下文。
+    // BatchAuthorize 列表/批量场景，复用同一份认证主体 / DB / FGA 上下文。
     BatchAuthorize(ctx context.Context, subject Subject, checks []Check) []Decision
 }
 
@@ -424,10 +429,13 @@ Authorize(subject, "profile.view_identity", profile)
 管理员授权写入 PostgreSQL `authorization_grants`，再通过 transactional outbox 投影为
 OpenFGA direct tuple。Casdoor 不参与投影。
 
-- 授予：同一事务写 `desired=granted, projection=pending`、审计和 outbox；OpenFGA 写入并
-  验证后标记 `projection=applied`，此时才进入授权快照；
+- 授予：同一事务写 `desired=granted, projection=pending, activated_at=NULL`、审计和
+  outbox；OpenFGA 写入并验证后设置首次 `activated_at`、标记 `projection=applied`，此时
+  才进入授权快照；
 - 撤销：同一事务先写 `desired=revoked, projection=pending`，DB 撤权栅栏立即拒绝；worker
   以 `on_missing=ignore` 删除 tuple 并验证后标记 applied；
+- 对已激活 grant 的 reconcile 保留 `activated_at`：投影健康可暂时 pending/failed，但
+  DB 控制面不因此锁死；恢复已撤销 grant 则重新清空 `activated_at`，必须再次验证后生效；
 - 每次状态改变递增 revision，worker 只能完成与当前 revision 相同的任务；
 - SLA：p95 < 60s，p99 < 5min；超出 SLA 告警，但不能绕过 pending/deny 语义；
 - 超过 max attempts 进入 `dead_letter`，必须显式 replay 或由受控 reconciliation 重建。
@@ -437,7 +445,8 @@ OpenFGA direct tuple。Casdoor 不参与投影。
 | DB desired | Projection | OpenFGA | 决策 | 理由 |
 |------------|------------|---------|------|------|
 | granted | applied | tuple exists | 放行 capability；资源操作继续做 FGA check | 正常路径 |
-| granted | pending/failed | missing/unknown | **拒绝** | 授予尚未安全生效 |
+| granted，`activated_at` 为空 | pending/failed | missing/unknown | **拒绝** | 新授予尚未安全生效 |
+| granted，`activated_at` 已设置 | pending/failed | missing/unknown | 保留 DB capability；需要资源关系的操作继续 fail-closed | 已激活 grant 正在修复，不能锁死控制面 |
 | revoked | pending/failed | tuple may exist | **立即拒绝** | DB 撤权栅栏优先，陈旧 tuple 不能续命 |
 | revoked | applied | tuple absent | 拒绝 | 正常撤权完成 |
 | DB unavailable | * | * | 503 | fail-closed |
@@ -454,7 +463,7 @@ OpenFGA direct tuple。Casdoor 不参与投影。
 - 普通页面浏览、列表页摘要、登录态展示 → 使用 DB-derived access snapshot；
 - 管理面进入闸门 → 使用 snapshot capability；具体资源操作 → 撤权栅栏 +
   Authorization Service + OpenFGA；
-- provider role claim 只能作为迁移期观测字段，不能影响 allow/deny。
+- provider role claim 不解析、不进入上下文，也不能影响 allow/deny。
 
 ### 6.5 Outbox 与 drift reconciliation 具体化
 
@@ -495,7 +504,7 @@ OpenFGA direct tuple。Casdoor 不参与投影。
 
 #### 6.5.4 Drift Reconciliation
 
-- **周期**：每日凌晨 3 点全量对账（cron）；
+- **周期**：管理员授权每日 03:20 精确对账；其他既有业务投影每日凌晨 3 点对账；
 - **对账维度**：
   - DB `authorization_grants` desired state ↔ OpenFGA 固定管理员 direct tuple；
   - 业务表 review/profile owner ↔ OpenFGA `author` / `owner` tuple；
@@ -504,7 +513,11 @@ OpenFGA direct tuple。Casdoor 不参与投影。
   - 漂移条数 ≥ 阈值 → 暂停自动修复 + 告警 + 人工确认后再放行；
   - 修复结果落审计。
 - **当前落地**：
-  - `authorization_grants` reconciliation 按 grant revision 重新入队管理员 tuple 投影；
+  - `authorization_grants` reconciliation 分页读取账本，对 applied grant 做
+    higher-consistency exact tuple read，只把 failed、超过 10 分钟的 pending 或真实不一致
+    grant 按新 revision 重新入队；漂移超过 100 条则不自动修改并触发告警。未知 tuple 不
+    反向导入、不自动删除；
+  - 管理端另提供单 grant reconcile 和受 step-up MFA 保护的全量 rebuild，用于灾难恢复；
   - `user_profiles` 每日 reconciliation 只重新入队 `user_profile_projection`，修复 OpenFGA `user_profile:{id}` 的 `owner` / `school` tuple；
   - `reviews` / `review_reports` 每日 reconciliation 重新入队 `review_relations` 与 `report_relations`，通过现有 worker 修复 OpenFGA `review:{id}` 的 `author` / `course` / `school` tuple 与 `report:{id}` 的 `reporter` / `review` / `school` tuple。
 
@@ -747,10 +760,15 @@ StuHelper /internal/sms/send  (server/internal/pkg/sms/handler.go)
 - Applications：`stuhelper-web`、`stuhelper-admin`、`stuhelper-uniapp`；
 - Custom HTTP SMS Provider → `/internal/sms/send`；
 - Custom SMTP / HTTP Email Provider（仅当 `CASDOOR_EMAIL_PROVIDER_ENABLED=true`；当前默认延后）；
-- PostgreSQL authorization schema 与至少两名已验证的 bootstrap `super_admin` grant；
+- PostgreSQL authorization schema 与至少两名已登录、已存在于 `users` 表的 bootstrap
+  `super_admin` grant；同一事务写 grant、system audit 与 outbox，任一步失败全部回滚；
 - OpenFGA 管理员 tuple 与 DB grant revision 一致。
 - Certificate / public key（按 Casdoor 数据初始化文档）；
-- 初始管理员账号（密码从 env 读，启动后强制修改提示）。
+- Casdoor 初始身份账号（密码治理仍由身份平面负责，不能因此获得 StuHelper 后台权限）。
+
+`authorization-bootstrap` 只在账本完全没有 desired `super_admin` 时运行；生产少于两名目标
+直接失败。目标必须先完成一次正常 OIDC 登录建立 shadow user。日常部署不得修改 Casdoor
+role membership，也不得直接写 OpenFGA 管理员 tuple。
 
 **生产环境**缺必要 Provider 启动失败；Email Provider 只有在 env 显式启用时才进入必要 Provider 清单。**开发环境**可关闭，但必须 env 显式 + 日志告警。
 
@@ -763,16 +781,18 @@ server/internal/platform/casdoor/
   client.go        SDK 初始化 + healthcheck
   applications.go  应用 CRUD（开放平台预留）
   users.go         用户查询 / 投影
-  roles.go         角色分配 / 撤销（outbox 消费方）
   providers.go     Provider 配置校验
-  bootstrap.go     幂等 bootstrap
+  bootstrap.go     身份对象幂等 bootstrap（不含业务角色）
+
+server/internal/modules/authorization/
+  handler.go       受限 grant/list/revoke/reconcile 管理 API
+  service.go       授权账本业务规则与 access snapshot
+  repository.go    PostgreSQL desired state、审计与 outbox 原子写入
+  projection.go    固定 OpenFGA direct tuple 投影与 revision fencing
+  reconciliation.go  每日 drift 对账与受控修复
 
 server/internal/platform/authorization/
-  service.go       AuthorizationService 实现（§5）
-  facts.go         业务事实查询（封装 DB）
-  fga.go           OpenFGA check 封装
-  decision.go      组合决策逻辑
-  errors.go        Decision / Error 类型
+  service.go       通用 AuthorizationService/PDP 组合逻辑（§5）
 
 server/internal/pkg/oidc/   (provider-neutral 标准 OIDC)
   client.go        discovery / auth code+PKCE / token exchange / refresh / introspection
@@ -795,25 +815,32 @@ server/internal/modules/*    (业务模块)
 #### 规则 A：`casdoor_subject` ↔ `users.id` 边界
 
 - 业务表外键**只**指向 `users.id`（内部稳定 BIGINT 主键）；
-- `casdoor_subject` 是**外部身份键**，仅在以下三层流转：
+- `casdoor_subject` 是**外部身份键**，仅在身份边界相关代码中流转：
   - `pkg/oidc/` — token 解析；
   - `platform/casdoor/` — Casdoor SDK 调用；
-  - `platform/authorization/` — Subject 解析后立即换成 `users.id`，向下游只暴露 `users.id`；
-- **禁止**业务模块（`server/internal/modules/*`）出现 `casdoor_subject` 字段；
+  - `modules/auth/` 与 `modules/user/` — 登录同步、身份持久化和
+    `casdoor_subject` ↔ `users.id` 映射；
+  - `internal/app/authorization_identity_adapter.go` — 将认证后的 provider subject
+    立即换成 `users.id`，授权控制面及下游只接收内部 ID；
+- **禁止**除 `modules/auth/`、`modules/user/` 外的业务模块出现
+  `casdoor_subject` 字段；
 - **禁止**新建业务表把 `casdoor_subject` 当业务主键；
 - OpenFGA tuple 中 `user:{id}` 的 `id` 部分**统一使用 `users.id`**，不使用 Casdoor subject——否则未来再迁 IDP 会非常痛苦。
 
-CI 增加 grep 检查（与 §4.3 同模式）：业务模块禁止出现 `casdoor_subject` / `CasdoorSubject` 标识符。
+CI 的 `server/scripts/check-casdoor-boundary.sh` 强制检查：除身份边界模块外，业务模块
+禁止出现 `casdoor_subject` / `CasdoorSubject` 标识符；授权模块不得反向查询 provider
+subject。
 
 #### 规则 B：Casdoor 管理 API 最小权限
 
 - **禁止**使用一个万能 Casdoor admin token 服务所有用途；
 - 按用途拆分 service account credential：
-  - `casdoor-admin-role-sync` — 仅 add/remove role；
   - `casdoor-admin-app-provisioning` — 仅 create/update/delete application；
   - `casdoor-admin-user-lookup` — 只读 user；
   - `casdoor-admin-bootstrap` — 仅 bootstrap 阶段使用，运行时不挂载；
-- 当前落地约束：`verified_student` role outbox worker 必须同时配置 `CASDOOR_ROLE_SYNC_*` 与 `CASDOOR_USER_LOOKUP_*` 两组凭据；role 更新与 user lookup 不共用 secret；
+- 当前落地约束：Casdoor 不再创建、发放或同步任何 StuHelper 业务 role；历史
+  `iam_casdoor_role_sync` 作业由迁移统一终止，登录、refresh、`/userinfo` 与
+  introspection 返回的 role claim 不再解析，不能进入 access snapshot；
 - 每个 credential 配置最小 Casdoor 权限；
 - 每个 secret 独立轮换（不联动）；
 - 所有 Casdoor admin API 调用落审计：调用方 service account / 操作 / 目标 / 结果 / request_id（保留期见 §13.3）；

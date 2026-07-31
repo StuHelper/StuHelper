@@ -17,8 +17,8 @@ last-verified: 2026-07-31
 | PostgreSQL | 业务数据 | `server/migrations/` 中的有序 migration 集合 |
 | Redis | 会话、黑名单、限流、缓存、通知广播 | 代码使用处（无独立 schema） |
 | 对象存储（MinIO/S3） | 证件照、资源文件 | 统一经 `storage` abstraction 访问 |
-| Casdoor | 身份平面（账号、OIDC 会话、扁平角色目录） | Casdoor 管理端 |
-| OpenFGA | 资源关系授权 | [`docs/design/openfga-model.fga`](../design/openfga-model.fga) |
+| Casdoor | 身份平面（账号、OIDC 会话、token、登录层 MFA） | Casdoor 管理端 |
+| OpenFGA | 可从 PostgreSQL 授权账本/业务事实重建的资源关系投影 | [`docs/design/openfga-model.fga`](../design/openfga-model.fga) |
 
 ## 业务平面索引
 
@@ -33,6 +33,7 @@ last-verified: 2026-07-31
 | 通知 | `notification*` | [product-specs/notification.md](../product-specs/notification.md) |
 | Admission 机器人动作 | `admission_bot_action_outbox` | [design/koishi-admission-verification.md](../design/koishi-admission-verification.md) |
 | 开放平台 | `open_platform_*` | [design/open-platform-v1.md](../design/open-platform-v1.md) |
+| 管理授权 | `authorization_grants` | [ADR-0008](../adr/0008-postgresql-authorization-control-plane.md) |
 | 审计与 outbox | `audit_events`、`domain_event_outbox` | [product-specs/audit-logging.md](../product-specs/audit-logging.md) |
 
 ## 设计约束（不改文档能看出来的除外）

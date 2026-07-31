@@ -81,9 +81,10 @@ server/
 
 ## 授权模型
 
-1. Casdoor JWT roles claim → 身份侧扁平角色
-2. 角色静态展开 → capability（零 DB 查询）
-3. 业务事实 + OpenFGA → 资源级判断
+1. Casdoor OIDC token → 只提供已验证身份、应用和 MFA proof；role claim 永不参与 allow/deny
+2. PostgreSQL `authorization_grants` + DB 业务事实 → DB-derived access snapshot
+3. snapshot role/scope 静态展开 → capability；撤权由 DB desired-state 立即围栏
+4. OpenFGA serving projection → 资源级关系判断；可从 PostgreSQL 账本重建
 
 新路由需考虑：是否需要登录、需要哪些 capability、是否需要资源级校验。
 
@@ -93,8 +94,8 @@ server/
 |------|------|
 | PostgreSQL | 业务数据 |
 | Redis | 缓存、限流、token 黑名单 |
-| Casdoor | OIDC / 角色目录投影 |
-| OpenFGA | 资源关系授权 |
+| Casdoor | OIDC 认证、会话、token 与登录层 MFA |
+| OpenFGA | 可从 PostgreSQL 重建的资源关系授权投影 |
 | Tencent SMS | 手机 OTP（仅当 `SMS_ENABLED=true`） |
 | OpenTelemetry | trace / metrics / logs |
 

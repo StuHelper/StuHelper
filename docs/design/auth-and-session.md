@@ -2,7 +2,7 @@
 type: design
 audience: backend-dev, frontend-dev
 status: current
-authoritative-source: server/internal/modules/auth/
+authoritative-source: server/internal/modules/auth/ + server/internal/modules/authorization/ + server/internal/pkg/middleware/
 last-verified: 2026-07-31
 ---
 
@@ -132,8 +132,9 @@ OIDC 用户同步到本地 `users` 表：`casdoor_subject`、`username`、`email
 
 ## 角色与能力
 
-- Casdoor JWT 提供粗粒度角色
-- 中间件静态展开为 capabilities；scoped admin 的学校范围不来自 token，而是由运行时 resolver 从 DB/OpenFGA 补全
+- Casdoor JWT 只提供已验证身份、应用与登录层 MFA proof；业务 `roles` claim 即使存在也不解析、不进入上下文
+- 中间件按 `casdoor_subject` 映射内部 `users.id`，从 PostgreSQL `authorization_grants` 和 DB 业务事实加载 access snapshot
+- 管理员 role/scope 经 `activated_at` 授予围栏与 `desired_state` 撤权围栏后静态展开为 capabilities；资源关系继续由 OpenFGA 判定
 - `/api/v1/auth/me` 返回：`roles`、`capabilities`、`globalCapabilities`、`canAccessAdmin`、`displayName`、`isPlatformAdmin`、`capabilityGrants`、`accountSettingsUrl`
 
 ### 前端当前用户刷新语义

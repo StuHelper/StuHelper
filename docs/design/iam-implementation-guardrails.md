@@ -41,18 +41,26 @@ PostgreSQL `authorization_grants` 是 `super_admin`、`school_admin` 与 `sectio
 
 - grant/revoke 必须在同一 DB 事务写 desired state、`audit_events` 与
   `domain_event_outbox`；任一步失败整体回滚；
-- 授予先写 `desired=granted, projection=pending`，只有 OpenFGA 精确 tuple 写入并验证后才能
-  标记 `projection=applied` 并进入授权快照；
+- 授予先写 `desired=granted, projection=pending, activated_at=NULL`，只有 OpenFGA 精确
+  tuple 写入并验证后才能设置首次 `activated_at`、标记 `projection=applied` 并进入授权快照；
 - 撤销先写 `desired=revoked`；授权快照和 Authorization Service 必须立即拒绝，随后才异步
   删除 OpenFGA tuple。不得等 token 到期、缓存 TTL 或 tuple 删除成功后才撤权；
+- `projection_status` 只表示投影健康；已激活 grant 做 reconcile 时必须保留 `activated_at`，
+  使 DB 管理面保持可恢复。新建/恢复 grant 仍必须在首次 verified projection 前 fail-closed；
 - 每次 mutation 单调增加 grant revision。worker 只允许完成与 payload revision 相同的期望
   状态；并发 grant/revoke 和 outbox supersession 必须由 revision fencing 收敛；
 - OpenFGA 删除使用完整 `user + relation + object`、higher-consistency 读取/验证和
   `on_missing=ignore`，保持重试与并发幂等；
 - dead-letter 只能通过受审计的 replay/reconcile 恢复；reconciliation 从 DB desired state
   重建 OpenFGA，不能反向把未知 tuple 导入 DB；
+- 每日 drift reconciliation 只精确检查 DB 已管理的 direct tuple；只重排 failed、超时
+  pending 或实际不一致的 grant。超过修复阈值必须告警并停止自动修复；未知 tuple 不自动
+  导入或删除。全量 rebuild 必须走受 `iam:grants:manage` 与 step-up MFA 保护的受审计 API；
 - mutation 只接受 ADR-0008 固定的 role/scope 组合，不提供任意 tuple 写入 API；
 - 最后一名 active `super_admin` 不得撤销，判断和 mutation 必须处于同一加锁事务。
+- 生产首次 bootstrap 至少要求两名已存在于 `users` 的目标，并在一个 DB 事务中以 system
+  actor 写全部 grant、审计和 outbox；任何一项失败全部回滚。账本已有 desired
+  `super_admin` 时必须整体跳过，日常部署不得自动复活已撤销主体。
 
 ## School / Section Scope 完整性
 
@@ -143,11 +151,13 @@ WHERE id IN (
 
 ## Scope 术语
 
-Casdoor JWT role claim 不参与 StuHelper 授权。角色和学校/资源范围来自 PostgreSQL 授权账本，
-OpenFGA 只承载可重建的运行时关系投影。
+Casdoor JWT role claim 不解析、不参与 StuHelper 授权。角色和学校/资源范围来自 PostgreSQL
+授权账本，OpenFGA 只承载可重建的运行时关系投影。
 
-- 新代码使用 `school scope`、`section scope`、`ScopeSchoolIDs`、`ScopeSectionIDs`；
-- `org` / `OrgScopedRoles` 属于历史 Zitadel 语义，只能作为迁移期内部兼容字段存在；
+- 新代码使用 `school scope`、`section scope`、`ScopeSchoolIDs`、`ScopeSectionIDs` 和
+  `ScopedRoleGrants`；
+- `org` / `OrgScopedRoles` 属于历史 Zitadel 语义，运行时接口已经移除；OIDC 负向测试可以
+  保留旧 claim 样例，用于证明 provider scope 不会进入授权上下文；
 - 新业务授权必须通过 `CapabilityGrants`、DB 业务事实和 OpenFGA 资源关系表达；
 - 禁止新增从 OIDC claim 解析 role、school 或 resource scope 的逻辑；
 - `/auth/me`、后台导航和 API middleware 必须使用同一份 DB-derived access snapshot。

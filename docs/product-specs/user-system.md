@@ -107,7 +107,8 @@ Redis 限流依赖不可用时返回 503，且不得继续调用外部学籍源�
 
 实名认证列表不返回材料 key 或签名 URL。审核员必须先通过全局 `user:identity:read` capability 和 step-up MFA，再调用详情端点按需获取短时签名 URL；每次成功查看都会写入材料访问审计。批准操作要求 `user:identity:review` capability、step-up MFA，以及完整且可从对象存储验证的正面照和手持/自拍照。
 
-审核通过后更新应用数据库，必要时同步 Casdoor 角色投影。
+审核通过后更新应用数据库；学生/新生能力由 DB 业务事实派生。Casdoor 只负责身份认证，
+不得写入或同步 StuHelper 业务角色。
 
 ## 账号资料状态呈现
 
