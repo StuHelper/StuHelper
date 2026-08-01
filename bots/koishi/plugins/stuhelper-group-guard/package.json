@@ -7,7 +7,7 @@
   "files": [
     "lib"
   ],
-  "license": "AGPL-3.0",
+  "license": "AGPL-3.0-only",
   "dependencies": {
     "@koishijs/plugin-console": "^5.30.4",
     "@stuhelper/koishi-moderation-core": "workspace:*",

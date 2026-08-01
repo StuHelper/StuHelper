@@ -184,4 +184,8 @@ GitHub 原生检测不能替代仓库内的完整历史 Gitleaks 门禁：两者
 
 ## 许可证状态
 
-仓库当前没有根目录 `LICENSE`，因此当前状态是公开可见源码，但仓库本身不授予复制、修改或分发许可，不应对外宣称为开源项目。若项目所有者决定授权复用，必须增加覆盖整个 monorepo 的根许可证，并先核对 `clients/admin` 与 Koishi 依赖/派生代码的许可证边界。自动化不得替项目所有者选择许可证。
+项目所有者已决定用根目录 `LICENSE` 将 StuHelper monorepo 按 GNU Affero General Public
+License v3.0 only（SPDX：`AGPL-3.0-only`）授权。OpenAPI 和 StuHelper 自有包元数据必须与根许可证保持一致。
+
+`clients/admin/` 中源自 Vben 的代码继续保留其目录内的 MIT 许可证和版权声明；第三方组件
+仍分别受其自身许可证约束。根许可证不得被解释为移除、替代或缩减这些既有通知与义务。

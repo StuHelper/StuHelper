@@ -4,8 +4,8 @@ info:
   version: "1.0.0"
   description: StuHelper 学习助手平台 API
   license:
-    name: MIT
-    url: https://opensource.org/licenses/MIT
+    name: GNU Affero General Public License v3.0 only
+    identifier: AGPL-3.0-only
 
 servers:
   - url: http://127.0.0.1:8080

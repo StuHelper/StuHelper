@@ -9,6 +9,10 @@
 3. 安全漏洞不得提交到公开 Issue。请使用仓库 Security 页面中的私密漏洞报告入口；
 4. 不要提交真实凭据、生产数据、生成证书、数据库 WAL、运行时环境文件或本地构建产物。
 
+除提交内容自身明确、合法地保留其他兼容许可证外，向本仓库提交贡献即表示你有权按
+[GNU Affero General Public License v3.0 only](LICENSE)（SPDX：`AGPL-3.0-only`）提供该贡献。
+不得移除第三方代码已有的版权、许可证或通知。
+
 ## 开发约束
 
 - API 契约以 `server/api/openapi.yaml` 为权威来源。修改接口时先改 OpenAPI，再运行 `make generate`；

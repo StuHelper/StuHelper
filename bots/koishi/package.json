@@ -7,7 +7,7 @@
     ".env",
     "koishi.yml"
   ],
-  "license": "AGPL-3.0",
+  "license": "AGPL-3.0-only",
   "workspaces": [
     "external/*",
     "external/*/external/*",

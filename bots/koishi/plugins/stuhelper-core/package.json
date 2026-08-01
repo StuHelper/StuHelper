@@ -8,7 +8,7 @@
     "lib",
     "dist"
   ],
-  "license": "AGPL-3.0",
+  "license": "AGPL-3.0-only",
   "dependencies": {
     "@koishijs/client": "^5.30.4",
     "@koishijs/console": "^5.30.11",
