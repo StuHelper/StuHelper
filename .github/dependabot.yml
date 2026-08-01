@@ -101,6 +101,12 @@ updates:
 
   - package-ecosystem: npm
     directory: /clients/admin
+    # Admin uses a large pnpm catalog. Dependabot currently conflates current
+    # catalog entries with older same-named transitive lockfile nodes, which
+    # produces empty PRs and FileUpdater::NoChangeError failures. Disable
+    # routine version PRs for this workspace and refresh it in deliberate,
+    # reviewed batches. Dependabot security updates remain enabled; GitHub
+    # documents open-pull-requests-limit: 0 as the security-updates-only mode.
     schedule:
       interval: weekly
       day: monday
@@ -108,45 +114,7 @@ updates:
       timezone: Asia/Shanghai
     cooldown:
       default-days: 7
-    open-pull-requests-limit: 3
-    groups:
-      admin-minor-and-patch:
-        patterns:
-          - "*"
-        update-types:
-          - minor
-          - patch
-    ignore:
-      - dependency-name: "*"
-        update-types:
-          - "version-update:semver-major"
-      # Dependabot currently conflates these pnpm catalog entries with older,
-      # same-named transitive lockfile instances. It then asks pnpm to apply an
-      # update already present in the catalog/importer and fails with
-      # FileUpdater::NoChangeError. Keep routine minor/patch maintenance for
-      # these entries in deliberate Admin catalog refreshes until that parser
-      # behavior changes. update-types filters do not suppress security updates.
-      - dependency-name: "defu"
-        update-types:
-          - "version-update:semver-minor"
-          - "version-update:semver-patch"
-      - dependency-name: "es-toolkit"
-        update-types:
-          - "version-update:semver-minor"
-          - "version-update:semver-patch"
-      - dependency-name: "postcss"
-        update-types:
-          - "version-update:semver-minor"
-          - "version-update:semver-patch"
-      - dependency-name: "sass"
-        update-types:
-          - "version-update:semver-minor"
-          - "version-update:semver-patch"
-      # zod-defaults >= 0.2 requires Zod 4, while the current form stack and
-      # @vee-validate/zod remain on Zod 3. Revisit in the coordinated Zod 4 migration.
-      - dependency-name: "zod-defaults"
-        versions:
-          - ">=0.2.0"
+    open-pull-requests-limit: 0
 
   - package-ecosystem: docker
     directories:
