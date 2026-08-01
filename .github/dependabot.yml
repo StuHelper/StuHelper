@@ -64,6 +64,11 @@ updates:
           - "version-update:semver-patch"
   - package-ecosystem: npm
     directory: /clients
+    # UniAppX follows an exact DCloud build train whose packages, Vue compiler,
+    # runtime, Pinia, and @dcloudio/types must be upgraded together. Exclude its
+    # manifest from routine version PRs; CI still audits the shared lockfile.
+    exclude-paths:
+      - "uniappx/package.json"
     schedule:
       interval: weekly
       day: monday
