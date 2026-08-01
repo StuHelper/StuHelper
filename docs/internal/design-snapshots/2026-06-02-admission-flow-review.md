@@ -1,7 +1,7 @@
 ---
-type: design
+type: internal
 audience: product, backend-dev, frontend-dev, ops, qa, maintainers
-status: deprecated
+status: archived
 authoritative-source: server/api/openapi.yaml + server/internal/modules/admission + clients/web/src/modules/admission + bots/koishi + infra/ops
 last-verified: 2026-06-02
 ---
@@ -10,7 +10,7 @@ last-verified: 2026-06-02
 
 > **历史评审（2026-08-01 恢复）**：本文件应项目 owner 要求从删除前版本恢复，仅保留当时的
 > 评审、修复轨迹和上线证据分层。当前入群认证机制与验收要求以
-> [Admission 当前态流程](admission-flow.md) 为准；两者冲突时不得使用本文件覆盖代码、OpenAPI
+> [Admission 当前态流程](../../design/admission-flow.md) 为准；两者冲突时不得使用本文件覆盖代码、OpenAPI
 > 或当前态设计。
 
 ## 结论
