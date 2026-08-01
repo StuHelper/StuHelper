@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/StuHelper/StuHelper/server/internal/pkg/crypto"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/crypto/pii"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/middleware"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/oidc"
 	platformcasdoor "github.com/StuHelper/StuHelper/server/internal/platform/casdoor"
 )
 
@@ -24,14 +26,17 @@ func (rt *Runtime) initAuthModule(
 	bgCtx context.Context,
 	piiCipher *pii.Cipher,
 	accessResolver middleware.AccessSnapshotResolver,
+	oidcSubjectValidator auth.OIDCSubjectValidator,
+	organizationAdminSync auth.OrganizationAdminSynchronizer,
 ) (*auth.Handler, gin.HandlerFunc, gin.HandlerFunc, error) {
+	if oidcSubjectValidator == nil {
+		// Development may intentionally omit the Casdoor management credential.
+		// Without an authoritative IsAdmin lookup, do not interpret the default
+		// false value as a demotion signal.
+		organizationAdminSync = nil
+	}
 	userSyncRepo := user.NewUserSyncRepository(rt.database, crypto.GetHMACKey())
 	rt.warnPendingUserHashBackfill(bgCtx, userSyncRepo)
-	oidcSubjectValidator, err := rt.initOIDCSubjectValidator()
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
 	authHandler, err := auth.NewHandler(
 		auth.HandlerConfig{
 			Token:                  rt.cfg.Token,
@@ -40,6 +45,7 @@ func (rt *Runtime) initAuthModule(
 			AccountSettingsBaseURL: rt.cfg.Casdoor.PublicAuthBaseURL,
 			ProviderTokenCipher:    piiCipher,
 			OIDCSubjectValidator:   oidcSubjectValidator,
+			OrganizationAdminSync:  organizationAdminSync,
 		},
 		rt.tokenService,
 		rt.redisClient.GetClient(),
@@ -79,8 +85,19 @@ type casdoorOIDCSubjectValidator struct {
 	organization string
 }
 
-func (v casdoorOIDCSubjectValidator) ValidateOIDCSubject(ctx context.Context, subject string) error {
-	return v.client.ValidateSubjectOwner(ctx, subject, v.organization)
+func (v casdoorOIDCSubjectValidator) ValidateOIDCSubject(ctx context.Context, subject string) (bool, error) {
+	identity, err := v.client.ResolveSubject(ctx, subject, v.organization)
+	if err != nil {
+		return false, normalizeCasdoorSubjectLookupError(err)
+	}
+	return identity.OrganizationAdmin, nil
+}
+
+func normalizeCasdoorSubjectLookupError(err error) error {
+	if errors.Is(err, platformcasdoor.ErrUserLookupUnavailable) {
+		return fmt.Errorf("%w: %v", oidc.ErrProviderUnavailable, err)
+	}
+	return err
 }
 
 func (rt *Runtime) initOIDCSubjectValidator() (auth.OIDCSubjectValidator, error) {

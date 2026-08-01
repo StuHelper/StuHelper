@@ -178,48 +178,90 @@ func TestAuthorizationConcurrentCreateIsIdempotentWhileProjectionIsPending(t *te
 	assertAuthorizationOutboxStatus(t, postgres, grantID, outbox.StatusPending)
 }
 
-func TestAuthorizationBootstrapSuperAdminsIsAtomicAndSystemAttributed(t *testing.T) {
+func TestAuthorizationSyncCasdoorOrganizationAdminIsSystemAttributed(t *testing.T) {
 	ctx := context.Background()
 	postgres := postgresfixture.Start(t)
 	service := NewService(NewRepository(postgres.DB))
 
-	firstID := seedAuthorizationUser(t, postgres, "bootstrap-first")
-	secondID := seedAuthorizationUser(t, postgres, "bootstrap-second")
-	result, err := service.BootstrapSuperAdmins(ctx, BootstrapSuperAdminsInput{
-		SubjectUserIDs: []int64{firstID, secondID},
-		Reason:         "initial authorization control-plane bootstrap",
+	userID := seedAuthorizationUser(t, postgres, "casdoor-organization-admin")
+	result, err := service.SyncCasdoorOrganizationAdmin(ctx, CasdoorOrganizationAdminSyncInput{
+		SubjectUserID:     userID,
+		OrganizationAdmin: true,
 	})
 	require.NoError(t, err)
-	assert.False(t, result.Skipped)
-	require.Len(t, result.Grants, 2)
+	assert.True(t, result.Changed)
+	assert.Equal(t, RoleSuperAdmin, result.Grant.Role)
+	assert.Equal(t, GrantSourceCasdoorOrganizationAdmin, result.Grant.Source)
+	assert.Equal(t, DesiredGranted, result.Grant.DesiredState)
+	assert.Equal(t, ProjectionPending, result.Grant.ProjectionStatus)
+	assert.Nil(t, result.Grant.CreatedByUserID)
+	assert.Nil(t, result.Grant.UpdatedByUserID)
+	assertAuthorizationOutboxStatus(t, postgres, result.Grant.ID, outbox.StatusPending)
 
-	for _, grant := range result.Grants {
-		assert.Equal(t, RoleSuperAdmin, grant.Role)
-		assert.Equal(t, DesiredGranted, grant.DesiredState)
-		assert.Equal(t, ProjectionPending, grant.ProjectionStatus)
-		assert.Nil(t, grant.CreatedByUserID)
-		assert.Nil(t, grant.UpdatedByUserID)
-		assertAuthorizationOutboxStatus(t, postgres, grant.ID, outbox.StatusPending)
+	var actorType, actorUserID string
+	require.NoError(t, postgres.Pool.QueryRow(ctx, `
+		SELECT actor_type, actor_user_id
+		FROM audit_events
+		WHERE resource_type = 'authorization_grant'
+		  AND resource_id = $1
+		  AND event_type = 'iam.authorization_grant.provider_grant_requested'
+	`, fmt.Sprintf("%d", result.Grant.ID)).Scan(&actorType, &actorUserID))
+	assert.Equal(t, "system", actorType)
+	assert.Equal(t, "casdoor-org-admin-sync", actorUserID)
 
-		var actorType, actorUserID string
-		require.NoError(t, postgres.Pool.QueryRow(ctx, `
-			SELECT actor_type, actor_user_id
-			FROM audit_events
-			WHERE resource_type = 'authorization_grant'
-			  AND resource_id = $1
-			  AND event_type = 'iam.authorization_grant.grant_requested'
-		`, fmt.Sprintf("%d", grant.ID)).Scan(&actorType, &actorUserID))
-		assert.Equal(t, "system", actorType)
-		assert.Equal(t, "authorization-bootstrap", actorUserID)
-	}
-
-	skipped, err := service.BootstrapSuperAdmins(ctx, BootstrapSuperAdminsInput{
-		SubjectUserIDs: []int64{firstID},
-		Reason:         "must not restore or duplicate",
+	unchanged, err := service.SyncCasdoorOrganizationAdmin(ctx, CasdoorOrganizationAdminSyncInput{
+		SubjectUserID:     userID,
+		OrganizationAdmin: true,
 	})
 	require.NoError(t, err)
-	assert.True(t, skipped.Skipped)
-	assert.Empty(t, skipped.Grants)
+	assert.False(t, unchanged.Changed)
+	assert.Equal(t, result.Grant.ID, unchanged.Grant.ID)
+}
+
+func TestAuthorizationSyncCasdoorOrganizationAdminRequeuesFailedProjection(t *testing.T) {
+	ctx := context.Background()
+	postgres := postgresfixture.Start(t)
+	service := NewService(NewRepository(postgres.DB))
+
+	userID := seedAuthorizationUser(t, postgres, "casdoor-organization-admin-retry")
+	granted, err := service.SyncCasdoorOrganizationAdmin(ctx, CasdoorOrganizationAdminSyncInput{
+		SubjectUserID:     userID,
+		OrganizationAdmin: true,
+	})
+	require.NoError(t, err)
+
+	markAuthorizationProjectionFailed(t, postgres, granted.Grant.ID)
+	retriedGrant, err := service.SyncCasdoorOrganizationAdmin(ctx, CasdoorOrganizationAdminSyncInput{
+		SubjectUserID:     userID,
+		OrganizationAdmin: true,
+	})
+	require.NoError(t, err)
+	assert.True(t, retriedGrant.Changed)
+	assert.Equal(t, granted.Grant.Revision+1, retriedGrant.Grant.Revision)
+	assert.Equal(t, DesiredGranted, retriedGrant.Grant.DesiredState)
+	assert.Equal(t, ProjectionPending, retriedGrant.Grant.ProjectionStatus)
+	assertAuthorizationOutboxRetryReset(t, postgres, granted.Grant.ID)
+	assertAuthorizationAuditCount(t, postgres, granted.Grant.ID, "provider_reconcile", 1)
+
+	revoked, err := service.SyncCasdoorOrganizationAdmin(ctx, CasdoorOrganizationAdminSyncInput{
+		SubjectUserID:     userID,
+		OrganizationAdmin: false,
+	})
+	require.NoError(t, err)
+	require.True(t, revoked.Changed)
+	markAuthorizationProjectionFailed(t, postgres, granted.Grant.ID)
+
+	retriedRevoke, err := service.SyncCasdoorOrganizationAdmin(ctx, CasdoorOrganizationAdminSyncInput{
+		SubjectUserID:     userID,
+		OrganizationAdmin: false,
+	})
+	require.NoError(t, err)
+	assert.True(t, retriedRevoke.Changed)
+	assert.Equal(t, revoked.Grant.Revision+1, retriedRevoke.Grant.Revision)
+	assert.Equal(t, DesiredRevoked, retriedRevoke.Grant.DesiredState)
+	assert.Equal(t, ProjectionPending, retriedRevoke.Grant.ProjectionStatus)
+	assertAuthorizationOutboxRetryReset(t, postgres, granted.Grant.ID)
+	assertAuthorizationAuditCount(t, postgres, granted.Grant.ID, "provider_reconcile", 2)
 }
 
 func TestAuthorizationGrantRevisionSupersedesPendingProjection(t *testing.T) {
@@ -457,7 +499,7 @@ func TestAuthorizationScheduledReconciliationStopsAboveDriftThreshold(t *testing
 	}
 }
 
-func TestAuthorizationPreventsRevokingLastAppliedSuperAdmin(t *testing.T) {
+func TestAuthorizationSuperAdminIsProviderManagedAndSingleAdminCanBeDemoted(t *testing.T) {
 	ctx := context.Background()
 	postgres := postgresfixture.Start(t)
 	repo := NewRepository(postgres.DB)
@@ -465,40 +507,68 @@ func TestAuthorizationPreventsRevokingLastAppliedSuperAdmin(t *testing.T) {
 	service := NewService(repo, WithProjectionClient(projector))
 
 	actorID := seedAuthorizationUser(t, postgres, "super-actor")
-	secondID := seedAuthorizationUser(t, postgres, "super-second")
 
 	first, err := service.CreateGrant(ctx, CreateGrantInput{
 		SubjectUserID: actorID,
 		Role:          RoleSuperAdmin,
-		Reason:        "bootstrap primary",
+		Reason:        "manual platform administrator",
 		ActorUserID:   actorID,
+	})
+	require.ErrorIs(t, err, ErrProviderManagedRole)
+	assert.Zero(t, first.Grant.ID)
+
+	first, err = service.SyncCasdoorOrganizationAdmin(ctx, CasdoorOrganizationAdminSyncInput{
+		SubjectUserID:     actorID,
+		OrganizationAdmin: true,
 	})
 	require.NoError(t, err)
 	require.NoError(t, service.ProcessProjectionBatch(ctx))
 
 	_, err = service.RevokeGrant(ctx, RevokeGrantInput{
 		GrantID:     first.Grant.ID,
-		Reason:      "must retain one administrator",
+		Reason:      "manual revoke is forbidden",
 		ActorUserID: actorID,
 	})
-	require.ErrorIs(t, err, ErrLastSuperAdmin)
+	require.ErrorIs(t, err, ErrProviderManagedRole)
 
-	second, err := service.CreateGrant(ctx, CreateGrantInput{
-		SubjectUserID: secondID,
-		Role:          RoleSuperAdmin,
-		Reason:        "establish redundant administrator",
-		ActorUserID:   actorID,
+	revoked, err := service.SyncCasdoorOrganizationAdmin(ctx, CasdoorOrganizationAdminSyncInput{
+		SubjectUserID:     actorID,
+		OrganizationAdmin: false,
 	})
 	require.NoError(t, err)
-	require.NoError(t, service.ProcessProjectionBatch(ctx))
-	assert.NotEqual(t, first.Grant.ID, second.Grant.ID)
-
-	_, err = service.RevokeGrant(ctx, RevokeGrantInput{
-		GrantID:     first.Grant.ID,
-		Reason:      "rotate primary administrator",
-		ActorUserID: actorID,
-	})
+	assert.True(t, revoked.Changed)
+	assert.Equal(t, DesiredRevoked, revoked.Grant.DesiredState)
+	snapshot, err := service.ResolveAccessSnapshotByUserID(ctx, actorID)
 	require.NoError(t, err)
+	assert.NotContains(t, snapshot.Roles, string(RoleSuperAdmin))
+}
+
+func TestAuthorizationGrantSourceConstraintRejectsMixedAuthorities(t *testing.T) {
+	ctx := context.Background()
+	postgres := postgresfixture.Start(t)
+	userID := seedAuthorizationUser(t, postgres, "authority-source-constraint")
+	schoolID := seedAuthorizationSchool(t, postgres, 4111010888)
+
+	_, err := postgres.Pool.Exec(ctx, `
+		INSERT INTO authorization_grants (subject_user_id, role, reason)
+		VALUES ($1, 'super_admin', 'manual source must be rejected')
+	`, userID)
+	require.Error(t, err)
+
+	_, err = postgres.Pool.Exec(ctx, `
+		INSERT INTO authorization_grants (
+			subject_user_id, role, source, school_id, reason
+		) VALUES ($1, 'school_admin', 'casdoor_org_admin', $2, 'provider source must be rejected')
+	`, userID, schoolID)
+	require.Error(t, err)
+
+	var count int
+	require.NoError(t, postgres.Pool.QueryRow(ctx, `
+		SELECT COUNT(*)
+		FROM authorization_grants
+		WHERE subject_user_id = $1
+	`, userID).Scan(&count))
+	assert.Zero(t, count)
 }
 
 func TestAuthorizationGrantTransactionRollsBackWhenAuditWriteFails(t *testing.T) {
@@ -509,12 +579,14 @@ func TestAuthorizationGrantTransactionRollsBackWhenAuditWriteFails(t *testing.T)
 
 	actorID := seedAuthorizationUser(t, postgres, "atomic-actor")
 	targetID := seedAuthorizationUser(t, postgres, "atomic-target")
+	schoolID := seedAuthorizationSchool(t, postgres, 4111010999)
 	_, err := postgres.Pool.Exec(ctx, `DROP TABLE audit_events`)
 	require.NoError(t, err)
 
 	_, err = service.CreateGrant(ctx, CreateGrantInput{
 		SubjectUserID: targetID,
-		Role:          RoleSuperAdmin,
+		Role:          RoleSchoolAdmin,
+		SchoolID:      &schoolID,
 		Reason:        "must roll back",
 		ActorUserID:   actorID,
 	})
@@ -531,19 +603,18 @@ func TestAuthorizationGrantTransactionRollsBackWhenAuditWriteFails(t *testing.T)
 	assert.Zero(t, count)
 }
 
-func TestAuthorizationBootstrapRollsBackEveryGrantWhenAuditWriteFails(t *testing.T) {
+func TestAuthorizationCasdoorAdminSyncRollsBackWhenAuditWriteFails(t *testing.T) {
 	ctx := context.Background()
 	postgres := postgresfixture.Start(t)
 	service := NewService(NewRepository(postgres.DB))
 
-	firstID := seedAuthorizationUser(t, postgres, "atomic-bootstrap-first")
-	secondID := seedAuthorizationUser(t, postgres, "atomic-bootstrap-second")
+	userID := seedAuthorizationUser(t, postgres, "atomic-casdoor-admin")
 	_, err := postgres.Pool.Exec(ctx, `DROP TABLE audit_events`)
 	require.NoError(t, err)
 
-	_, err = service.BootstrapSuperAdmins(ctx, BootstrapSuperAdminsInput{
-		SubjectUserIDs: []int64{firstID, secondID},
-		Reason:         "must roll back every initial administrator",
+	_, err = service.SyncCasdoorOrganizationAdmin(ctx, CasdoorOrganizationAdminSyncInput{
+		SubjectUserID:     userID,
+		OrganizationAdmin: true,
 	})
 	require.Error(t, err)
 
@@ -677,6 +748,60 @@ func assertAuthorizationOutboxStatus(
 	`, outbox.StreamIAMAuthorizationGrantProjection, projectionDedupeKey(grantID)).Scan(&status)
 	require.NoError(t, err)
 	assert.Equal(t, want, status)
+}
+
+func markAuthorizationProjectionFailed(
+	t *testing.T,
+	postgres *postgresfixture.Fixture,
+	grantID int64,
+) {
+	t.Helper()
+	grantTag, err := postgres.Pool.Exec(context.Background(), `
+		UPDATE authorization_grants
+		SET projection_status = 'failed',
+		    last_error = 'injected terminal projection failure',
+		    updated_at = NOW()
+		WHERE id = $1
+	`, grantID)
+	require.NoError(t, err)
+	require.Equal(t, int64(1), grantTag.RowsAffected())
+
+	outboxTag, err := postgres.Pool.Exec(context.Background(), `
+		UPDATE domain_event_outbox
+		SET status = 'dead_letter',
+		    attempt_count = 5,
+		    locked_at = NULL,
+		    locked_revision = NULL,
+		    last_error = 'injected terminal projection failure',
+		    updated_at = NOW()
+		WHERE stream = $1 AND dedupe_key = $2
+	`, outbox.StreamIAMAuthorizationGrantProjection, projectionDedupeKey(grantID))
+	require.NoError(t, err)
+	require.Equal(t, int64(1), outboxTag.RowsAffected())
+}
+
+func assertAuthorizationOutboxRetryReset(
+	t *testing.T,
+	postgres *postgresfixture.Fixture,
+	grantID int64,
+) {
+	t.Helper()
+	var status string
+	var attempts int
+	var lastError *string
+	err := postgres.Pool.QueryRow(context.Background(), `
+		SELECT status, attempt_count, last_error
+		FROM domain_event_outbox
+		WHERE stream = $1 AND dedupe_key = $2
+	`, outbox.StreamIAMAuthorizationGrantProjection, projectionDedupeKey(grantID)).Scan(
+		&status,
+		&attempts,
+		&lastError,
+	)
+	require.NoError(t, err)
+	assert.Equal(t, outbox.StatusPending, status)
+	assert.Zero(t, attempts)
+	assert.Nil(t, lastError)
 }
 
 func assertAuthorizationAuditCount(

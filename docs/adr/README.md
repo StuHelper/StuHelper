@@ -3,7 +3,7 @@ type: reference
 audience: all
 status: current
 authoritative-source: this file
-last-verified: 2026-04-25
+last-verified: 2026-08-01
 ---
 
 # 架构决策记录
@@ -22,4 +22,5 @@ last-verified: 2026-04-25
 | [0005](0005-uniappx-shadow-file-cleanup.md) | 清理 UniApp X 的 `.js` 阴影文件并加 CI 守卫 | 已采纳 | 2026-04-16 |
 | [0006](0006-koishi-core-ui-as-single-webui-entry.md) | 保留 stuhelper-core 作为唯一 Koishi WebUI 入口 | 已采纳 | 2026-04-25 |
 | [0007](0007-casdoor-as-sole-identity-provider.md) | Casdoor 作为唯一身份提供方，不采用 Zitadel / Keycloak | 已采纳 | 2026-05-01 |
-| [0008](0008-postgresql-authorization-control-plane.md) | PostgreSQL 授权控制面与 OpenFGA 运行时判定面 | 已采纳 | 2026-07-31 |
+| [0008](0008-postgresql-authorization-control-plane.md) | PostgreSQL 授权控制面与 OpenFGA 运行时判定面 | 已采纳；部分由 0009 修订 | 2026-07-31 |
+| [0009](0009-casdoor-organization-admin-super-admin-authority.md) | Casdoor 组织管理员作为 StuHelper `super_admin` 权威 | 已采纳 | 2026-08-01 |

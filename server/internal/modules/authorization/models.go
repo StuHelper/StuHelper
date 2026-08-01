@@ -15,6 +15,13 @@ const (
 	RoleSectionReviewer  Role = "section_reviewer"
 )
 
+type GrantSource string
+
+const (
+	GrantSourceManual                   GrantSource = "manual"
+	GrantSourceCasdoorOrganizationAdmin GrantSource = "casdoor_org_admin"
+)
+
 type DesiredState string
 
 const (
@@ -41,7 +48,7 @@ var (
 	ErrTargetUserNotFound  = errors.New("authorization target user not found")
 	ErrActorUserNotFound   = errors.New("authorization actor user not found")
 	ErrSchoolNotFound      = errors.New("authorization scope school not found")
-	ErrLastSuperAdmin      = errors.New("cannot revoke the last active super admin")
+	ErrProviderManagedRole = errors.New("authorization role is managed by the identity provider")
 	ErrProjectionStale     = errors.New("authorization projection revision is stale")
 	ErrProjectionMalformed = errors.New("authorization projection payload is malformed")
 	ErrReconciliationLimit = errors.New("authorization projection reconciliation threshold exceeded")
@@ -51,6 +58,7 @@ type Grant struct {
 	ID                 int64
 	SubjectUserID      int64
 	Role               Role
+	Source             GrantSource
 	SchoolID           *int64
 	SectionID          *string
 	DesiredState       DesiredState
@@ -76,6 +84,7 @@ type CreateGrantInput struct {
 	SectionID     *string
 	Reason        string
 	ActorUserID   int64
+	Source        GrantSource
 }
 
 type RevokeGrantInput struct {
@@ -99,14 +108,9 @@ type ReconcileAllResult struct {
 	Queued int
 }
 
-type BootstrapSuperAdminsInput struct {
-	SubjectUserIDs []int64
-	Reason         string
-}
-
-type BootstrapSuperAdminsResult struct {
-	Grants  []Grant
-	Skipped bool
+type CasdoorOrganizationAdminSyncInput struct {
+	SubjectUserID     int64
+	OrganizationAdmin bool
 }
 
 type ListGrantsFilter struct {

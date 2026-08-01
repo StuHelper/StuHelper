@@ -3,7 +3,7 @@ type: design
 audience: backend-dev
 status: current
 authoritative-source: server/migrations/ + server/internal/modules/authorization/ + server/internal/pkg/capability/ + design/openfga-model.fga
-last-verified: 2026-07-31
+last-verified: 2026-08-01
 ---
 
 # 授权模型
@@ -12,12 +12,16 @@ last-verified: 2026-07-31
 
 ## 三层授权
 
-1. **授权快照** — PostgreSQL 授权账本提供管理员 role/scope，业务表派生
-   `verified_student` / `freshman_provisional`，认证用户隐式拥有 `user`
+1. **授权快照** — PostgreSQL 授权账本提供管理员 role/scope；其中 `super_admin` 是 Casdoor
+   StuHelper organization `IsAdmin` 的持久 serving projection，`school_admin` / `section_*`
+   由 StuHelper 管理面维护；业务表派生 `verified_student` / `freshman_provisional`，认证用户
+   隐式拥有 `user`
 2. **能力（Capability）** — 后端把该快照中的角色静态展开为能力字符串
 3. **业务事实 + OpenFGA** — 结合应用数据库状态、撤权栅栏和资源关系做最终判断
 
-Casdoor 只认证主体。JWT `roles` claim 即使存在，也不参与以上任何一层的 allow/deny。
+Casdoor JWT `roles` claim 即使存在，也不参与以上任何一层的 allow/deny。唯一例外是服务端通过
+Casdoor management API 读取目标 organization 用户对象的 `IsAdmin`：它是 `super_admin` 的
+管理权威，经过组织、禁用与删除状态校验后原子同步到授权账本。
 
 ## 角色到能力
 
@@ -31,6 +35,10 @@ Casdoor 只认证主体。JWT `roles` claim 即使存在，也不参与以上任
 业务事实合成快照。OpenFGA tuple 中的 `user:<id>` 必须使用内部 `users.id`，不能使用
 Casdoor subject。`school_admin` 的评课/举报管理能力是 school-scoped grant，handler 仍需
 按 review/report 的学校归属做资源边界校验。
+
+如果当前 DB 快照含 `super_admin`，受保护请求还会实时复核 Casdoor `IsAdmin`。复核失败时
+fail-closed；若已被降权，先写 DB revoke 围栏并重载快照，再异步删除 OpenFGA tuple。Casdoor
+晋升则在下次登录或 refresh 时建立 grant，且须等待首次 verified projection 后生效。
 
 课程评课列表、最新评课、搜索与批量读取等 optional-auth 公共接口只把
 `GlobalCapabilities` 中的 `admin:reviews:manage` 解释为平台级完整正文权限。带学校或

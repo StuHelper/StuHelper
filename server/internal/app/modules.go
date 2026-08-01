@@ -63,7 +63,15 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 		authorizationmodule.WithProjectionClient(fgaClient),
 	)
 	authorizationService.StartBackgroundJobs(bgCtx, startBackgroundTask)
-	authorizationIdentity := newAuthorizationIdentityAdapter(userRepo, authorizationService)
+	oidcSubjectValidator, err := rt.initOIDCSubjectValidator()
+	if err != nil {
+		return err
+	}
+	authorizationIdentity := newAuthorizationIdentityAdapter(
+		userRepo,
+		authorizationService,
+		oidcSubjectValidator,
+	)
 	authorizationHandler := authorizationmodule.NewHandler(
 		authorizationService,
 		authorizationAdminAuthorizers(),
@@ -73,6 +81,8 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 		api,
 		bgCtx,
 		piiCipher,
+		authorizationIdentity,
+		oidcSubjectValidator,
 		authorizationIdentity,
 	)
 	if err != nil {

@@ -91,8 +91,8 @@ SQL 只写在 Repository，业务判断只放在 Service，响应统一通过 `r
 
 ## 授权模型
 
-1. **Casdoor** — 只证明身份、会话与登录层 MFA；provider role claim 不参与授权
-2. **PostgreSQL 授权账本** — `authorization_grants` 是管理员 role/scope 唯一管理真源
+1. **Casdoor** — 证明身份、会话与登录层 MFA；目标 StuHelper 组织用户对象的 `IsAdmin` 是 `super_admin` 的唯一管理权威，普通 provider `roles` claim 不参与授权
+2. **PostgreSQL 授权账本** — `authorization_grants` 是 `school_admin` / `section_*` 的管理真源，同时保存 Casdoor 组织管理员到 `super_admin` 的可审计 serving projection
 3. **Capability** — 从 DB-derived access snapshot 静态展开功能权限
 4. **OpenFGA** — DB 可重建的资源关系运行时投影（谁能操作哪条 review/report）
 

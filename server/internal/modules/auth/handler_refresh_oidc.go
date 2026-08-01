@@ -27,6 +27,7 @@ type oidcRefreshPayload struct {
 	userID               string
 	accessTokenExpiresAt int64
 	userSync             UserSyncInput
+	organizationAdmin    bool
 }
 
 type oidcSessionRotation struct {
@@ -150,6 +151,26 @@ func (h *Handler) fetchOIDCRefreshPayload(c *gin.Context, appKey, oldRefreshToke
 		response.InternalError(c, "failed to refresh token")
 		return oidcRefreshPayload{}, false
 	}
+	organizationAdmin := false
+	if h.oidcSubjectValidator != nil {
+		organizationAdmin, err = h.oidcSubjectValidator.ValidateOIDCSubject(
+			c.Request.Context(),
+			newClaims.GetUserID(),
+		)
+		if err != nil {
+			logger.FromGin(c).Warn("OIDC subject validation failed during refresh",
+				zap.String("user_id", newClaims.GetUserID()),
+				zap.Error(err),
+			)
+			if errors.Is(err, oidc.ErrProviderUnavailable) {
+				response.ServiceUnavailable(c, "refresh service temporarily unavailable")
+				return oidcRefreshPayload{}, false
+			}
+			h.clearTokenCookies(c)
+			response.Unauthorized(c, "failed to refresh token", errs.ErrOAuthFailed)
+			return oidcRefreshPayload{}, false
+		}
+	}
 	revokeUncommittedRefresh = false
 	return oidcRefreshPayload{
 		rawIDToken:           rawIDToken,
@@ -157,6 +178,7 @@ func (h *Handler) fetchOIDCRefreshPayload(c *gin.Context, appKey, oldRefreshToke
 		refreshToken:         newToken.RefreshToken,
 		userID:               newClaims.GetUserID(),
 		accessTokenExpiresAt: newClaims.ExpiresAt,
+		organizationAdmin:    organizationAdmin,
 		userSync: UserSyncInput{
 			CasdoorSubject: newClaims.GetUserID(),
 			Username:       newClaims.GetUsername(),
@@ -173,7 +195,7 @@ func (h *Handler) syncOIDCRefreshUser(
 	oldRefreshToken string,
 	payload oidcRefreshPayload,
 ) bool {
-	if err := h.svc.SyncOIDCUser(c.Request.Context(), payload.userSync); err != nil {
+	if err := h.syncOIDCIdentity(c.Request.Context(), payload.userSync, payload.organizationAdmin); err != nil {
 		h.revokeIssuedProviderTokenFamily(
 			c,
 			appKey,

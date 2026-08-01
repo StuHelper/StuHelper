@@ -1,12 +1,26 @@
 AuthorizationRole:
   type: string
-  description: StuHelper 固定管理员角色；角色与 scope 组合由服务端白名单校验。
+  description: StuHelper 固定管理员角色；super_admin 由 Casdoor 组织管理员投影，其他角色与 scope 由服务端白名单校验。
   enum:
     - super_admin
     - school_admin
     - section_admin
     - section_moderator
     - section_reviewer
+
+AssignableAuthorizationRole:
+  type: string
+  description: 可由 StuHelper 管理 API 人工授予的 scoped 业务管理员角色；不包含 Casdoor 托管的 super_admin。
+  enum:
+    - school_admin
+    - section_admin
+    - section_moderator
+    - section_reviewer
+
+AuthorizationGrantSource:
+  type: string
+  description: 授权权威来源；super_admin 来自 Casdoor organization user.isAdmin，其余角色由 StuHelper 人工管理。
+  enum: [casdoor_org_admin, manual]
 
 AuthorizationDesiredState:
   type: string
@@ -26,6 +40,7 @@ AuthorizationGrant:
     - subjectUsername
     - subjectDisplayName
     - role
+    - source
     - desiredState
     - projectionStatus
     - revision
@@ -47,6 +62,8 @@ AuthorizationGrant:
       type: string
     role:
       $ref: '#/AuthorizationRole'
+    source:
+      $ref: '#/AuthorizationGrantSource'
     schoolID:
       type: integer
       format: int64
@@ -111,12 +128,12 @@ CreateAuthorizationGrantRequest:
       format: int64
       minimum: 1
     role:
-      $ref: '#/AuthorizationRole'
+      $ref: '#/AssignableAuthorizationRole'
     schoolID:
       type: integer
       format: int64
       minimum: 1
-      description: school_admin 与 section_* 角色必填；super_admin 不得提供。
+      description: 所有可人工授予的角色均必填。
     sectionID:
       type: string
       minLength: 1

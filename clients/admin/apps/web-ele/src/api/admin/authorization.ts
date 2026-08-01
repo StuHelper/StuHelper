@@ -9,6 +9,8 @@ const adminApi = createAdminApi(sharedApiClient);
 
 export type AuthorizationGrant = components['schemas']['AuthorizationGrant'];
 export type AuthorizationRole = components['schemas']['AuthorizationRole'];
+export type AssignableAuthorizationRole =
+  components['schemas']['AssignableAuthorizationRole'];
 export type AuthorizationDesiredState =
   components['schemas']['AuthorizationDesiredState'];
 export type AuthorizationProjectionStatus =

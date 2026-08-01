@@ -16,12 +16,16 @@ func normalizeCreateGrantInput(input CreateGrantInput) (CreateGrantInput, error)
 	if err := validateReason(input.Reason); err != nil {
 		return CreateGrantInput{}, err
 	}
+	if input.Source == "" {
+		input.Source = GrantSourceManual
+	}
+	if input.Source != GrantSourceManual {
+		return CreateGrantInput{}, ErrInvalidGrant
+	}
 
 	switch input.Role {
 	case RoleSuperAdmin:
-		if input.SchoolID != nil || input.SectionID != nil {
-			return CreateGrantInput{}, fmt.Errorf("%w: super_admin must be global", ErrInvalidGrant)
-		}
+		return CreateGrantInput{}, ErrProviderManagedRole
 	case RoleSchoolAdmin:
 		if !validPositiveID(input.SchoolID) || input.SectionID != nil {
 			return CreateGrantInput{}, fmt.Errorf("%w: school_admin requires exactly one school", ErrInvalidGrant)
@@ -75,29 +79,12 @@ func normalizeReconcileAllInput(input ReconcileAllInput) (ReconcileAllInput, err
 	return input, nil
 }
 
-func normalizeBootstrapSuperAdminsInput(
-	input BootstrapSuperAdminsInput,
-) (BootstrapSuperAdminsInput, error) {
-	input.Reason = strings.TrimSpace(input.Reason)
-	if err := validateReason(input.Reason); err != nil {
-		return BootstrapSuperAdminsInput{}, err
+func normalizeCasdoorOrganizationAdminSyncInput(
+	input CasdoorOrganizationAdminSyncInput,
+) (CasdoorOrganizationAdminSyncInput, error) {
+	if input.SubjectUserID <= 0 {
+		return CasdoorOrganizationAdminSyncInput{}, ErrInvalidGrant
 	}
-	if len(input.SubjectUserIDs) == 0 {
-		return BootstrapSuperAdminsInput{}, ErrInvalidGrant
-	}
-	seen := make(map[int64]struct{}, len(input.SubjectUserIDs))
-	normalized := make([]int64, 0, len(input.SubjectUserIDs))
-	for _, userID := range input.SubjectUserIDs {
-		if userID <= 0 {
-			return BootstrapSuperAdminsInput{}, ErrInvalidGrant
-		}
-		if _, ok := seen[userID]; ok {
-			continue
-		}
-		seen[userID] = struct{}{}
-		normalized = append(normalized, userID)
-	}
-	input.SubjectUserIDs = normalized
 	return input, nil
 }
 

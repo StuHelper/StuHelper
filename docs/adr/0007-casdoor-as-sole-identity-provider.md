@@ -3,7 +3,7 @@ type: adr
 audience: maintainers, backend-dev, ops
 status: current
 authoritative-source: server/internal/platform/casdoor + server/internal/pkg/oidc
-last-verified: 2026-07-30
+last-verified: 2026-08-01
 ---
 
 # ADR-0007: Casdoor 作为唯一身份提供方
@@ -26,16 +26,19 @@ Casdoor 是唯一身份提供方，部署在 `sso.stuhelper.com`，作为公开 
 
 切换性质为绿地架构：不做兼容数据迁移，历史 external subject、session 与 token 全部失效。
 
-Casdoor 的职责严格限定在身份侧。业务授权不经过 Casdoor：
+Casdoor 的主要职责在身份侧；ADR-0009 为最高管理员增加一个窄授权例外：
 
 - Casdoor 提供主体认证、会话、token 签发和登录层 MFA 证据。
 - 业务事实（实名认证、学生认证、学校归属、QQ 绑定、资源归属）以 StuHelper 数据库为准。
-- 管理员角色及 scope 以 PostgreSQL 授权账本为唯一管理真源，资源关系投影到 OpenFGA。
+- 目标 StuHelper organization 用户对象的 `IsAdmin` 是 `super_admin` 的管理权威，
+  PostgreSQL 保存其 serving projection；管理员 school/section role 与 scope 仍以 PostgreSQL
+  授权账本为唯一管理真源，资源关系投影到 OpenFGA。
 - Casdoor 中的业务 role claim 和 role membership 不参与 StuHelper allow/deny。
 - 这些事实由 Authorization Service 组合，作为业务模块的唯一授权入口。
 
 禁止向业务模块暴露 Casdoor 的 Casbin、Enforce 或 GetPermissions 能力。
-授权控制面的完整决策见 [ADR-0008](0008-postgresql-authorization-control-plane.md)。
+授权控制面的完整决策见 [ADR-0008](0008-postgresql-authorization-control-plane.md)，
+`super_admin` 例外见 [ADR-0009](0009-casdoor-organization-admin-super-admin-authority.md)。
 
 ## Alternatives Considered
 
@@ -52,8 +55,9 @@ Casdoor 的职责严格限定在身份侧。业务授权不经过 Casdoor：
 ## Consequences
 
 ### Positive
-- 身份层与授权层边界清晰：IDP 只管身份，授权决策集中在 Authorization Service。
-- IdP token 不再承载 StuHelper 授权事实，角色与作用域来自可审计的数据库账本。
+- 身份层与授权层边界清晰：普通 IdP role/claim 不进入授权；只有目标 organization
+  `IsAdmin` 经服务端校验和 DB 投影后可产生 `super_admin`。
+- IdP token 不承载 StuHelper 授权事实；scoped 角色与作用域来自可审计的数据库账本。
 - 公开 OIDC issuer 与业务开放平台职责分离。
 
 ### Negative

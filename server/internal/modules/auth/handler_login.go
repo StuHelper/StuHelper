@@ -170,17 +170,18 @@ func (h *Handler) handleWebCallback(c *gin.Context, ctx context.Context, input w
 		response.InternalError(c, "authentication failed")
 		return
 	}
-	if !h.validateOIDCSubjectForLogin(c, ctx, claims, input.requestID, "oidc subject organization mismatch") {
+	organizationAdmin, ok := h.validateOIDCSubjectForLogin(c, ctx, claims, input.requestID, "oidc subject organization mismatch")
+	if !ok {
 		return
 	}
 
 	// 同步本地 shadow user；登录成功必须意味着内部主体已经就绪。
-	if syncErr := h.svc.SyncOIDCUser(ctx, UserSyncInput{
+	if syncErr := h.syncOIDCIdentity(ctx, UserSyncInput{
 		CasdoorSubject: claims.GetUserID(),
 		Username:       claims.GetUsername(),
 		Email:          claims.GetEmail(),
 		AvatarURL:      claims.GetAvatar(),
-	}); syncErr != nil {
+	}, organizationAdmin); syncErr != nil {
 		logger.FromGin(c).Error("user sync failed",
 			zap.String("user_id", claims.GetUserID()),
 			zap.Error(syncErr),
@@ -628,17 +629,18 @@ func (h *Handler) ExchangeNative(c *gin.Context) {
 		response.InternalError(c, "authentication failed")
 		return
 	}
-	if !h.validateOIDCSubjectForLogin(c, ctx, claims, requestID, "native oidc subject organization mismatch") {
+	organizationAdmin, ok := h.validateOIDCSubjectForLogin(c, ctx, claims, requestID, "native oidc subject organization mismatch")
+	if !ok {
 		return
 	}
 
 	// 同步本地 shadow user
-	if syncErr := h.svc.SyncOIDCUser(ctx, UserSyncInput{
+	if syncErr := h.syncOIDCIdentity(ctx, UserSyncInput{
 		CasdoorSubject: claims.GetUserID(),
 		Username:       claims.GetUsername(),
 		Email:          claims.GetEmail(),
 		AvatarURL:      claims.GetAvatar(),
-	}); syncErr != nil {
+	}, organizationAdmin); syncErr != nil {
 		logger.FromGin(c).Error("native exchange: user sync failed",
 			zap.String("user_id", claims.GetUserID()), zap.Error(syncErr))
 		audit.LogFailureContext(ctx, audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, "user sync failed")

@@ -33,7 +33,7 @@ last-verified: 2026-07-31
 | 通知 | `notification*` | [product-specs/notification.md](../product-specs/notification.md) |
 | Admission 机器人动作 | `admission_bot_action_outbox` | [design/koishi-admission-verification.md](../design/koishi-admission-verification.md) |
 | 开放平台 | `open_platform_*` | [design/open-platform-v1.md](../design/open-platform-v1.md) |
-| 管理授权 | `authorization_grants` | [ADR-0008](../adr/0008-postgresql-authorization-control-plane.md) |
+| 管理授权 | `authorization_grants`（scoped role 管理真源；Casdoor `super_admin` serving projection） | [ADR-0008](../adr/0008-postgresql-authorization-control-plane.md) / [ADR-0009](../adr/0009-casdoor-organization-admin-super-admin-authority.md) |
 | 审计与 outbox | `audit_events`、`domain_event_outbox` | [product-specs/audit-logging.md](../product-specs/audit-logging.md) |
 
 ## 设计约束（不改文档能看出来的除外）

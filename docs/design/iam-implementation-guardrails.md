@@ -3,7 +3,7 @@ type: design
 audience: backend-dev, ops
 status: current
 authoritative-source: server/internal/modules/auth/ + server/internal/modules/authorization/ + server/internal/platform/authorization/ + server/internal/pkg/fga/ + server/internal/pkg/outbox/ + server/internal/pkg/audit/
-last-verified: 2026-07-31
+last-verified: 2026-08-01
 ---
 
 # IAM 实施守卫
@@ -33,11 +33,18 @@ last-verified: 2026-07-31
   移除已泄漏的已知 key，先在 provider 撤下该 key、撤销受影响 session，再滚动重启 API
   verifier；不要靠任意分钟数的应用侧 TTL 猜测撤权窗口。
 
-## 授权账本与 OpenFGA 投影
+## 授权权威、账本与 OpenFGA 投影
 
-PostgreSQL `authorization_grants` 是 `super_admin`、`school_admin` 与 `section_*` 人员授权的
-唯一管理真源。Casdoor `roles` claim、Casdoor role membership、`/userinfo`、introspection
-和旧 access/ID token 均不得创建、续期、撤销或恢复 StuHelper 授权。
+授权权威按角色拆分，禁止把两个来源混成同一个泛化的 role claim 模型：
+
+- `super_admin` 的唯一管理权威是 Casdoor **目标 StuHelper organization 的用户对象**：
+  `Owner == CASDOOR_ORGANIZATION`、`IsAdmin == true`，且用户未被 forbidden/deleted；
+- PostgreSQL `authorization_grants` 保存上述事实的持久、可审计 serving projection，
+  `source=casdoor_org_admin`；它不是一个可由 StuHelper 管理 API 独立修改的第二权威；
+- `school_admin` 与 `section_*` 的唯一管理真源仍是 PostgreSQL 授权账本，
+  `source=manual`；
+- Casdoor JWT `roles` claim、普通 Casdoor role membership、`/userinfo` 或 introspection 中的
+  role 列表仍不得创建、续期、撤销或恢复任何 StuHelper 授权。
 
 - grant/revoke 必须在同一 DB 事务写 desired state、`audit_events` 与
   `domain_event_outbox`；任一步失败整体回滚；
@@ -57,10 +64,35 @@ PostgreSQL `authorization_grants` 是 `super_admin`、`school_admin` 与 `sectio
   pending 或实际不一致的 grant。超过修复阈值必须告警并停止自动修复；未知 tuple 不自动
   导入或删除。全量 rebuild 必须走受 `iam:grants:manage` 与 step-up MFA 保护的受审计 API；
 - mutation 只接受 ADR-0008 固定的 role/scope 组合，不提供任意 tuple 写入 API；
-- 最后一名 active `super_admin` 不得撤销，判断和 mutation 必须处于同一加锁事务。
-- 生产首次 bootstrap 至少要求两名已存在于 `users` 的目标，并在一个 DB 事务中以 system
-  actor 写全部 grant、审计和 outbox；任何一项失败全部回滚。账本已有 desired
-  `super_admin` 时必须整体跳过，日常部署不得自动复活已撤销主体。
+- StuHelper grant API 必须拒绝手工创建或撤销 `super_admin`；管理员应在 Casdoor 的目标
+  organization 中修改 `IsAdmin`，不使用 Casdoor role membership 替代；
+- Web OIDC callback、native callback 与 refresh 必须通过服务端 Casdoor user lookup 同步当前
+  `IsAdmin` 状态，并在同一 DB 事务写 grant/revoke、system audit 与 outbox；同步失败不得发放
+  新 session/token；
+- 若当前 `IsAdmin` 与 DB desired state 已一致，但 provider-managed grant 的
+  `projection_status=failed`，同一同步路径必须通过既有 reconcile 逻辑增加 revision、清除终止
+  错误、重排 outbox 并写 system audit；不得把“provider 状态没变”误判为无需恢复；
+- DB 快照中已有 `super_admin` 的受保护请求必须实时复核 Casdoor 用户状态。Casdoor 不可用时
+  fail-closed；检测到降权时先提交 DB revoke 围栏并重载快照，再由 outbox 异步删除 tuple；
+- Casdoor user lookup 的依赖故障必须返回 503，不得伪装成主体无效的 401；refresh 在该故障下
+  不得清除现有客户端 session cookie。跨 organization、主体不存在或其他身份校验失败仍按
+  不可信身份拒绝，不能借 503 分类放宽校验；
+- Casdoor 晋升对既有 StuHelper session 不承诺瞬时生效：用户需重新登录或 refresh；新 grant
+  只有在 OpenFGA verified projection 后才进入 access snapshot；
+- Casdoor 降权可以撤销最后一个 `super_admin`。系统不要求第二个管理员，也不以“防锁死”为由
+  覆盖 owner 在身份平面的明确决定；恢复路径是在 Casdoor 中重新设置组织管理员后登录/refresh。
+
+## 特权 MFA 管理
+
+`super_admin` 的 MFA reset 是单人授权操作，不是双人审批流程。实现中不得重新引入第二名
+`super_admin`、reviewer user ID、reviewer role 或“至少两个管理员”作为 reset 前置条件。
+
+- reset 操作者可以与目标用户相同，但请求仍必须通过对应 capability、最近 step-up MFA、目标角色
+  校验与完整安全审计；不得因为取消 reviewer 就绕过这些现有门禁；
+- `super_admin` 主动 disable 自己 MFA 与 reset 是不同风险动作：自行 disable 的禁令继续保留；
+- reset / disable 的成功、拒绝与失败都必须记录 actor、target、目标角色、action、结果和原因，不记录
+  factor secret、recovery code 或 token；
+- 项目允许只有一个或暂时没有 `super_admin`，MFA 逻辑不得以本地管理员数量改变上述语义。
 
 ## School / Section Scope 完整性
 
@@ -151,13 +183,15 @@ WHERE id IN (
 
 ## Scope 术语
 
-Casdoor JWT role claim 不解析、不参与 StuHelper 授权。角色和学校/资源范围来自 PostgreSQL
-授权账本，OpenFGA 只承载可重建的运行时关系投影。
+Casdoor JWT role claim 不解析、不参与 StuHelper 授权。`super_admin` 只来自目标 organization
+用户对象的 `IsAdmin`，并投影到 PostgreSQL；其余角色和学校/资源范围来自 PostgreSQL 授权
+账本。OpenFGA 只承载可重建的运行时关系投影。
 
 - 新代码使用 `school scope`、`section scope`、`ScopeSchoolIDs`、`ScopeSectionIDs` 和
   `ScopedRoleGrants`；
 - `org` / `OrgScopedRoles` 属于历史 Zitadel 语义，运行时接口已经移除；OIDC 负向测试可以
   保留旧 claim 样例，用于证明 provider scope 不会进入授权上下文；
 - 新业务授权必须通过 `CapabilityGrants`、DB 业务事实和 OpenFGA 资源关系表达；
-- 禁止新增从 OIDC claim 解析 role、school 或 resource scope 的逻辑；
+- 禁止新增从 OIDC claim 解析 role、school 或 resource scope 的逻辑；Casdoor `IsAdmin` 必须
+  通过受限的服务端 user lookup 读取，并校验 organization owner 与禁用/删除状态；
 - `/auth/me`、后台导航和 API middleware 必须使用同一份 DB-derived access snapshot。

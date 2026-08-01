@@ -207,13 +207,30 @@ func (failingOIDCUserSyncRepo) ExistsByCasdoorSubject(context.Context, string) (
 }
 
 type fakeOIDCSubjectValidator struct {
-	gotSubject string
-	err        error
+	gotSubject        string
+	organizationAdmin bool
+	err               error
 }
 
-func (v *fakeOIDCSubjectValidator) ValidateOIDCSubject(_ context.Context, subject string) error {
+func (v *fakeOIDCSubjectValidator) ValidateOIDCSubject(_ context.Context, subject string) (bool, error) {
 	v.gotSubject = subject
-	return v.err
+	return v.organizationAdmin, v.err
+}
+
+type recordingOrganizationAdminSynchronizer struct {
+	gotSubject        string
+	organizationAdmin bool
+	err               error
+}
+
+func (s *recordingOrganizationAdminSynchronizer) SyncCasdoorOrganizationAdmin(
+	_ context.Context,
+	providerSubject string,
+	organizationAdmin bool,
+) error {
+	s.gotSubject = providerSubject
+	s.organizationAdmin = organizationAdmin
+	return s.err
 }
 
 func TestHandleWebCallback_Success(t *testing.T) {
@@ -262,6 +279,54 @@ func TestHandleWebCallback_Success(t *testing.T) {
 	require.NotNil(t, session)
 	assert.Greater(t, session.AccessTokenExpiresAt, time.Now().Add(59*time.Minute).Unix())
 	assert.LessOrEqual(t, session.AccessTokenExpiresAt, time.Now().Add(time.Hour).Unix())
+}
+
+func TestHandleWebCallbackProjectsCasdoorOrganizationAdmin(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h, _ := newOIDCTestHandler(t, &recordingUserSyncRepo{})
+	h.oidcSubjectValidator = &fakeOIDCSubjectValidator{organizationAdmin: true}
+	syncer := &recordingOrganizationAdminSynchronizer{}
+	h.organizationAdminSync = syncer
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/auth/callback", nil)
+
+	h.handleWebCallback(c, c.Request.Context(), webCallbackInput{
+		code:         "code-1",
+		redirect:     "/dashboard",
+		codeVerifier: "verifier-1",
+		application:  oidcpkg.ApplicationWeb,
+		requestID:    "request-1",
+	})
+
+	require.Equal(t, http.StatusFound, w.Code, w.Body.String())
+	assert.Equal(t, "oidc-user-1", syncer.gotSubject)
+	assert.True(t, syncer.organizationAdmin)
+}
+
+func TestHandleWebCallbackFailsClosedWhenOrganizationAdminProjectionFails(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h, _ := newOIDCTestHandler(t, &recordingUserSyncRepo{})
+	h.oidcSubjectValidator = &fakeOIDCSubjectValidator{organizationAdmin: true}
+	h.organizationAdminSync = &recordingOrganizationAdminSynchronizer{
+		err: errors.New("authorization projection unavailable"),
+	}
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/auth/callback", nil)
+
+	h.handleWebCallback(c, c.Request.Context(), webCallbackInput{
+		code:         "code-1",
+		redirect:     "/dashboard",
+		codeVerifier: "verifier-1",
+		application:  oidcpkg.ApplicationWeb,
+		requestID:    "request-1",
+	})
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Empty(t, w.Header().Get("Location"))
 }
 
 func TestHandleWebCallbackInvalidRolesClaimDoesNotAffectIdentitySync(t *testing.T) {
@@ -321,6 +386,29 @@ func TestHandleWebCallback_RejectsSubjectValidationFailure(t *testing.T) {
 	assertNoIssuedTokenCookies(t, w)
 }
 
+func TestHandleWebCallback_SubjectLookupUnavailableReturns503(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h, repo := newOIDCTestHandler(t, &recordingUserSyncRepo{})
+	h.oidcSubjectValidator = &fakeOIDCSubjectValidator{err: oidcpkg.ErrProviderUnavailable}
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/auth/callback", nil)
+
+	h.handleWebCallback(c, c.Request.Context(), webCallbackInput{
+		code:         "code-1",
+		redirect:     "/dashboard",
+		codeVerifier: "verifier-1",
+		application:  oidcpkg.ApplicationWeb,
+		requestID:    "request-1",
+	})
+
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+	assert.Empty(t, repo.upsertInput.CasdoorSubject)
+	assert.Empty(t, w.Header().Get("Location"))
+	assertNoIssuedTokenCookies(t, w)
+}
+
 func TestHandleWebCallback_RejectsTokenForDifferentAuthorizedParty(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	provider := newFakeOIDCProviderWithTokenPayloadForClaims(t,
@@ -360,6 +448,9 @@ func TestHandleWebCallback_RejectsTokenForDifferentAuthorizedParty(t *testing.T)
 func TestRefreshOIDCToken_Success(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	h, repo := newOIDCTestHandler(t, &recordingUserSyncRepo{})
+	h.oidcSubjectValidator = &fakeOIDCSubjectValidator{organizationAdmin: true}
+	syncer := &recordingOrganizationAdminSynchronizer{}
+	h.organizationAdminSync = syncer
 	ctx := context.Background()
 
 	_, err := h.svc.CreateSession(ctx, "sid-oidc-refresh", "oidc-user-1", "old-access-token", "old-refresh-token", "oidc", "browser")
@@ -409,6 +500,82 @@ func TestRefreshOIDCToken_Success(t *testing.T) {
 		Email:          "oidc@example.com",
 		AvatarURL:      &avatarURL,
 	}, repo.upsertInput)
+	assert.Equal(t, "oidc-user-1", syncer.gotSubject)
+	assert.True(t, syncer.organizationAdmin)
+}
+
+func TestRefreshOIDCToken_OrganizationAdminSyncFailureDoesNotRotateSession(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h, _ := newOIDCTestHandler(t, &recordingUserSyncRepo{})
+	h.oidcSubjectValidator = &fakeOIDCSubjectValidator{organizationAdmin: true}
+	h.organizationAdminSync = &recordingOrganizationAdminSynchronizer{
+		err: errors.New("authorization projection unavailable"),
+	}
+	ctx := context.Background()
+
+	_, err := h.svc.CreateSession(
+		ctx,
+		"sid-oidc-admin-sync-fail",
+		"oidc-user-1",
+		"old-access-token",
+		"old-refresh-token",
+		"oidc",
+		"browser",
+	)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/refresh", nil)
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "sid-oidc-admin-sync-fail"})
+	c.Request = req
+
+	ok := h.refreshOIDCToken(c, "old-refresh-token", false)
+
+	require.False(t, ok)
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assertNoIssuedTokenCookies(t, w)
+	session, err := h.tokenService.GetSessionStore().Get(ctx, "sid-oidc-admin-sync-fail")
+	require.NoError(t, err)
+	oldRefreshHash, err := hashTokenForSession("old-refresh-token")
+	require.NoError(t, err)
+	assert.Equal(t, oldRefreshHash, session.RefreshTokenHash)
+}
+
+func TestRefreshOIDCToken_SubjectLookupUnavailableReturns503WithoutClearingSessionCookies(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h, _ := newOIDCTestHandler(t, &recordingUserSyncRepo{})
+	h.oidcSubjectValidator = &fakeOIDCSubjectValidator{err: oidcpkg.ErrProviderUnavailable}
+	ctx := context.Background()
+
+	_, err := h.svc.CreateSession(
+		ctx,
+		"sid-oidc-subject-lookup-unavailable",
+		"oidc-user-1",
+		"old-access-token",
+		"old-refresh-token",
+		"oidc",
+		"browser",
+	)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/refresh", nil)
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "sid-oidc-subject-lookup-unavailable"})
+	c.Request = req
+
+	ok := h.refreshOIDCToken(c, "old-refresh-token", false)
+
+	require.False(t, ok)
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+	assertNoIssuedTokenCookies(t, w)
+	assertNoClearedTokenCookies(t, w)
+	session, err := h.tokenService.GetSessionStore().Get(ctx, "sid-oidc-subject-lookup-unavailable")
+	require.NoError(t, err)
+	oldRefreshHash, err := hashTokenForSession("old-refresh-token")
+	require.NoError(t, err)
+	assert.Equal(t, oldRefreshHash, session.RefreshTokenHash)
 }
 
 func TestRefreshOIDCToken_UserSyncFailureDoesNotRotateSession(t *testing.T) {
@@ -609,6 +776,9 @@ func TestRefreshToken_NativeOIDCRequiresTrackedSession(t *testing.T) {
 func TestExchangeNative_Success(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	h, repo := newOIDCTestHandler(t, &recordingUserSyncRepo{})
+	h.oidcSubjectValidator = &fakeOIDCSubjectValidator{organizationAdmin: true}
+	syncer := &recordingOrganizationAdminSynchronizer{}
+	h.organizationAdminSync = syncer
 	require.NoError(t, h.storeNativeCodeVerifier(context.Background(), "native-state-1", nativeCodeVerifierPayload{
 		CodeVerifier: "native-verifier",
 		Application:  oidcpkg.ApplicationUniapp,
@@ -628,6 +798,8 @@ func TestExchangeNative_Success(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "sessionID")
 	assert.Equal(t, "oidc-user-1", repo.upsertInput.CasdoorSubject)
 	assert.Equal(t, "oidc-tester", repo.upsertInput.Username)
+	assert.Equal(t, "oidc-user-1", syncer.gotSubject)
+	assert.True(t, syncer.organizationAdmin)
 }
 
 func TestExchangeNative_RejectsSubjectValidationFailure(t *testing.T) {
@@ -650,6 +822,27 @@ func TestExchangeNative_RejectsSubjectValidationFailure(t *testing.T) {
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 	assert.Equal(t, "oidc-user-1", validator.gotSubject)
+	assert.Empty(t, repo.upsertInput.CasdoorSubject)
+}
+
+func TestExchangeNative_SubjectLookupUnavailableReturns503(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h, repo := newOIDCTestHandler(t, &recordingUserSyncRepo{})
+	h.oidcSubjectValidator = &fakeOIDCSubjectValidator{err: oidcpkg.ErrProviderUnavailable}
+	require.NoError(t, h.storeNativeCodeVerifier(context.Background(), "native-state-1", nativeCodeVerifierPayload{
+		CodeVerifier: "native-verifier",
+		Application:  oidcpkg.ApplicationUniapp,
+	}))
+
+	body := bytes.NewBufferString(`{"code":"code-1","state":"native-state-1"}`)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/auth/exchange-native", body)
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	h.ExchangeNative(c)
+
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
 	assert.Empty(t, repo.upsertInput.CasdoorSubject)
 }
 

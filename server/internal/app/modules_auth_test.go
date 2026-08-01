@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -14,7 +16,17 @@ import (
 	"github.com/StuHelper/StuHelper/server/internal/modules/user"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/config"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/middleware"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/oidc"
+	platformcasdoor "github.com/StuHelper/StuHelper/server/internal/platform/casdoor"
 )
+
+func TestNormalizeCasdoorSubjectLookupErrorClassifiesOnlyDependencyFailure(t *testing.T) {
+	dependencyErr := fmt.Errorf("%w: timeout", platformcasdoor.ErrUserLookupUnavailable)
+	require.ErrorIs(t, normalizeCasdoorSubjectLookupError(dependencyErr), oidc.ErrProviderUnavailable)
+
+	identityErr := errors.New("owner mismatch")
+	assert.Same(t, identityErr, normalizeCasdoorSubjectLookupError(identityErr))
+}
 
 func TestAdminMFAMiddlewaresSkippedInDevelopment(t *testing.T) {
 	require.Empty(t, adminMFAMiddlewares(config.EnvDevelopment, nil))

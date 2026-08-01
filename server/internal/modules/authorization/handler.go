@@ -85,6 +85,7 @@ type grantResponse struct {
 	SubjectUsername    string           `json:"subjectUsername"`
 	SubjectDisplayName string           `json:"subjectDisplayName"`
 	Role               Role             `json:"role"`
+	Source             GrantSource      `json:"source"`
 	SchoolID           *int64           `json:"schoolID,omitempty"`
 	SectionID          *string          `json:"sectionID,omitempty"`
 	DesiredState       DesiredState     `json:"desiredState"`
@@ -271,8 +272,8 @@ func (h *Handler) respondError(c *gin.Context, operation string, grantID int64, 
 		response.NotFound(c, "authorization grant not found")
 	case errors.Is(err, ErrActorUserNotFound):
 		response.Forbidden(c, "authenticated user is not provisioned")
-	case errors.Is(err, ErrLastSuperAdmin):
-		response.Conflict(c, "at least one applied super administrator must remain")
+	case errors.Is(err, ErrProviderManagedRole):
+		response.Conflict(c, "super administrator access is managed by the Casdoor organization administrator flag")
 	default:
 		logger.FromGin(c).Error(
 			"authorization grant operation failed",
@@ -343,6 +344,7 @@ func grantToResponse(grant Grant) grantResponse {
 		SubjectUsername:    grant.SubjectUsername,
 		SubjectDisplayName: grant.SubjectDisplayName,
 		Role:               grant.Role,
+		Source:             grant.Source,
 		SchoolID:           grant.SchoolID,
 		SectionID:          grant.SectionID,
 		DesiredState:       grant.DesiredState,

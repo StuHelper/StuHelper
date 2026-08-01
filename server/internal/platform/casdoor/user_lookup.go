@@ -9,7 +9,15 @@ import (
 	"github.com/casdoor/casdoor-go-sdk/casdoorsdk"
 )
 
-var ErrUserOwnerMismatch = errors.New("casdoor: user owner mismatch")
+var (
+	ErrUserOwnerMismatch     = errors.New("casdoor: user owner mismatch")
+	ErrUserLookupUnavailable = errors.New("casdoor: user lookup unavailable")
+)
+
+type SubjectIdentity struct {
+	Organization      string
+	OrganizationAdmin bool
+}
 
 type UserLookupClient struct {
 	credential Credential
@@ -32,23 +40,35 @@ func newUserLookupClient(credential Credential, users userAPI) (*UserLookupClien
 }
 
 func (c *UserLookupClient) ValidateSubjectOwner(ctx context.Context, subject, expectedOwner string) error {
+	_, err := c.ResolveSubject(ctx, subject, expectedOwner)
+	return err
+}
+
+func (c *UserLookupClient) ResolveSubject(
+	ctx context.Context,
+	subject,
+	expectedOwner string,
+) (SubjectIdentity, error) {
 	subject = strings.TrimSpace(subject)
 	expectedOwner = strings.TrimSpace(expectedOwner)
 	if subject == "" {
-		return errors.New("casdoor: user subject is required")
+		return SubjectIdentity{}, errors.New("casdoor: user subject is required")
 	}
 	if expectedOwner == "" {
-		return errors.New("casdoor: expected user owner is required")
+		return SubjectIdentity{}, errors.New("casdoor: expected user owner is required")
 	}
 	user, err := c.lookupUser(ctx, subject)
 	if err != nil {
-		return err
+		return SubjectIdentity{}, err
 	}
 	owner := strings.TrimSpace(user.Owner)
 	if owner != expectedOwner {
-		return fmt.Errorf("%w: got %q, want %q", ErrUserOwnerMismatch, owner, expectedOwner)
+		return SubjectIdentity{}, fmt.Errorf("%w: got %q, want %q", ErrUserOwnerMismatch, owner, expectedOwner)
 	}
-	return nil
+	return SubjectIdentity{
+		Organization:      owner,
+		OrganizationAdmin: user.IsAdmin && !user.IsForbidden && !user.IsDeleted,
+	}, nil
 }
 
 func (c *UserLookupClient) lookupUser(ctx context.Context, subject string) (*casdoorsdk.User, error) {
@@ -59,7 +79,7 @@ func (c *UserLookupClient) lookupUser(ctx context.Context, subject string) (*cas
 		return lookupErr
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %v", ErrUserLookupUnavailable, err)
 	}
 	if user == nil || strings.TrimSpace(user.Name) == "" {
 		return nil, fmt.Errorf("casdoor: user subject %q not found", subject)

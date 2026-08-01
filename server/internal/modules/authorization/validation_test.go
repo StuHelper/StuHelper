@@ -18,15 +18,6 @@ func TestNormalizeCreateGrantInputAcceptsOnlyFixedRoleScopePairs(t *testing.T) {
 		input CreateGrantInput
 	}{
 		{
-			name: "global super admin",
-			input: CreateGrantInput{
-				SubjectUserID: 1,
-				ActorUserID:   2,
-				Role:          RoleSuperAdmin,
-				Reason:        "bootstrap second administrator",
-			},
-		},
-		{
 			name: "school admin",
 			input: CreateGrantInput{
 				SubjectUserID: 1,
@@ -66,7 +57,6 @@ func TestNormalizeCreateGrantInputRejectsArbitraryOrMismatchedScope(t *testing.T
 
 	tests := []CreateGrantInput{
 		{SubjectUserID: 1, ActorUserID: 2, Role: Role("owner"), Reason: "unsupported"},
-		{SubjectUserID: 1, ActorUserID: 2, Role: RoleSuperAdmin, SchoolID: &schoolID, Reason: "not global"},
 		{SubjectUserID: 1, ActorUserID: 2, Role: RoleSchoolAdmin, Reason: "missing school"},
 		{
 			SubjectUserID: 1,
@@ -90,6 +80,17 @@ func TestNormalizeCreateGrantInputRejectsArbitraryOrMismatchedScope(t *testing.T
 		_, err := normalizeCreateGrantInput(input)
 		require.ErrorIs(t, err, ErrInvalidGrant, "case %d", index)
 	}
+}
+
+func TestNormalizeCreateGrantInputRejectsProviderManagedSuperAdmin(t *testing.T) {
+	_, err := normalizeCreateGrantInput(CreateGrantInput{
+		SubjectUserID: 1,
+		ActorUserID:   2,
+		Role:          RoleSuperAdmin,
+		Reason:        "manual platform administrator",
+	})
+
+	require.ErrorIs(t, err, ErrProviderManagedRole)
 }
 
 func TestTupleForGrantUsesOnlyInternalUserAndFixedRelations(t *testing.T) {

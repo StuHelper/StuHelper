@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -19,19 +20,42 @@ func (h *Handler) validateOIDCSubjectForLogin(
 	claims *oidc.Claims,
 	requestID string,
 	failureReason string,
-) bool {
+) (organizationAdmin bool, ok bool) {
 	if h.oidcSubjectValidator == nil {
-		return true
+		return false, true
 	}
 	subject := claims.GetUserID()
-	if err := h.oidcSubjectValidator.ValidateOIDCSubject(ctx, subject); err != nil {
+	organizationAdmin, err := h.oidcSubjectValidator.ValidateOIDCSubject(ctx, subject)
+	if err != nil {
 		logger.FromGin(c).Warn("OIDC subject validation failed",
 			zap.String("user_id", subject),
 			zap.Error(err),
 		)
 		audit.LogFailureContext(ctx, audit.EventUserLoginFailed, c.ClientIP(), c.Request.UserAgent(), requestID, failureReason)
+		if errors.Is(err, oidc.ErrProviderUnavailable) {
+			response.ServiceUnavailable(c, "authentication provider temporarily unavailable")
+			return false, false
+		}
 		response.Unauthorized(c, "authentication failed", errs.ErrOAuthFailed)
-		return false
+		return false, false
 	}
-	return true
+	return organizationAdmin, true
+}
+
+func (h *Handler) syncOIDCIdentity(
+	ctx context.Context,
+	input UserSyncInput,
+	organizationAdmin bool,
+) error {
+	if err := h.svc.SyncOIDCUser(ctx, input); err != nil {
+		return err
+	}
+	if h.organizationAdminSync == nil {
+		return nil
+	}
+	return h.organizationAdminSync.SyncCasdoorOrganizationAdmin(
+		ctx,
+		input.CasdoorSubject,
+		organizationAdmin,
+	)
 }

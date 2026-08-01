@@ -83,6 +83,7 @@
     "subjectUserIdPlaceholder": "Enter the immutable StuHelper user ID",
     "role": "Role",
     "scope": "Scope",
+    "source": "Authority source",
     "schoolId": "School ID",
     "reason": "Change reason",
     "reasonPlaceholder": "Add the business reason, ticket, or incident ID",
@@ -94,7 +95,7 @@
     "notActive": "Not activated",
     "global": "Global",
     "createTitle": "Grant administrator access",
-    "createHint": "The grant starts pending and activates only after OpenFGA write and read-back verification.",
+    "createHint": "Only school and section roles are assigned here. Super administrators are synchronized from IsAdmin in the Casdoor StuHelper organization. A grant activates only after OpenFGA write and read-back verification.",
     "revoke": "Revoke",
     "reconcile": "Re-project",
     "revokePrompt": "Revocation commits the database fence first and denies access immediately. Enter a reason.",
@@ -115,6 +116,10 @@
       "section_admin": "Section administrator",
       "section_moderator": "Section moderator",
       "section_reviewer": "Section reviewer"
+    },
+    "sources": {
+      "casdoor_org_admin": "Casdoor organization admin",
+      "manual": "StuHelper manual grant"
     },
     "states": {
       "granted": "Granted",

@@ -78,6 +78,13 @@ func (s *Service) RevokeGrant(ctx context.Context, input RevokeGrantInput) (Muta
 	if !exists {
 		return MutationResult{}, ErrActorUserNotFound
 	}
+	grant, err := s.repo.GetGrant(ctx, input.GrantID)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	if grant.Role == RoleSuperAdmin || grant.Source == GrantSourceCasdoorOrganizationAdmin {
+		return MutationResult{}, ErrProviderManagedRole
+	}
 	result, err := s.repo.RevokeGrant(ctx, input)
 	if err != nil {
 		return MutationResult{}, fmt.Errorf("revoke authorization grant: %w", err)
@@ -123,24 +130,27 @@ func (s *Service) ReconcileAll(ctx context.Context, input ReconcileAllInput) (Re
 	return ReconcileAllResult{Queued: queued}, nil
 }
 
-// BootstrapSuperAdmins atomically creates the first set of super-admin desired
-// grants. It is intentionally separate from the authenticated admin mutation
-// path so the audit log identifies the break-glass system operation instead of
-// falsely attributing it to one of the target users.
-func (s *Service) BootstrapSuperAdmins(
+// SyncCasdoorOrganizationAdmin projects Casdoor's authoritative organization
+// administrator flag into the local grant ledger and OpenFGA. It is the only
+// supported mutation path for super_admin.
+func (s *Service) SyncCasdoorOrganizationAdmin(
 	ctx context.Context,
-	input BootstrapSuperAdminsInput,
-) (BootstrapSuperAdminsResult, error) {
-	input, err := normalizeBootstrapSuperAdminsInput(input)
+	input CasdoorOrganizationAdminSyncInput,
+) (MutationResult, error) {
+	input, err := normalizeCasdoorOrganizationAdminSyncInput(input)
 	if err != nil {
-		return BootstrapSuperAdminsResult{}, err
+		return MutationResult{}, err
 	}
-	result, err := s.repo.BootstrapSuperAdmins(ctx, input)
+	exists, err := s.repo.UserExists(ctx, input.SubjectUserID)
 	if err != nil {
-		return BootstrapSuperAdminsResult{}, fmt.Errorf(
-			"bootstrap authorization super admins: %w",
-			err,
-		)
+		return MutationResult{}, err
+	}
+	if !exists {
+		return MutationResult{}, ErrTargetUserNotFound
+	}
+	result, err := s.repo.SyncCasdoorOrganizationAdmin(ctx, input)
+	if err != nil {
+		return MutationResult{}, fmt.Errorf("sync Casdoor organization administrator: %w", err)
 	}
 	return result, nil
 }
@@ -159,14 +169,6 @@ func (s *Service) GetGrant(ctx context.Context, grantID int64) (Grant, error) {
 		return Grant{}, ErrInvalidGrant
 	}
 	return s.repo.GetGrant(ctx, grantID)
-}
-
-func (s *Service) ResolveInternalUserIDByUsername(ctx context.Context, username string) (int64, error) {
-	return s.repo.ResolveInternalUserIDByUsername(ctx, username)
-}
-
-func (s *Service) HasDesiredSuperAdmin(ctx context.Context) (bool, error) {
-	return s.repo.HasDesiredSuperAdmin(ctx)
 }
 
 func (s *Service) ResolveAccessSnapshotByUserID(

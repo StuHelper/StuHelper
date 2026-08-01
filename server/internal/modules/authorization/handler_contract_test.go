@@ -36,8 +36,9 @@ func TestAuthorizationMutationsRequireStepUpMFA(t *testing.T) {
 
 	body := bytes.NewBufferString(`{
 		"subjectUserID": 2,
-		"role": "super_admin",
-		"reason": "establish redundant administrator"
+		"role": "school_admin",
+		"schoolID": 4111010006,
+		"reason": "delegate school operations"
 	}`)
 	request := httptest.NewRequest(http.MethodPost, "/api/v1/admin/authorization/grants", body)
 	request.Header.Set("Content-Type", "application/json")

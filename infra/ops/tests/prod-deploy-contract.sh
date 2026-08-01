@@ -4,11 +4,21 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 PROD_DEPLOY_FILE="${REPO_ROOT}/infra/ops/prod-deploy.sh"
+PROD_ENV_EXAMPLE_FILE="${REPO_ROOT}/.env.prod.example"
 ADMISSION_READINESS_FILE="${REPO_ROOT}/infra/ops/admission-production-readiness.sh"
+LEGACY_SUPER_ADMIN_BOOTSTRAP_FILE="${REPO_ROOT}/infra/ops/authorization-bootstrap-super-admin.sh"
 
 fail() {
   echo "[prod-deploy-contract][error] $*" >&2
   exit 1
+}
+
+assert_file_not_contains() {
+  local file="$1"
+  local pattern="$2"
+  if grep -qF -- "${pattern}" "${file}"; then
+    fail "legacy provider-managed super-admin bootstrap must stay removed from ${file}: ${pattern}"
+  fi
 }
 
 line_number() {
@@ -99,6 +109,13 @@ bash -n "${ADMISSION_READINESS_FILE}"
 if [[ ! -x "${ADMISSION_READINESS_FILE}" ]]; then
   fail "admission production readiness script must be executable"
 fi
+
+[[ -f "${PROD_ENV_EXAMPLE_FILE}" ]] || fail "missing production environment example"
+[[ ! -e "${LEGACY_SUPER_ADMIN_BOOTSTRAP_FILE}" ]] ||
+  fail "legacy manual super-admin bootstrap script must stay removed"
+assert_file_not_contains "${PROD_DEPLOY_FILE}" 'STUHELPER_INITIAL_SUPER_ADMINS'
+assert_file_not_contains "${PROD_DEPLOY_FILE}" 'authorization-bootstrap-super-admin.sh'
+assert_file_not_contains "${PROD_ENV_EXAMPLE_FILE}" 'STUHELPER_INITIAL_SUPER_ADMINS'
 
 if (( source_bootstrap_line <= load_env_line )); then
   fail "Casdoor bootstrap env must be sourced after load_env"

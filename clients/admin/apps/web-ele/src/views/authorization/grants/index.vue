@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type {
+  AssignableAuthorizationRole,
   AuthorizationDesiredState,
   AuthorizationGrant,
   AuthorizationProjectionStatus,
@@ -8,7 +9,7 @@ import type {
   ListAuthorizationGrantsParams,
 } from '#/api/admin';
 
-import { computed, onMounted, reactive, ref } from 'vue';
+import { onMounted, reactive, ref } from 'vue';
 
 import {
   ElAlert,
@@ -43,6 +44,12 @@ import { formatAdminDateTime } from '../../shared/display';
 
 const roleOptions: AuthorizationRole[] = [
   'super_admin',
+  'school_admin',
+  'section_admin',
+  'section_moderator',
+  'section_reviewer',
+];
+const assignableRoleOptions: AssignableAuthorizationRole[] = [
   'school_admin',
   'section_admin',
   'section_moderator',
@@ -83,7 +90,7 @@ const createVisible = ref(false);
 const creating = ref(false);
 const createForm = reactive<{
   reason: string;
-  role: AuthorizationRole;
+  role: AssignableAuthorizationRole;
   schoolID?: number;
   subjectUserID?: number;
 }>({
@@ -93,8 +100,6 @@ const createForm = reactive<{
   subjectUserID: undefined,
 });
 
-const roleNeedsSchool = computed(() => createForm.role !== 'super_admin');
-
 function roleLabel(role: AuthorizationRole) {
   return $t(`admin.authorization.roles.${role}`);
 }
@@ -103,6 +108,10 @@ function stateLabel(
   state: AuthorizationDesiredState | AuthorizationProjectionStatus,
 ) {
   return $t(`admin.authorization.states.${state}`);
+}
+
+function sourceLabel(source: AuthorizationGrant['source']) {
+  return $t(`admin.authorization.sources.${source}`);
 }
 
 function stateTagType(
@@ -191,10 +200,7 @@ async function submitCreate() {
     ElMessage.warning($t('admin.authorization.validation.subjectRequired'));
     return;
   }
-  if (
-    roleNeedsSchool.value &&
-    (!createForm.schoolID || createForm.schoolID <= 0)
-  ) {
+  if (!createForm.schoolID || createForm.schoolID <= 0) {
     ElMessage.warning($t('admin.authorization.validation.schoolRequired'));
     return;
   }
@@ -209,7 +215,7 @@ async function submitCreate() {
     role: createForm.role,
     subjectUserID: createForm.subjectUserID,
   };
-  if (roleNeedsSchool.value && createForm.schoolID) {
+  if (createForm.schoolID) {
     request.schoolID = createForm.schoolID;
     if (sectionRoles.has(createForm.role)) {
       request.sectionID = `school_${createForm.schoolID}_review_moderation`;
@@ -472,6 +478,17 @@ onMounted(fetchData);
         </template>
       </PersistentAdminTableColumn>
       <PersistentAdminTableColumn
+        column-key="source"
+        :label="$t('admin.authorization.source')"
+        :default-min-width="156"
+      >
+        <template #default="{ row }">
+          <ElTag effect="plain">
+            {{ sourceLabel(row.source) }}
+          </ElTag>
+        </template>
+      </PersistentAdminTableColumn>
+      <PersistentAdminTableColumn
         column-key="desiredState"
         :label="$t('admin.authorization.desiredState')"
         :default-width="108"
@@ -567,7 +584,10 @@ onMounted(fetchData);
               {{ $t('admin.authorization.reconcile') }}
             </ElButton>
             <ElButton
-              v-if="row.desiredState === 'granted'"
+              v-if="
+                row.desiredState === 'granted' &&
+                row.source !== 'casdoor_org_admin'
+              "
               plain
               size="small"
               type="danger"
@@ -618,18 +638,14 @@ onMounted(fetchData);
         <ElFormItem :label="$t('admin.authorization.role')" required>
           <ElSelect v-model="createForm.role" :teleported="false">
             <ElOption
-              v-for="role in roleOptions"
+              v-for="role in assignableRoleOptions"
               :key="role"
               :label="roleLabel(role)"
               :value="role"
             />
           </ElSelect>
         </ElFormItem>
-        <ElFormItem
-          v-if="roleNeedsSchool"
-          :label="$t('admin.authorization.schoolId')"
-          required
-        >
+        <ElFormItem :label="$t('admin.authorization.schoolId')" required>
           <ElInputNumber
             v-model="createForm.schoolID"
             :controls="false"

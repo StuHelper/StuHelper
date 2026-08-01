@@ -3,15 +3,16 @@ type: design
 audience: maintainers, backend-dev, ops
 status: current
 authoritative-source: this file for target architecture; runtime truth remains source code and migrations
-last-verified: 2026-07-31
+last-verified: 2026-08-01
 ---
 
 # StuHelper IAM 架构
 
-> **实施状态（2026-07-31）**：PostgreSQL 授权控制面、OpenFGA 固定投影、DB-derived
-> access snapshot、管理 API/后台、每日 drift reconcile、首次双管理员 bootstrap 与
-> Casdoor 业务角色链路退役已落入仓库。真实生产存量盘点、发布和受控账号闭环仍须按
-> release runbook 执行，不属于本地代码已验证结论。
+> **实施状态（2026-08-01）**：PostgreSQL 授权控制面、OpenFGA 固定投影、DB-derived
+> access snapshot、管理 API/后台、每日 drift reconcile，以及 Casdoor StuHelper organization
+> administrator 到 `super_admin` 的同步与实时撤权围栏已落入仓库。旧 Casdoor role-claim 链路和
+> 双管理员 bootstrap 已退役。真实生产存量盘点、发布和受控账号闭环仍须按 release runbook
+> 执行，不属于本地代码已验证结论。
 
 ## 1. 范围
 
@@ -20,6 +21,8 @@ last-verified: 2026-07-31
 身份提供方的选择理由见 [ADR-0007](../adr/0007-casdoor-as-sole-identity-provider.md)。
 授权控制面的长期决策见
 [ADR-0008](../adr/0008-postgresql-authorization-control-plane.md)。
+`super_admin` 权威的后续修订见
+[ADR-0009](../adr/0009-casdoor-organization-admin-super-admin-authority.md)。
 
 开放平台是独立产品域，由 [`open-platform-v1.md`](open-platform-v1.md) 定义：Casdoor / `sso.stuhelper.com` 作为公开 OIDC issuer，StuHelper Open Platform 承载业务 app registry、scope、consent、API 和审计。
 
@@ -27,8 +30,8 @@ last-verified: 2026-07-31
 
 | 层 | 权威 / 职责 | 严格不能做的 |
 |----|-------------|--------------|
-| **Casdoor** | 身份与一方/三方登录应用 registry：用户生命周期、登录方式、Provider、MFA、会话、token 签发、公开 OIDC issuer `sso.stuhelper.com` | 任何 StuHelper 业务授权、业务角色目录或 role membership；学生认证/QQ 绑定真源；向业务模块暴露 Casbin / Enforce / GetPermissions |
-| **StuHelper DB** | 业务事实和授权管理真相源：授权授予账本、实名认证、学生认证、学校归属、手机号验证投影、QQ 绑定、课程/评课/资源 owner、Open Platform consent | 完整手机号真相源 |
+| **Casdoor** | 身份与一方/三方登录应用 registry：用户生命周期、登录方式、Provider、MFA、会话、token 签发、公开 OIDC issuer `sso.stuhelper.com`；目标 organization 用户对象的 `IsAdmin` 是 `super_admin` 管理权威 | 承载 scoped 业务角色目录或普通 role membership 授权；学生认证/QQ 绑定真源；向业务模块暴露 Casbin / Enforce / GetPermissions |
+| **StuHelper DB** | 业务事实和授权管理真相源：`school_admin` / `section_*` 授权账本、Casdoor `super_admin` serving projection、实名认证、学生认证、学校归属、手机号验证投影、QQ 绑定、课程/评课/资源 owner、Open Platform consent | 完整手机号真相源；独立手工修改 `super_admin` 权威状态 |
 | **StuHelper Authorization Service** | **业务模块唯一授权入口**：组合 token 主体、DB-derived access snapshot、撤权栅栏、DB 事实与 OpenFGA 检查；统一 fail-closed | — |
 | **OpenFGA** | 可从 DB 重建的运行时关系判定面：owner/author/school_admin/section_admin/section_moderator/section_reviewer/app→resource 关系 | 作为人员授权管理真源；直接被业务 handler 调用；参与登录认证 |
 | **Open Platform** | `stuhelper.com` 上的第三方应用元数据、业务 scope 审批、用户 consent、Disclosure/Open API、审计、限流、吊销 | 签发独立公开 issuer；恢复独立身份普通用户入口；把 Casdoor `Properties` 当业务数据 API |
@@ -84,14 +87,16 @@ Casdoor 承载：
 
 **Redirect 安全 gate**：若当前 Casdoor 版本存在未修复 open redirect advisory，Casdoor 前置网关必须对 `/login/oauth/authorize` 的 `client_id + redirect_uri` 执行 StuHelper DB 精确白名单校验；没有该网关校验不得开放第三方 OAuth。
 
-### 3.3 StuHelper 业务角色不进入 Casdoor
+### 3.3 Casdoor `IsAdmin` 的窄授权例外
 
-Casdoor 不创建或维护 `super_admin`、`school_admin`、`section_admin`、
-`section_moderator`、`section_reviewer`、`verified_student`、
-`freshman_provisional` 或 `user` 的 role catalog/membership。
+Casdoor 不创建或维护 `school_admin`、`section_admin`、`section_moderator`、
+`section_reviewer`、`verified_student`、`freshman_provisional` 或 `user` 的 role
+catalog/membership。唯一例外不是普通 role，而是目标 StuHelper organization 用户对象本身的
+`IsAdmin`：它是 `super_admin` 的管理权威。
 
-- `super_admin`、`school_admin` 与 `section_*` 来自 PostgreSQL
-  `authorization_grants`；
+- `super_admin` 由服务端 Casdoor user lookup 校验 `Owner`、`IsAdmin`、`IsForbidden` 与
+  `IsDeleted` 后，投影到 PostgreSQL `authorization_grants`；
+- `school_admin` 与 `section_*` 由 PostgreSQL `authorization_grants` 管理；
 - `verified_student` / `freshman_provisional` 是 DB 业务事实派生的 access snapshot 标签；
 - `user` 是通过认证的主体在 StuHelper 内部获得的基础角色；
 - 学校归属、板块归属与资源所属由 DB 事实及其 OpenFGA serving projection 表达。
@@ -141,7 +146,8 @@ bootstrap 必须创建并校验：
 - **支持方式**：TOTP（任何 RFC 6238 客户端）+ WebAuthn（passkey）；至少注册一种
 - **Recovery code**：注册时生成 10 个一次性 recovery code，强制下载或抄写后才能完成注册
 - **丢失 MFA 自助恢复**：通过 recovery code；recovery code 用完后由 super_admin 人工 reset
-- **super_admin MFA reset**：必须**双人复核**——另一名 super_admin 在 **StuHelper IAM console / API**（非 Casdoor console，详见 §3.5.6 ownership 模型）二次确认；reset 操作落审计
+- **super_admin MFA reset**：不要求第二名 super_admin 复核；一次满足能力与 step-up 门禁的
+  操作者即可执行，reset 操作必须完整落审计。super_admin 自行 disable 自己 MFA 的禁令保留
 
 #### 3.5.4 MFA 审计
 
@@ -168,7 +174,7 @@ MFA 注册、禁用、reset、recovery code 使用、step-up 失败、step-up �
 
 | 场景 | C1=Yes（精准强制） | C1=No（org 全员强制） |
 |------|---------------------|---------------------|
-| `super_admin` / `school_admin` 强制 MFA | Authorization Service 读取 DB-derived role、DB enrollment 与登录层 MFA proof | Casdoor org 级 Required 可作为全员登录加固，但不能把 Casdoor role 当作管理员判据 |
+| `super_admin` / `school_admin` 强制 MFA | Authorization Service 读取 DB-derived role、DB enrollment 与登录层 MFA proof | Casdoor org 级 Required 可作为全员登录加固；`super_admin` 判据仅为服务端读取的目标 organization `IsAdmin`，不是 role claim |
 
 | 场景 | C2/C3/C4/C5/C6 全部 Yes | 任一 No |
 |------|------------------------|--------|
@@ -193,7 +199,10 @@ MFA 注册、禁用、reset、recovery code 使用、step-up 失败、step-up �
 
 #### 3.5.6 MFA Enrollment Ownership
 
-> 选定 **"StuHelper owns privileged MFA"** 模型。原因：privileged MFA（super_admin / school_admin）必须满足双人复核 reset、5 分钟 step-up grace、reset 操作落审计等强约束；如果以 Casdoor console 作为可独立修改的入口，会绕过 StuHelper 审计与流程。
+> 选定 **"StuHelper owns privileged MFA"** 模型。原因：privileged MFA（super_admin / school_admin）
+> 必须满足 5 分钟 step-up grace、reset 操作落审计等强约束；如果以 Casdoor console 作为可独立
+> 修改 MFA 因子的入口，会绕过 StuHelper 审计与流程。该 ownership 不改变 Casdoor `IsAdmin`
+> 作为 `super_admin` 管理权威的 ADR-0009 决策。
 
 **真相源**：StuHelper DB `user_mfa_enrollment` 表（实施时新建）。
 
@@ -218,12 +227,15 @@ MFA 注册、禁用、reset、recovery code 使用、step-up 失败、step-up �
 - StuHelper DB 不强制为真相源；
 - 普通用户的 MFA 状态对业务授权无影响（不触发 step-up 或入口闸门），所以漂移可接受。
 
-**Break-glass / Bootstrap 约束**：
+**恢复 / Bootstrap 约束**：
 
-- 系统初始化时**至少**创建 2 个 super_admin 账号；
-- 任一 super_admin 不可解除自己的 MFA（防 lockout 同时也防 admin 自我提权后单方逃逸）；
-- super_admin MFA reset 需另一名 super_admin 双人复核（§3.5.3）；
-- Bootstrap 阶段单人初始化窗口 ≤ 24 小时，超时强制要求绑定第二名 super_admin。
+- 系统允许只有 1 个或暂时没有 `super_admin`；不创建第二个影子管理员；
+- `super_admin` 不可主动 disable 自己的 MFA，但其 MFA 可由一次满足授权与 step-up 门禁的
+  reset 操作恢复，无需第二名 `super_admin`；
+- 初始化或恢复时，在 Casdoor 的 StuHelper organization 中设置预期用户 `IsAdmin=true`，
+  再由该用户正常登录或 refresh 触发 DB grant/outbox 投影；
+- 恢复完成以 grant 首次 verified projection 为 `applied`、Admin 登录和 step-up mutation
+  通过为准，不能以 Casdoor 控制台显示已勾选 `IsAdmin` 代替业务验收。
 
 ### 3.6 Service Account / Machine 身份
 
@@ -423,11 +435,14 @@ Authorize(subject, "profile.view_identity", profile)
 | QQ 绑定 | StuHelper DB |
 | 课程归属学校 | StuHelper DB |
 | 评课/举报/资源 owner | StuHelper DB + OpenFGA（写双份） |
+| `super_admin` 管理状态 | Casdoor 目标 organization 用户对象 `IsAdmin`；PostgreSQL 保存 serving projection |
+| `school_admin` / `section_*` 管理状态 | PostgreSQL `authorization_grants` |
 
 ### 6.2 授权账本与投影状态机
 
 管理员授权写入 PostgreSQL `authorization_grants`，再通过 transactional outbox 投影为
-OpenFGA direct tuple。Casdoor 不参与投影。
+OpenFGA direct tuple。`school_admin` / `section_*` 由 StuHelper 管理 API 写入；`super_admin`
+只能由 Casdoor 目标 organization `IsAdmin` 的同步写入，禁止手工 grant/revoke。
 
 - 授予：同一事务写 `desired=granted, projection=pending, activated_at=NULL`、审计和
   outbox；OpenFGA 写入并验证后设置首次 `activated_at`、标记 `projection=applied`，此时
@@ -451,7 +466,8 @@ OpenFGA direct tuple。Casdoor 不参与投影。
 | revoked | applied | tuple absent | 拒绝 | 正常撤权完成 |
 | DB unavailable | * | * | 503 | fail-closed |
 | OpenFGA unavailable，操作需要资源关系 | applied | ? | 503 | 不能把依赖故障降级成无关系或默认允许 |
-| Casdoor unavailable，已签发 token 仍可本地验证 | * | * | 认证可继续；授权仍按 DB/FGA | 身份故障域不成为业务角色真源 |
+| Casdoor unavailable，普通用户或 scoped admin 的已签发 token 仍可本地验证 | * | * | 认证可继续；授权按 DB/FGA | 不需要 `super_admin` 实时复核 |
+| Casdoor unavailable，DB 快照当前含 `super_admin` | * | * | **拒绝受保护请求** | 无法确认最高权限未被撤销，fail-closed |
 
 ### 6.4 不可妥协的规则
 
@@ -464,6 +480,8 @@ OpenFGA direct tuple。Casdoor 不参与投影。
 - 管理面进入闸门 → 使用 snapshot capability；具体资源操作 → 撤权栅栏 +
   Authorization Service + OpenFGA；
 - provider role claim 不解析、不进入上下文，也不能影响 allow/deny。
+- `super_admin` 的唯一 provider 输入是服务端 Casdoor user lookup 返回的目标 organization
+  `IsAdmin`；它不能从 token claim、客户端字段或普通 role membership 替代。
 
 ### 6.5 Outbox 与 drift reconciliation 具体化
 
@@ -740,6 +758,7 @@ StuHelper /internal/sms/send  (server/internal/pkg/sms/handler.go)
 |----------|------|
 | Casdoor token 校验失败（签名/过期/iss/aud 错） | 401 |
 | **Casdoor 不可用，已签发 JWT 在本地有效期内** | **身份验证放行，进入业务授权检查** |
+| Casdoor 不可用，且 DB 快照当前含 `super_admin` 需实时复核 | 503 / fail-closed |
 | Casdoor 不可用，需 introspection（bearer 路径） | 503 |
 | Casdoor 不可用，需 refresh / login / userinfo / 未知 kid JWKS 拉取 | 503 |
 | Casdoor 不可用，需 application 创建/吊销或用户资料维护 | 503（管理面） |
@@ -760,15 +779,17 @@ StuHelper /internal/sms/send  (server/internal/pkg/sms/handler.go)
 - Applications：`stuhelper-web`、`stuhelper-admin`、`stuhelper-uniapp`；
 - Custom HTTP SMS Provider → `/internal/sms/send`；
 - Custom SMTP / HTTP Email Provider（仅当 `CASDOOR_EMAIL_PROVIDER_ENABLED=true`；当前默认延后）；
-- PostgreSQL authorization schema 与至少两名已登录、已存在于 `users` 表的 bootstrap
-  `super_admin` grant；同一事务写 grant、system audit 与 outbox，任一步失败全部回滚；
-- OpenFGA 管理员 tuple 与 DB grant revision 一致。
+- PostgreSQL authorization schema；
+- 预期最高管理员在 Casdoor 目标 organization 中 `IsAdmin=true`；允许只有一个；
+- 该账号正常登录或 refresh 后，DB `source=casdoor_org_admin` grant 与 OpenFGA tuple revision
+  一致，且 projection 已 verified/applied；
 - Certificate / public key（按 Casdoor 数据初始化文档）；
-- Casdoor 初始身份账号（密码治理仍由身份平面负责，不能因此获得 StuHelper 后台权限）。
+- Casdoor 初始身份账号；只有目标 organization 的 `IsAdmin=true` 才能获得 StuHelper
+  `super_admin`，Casdoor system/built-in 管理员或其他 organization 管理员不会自动映射。
 
-`authorization-bootstrap` 只在账本完全没有 desired `super_admin` 时运行；生产少于两名目标
-直接失败。目标必须先完成一次正常 OIDC 登录建立 shadow user。日常部署不得修改 Casdoor
-role membership，也不得直接写 OpenFGA 管理员 tuple。
+旧 `authorization-bootstrap` 工具和 `STUHELPER_INITIAL_SUPER_ADMINS` 已移除。部署不直接写
+`super_admin` grant，也不直接写 OpenFGA 管理员 tuple；Casdoor 管理员状态在登录、native
+callback、refresh 和候选 `super_admin` 受保护请求中同步或复核。
 
 **生产环境**缺必要 Provider 启动失败；Email Provider 只有在 env 显式启用时才进入必要 Provider 清单。**开发环境**可关闭，但必须 env 显式 + 日志告警。
 
@@ -829,7 +850,9 @@ server/internal/modules/*    (业务模块)
 
 CI 的 `server/scripts/check-casdoor-boundary.sh` 强制检查：除身份边界模块外，业务模块
 禁止出现 `casdoor_subject` / `CasdoorSubject` 标识符；授权模块不得反向查询 provider
-subject。
+subject。`internal/app/authorization_identity_adapter.go` 是受限的组合根例外：它把认证主体映射
+为内部 ID，并调用 `platform/casdoor` 的只读 user lookup 完成 ADR-0009 复核；领域授权模块
+本身仍不得依赖 Casdoor SDK。
 
 #### 规则 B：Casdoor 管理 API 最小权限
 
@@ -838,9 +861,11 @@ subject。
   - `casdoor-admin-app-provisioning` — 仅 create/update/delete application；
   - `casdoor-admin-user-lookup` — 只读 user；
   - `casdoor-admin-bootstrap` — 仅 bootstrap 阶段使用，运行时不挂载；
-- 当前落地约束：Casdoor 不再创建、发放或同步任何 StuHelper 业务 role；历史
+- 当前落地约束：Casdoor 不再创建或发放任何 StuHelper 业务 role catalog/membership；历史
   `iam_casdoor_role_sync` 作业由迁移统一终止，登录、refresh、`/userinfo` 与
-  introspection 返回的 role claim 不再解析，不能进入 access snapshot；
+  introspection 返回的 role claim 不再解析，不能进入 access snapshot。唯一例外是
+  `casdoor-admin-user-lookup` 读取目标 organization 用户对象的 `IsAdmin` 并同步
+  `super_admin` serving projection；
 - 每个 credential 配置最小 Casdoor 权限；
 - 每个 secret 独立轮换（不联动）；
 - 所有 Casdoor admin API 调用落审计：调用方 service account / 操作 / 目标 / 结果 / request_id（保留期见 §13.3）；
@@ -940,22 +965,28 @@ subject。
 
 自动化检查至少覆盖：
 
-1. Casdoor bootstrap 创建 organization / applications / SMS Provider，且不创建 StuHelper 业务 role；当 `CASDOOR_EMAIL_PROVIDER_ENABLED=true` 时还必须创建 SMTP / HTTP Email Provider；
+1. Casdoor bootstrap 创建 organization / applications / SMS Provider，且不创建 StuHelper role catalog；当 `CASDOOR_EMAIL_PROVIDER_ENABLED=true` 时还必须创建 SMTP / HTTP Email Provider；
 2. 一方应用 OIDC 登录 happy path（web / admin / uniapp）；
 3. **授予闭环**：DB pending + outbox → OpenFGA write/verify → applied → `/auth/me` 与后台入口生效；
 4. **撤权闭环**：DB desired=revoked 提交后立即 deny，OpenFGA delete 失败/重试期间也不能续命；
 5. **Token 本地校验**：Casdoor 容器停止后，已签发未过期 JWT 仍可本地 JWKS 校验通过；
-6. **Casdoor 不可用 fail-closed**：login / refresh / userinfo / management 全部 503；
+6. **Casdoor 不可用 fail-closed**：login / refresh / userinfo / management 以及候选
+   `super_admin` 的实时复核全部 503；普通已认证主体仍按 JWKS/DB/FGA 语义处理；
 7. **OpenFGA 不可用**：资源关系操作 503；
 8. **业务 DB 不可用**：业务事实操作 503；
 9. **SDK 出口 ban-list**：CI grep 业务模块零 `casdoorsdk` import、零 `Enforce` 调用；
 11. **资源授权**：owner 可编辑自己的 review；
 12. **资源授权**：school admin 只能管理本学校 review（OpenFGA tuple 边界）；
 13. **资源授权**：section moderator 只能管理被授予的板块；
-14. **IdP 隔离**：伪造或遗留 Casdoor `roles` claim 不能改变 access snapshot、后台入口或 FGA tuple；
+14. **IdP 隔离**：伪造或遗留 Casdoor `roles` claim 不能改变 access snapshot、后台入口或
+    FGA tuple；其他 organization 的 `IsAdmin`、forbidden/deleted admin 也不能映射；
 15. **SMS 转发链路**：Casdoor 登录验证码 → `/internal/sms/send` → 腾讯云 API；端点鉴权失败 401。
 16. **Casdoor capability gate**：`infra/ops/casdoor-capability-probe.sh` 在测试 Casdoor 实例上生成 step-up URL、检查 `amr` / `auth_time` / `acr` claim，并按显式开关验证 refresh token 是否 single-use。
-17. **故障恢复**：并发 grant/revoke、重复投递、dead-letter replay、reconciliation 与最后一名 super_admin 保护。
+17. **故障恢复**：并发 grant/revoke、重复投递、dead-letter replay 与 reconciliation；
+18. **Casdoor admin 生命周期**：单一组织管理员晋升、登录/refresh 投影、实时降权围栏、
+    最后一名管理员撤销、lookup 失败关闭及系统 actor 审计；
+19. **MFA reset**：`super_admin` reset 不需要第二名 reviewer，仍受能力/step-up 门禁并完整审计；
+    自行 disable 自己 MFA 仍被拒绝。
 
 ## 15. Open Platform 边界
 
@@ -973,14 +1004,16 @@ Open Platform v1 baseline 的边界见 [`open-platform-v1.md`](open-platform-v1.
 
 ## 16. 设计立场
 
-Casdoor 承载身份与应用 registry。它**不**承载 StuHelper 业务角色或授权事实，
-**不**进入业务授权决策路径。
+Casdoor 承载身份与应用 registry。普通 role catalog/membership 和 token role claim
+**不**承载 StuHelper 授权事实。唯一例外是目标 organization 用户对象的 `IsAdmin`，它经
+服务端 lookup 与 DB serving projection 进入 `super_admin` 决策。
 
 StuHelper Authorization Service 是业务模块**唯一**授权入口，组合 token 主体、
 DB-derived access snapshot、撤权栅栏、DB 事实与 OpenFGA 关系；统一 fail-closed。
 
-PostgreSQL 授权账本是人员授权唯一管理权威。OpenFGA 是可重建的运行时资源关系判定面，
-仅作为 Authorization Service 或投影 worker 的内部依赖，不直接被业务 handler 调用。
+PostgreSQL 授权账本是 scoped 人员授权的管理权威，并保存 Casdoor `super_admin` serving
+projection。OpenFGA 是可重建的运行时资源关系判定面，仅作为 Authorization Service 或投影
+worker 的内部依赖，不直接被业务 handler 调用。
 
 业务 DB 是授权授予、实名、学生认证、学校归属、手机号验证投影、QQ 绑定与所有业务实体的
 真相源；完整手机号真相源在 Casdoor。Casdoor 角色 claim 永远不能覆盖 DB 授权事实。

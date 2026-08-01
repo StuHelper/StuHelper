@@ -3302,8 +3302,10 @@ export interface paths {
         };
         /**
          * 查询管理员授权账本
-         * @description 查询 PostgreSQL 授权唯一管理真源。需要全局 `iam:grants:manage`
-         *     capability；返回期望状态与 OpenFGA 投影状态，便于识别 pending/failed grant。
+         * @description 查询 PostgreSQL 授权投影账本。super_admin 的权威来源是 Casdoor StuHelper
+         *     organization user.isAdmin；school/section 角色的管理真源仍是本账本。需要全局
+         *     `iam:grants:manage` capability；返回期望状态与 OpenFGA 投影状态，便于识别
+         *     pending/failed grant。
          */
         get: operations["listAuthorizationGrants"];
         put?: never;
@@ -3311,6 +3313,8 @@ export interface paths {
          * 创建或恢复管理员授权
          * @description 在同一 PostgreSQL 事务中写入 grant desired state、不可变审计和 outbox。
          *     返回成功只表示期望状态已接受；只有 `projectionStatus=applied` 后授权才会生效。
+         *     只允许人工授予 school_admin 与 section_*；super_admin 必须在 Casdoor StuHelper
+         *     organization 中设置用户的 IsAdmin，登录或 refresh 时由系统自动同步。
          *     需要全局 `iam:grants:manage` capability 和最近 5 分钟内的 step-up MFA。
          */
         post: operations["createAuthorizationGrant"];
@@ -3349,7 +3353,8 @@ export interface paths {
         /**
          * 撤销管理员授权
          * @description 先提交 PostgreSQL `desiredState=revoked`，因此请求成功后撤权围栏立即拒绝，
-         *     不等待 OpenFGA tuple 删除完成。不能撤销最后一名已生效 super_admin。
+         *     不等待 OpenFGA tuple 删除完成。Casdoor 托管的 super_admin 不接受本接口撤销；
+         *     应在 Casdoor StuHelper organization 中取消该用户的 IsAdmin，系统会自动同步撤权。
          *     需要全局 `iam:grants:manage` capability 和最近 5 分钟内的 step-up MFA。
          */
         post: operations["revokeAuthorizationGrant"];
@@ -4449,7 +4454,7 @@ export interface components {
             studentVerified: boolean;
         };
         /**
-         * @description StuHelper 固定管理员角色；角色与 scope 组合由服务端白名单校验。
+         * @description StuHelper 固定管理员角色；super_admin 由 Casdoor 组织管理员投影，其他角色与 scope 由服务端白名单校验。
          * @enum {string}
          */
         AuthorizationRole: "super_admin" | "school_admin" | "section_admin" | "section_moderator" | "section_reviewer";
@@ -4471,6 +4476,7 @@ export interface components {
             subjectUsername: string;
             subjectDisplayName: string;
             role: components["schemas"]["AuthorizationRole"];
+            source: components["schemas"]["AuthorizationGrantSource"];
             /**
              * Format: int64
              * @description school_admin 与 section_* 角色必填；super_admin 不得提供。
@@ -4506,10 +4512,10 @@ export interface components {
         CreateAuthorizationGrantRequest: {
             /** Format: int64 */
             subjectUserID: number;
-            role: components["schemas"]["AuthorizationRole"];
+            role: components["schemas"]["AssignableAuthorizationRole"];
             /**
              * Format: int64
-             * @description school_admin 与 section_* 角色必填；super_admin 不得提供。
+             * @description 所有可人工授予的角色均必填。
              */
             schoolID?: number;
             /** @description section_* 角色必填；其他角色不得提供。 */
@@ -5776,6 +5782,16 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
         };
+        /**
+         * @description 授权权威来源；super_admin 来自 Casdoor organization user.isAdmin，其余角色由 StuHelper 人工管理。
+         * @enum {string}
+         */
+        AuthorizationGrantSource: "casdoor_org_admin" | "manual";
+        /**
+         * @description 可由 StuHelper 管理 API 人工授予的 scoped 业务管理员角色；不包含 Casdoor 托管的 super_admin。
+         * @enum {string}
+         */
+        AssignableAuthorizationRole: "school_admin" | "section_admin" | "section_moderator" | "section_reviewer";
     };
     responses: {
         /** @description 统一错误响应 */
@@ -12033,6 +12049,7 @@ export interface operations {
             401: components["responses"]["ErrorResponse"];
             403: components["responses"]["ErrorResponse"];
             404: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
             412: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
         };

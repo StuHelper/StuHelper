@@ -83,6 +83,7 @@
     "subjectUserIdPlaceholder": "输入不可变的 StuHelper 用户 ID",
     "role": "角色",
     "scope": "作用域",
+    "source": "权威来源",
     "schoolId": "学校 ID",
     "reason": "变更理由",
     "reasonPlaceholder": "说明业务理由、工单或事件编号",
@@ -94,7 +95,7 @@
     "notActive": "尚未激活",
     "global": "全局",
     "createTitle": "发放新的管理员授权",
-    "createHint": "提交后先进入 pending；只有 OpenFGA 写入并读回确认后，新授权才会激活。",
+    "createHint": "这里只发放学校和分区角色；超级管理员由 Casdoor StuHelper 组织的 IsAdmin 自动同步。提交后只有 OpenFGA 写入并读回确认才会激活。",
     "revoke": "撤销",
     "reconcile": "重新投影",
     "revokePrompt": "撤权会先写入数据库围栏并立即拒绝访问。请输入撤销理由。",
@@ -115,6 +116,10 @@
       "section_admin": "分区管理员",
       "section_moderator": "分区版主",
       "section_reviewer": "分区审核员"
+    },
+    "sources": {
+      "casdoor_org_admin": "Casdoor 组织管理员",
+      "manual": "StuHelper 人工授权"
     },
     "states": {
       "granted": "已授予",

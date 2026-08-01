@@ -46,11 +46,9 @@ Claude 两轮共有 117 个原始标签，均已完成源码级复核：
 
 ## 3. 当前致命、高、中级队列
 
-复核后没有 P0。除下表外，已确认的 P1/P2 均已有独立提交和回归证据。
-
-| ID / 原报告别名 | 级别 | 当前状态 | 剩余动作 |
-|------------------|------|----------|----------|
-| IAM-01 / #11 + #17 | P1 | `worktree`、`production-pending` | 以 Casdoor 目标 organization 用户对象 `IsAdmin` 作为 `super_admin` 管理权威；PostgreSQL 保存 `source=casdoor_org_admin` serving projection；删除双管理员 bootstrap、最后一名保护和 MFA reset 第二 reviewer。当前实现尚待完成交叉验证、文档收敛和独立提交；生产 Casdoor/OpenFGA 账号闭环另行验收。 |
+复核后没有 P0。已确认的 P1/P2 均已形成独立实施提交并有与风险相称的本地回归证据；当前
+致命、高、中级**本地代码队列为空**。真实 Casdoor/OpenFGA 账号闭环、发布和故障演练仍是
+`production-pending`，统一列在第 8 节，不能把“本地队列为空”误写成“已经上线”。
 
 ### IAM-01 不变量
 
@@ -62,7 +60,11 @@ Claude 两轮共有 117 个原始标签，均已完成源码级复核：
   `authorization_grants` 为管理真源。
 - login、native callback 和 refresh 在发放本地 session/token 前同步；已有 DB
   `super_admin` 的受保护请求实时复核 Casdoor 状态，lookup 失败时 fail-closed。
+- Casdoor lookup 的依赖故障返回 503，不伪装成 401；refresh 不因该依赖故障清除客户端
+  session cookie。跨 organization 或不可信主体仍按身份失败拒绝。
 - 降权先提交 DB revoke fence，再由 outbox 精确删除并验证 OpenFGA tuple。
+- provider 状态与 DB desired state 已一致但投影进入 terminal failed 时，下一次登录/refresh
+  递增 revision、写 system audit，并把 dead-letter outbox 重新排队。
 - 手工 grant API 不能创建或撤销 `super_admin`。
 - 项目允许只有一个或没有 `super_admin`；MFA reset 不要求第二管理员，但 capability、step-up、
   审计和 self-disable 禁令继续生效。
@@ -88,9 +90,10 @@ Claude 两轮共有 117 个原始标签，均已完成源码级复核：
 | #44 | Bearer introspection 接受 refresh token purpose | `3d12d259` | 生产 introspection |
 | U-1 | academics 管理链缺 MFA，且共享 step-up 状态码漂移 | `4b2f520b` | 真实 MFA |
 | N-1 | Casdoor logout 参数 no-op，token family 未真正撤销 | `3d15c90d` | 受控账号 logout/logout-all |
+| IAM-01 / #11 + #17 | 目标 Casdoor organization 用户对象 `IsAdmin` 成为 `super_admin` 管理权威；DB 保存带来源的 serving projection；登录/refresh 同步、受保护请求实时降权、投影失败自愈；移除双管理员 bootstrap、最后一名保护和 MFA reset 第二 reviewer | 本实施提交（`feat(iam): align super admin with Casdoor organization`） | 真实 Casdoor 账号晋升/降权、lookup 故障、OpenFGA applied/撤权和 MFA step-up |
 
-IAM-01 完成后，#11/#17 将进入本表；旧的通用 role-claim reconcile 提交 `b199e19e` 被最终
-窄 `IsAdmin` 方案取代，不单独作为现行设计。
+旧的通用 role-claim reconcile 提交 `b199e19e` 已被最终窄 `IsAdmin` 方案取代，不单独作为
+现行设计。
 
 ## 5. 已关闭的中优先级根因
 
@@ -232,5 +235,6 @@ IAM-01 完成后，#11/#17 将进入本表；旧的通用 role-claim reconcile �
 6. 一个唯一根因形成一个提交，不混入无关工作树文件；
 7. 只有提交和验证证据齐全后，才把状态改为 `implemented`。
 
-当前工作继续以第 3 节的 IAM-01 为唯一 P1/P2 未提交实现。其完成后应再次从源码和本台账反向
-证明不存在其他未处理的 P0/P1/P2，而不是以“没有搜索到更多问题”代替完成性证据。
+截至本实施提交，已再次从源码、OpenAPI、migration、回归测试和本台账反向核对：不存在其他
+未提交的 P0/P1/P2 根因。第 6 节条目均为已降级的 P3/P4、条件性、先测或产品决策项，不应为了
+关闭审计数字自动进入实现；第 8 节生产门禁必须在真实环境单独留证。

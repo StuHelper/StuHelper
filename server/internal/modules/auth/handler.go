@@ -27,6 +27,7 @@ type Handler struct {
 	svc                    *Service
 	oidcClient             *oidc.Client
 	oidcSubjectValidator   OIDCSubjectValidator
+	organizationAdminSync  OrganizationAdminSynchronizer
 	tokenService           *token.Service
 	tokenConfig            config.TokenConfig
 	redisClient            *redis.Client
@@ -46,10 +47,15 @@ type HandlerConfig struct {
 	AccountSettingsBaseURL string
 	ProviderTokenCipher    pii.EncryptDecryptor
 	OIDCSubjectValidator   OIDCSubjectValidator
+	OrganizationAdminSync  OrganizationAdminSynchronizer
 }
 
 type OIDCSubjectValidator interface {
-	ValidateOIDCSubject(ctx context.Context, subject string) error
+	ValidateOIDCSubject(ctx context.Context, subject string) (organizationAdmin bool, err error)
+}
+
+type OrganizationAdminSynchronizer interface {
+	SyncCasdoorOrganizationAdmin(ctx context.Context, providerSubject string, organizationAdmin bool) error
 }
 
 type AdminAuthorizers struct {
@@ -88,6 +94,7 @@ func NewHandler(
 		svc:                    svc,
 		oidcClient:             oidcClient,
 		oidcSubjectValidator:   cfg.OIDCSubjectValidator,
+		organizationAdminSync:  cfg.OrganizationAdminSync,
 		tokenService:           tokenService,
 		tokenConfig:            cfg.Token,
 		redisClient:            rdb,
