@@ -237,7 +237,6 @@ func (c *Client) ReadTuples(ctx context.Context, object, relation string) ([]Tup
 		return nil, err
 	}
 
-	start := time.Now()
 	ctx, span := c.startSpan(ctx, "read", relation, object)
 	defer span.End()
 
@@ -245,20 +244,39 @@ func (c *Client) ReadTuples(ctx context.Context, object, relation string) ([]Tup
 		Object:   openfga.PtrString(object),
 		Relation: openfga.PtrString(relation),
 	}
-	resp, err := c.fga.Read(ctx).Body(body).Execute()
-	metrics.ObserveExternalRequest("openfga", "read_tuples", start, err)
-	if err != nil {
-		recordSpanError(span, err)
-		return nil, fmt.Errorf("fga: read tuples failed for %s#%s: %w", object, relation, err)
-	}
-
-	result := make([]Tuple, 0, len(resp.Tuples))
-	for _, tuple := range resp.Tuples {
-		result = append(result, Tuple{
-			User:     tuple.Key.GetUser(),
-			Relation: tuple.Key.GetRelation(),
-			Object:   tuple.Key.GetObject(),
-		})
+	result := make([]Tuple, 0)
+	continuationToken := ""
+	seenTokens := make(map[string]struct{})
+	for {
+		options := client.ClientReadOptions{
+			PageSize:    openfga.PtrInt32(100),
+			Consistency: openfga.CONSISTENCYPREFERENCE_HIGHER_CONSISTENCY.Ptr(),
+		}
+		if continuationToken != "" {
+			options.ContinuationToken = openfga.PtrString(continuationToken)
+		}
+		requestStart := time.Now()
+		resp, err := c.fga.Read(ctx).Body(body).Options(options).Execute()
+		metrics.ObserveExternalRequest("openfga", "read_tuples", requestStart, err)
+		if err != nil {
+			recordSpanError(span, err)
+			return nil, fmt.Errorf("fga: read tuples failed for %s#%s: %w", object, relation, err)
+		}
+		for _, tuple := range resp.Tuples {
+			result = append(result, Tuple{
+				User:     tuple.Key.GetUser(),
+				Relation: tuple.Key.GetRelation(),
+				Object:   tuple.Key.GetObject(),
+			})
+		}
+		continuationToken = strings.TrimSpace(resp.GetContinuationToken())
+		if continuationToken == "" {
+			break
+		}
+		if _, repeated := seenTokens[continuationToken]; repeated {
+			return nil, fmt.Errorf("fga: read tuples returned a repeated continuation token for %s#%s", object, relation)
+		}
+		seenTokens[continuationToken] = struct{}{}
 	}
 	return result, nil
 }

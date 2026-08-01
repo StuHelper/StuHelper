@@ -162,6 +162,56 @@ func TestTupleExistsUsesExactDirectTupleRead(t *testing.T) {
 	assert.Equal(t, "user:43", requestBodies[1]["user"])
 }
 
+func TestReadTuplesFollowsContinuationTokensWithHigherConsistency(t *testing.T) {
+	requestCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.True(t, strings.HasSuffix(r.URL.Path, "/read"))
+		require.Equal(t, http.MethodPost, r.Method)
+		w.Header().Set("Content-Type", "application/json")
+		var body map[string]any
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		assert.Equal(t, "HIGHER_CONSISTENCY", body["consistency"])
+		requestCount++
+		switch requestCount {
+		case 1:
+			assert.Empty(t, body["continuation_token"])
+			require.NoError(t, json.NewEncoder(w).Encode(openfga.ReadResponse{
+				Tuples: []openfga.Tuple{{Key: openfga.TupleKey{
+					User: "user:1", Relation: "admin", Object: "school:1",
+				}}},
+				ContinuationToken: "next-page",
+			}))
+		case 2:
+			assert.Equal(t, "next-page", body["continuation_token"])
+			require.NoError(t, json.NewEncoder(w).Encode(openfga.ReadResponse{
+				Tuples: []openfga.Tuple{{Key: openfga.TupleKey{
+					User: "user:2", Relation: "admin", Object: "school:1",
+				}}},
+				ContinuationToken: "",
+			}))
+		default:
+			t.Fatalf("unexpected read request %d", requestCount)
+		}
+	}))
+	defer server.Close()
+
+	client, err := NewClient(config.OpenFGAConfig{
+		APIUrl:               server.URL,
+		StoreID:              "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+		AuthorizationModelID: "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+	})
+	require.NoError(t, err)
+
+	tuples, err := client.ReadTuples(t.Context(), "school:1", "admin")
+
+	require.NoError(t, err)
+	assert.Equal(t, []Tuple{
+		{User: "user:1", Relation: "admin", Object: "school:1"},
+		{User: "user:2", Relation: "admin", Object: "school:1"},
+	}, tuples)
+	assert.Equal(t, 2, requestCount)
+}
+
 func TestRecordSpanError_NoPanicOnNil(t *testing.T) {
 	assert.NotPanics(t, func() { recordSpanError(nil, nil) })
 }
