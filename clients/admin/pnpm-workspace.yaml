@@ -90,8 +90,8 @@ catalog:
   '@types/qrcode': ^1.5.6
   '@types/qs': ^6.15.0
   '@types/sortablejs': ^1.15.9
-  '@typescript-eslint/eslint-plugin': ^8.57.1
-  '@typescript-eslint/parser': ^8.57.1
+  '@typescript-eslint/eslint-plugin': ^8.65.0
+  '@typescript-eslint/parser': ^8.65.0
   '@vee-validate/zod': ^4.15.1
   '@vitejs/plugin-vue': ^6.0.5
   '@vitejs/plugin-vue-jsx': ^5.1.5
@@ -131,13 +131,13 @@ catalog:
   eslint-plugin-pnpm: ^1.6.0
   eslint-plugin-unicorn: ^63.0.0
   eslint-plugin-unused-imports: ^4.4.1
-  eslint-plugin-vue: ^10.8.0
+  eslint-plugin-vue: ^10.10.0
   eslint-plugin-vuejs-accessibility: 2.5.0
   eslint-plugin-yml: ^3.3.1
   execa: ^9.6.1
   find-up: ^8.0.0
   get-port: ^7.2.0
-  globals: ^17.4.0
+  globals: ^17.7.0
   happy-dom: 20.8.9
   html-minifier-terser: ^7.2.0
   is-ci: ^4.1.0
@@ -198,7 +198,7 @@ catalog:
   vite-plugin-vue-devtools: ^8.2.1
   vitest: ^4.1.0
   vue: ^3.5.30
-  vue-eslint-parser: ^10.4.0
+  vue-eslint-parser: ^10.4.1
   vue-i18n: ^11.3.0
   vue-json-viewer: ^3.0.4
   vue-router: ^5.0.4
