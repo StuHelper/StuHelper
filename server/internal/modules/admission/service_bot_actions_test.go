@@ -15,6 +15,33 @@ import (
 	"github.com/StuHelper/StuHelper/server/internal/testutil/postgresfixture"
 )
 
+func TestBotActionAttemptForDatabaseEnforcesClaimedRange(t *testing.T) {
+	tests := []struct {
+		name    string
+		attempt int
+		want    int32
+		wantErr bool
+	}{
+		{name: "zero is not a claim", attempt: 0, wantErr: true},
+		{name: "first attempt", attempt: 1, want: 1},
+		{name: "last attempt", attempt: admissionBotActionMaxAttempts, want: admissionBotActionMaxAttempts},
+		{name: "above retry budget", attempt: admissionBotActionMaxAttempts + 1, wantErr: true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := botActionAttemptForDatabase(test.attempt)
+			if test.wantErr {
+				require.ErrorIs(t, err, ErrAdmissionInvalidInput)
+				assert.Zero(t, got)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, test.want, got)
+		})
+	}
+}
+
 func TestPendingAdmissionActionBlacklistsOnFinalFailure(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	svc := newSessionTestService(t, fixture)

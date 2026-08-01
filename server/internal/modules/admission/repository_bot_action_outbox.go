@@ -295,7 +295,11 @@ func (r *Repository) abandonBotActionClaims(
 	attempts := make([]int32, len(rows))
 	for i := range rows {
 		ids[i] = rows[i].ID
-		attempts[i] = int32(rows[i].AttemptCount)
+		attempt, err := botActionAttemptForDatabase(rows[i].AttemptCount)
+		if err != nil {
+			return 0, fmt.Errorf("abandonBotActionClaims action %d: %w", rows[i].ID, err)
+		}
+		attempts[i] = attempt
 	}
 	ctx = withDBTable(ctx, admissionBotActionOutboxTable)
 	tag, err := r.db.Exec(ctx, `
@@ -317,6 +321,19 @@ func (r *Repository) abandonBotActionClaims(
 		return 0, fmt.Errorf("abandonBotActionClaims: %w", err)
 	}
 	return tag.RowsAffected(), nil
+}
+
+func botActionAttemptForDatabase(attempt int) (int32, error) {
+	if attempt < 1 || attempt > admissionBotActionMaxAttempts {
+		return 0, fmt.Errorf(
+			"attempt count %d is outside the claimed-action range [1,%d]: %w",
+			attempt,
+			admissionBotActionMaxAttempts,
+			ErrAdmissionInvalidInput,
+		)
+	}
+	// The domain check above proves the conversion is bounded by 5.
+	return int32(attempt), nil // #nosec G115 -- conversion is bounded by admissionBotActionMaxAttempts
 }
 
 func (r *Repository) MarkBotActionStaleTx(ctx context.Context, tx pgx.Tx, actionID int64, now time.Time) error {
