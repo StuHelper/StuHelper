@@ -4944,7 +4944,7 @@ __metadata:
     typescript: "npm:^5.6.2"
     yakumo: "npm:^1.0.0-beta.21"
     yakumo-esbuild: "npm:^1.0.0-beta.7"
-    yakumo-tsc: "npm:^1.0.0-beta.5"
+    yakumo-tsc: "npm:^3.0.1"
     yml-register: "npm:^1.2.5"
   languageName: unknown
   linkType: soft
@@ -6846,17 +6846,17 @@ __metadata:
   languageName: node
   linkType: hard
 
-"yakumo-tsc@npm:^1.0.0-beta.5":
-  version: 1.0.0
-  resolution: "yakumo-tsc@npm:1.0.0"
+"yakumo-tsc@npm:^3.0.1":
+  version: 3.0.1
+  resolution: "yakumo-tsc@npm:3.0.1"
   dependencies:
     atsc: "npm:^2.1.0"
     dtsc: "npm:^3.1.0"
     tsconfig-utils: "npm:^4.1.1"
   peerDependencies:
     typescript: "*"
-    yakumo: ^1.0.0
-  checksum: 10c0/5c5f6e9473f1d380fb8af6d6e9d339a180f1ab986a0159b05ef9b0cef7ba6dea2c0229d4ba1fb6346b8dbaf63befbd88d125b21917b40e0f2a2485875440dd54
+    yakumo: ^3.0.2
+  checksum: 10c0/ebe6f714d7a61d1ff545e77b03ead05497ecd14902c211873602912470998af23ac9b2510a25999b63df3ae34484df58b67dfad472ce343404e3b71476c6ab8f
   languageName: node
   linkType: hard
 
