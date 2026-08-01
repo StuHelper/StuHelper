@@ -60,32 +60,75 @@ func (a authorizationIdentityAdapter) ResolveAccessSnapshot(
 	if err != nil {
 		return nil, nil, err
 	}
-	snapshot, err := a.authorization.ResolveAccessSnapshotByUserID(ctx, userID)
-	if err != nil {
-		return nil, nil, err
-	}
-	if !containsAuthorizationRole(snapshot.Roles, string(authorization.RoleSuperAdmin)) ||
-		a.organizationAdminVerifier == nil {
-		return snapshot.Roles, snapshot.RoleScopes, nil
-	}
-	organizationAdmin, err := a.organizationAdminVerifier.ValidateOIDCSubject(ctx, providerSubject)
-	if err != nil {
-		return nil, nil, err
-	}
-	if organizationAdmin {
-		return snapshot.Roles, snapshot.RoleScopes, nil
-	}
-	if _, err := a.authorization.SyncCasdoorOrganizationAdmin(ctx, authorization.CasdoorOrganizationAdminSyncInput{
-		SubjectUserID:     userID,
-		OrganizationAdmin: false,
-	}); err != nil {
-		return nil, nil, err
-	}
-	snapshot, err = a.authorization.ResolveAccessSnapshotByUserID(ctx, userID)
+	snapshot, err := a.resolveAccessSnapshotByUserID(ctx, userID, providerSubject)
 	if err != nil {
 		return nil, nil, err
 	}
 	return snapshot.Roles, snapshot.RoleScopes, nil
+}
+
+// ResolveAccessSnapshotByUserID gives non-HTTP trusted callers the same
+// provider-managed super-admin revalidation used by authenticated HTTP
+// middleware. It prevents bot and background entry points from authorizing a
+// demoted Casdoor organization administrator from a stale serving projection.
+func (a authorizationIdentityAdapter) ResolveAccessSnapshotByUserID(
+	ctx context.Context,
+	userID int64,
+) (authorization.AccessSnapshot, error) {
+	snapshot, err := a.authorization.ResolveAccessSnapshotByUserID(ctx, userID)
+	if err != nil {
+		return authorization.AccessSnapshot{}, err
+	}
+	if !containsAuthorizationRole(snapshot.Roles, string(authorization.RoleSuperAdmin)) ||
+		a.organizationAdminVerifier == nil {
+		return snapshot, nil
+	}
+	providerSubject, err := a.users.GetCasdoorSubject(ctx, userID)
+	if err != nil {
+		return authorization.AccessSnapshot{}, err
+	}
+	return a.revalidateProviderManagedAdmin(ctx, snapshot, providerSubject)
+}
+
+func (a authorizationIdentityAdapter) resolveAccessSnapshotByUserID(
+	ctx context.Context,
+	userID int64,
+	providerSubject string,
+) (authorization.AccessSnapshot, error) {
+	snapshot, err := a.authorization.ResolveAccessSnapshotByUserID(ctx, userID)
+	if err != nil {
+		return authorization.AccessSnapshot{}, err
+	}
+	if !containsAuthorizationRole(snapshot.Roles, string(authorization.RoleSuperAdmin)) ||
+		a.organizationAdminVerifier == nil {
+		return snapshot, nil
+	}
+	return a.revalidateProviderManagedAdmin(ctx, snapshot, providerSubject)
+}
+
+func (a authorizationIdentityAdapter) revalidateProviderManagedAdmin(
+	ctx context.Context,
+	snapshot authorization.AccessSnapshot,
+	providerSubject string,
+) (authorization.AccessSnapshot, error) {
+	organizationAdmin, err := a.organizationAdminVerifier.ValidateOIDCSubject(ctx, providerSubject)
+	if err != nil {
+		return authorization.AccessSnapshot{}, err
+	}
+	if organizationAdmin {
+		return snapshot, nil
+	}
+	if _, err := a.authorization.SyncCasdoorOrganizationAdmin(ctx, authorization.CasdoorOrganizationAdminSyncInput{
+		SubjectUserID:     snapshot.InternalUserID,
+		OrganizationAdmin: false,
+	}); err != nil {
+		return authorization.AccessSnapshot{}, err
+	}
+	snapshot, err = a.authorization.ResolveAccessSnapshotByUserID(ctx, snapshot.InternalUserID)
+	if err != nil {
+		return authorization.AccessSnapshot{}, err
+	}
+	return snapshot, nil
 }
 
 func (a authorizationIdentityAdapter) SyncCasdoorOrganizationAdmin(

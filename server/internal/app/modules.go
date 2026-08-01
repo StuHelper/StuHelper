@@ -214,7 +214,7 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 		admission.WithAdmissionMaterialStore(
 			newAdmissionMaterialStorageAdapter(storageService, storage.DefaultMountKey),
 		),
-		admission.WithOperatorAccessGateway(rt.initAdmissionOperatorAccess(authorizationService)),
+		admission.WithOperatorAccessGateway(rt.initAdmissionOperatorAccess(authorizationIdentity)),
 		admission.WithSchoolSSOExchanger(admission.NewOIDCSchoolSSOExchanger(rt.oidcClient)),
 		admission.WithAdmissionPublicBaseURL(rt.cfg.Admission.PublicBaseURL),
 	)

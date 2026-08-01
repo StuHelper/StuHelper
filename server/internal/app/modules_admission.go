@@ -10,7 +10,14 @@ import (
 )
 
 type admissionAuthorizationGateway struct {
-	authorization *authorizationmodule.Service
+	authorization admissionAccessSnapshotResolver
+}
+
+type admissionAccessSnapshotResolver interface {
+	ResolveAccessSnapshotByUserID(
+		ctx context.Context,
+		userID int64,
+	) (authorizationmodule.AccessSnapshot, error)
 }
 
 func (g admissionAuthorizationGateway) UserHasCapabilityInSchool(
@@ -34,7 +41,7 @@ func (g admissionAuthorizationGateway) UserHasCapabilityInSchool(
 }
 
 func (rt *Runtime) initAdmissionOperatorAccess(
-	authorization *authorizationmodule.Service,
+	authorization admissionAccessSnapshotResolver,
 ) admission.OperatorAccessGateway {
 	return admissionAuthorizationGateway{authorization: authorization}
 }

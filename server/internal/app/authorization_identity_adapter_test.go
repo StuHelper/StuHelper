@@ -108,6 +108,78 @@ func TestAuthorizationIdentityAdapterFailsClosedWhenCasdoorAdminVerificationFail
 	assert.Nil(t, scopes)
 }
 
+func TestAuthorizationIdentityAdapterByUserIDRevokesDemotedCasdoorAdmin(t *testing.T) {
+	ctx := context.Background()
+	postgres := postgresfixture.Start(t)
+	userID := seedAuthorizationIdentityUser(t, postgres, "casdoor-bot-admin")
+	authorizationService := authorizationmodule.NewService(
+		authorizationmodule.NewRepository(postgres.DB),
+	)
+	_, err := authorizationService.SyncCasdoorOrganizationAdmin(
+		ctx,
+		authorizationmodule.CasdoorOrganizationAdminSyncInput{
+			SubjectUserID:     userID,
+			OrganizationAdmin: true,
+		},
+	)
+	require.NoError(t, err)
+	_, err = postgres.Pool.Exec(ctx, `
+		UPDATE authorization_grants
+		SET projection_status = 'applied', activated_at = NOW(), projected_at = NOW()
+		WHERE subject_user_id = $1 AND role = 'super_admin'
+	`, userID)
+	require.NoError(t, err)
+
+	verifier := &fixedOrganizationAdminVerifier{organizationAdmin: false}
+	adapter := newAuthorizationIdentityAdapter(
+		user.NewRepository(postgres.DB, []byte("0123456789abcdef0123456789abcdef")),
+		authorizationService,
+		verifier,
+	)
+
+	snapshot, err := adapter.ResolveAccessSnapshotByUserID(ctx, userID)
+
+	require.NoError(t, err)
+	assert.NotContains(t, snapshot.Roles, string(authorizationmodule.RoleSuperAdmin))
+	assert.Equal(t, userID, snapshot.InternalUserID)
+	assert.Equal(t, 1, verifier.calls)
+}
+
+func TestAuthorizationIdentityAdapterByUserIDFailsClosedWhenProviderUnavailable(t *testing.T) {
+	ctx := context.Background()
+	postgres := postgresfixture.Start(t)
+	userID := seedAuthorizationIdentityUser(t, postgres, "casdoor-bot-admin-unavailable")
+	authorizationService := authorizationmodule.NewService(
+		authorizationmodule.NewRepository(postgres.DB),
+	)
+	_, err := authorizationService.SyncCasdoorOrganizationAdmin(
+		ctx,
+		authorizationmodule.CasdoorOrganizationAdminSyncInput{
+			SubjectUserID:     userID,
+			OrganizationAdmin: true,
+		},
+	)
+	require.NoError(t, err)
+	_, err = postgres.Pool.Exec(ctx, `
+		UPDATE authorization_grants
+		SET projection_status = 'applied', activated_at = NOW(), projected_at = NOW()
+		WHERE subject_user_id = $1 AND role = 'super_admin'
+	`, userID)
+	require.NoError(t, err)
+
+	expectedErr := errors.New("Casdoor unavailable")
+	adapter := newAuthorizationIdentityAdapter(
+		user.NewRepository(postgres.DB, []byte("0123456789abcdef0123456789abcdef")),
+		authorizationService,
+		&fixedOrganizationAdminVerifier{err: expectedErr},
+	)
+
+	snapshot, err := adapter.ResolveAccessSnapshotByUserID(ctx, userID)
+
+	require.ErrorIs(t, err, expectedErr)
+	assert.Empty(t, snapshot.Roles)
+}
+
 func seedAuthorizationIdentityUser(
 	t *testing.T,
 	postgres *postgresfixture.Fixture,
