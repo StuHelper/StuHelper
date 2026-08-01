@@ -157,17 +157,29 @@ func (s *Service) CreateSessionForApplication(
 	return &SessionInfo{SessionID: sessionID}, nil
 }
 
-func (s *Service) OIDCApplicationForRefresh(ctx context.Context, sessionID, refreshToken string) (string, error) {
+type oidcRefreshSession struct {
+	applicationKey string
+	subject        string
+}
+
+func (s *Service) OIDCSessionForRefresh(
+	ctx context.Context,
+	sessionID,
+	refreshToken string,
+) (oidcRefreshSession, error) {
 	var err error
 	sessionID, err = normalizeRequiredSessionID(sessionID)
 	if err != nil {
-		return "", fmt.Errorf("resolve oidc application: %w", err)
+		return oidcRefreshSession{}, fmt.Errorf("resolve oidc refresh session: %w", err)
 	}
 	session, err := s.verifyTrackedSession(ctx, sessionID, trackedSessionExpectation{refreshToken: refreshToken})
 	if err != nil {
-		return "", fmt.Errorf("resolve oidc application: %w", err)
+		return oidcRefreshSession{}, fmt.Errorf("resolve oidc refresh session: %w", err)
 	}
-	return providerAppKeyForSession(session.LoginMethod, session.ProviderAppKey), nil
+	return oidcRefreshSession{
+		applicationKey: providerAppKeyForSession(session.LoginMethod, session.ProviderAppKey),
+		subject:        session.UserID,
+	}, nil
 }
 
 // RotateSession 在 refresh 流程中轮换 session 内的 token 对（Token Family 模式）。

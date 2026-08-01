@@ -162,9 +162,10 @@ func TestProviderTokenFamilyInputsAreNormalized(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "provider-refresh", rawProviderRefresh)
 
-	appKey, err := svc.OIDCApplicationForRefresh(t.Context(), "sid-provider-trim", " \tprovider-refresh\n ")
+	refreshSession, err := svc.OIDCSessionForRefresh(t.Context(), "sid-provider-trim", " \tprovider-refresh\n ")
 	require.NoError(t, err)
-	assert.Equal(t, oidc.ApplicationUniapp, appKey)
+	assert.Equal(t, oidc.ApplicationUniapp, refreshSession.applicationKey)
+	assert.Equal(t, "user-1", refreshSession.subject)
 
 	err = svc.RevokeSession(t.Context(), "sid-provider-trim", "user-1", "access-token", " \tprovider-refresh\n ", futureAccessTokenExpiry())
 	require.NoError(t, err)

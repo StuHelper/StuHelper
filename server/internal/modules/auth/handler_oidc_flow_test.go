@@ -9,6 +9,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -24,9 +25,10 @@ import (
 )
 
 type fakeOIDCProvider struct {
-	server   *httptest.Server
-	client   *oidcpkg.Client
-	clientID string
+	server        *httptest.Server
+	client        *oidcpkg.Client
+	clientID      string
+	tokenRequests *atomic.Int64
 }
 
 func newFakeOIDCProvider(t *testing.T) *fakeOIDCProvider {
@@ -69,6 +71,7 @@ func newFakeOIDCProviderWithTokenPayloadForClaims(
 	const clientID = "test-client-id"
 	const clientSecret = "test-client-secret"
 	jwk := jose.JSONWebKey{Key: &privateKey.PublicKey, KeyID: "test-key", Algorithm: string(jose.RS256), Use: "sig"}
+	providerTokenRequests := &atomic.Int64{}
 
 	var issuer string
 	issueIDTokenWithClaims := func(overrides map[string]any) string {
@@ -112,6 +115,7 @@ func newFakeOIDCProviderWithTokenPayloadForClaims(
 		http.Redirect(w, r, issuer+"/callback?code=code-1&state=state-1", http.StatusFound)
 	})
 	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
+		providerTokenRequests.Add(1)
 		_ = r.ParseForm()
 		issueForRequestClient := func() string {
 			return issueIDTokenWithClaims(map[string]any{"aud": requestOIDCClientID(r, clientID)})
@@ -149,7 +153,12 @@ func newFakeOIDCProviderWithTokenPayloadForClaims(
 	})
 	require.NoError(t, err)
 
-	return &fakeOIDCProvider{server: srv, client: client, clientID: clientID}
+	return &fakeOIDCProvider{
+		server:        srv,
+		client:        client,
+		clientID:      clientID,
+		tokenRequests: providerTokenRequests,
+	}
 }
 
 func requestOIDCClientID(r *http.Request, fallback string) string {
@@ -544,7 +553,8 @@ func TestRefreshOIDCToken_OrganizationAdminSyncFailureDoesNotRotateSession(t *te
 
 func TestRefreshOIDCToken_SubjectLookupUnavailableReturns503WithoutClearingSessionCookies(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	h, _ := newOIDCTestHandler(t, &recordingUserSyncRepo{})
+	provider := newFakeOIDCProvider(t)
+	h, _ := newOIDCTestHandlerWithProvider(t, &recordingUserSyncRepo{}, provider)
 	h.oidcSubjectValidator = &fakeOIDCSubjectValidator{err: oidcpkg.ErrProviderUnavailable}
 	ctx := context.Background()
 
@@ -569,6 +579,7 @@ func TestRefreshOIDCToken_SubjectLookupUnavailableReturns503WithoutClearingSessi
 
 	require.False(t, ok)
 	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+	assert.Zero(t, provider.tokenRequests.Load(), "provider refresh token must not be consumed before authoritative subject lookup")
 	assertNoIssuedTokenCookies(t, w)
 	assertNoClearedTokenCookies(t, w)
 	session, err := h.tokenService.GetSessionStore().Get(ctx, "sid-oidc-subject-lookup-unavailable")

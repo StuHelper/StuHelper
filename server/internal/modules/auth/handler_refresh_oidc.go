@@ -41,22 +41,32 @@ type oidcSessionRotation struct {
 // refreshOIDCToken 处理 OIDC provider 的 refresh 逻辑。
 func (h *Handler) refreshOIDCToken(c *gin.Context, refreshTokenStr string, includeTokensInResponse bool) bool {
 	sessionID := h.getSessionID(c, "")
-	appKey, ok := h.resolveOIDCRefreshApplication(c, sessionID, refreshTokenStr)
+	refreshSession, ok := h.resolveOIDCRefreshSession(c, sessionID, refreshTokenStr)
 	if !ok {
 		return false
 	}
-	payload, ok := h.fetchOIDCRefreshPayload(c, appKey, refreshTokenStr)
+	organizationAdmin, ok := h.validateOIDCRefreshSubject(c, refreshSession.subject)
 	if !ok {
 		return false
 	}
-	if !h.syncOIDCRefreshUser(c, appKey, sessionID, refreshTokenStr, payload) {
+	payload, ok := h.fetchOIDCRefreshPayload(
+		c,
+		refreshSession.applicationKey,
+		refreshSession.subject,
+		organizationAdmin,
+		refreshTokenStr,
+	)
+	if !ok {
+		return false
+	}
+	if !h.syncOIDCRefreshUser(c, refreshSession.applicationKey, sessionID, refreshTokenStr, payload) {
 		return false
 	}
 	csrfToken, ok := h.prepareTokenCookies(c, sessionID)
 	if !ok {
 		h.revokeIssuedProviderTokenFamily(
 			c,
-			appKey,
+			refreshSession.applicationKey,
 			sessionID,
 			refreshTokenStr,
 			payload.providerAccessToken,
@@ -68,7 +78,7 @@ func (h *Handler) refreshOIDCToken(c *gin.Context, refreshTokenStr string, inclu
 
 	rotation := oidcSessionRotation{
 		sessionID:       sessionID,
-		appKey:          appKey,
+		appKey:          refreshSession.applicationKey,
 		userID:          payload.userID,
 		oldRefreshToken: refreshTokenStr,
 		payload:         payload,
@@ -85,24 +95,55 @@ func (h *Handler) refreshOIDCToken(c *gin.Context, refreshTokenStr string, inclu
 	return true
 }
 
-func (h *Handler) resolveOIDCRefreshApplication(c *gin.Context, sessionID, oldRefreshToken string) (string, bool) {
-	appKey, err := h.svc.OIDCApplicationForRefresh(c.Request.Context(), sessionID, oldRefreshToken)
+func (h *Handler) resolveOIDCRefreshSession(
+	c *gin.Context,
+	sessionID,
+	oldRefreshToken string,
+) (oidcRefreshSession, bool) {
+	refreshSession, err := h.svc.OIDCSessionForRefresh(c.Request.Context(), sessionID, oldRefreshToken)
 	if err == nil {
-		return appKey, true
+		return refreshSession, true
 	}
-	logger.FromGin(c).Error("failed to resolve OIDC refresh application", zap.Bool("session_present", sessionID != ""), zap.Error(err))
+	logger.FromGin(c).Error("failed to resolve OIDC refresh session", zap.Bool("session_present", sessionID != ""), zap.Error(err))
 	h.clearTokenCookies(c)
 	if errors.Is(err, token.ErrSessionNotFound) ||
 		errors.Is(err, errSessionIDRequired) ||
 		errors.Is(err, errSessionRefreshTokenMismatch) {
 		response.Unauthorized(c, "invalid native session id", errs.ErrTokenInvalid)
-		return "", false
+		return oidcRefreshSession{}, false
 	}
 	response.InternalError(c, "failed to refresh token")
-	return "", false
+	return oidcRefreshSession{}, false
 }
 
-func (h *Handler) fetchOIDCRefreshPayload(c *gin.Context, appKey, oldRefreshToken string) (oidcRefreshPayload, bool) {
+func (h *Handler) validateOIDCRefreshSubject(c *gin.Context, subject string) (bool, bool) {
+	if h.oidcSubjectValidator == nil {
+		return false, true
+	}
+	organizationAdmin, err := h.oidcSubjectValidator.ValidateOIDCSubject(c.Request.Context(), subject)
+	if err == nil {
+		return organizationAdmin, true
+	}
+	logger.FromGin(c).Warn("OIDC subject validation failed before provider refresh",
+		zap.String("user_id", subject),
+		zap.Error(err),
+	)
+	if errors.Is(err, oidc.ErrProviderUnavailable) {
+		response.ServiceUnavailable(c, "refresh service temporarily unavailable")
+		return false, false
+	}
+	h.clearTokenCookies(c)
+	response.Unauthorized(c, "failed to refresh token", errs.ErrOAuthFailed)
+	return false, false
+}
+
+func (h *Handler) fetchOIDCRefreshPayload(
+	c *gin.Context,
+	appKey,
+	expectedSubject string,
+	organizationAdmin bool,
+	oldRefreshToken string,
+) (oidcRefreshPayload, bool) {
 	newToken, err := h.oidcClient.RefreshTokenForApplication(c.Request.Context(), appKey, oldRefreshToken)
 	if err != nil {
 		logger.FromGin(c).Error("OIDC token refresh failed", zap.Error(err))
@@ -151,25 +192,14 @@ func (h *Handler) fetchOIDCRefreshPayload(c *gin.Context, appKey, oldRefreshToke
 		response.InternalError(c, "failed to refresh token")
 		return oidcRefreshPayload{}, false
 	}
-	organizationAdmin := false
-	if h.oidcSubjectValidator != nil {
-		organizationAdmin, err = h.oidcSubjectValidator.ValidateOIDCSubject(
-			c.Request.Context(),
-			newClaims.GetUserID(),
+	if newClaims.GetUserID() != expectedSubject {
+		logger.FromGin(c).Warn("OIDC refresh subject changed",
+			zap.String("expected_user_id", expectedSubject),
+			zap.String("actual_user_id", newClaims.GetUserID()),
 		)
-		if err != nil {
-			logger.FromGin(c).Warn("OIDC subject validation failed during refresh",
-				zap.String("user_id", newClaims.GetUserID()),
-				zap.Error(err),
-			)
-			if errors.Is(err, oidc.ErrProviderUnavailable) {
-				response.ServiceUnavailable(c, "refresh service temporarily unavailable")
-				return oidcRefreshPayload{}, false
-			}
-			h.clearTokenCookies(c)
-			response.Unauthorized(c, "failed to refresh token", errs.ErrOAuthFailed)
-			return oidcRefreshPayload{}, false
-		}
+		h.clearTokenCookies(c)
+		response.Unauthorized(c, "failed to refresh token", errs.ErrOAuthFailed)
+		return oidcRefreshPayload{}, false
 	}
 	revokeUncommittedRefresh = false
 	return oidcRefreshPayload{
