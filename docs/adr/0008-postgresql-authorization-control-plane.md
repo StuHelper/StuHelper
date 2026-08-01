@@ -12,9 +12,9 @@ last-verified: 2026-07-31
 **Status**: accepted; amended by [ADR-0009](0009-casdoor-organization-admin-super-admin-authority.md)
 **Deciders**: 项目 owner
 
-> **仓库实施状态（2026-07-31）**：已完成代码、迁移、OpenAPI、管理后台、bootstrap、
-> Casdoor 业务角色链路退役和本地自动化验证；真实生产发布、存量授权盘点/迁移及受控账号
-> 验收仍属于发布步骤，不能由本地绿灯替代。
+> **仓库实施状态（2026-08-01）**：已完成代码、迁移、OpenAPI、管理后台、一次性存量授权
+> 切换门禁、Casdoor 业务角色运行时链路退役和本地自动化验证；真实生产发布、切换 evidence
+> 与受控账号验收仍属于发布步骤，不能由本地绿灯替代。
 
 > **2026-08-01 修订**：ADR-0009 将 `super_admin` 的管理权威改为 Casdoor 目标
 > organization 用户对象的 `IsAdmin`。PostgreSQL 仍保存其可审计 serving projection；本 ADR
@@ -118,6 +118,7 @@ DB desired=revoked, projection=pending
 | 授权账本 | `server/migrations/000020_authorization_grants.*.sql` |
 | 旧 Casdoor role job 退役 | `server/migrations/000021_retire_casdoor_role_projection.*.sql` |
 | 稳定激活围栏索引 | `server/migrations/000022_authorization_activation_fence.*.sql` |
+| 一次性权威切换 marker | `server/migrations/000024_authorization_authority_cutover.*.sql` |
 | 管理 Service / Repository / worker | `server/internal/modules/authorization/` |
 | 受限 OpenAPI | `/api/v1/admin/authorization/grants*` 与 `/api/v1/admin/authorization/projections/reconcile` |
 | 管理后台 | `/authorization/grants`，需要全局 `iam:grants:manage` |
@@ -142,16 +143,29 @@ organization administrator 后，让该账号完成正常登录或 refresh；系
 
 ## 迁移与回滚
 
-切换前必须先盘点现有直接 OpenFGA 管理员 tuple，并确认预期账号已是 Casdoor StuHelper
-organization administrator；不得把未知 tuple 自动反向导入。账号登录或 refresh、完成
-verified projection 并验证至少一名可用 `super_admin` 后才能切换流量。切换后：
+生产发布在 migration 和 Casdoor/OpenFGA bootstrap 后、启动新应用前运行
+`infra/ops/authorization-ledger-cutover.sh prod`。切换命令把旧状态视为迁移输入，不恢复其长期
+权威地位：
+
+- 当前有效 Casdoor organization `IsAdmin` 与本地 shadow user 对应后导入 `super_admin`；
+- scoped role 只有同时存在遗留 Casdoor membership 与对应 OpenFGA direct tuple 时导入，避免
+  单一陈旧来源扩大权限；
+- OpenFGA 读取使用 higher-consistency 并遍历全部分页；未知主体、嵌套 membership、既有账本
+  或来源冲突均 fail-closed；
+- grant、system audit、projection outbox 和 singleton completed marker 在单个 PostgreSQL
+  事务提交。应用在 production-like 环境看到 pending/missing marker 时拒绝启动；
+- marker 完成后重复执行只返回已存 digest/count，不重复读取或导入旧来源。fresh install 可用
+  空集合完成 marker。
+
+不得把未知 tuple 自动反向导入，也不得手工更新 marker 绕过冲突。切换后：
 
 - provider `roles` 不再解析或进入 access snapshot，不能参与 allow/deny；
 - Casdoor 中遗留业务 role/membership 先冻结写入，再清理；organization `IsAdmin` 保留为
   `super_admin` 的唯一显式例外；
 - 旧 Casdoor role-sync credential、worker、配置和 bootstrap catalog 在代码切换完成后移除。
 
-若发布回滚，只回滚应用读取路径；DB 授权账本与审计不得删除或反向覆盖。回滚窗口内旧版本
+若发布回滚，只回滚应用读取路径；DB 授权账本、审计与已完成 marker 不得删除或反向覆盖。
+回滚窗口内旧版本
 若仍信任 Casdoor role，会违反本 ADR，因此生产切换必须使用兼容发布序列或维护窗口，不能把
 重新启用 Casdoor role authority 当作正常回滚方案。
 

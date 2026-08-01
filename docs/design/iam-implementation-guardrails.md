@@ -2,7 +2,7 @@
 type: design
 audience: backend-dev, ops
 status: current
-authoritative-source: server/internal/modules/auth/ + server/internal/modules/authorization/ + server/internal/platform/authorization/ + server/internal/pkg/fga/ + server/internal/pkg/outbox/ + server/internal/pkg/audit/
+authoritative-source: server/internal/modules/auth/ + server/internal/modules/authorization/ + server/internal/modules/user/ + server/internal/platform/authorization/ + server/internal/pkg/fga/ + server/internal/pkg/outbox/ + server/internal/pkg/audit/ + server/migrations/000024_authorization_authority_cutover.*.sql + infra/ops/authorization-ledger-cutover.sh
 last-verified: 2026-08-01
 ---
 
@@ -15,6 +15,11 @@ last-verified: 2026-08-01
 `login`、`refresh`、`logout`、`logout-all` 和任何 session rotation 流程必须先完成服务端权威状态写入，再向客户端发放 token、cookie 或成功响应。
 
 - refresh 获取或签发新 token 后，必须先完成 session store 的 token family 更新；
+- OIDC refresh 在调用 provider token endpoint 前，必须先从受校验的本地 session 取出绑定的
+  provider subject，并完成 Casdoor 服务端 user lookup。lookup 依赖不可用时不得消费/轮换
+  provider refresh token，也不得清除仍有效的本地 session cookie；
+- provider 返回的新 ID token subject 必须与 session 绑定 subject 完全一致。subject 改变时清除
+  客户端会话并拒绝，不能把 refresh 变成换号登录；
 - provider refresh token revoke / rotation 失败时，不得向客户端承诺成功；
 - 本地 session 更新失败时，不得把新 access / refresh token 写入 `Set-Cookie` 或响应体；
 - 失败注入测试必须覆盖 provider refresh 成功但本地 session rotate 失败的场景。
@@ -46,6 +51,23 @@ last-verified: 2026-08-01
 - Casdoor JWT `roles` claim、普通 Casdoor role membership、`/userinfo` 或 introspection 中的
   role 列表仍不得创建、续期、撤销或恢复任何 StuHelper 授权。
 
+首次把旧生产系统切到 PostgreSQL 授权账本时，必须使用一次性、可重试、失败关闭的切换门禁：
+
+- migration 创建 durable singleton marker，初始为 `pending`；production / prod-parity 应用在
+  marker 完成前拒绝启动授权路由和 worker；
+- `infra/ops/authorization-ledger-cutover.sh` 必须在 migration、Casdoor bootstrap 和 OpenFGA
+  model/bootstrap 之后、应用启动之前运行；它先创建受控快照，再在单个 DB 事务中写 grant、
+  audit、outbox 和 completed marker；
+- `super_admin` 只从目标 organization 的当前有效 `IsAdmin` 导入；旧 scoped operator 只有同时
+  存在目标 organization 的遗留 Casdoor role membership 与对应 OpenFGA **direct tuple** 时才
+  导入。这里读取 role membership 只是一次性迁移证据交集，不把 Casdoor role 恢复为运行时
+  权威；
+- OpenFGA direct tuple 读取必须使用 higher-consistency 并遍历全部 continuation token。未知
+  subject、无法与 Casdoor 身份对应的 tuple、嵌套 role/group/domain、既有非空账本或来源冲突
+  都必须中止切换，不得自动猜测、扩大权限或直接改 completed marker；
+- fresh installation 可以用空 grant 集合完成 marker；已完成 marker 的重复执行只返回原 digest
+  与数量，不重读旧权威、不重复写入；发布回滚保留已经导入的 grant、audit 与 marker。
+
 - grant/revoke 必须在同一 DB 事务写 desired state、`audit_events` 与
   `domain_event_outbox`；任一步失败整体回滚；
 - 授予先写 `desired=granted, projection=pending, activated_at=NULL`，只有 OpenFGA 精确
@@ -74,6 +96,9 @@ last-verified: 2026-08-01
   错误、重排 outbox 并写 system audit；不得把“provider 状态没变”误判为无需恢复；
 - DB 快照中已有 `super_admin` 的受保护请求必须实时复核 Casdoor 用户状态。Casdoor 不可用时
   fail-closed；检测到降权时先提交 DB revoke 围栏并重载快照，再由 outbox 异步删除 tuple；
+- Koishi、service credential、后台任务等非 HTTP 可信入口，只要根据内部 user ID 做管理员
+  capability 判定，也必须通过同一个 identity adapter 做上述实时复核；不得直接读取
+  Authorization Service 的陈旧 DB snapshot 绕过降权门禁；
 - Casdoor user lookup 的依赖故障必须返回 503，不得伪装成主体无效的 401；refresh 在该故障下
   不得清除现有客户端 session cookie。跨 organization、主体不存在或其他身份校验失败仍按
   不可信身份拒绝，不能借 503 分类放宽校验；

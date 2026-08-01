@@ -11,6 +11,10 @@
 > organization 用户对象的 `IsAdmin` 是 StuHelper `super_admin` 管理权威；项目不要求两个
 > 管理员，MFA reset 不要求另一名 `super_admin` 确认。阅读下文时必须把这些旧内容视为历史
 > 证据，不得据此恢复旧实现。
+>
+> 2026-08-01 PR #21 后续审查新增的迁移、refresh、Koishi 授权与分页问题没有改写本归档正文；
+> 逐项交叉验证、必要性判断、实施状态和证据继续统一记录在
+> [`AUDIT-FINDINGS.md`](AUDIT-FINDINGS.md) 的“PR #21 新增审查线程复核”小节。
 
 本报告的全部内容来自两轮多 agent 审计的执行记录（workflow journal 与 agent transcript），
 不依赖 git 历史——该 worktree 有其他 agent 并行修改，git 历史无法可靠归属。

@@ -3,7 +3,7 @@ type: reference
 audience: backend-dev, ops
 status: current
 authoritative-source: server/migrations/
-last-verified: 2026-07-31
+last-verified: 2026-08-01
 ---
 
 # 数据库导航摘要
@@ -33,7 +33,7 @@ last-verified: 2026-07-31
 | 通知 | `notification*` | [product-specs/notification.md](../product-specs/notification.md) |
 | Admission 机器人动作 | `admission_bot_action_outbox` | [design/koishi-admission-verification.md](../design/koishi-admission-verification.md) |
 | 开放平台 | `open_platform_*` | [design/open-platform-v1.md](../design/open-platform-v1.md) |
-| 管理授权 | `authorization_grants`（scoped role 管理真源；Casdoor `super_admin` serving projection） | [ADR-0008](../adr/0008-postgresql-authorization-control-plane.md) / [ADR-0009](../adr/0009-casdoor-organization-admin-super-admin-authority.md) |
+| 管理授权 | `authorization_grants`（scoped role 管理真源；Casdoor `super_admin` serving projection）、`authorization_authority_cutover`（一次性生产切换门禁） | [ADR-0008](../adr/0008-postgresql-authorization-control-plane.md) / [ADR-0009](../adr/0009-casdoor-organization-admin-super-admin-authority.md) |
 | 审计与 outbox | `audit_events`、`domain_event_outbox` | [product-specs/audit-logging.md](../product-specs/audit-logging.md) |
 
 ## 设计约束（不改文档能看出来的除外）
@@ -47,6 +47,10 @@ last-verified: 2026-07-31
 - `teacher_public_stats` 是异步投影。`reviews`、`teachers`、`departments` 的 statement-level trigger 在同一数据库事务中幂等 upsert `review_projection / teacher_public_stats_refresh / teacher_public_stats` job；单并发 worker 刷新物化视图后统一失效 Redis 缓存，周期性 enqueue 只承担漂移对账，不把同步刷新延迟带回 HTTP 请求。全量 `REFRESH MATERIALIZED VIEW CONCURRENTLY` 使用独立的 `REVIEW_TEACHER_STATS_REFRESH_TIMEOUT_SECONDS`（默认 60 秒、允许 5–90 秒），不受普通 `DB_QUERY_TIMEOUT` 的 5 秒默认值截断，但仍继承进程停机/调用方取消。上限必须低于共享 outbox 的 2 分钟 stale lease，避免旧刷新仍在执行时被另一 worker 重领；若 90 秒仍不足，应先测量并重新设计投影，不得继续放大 lease。延迟沿既有 `db_query_duration_seconds{operation="exec",table="mv_teacher_public_stats"}` 观测，重试/终止失败沿既有 outbox failure 指标和日志观测，不另建重复指标体系。
 - 评课点赞与回复通知在业务写事务内写入 `review_notification` outbox。worker 可重试投递，`notifications.idempotency_key` 的 partial unique index 保证重复消费只产生一条持久通知；实时 SSE 只在首次插入时发送，不能把连接在线状态当作持久投递保证。
 - `audit_events.category = 'admin_operation'` 收口所有管理员操作的审计留痕。
+- `authorization_authority_cutover` 是 singleton 发布门禁，不是第二套授权账本。首次生产升级只有在
+  经 Casdoor/OpenFGA 交叉验证的存量授权、对应 audit/outbox 与 marker 在同一事务提交后才从
+  `pending` 变为 `completed`；production-like 应用启动必须检查该状态。重复发布只读取已完成
+  digest，不得通过手工更新 marker 绕过冲突。
 - `open_platform_user_consents` 是第三方 app + user + scope 授权事实；scope consent 不写入 OpenFGA。
 - 能力由角色静态展开，**不落本地 RBAC 表**；资源级权限由 OpenFGA 承担。详见 [design/authorization-model.md](../design/authorization-model.md)。
 - `pg_trgm` 已启用，`courses.name/code`、`teachers.name` 上建有 GIN trigram 索引。

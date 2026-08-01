@@ -2,8 +2,8 @@
 type: guide
 audience: ops
 status: current
-authoritative-source: docker-compose.prod.yml + infra/ops/*.sh + infra/nginx/baota-stuhelper.conf
-last-verified: 2026-07-30
+authoritative-source: docker-compose.prod.yml + infra/ops/*.sh + infra/nginx/baota-stuhelper.conf + server/migrations/ + server/internal/app/modules.go
+last-verified: 2026-08-01
 ---
 
 # 生产上线缺漏清单与执行指导
@@ -232,6 +232,43 @@ stuhelper-core:console:
 该包必须包含 `koishi-plugin-stuhelper-core` 的 `lib/` 和 `dist/`，以及 `koishi-plugin-stuhelper-group-guard`、`koishi-plugin-stuhelper-binding`、`@stuhelper/koishi-shared`、`@stuhelper/koishi-moderation-core` 的运行时 `lib/` 产物；同时必须包含 `koishi/local-workspaces/...` 和 `koishi/STUHELPER_KOISHI_APPLY_LOCAL_WORKSPACES.cjs`，用于把 StuHelper 私有插件固定为本地 `workspace:*` 依赖，避免 Koishi Market 更新普通插件时请求 npm registry 并因 `koishi-plugin-stuhelper-core@0.0.0` 未发布而失败。否则 admission WebUI 页面或 group-guard Console API 会在生产漂移。
 
 若宝塔 Compose 环境只能手工覆盖包，也必须记录包 sha256、覆盖路径和重启步骤；源码修复必须回写到仓库。
+
+## 授权账本首次切换门禁
+
+`000024_authorization_authority_cutover` 之后，production 与 prod-parity 应用不会在切换 marker
+仍为 `pending` 时启动。标准 `prod-deploy.sh` 已固定以下顺序：数据库 migration → OpenFGA
+启动与 Casdoor/OpenFGA bootstrap → `authorization-ledger-cutover.sh` → 应用启动。不得绕过脚本
+单独启动新应用。
+
+首次升级前先确认：
+
+- 目标 Casdoor organization 中预期最高管理员是当前有效的 organization administrator；
+- 旧 scoped operator 若确实需要保留，同时具有遗留 Casdoor `school_admin` / `section_*`
+  membership 与对应 OpenFGA direct tuple；单边陈旧记录不会被导入；
+- pre-deploy PostgreSQL 备份和对象存储同步 evidence 已通过；
+- OpenFGA 旧 store ID 正确保留，不能误建空 store 后继续切换。
+
+标准发布会自动执行；需要在维护窗口独立重试时使用：
+
+```bash
+./infra/ops/authorization-ledger-cutover.sh prod
+```
+
+成功只输出非敏感 JSON：`changed`、64 位 `sourceDigest`、`importedGrantCount` 和
+`skippedTupleCount`。首次成功后 marker、每条 imported grant audit 和 projection outbox 在同一
+PostgreSQL 事务落地；重复执行返回 `changed=false` 和原 digest/count，不重复导入。fresh install
+没有 shadow user 时可以用空集合安全完成，后续 Casdoor organization administrator 在正常登录
+或 refresh 时按 ADR-0009 同步。
+
+遇到以下任一情况，脚本会中止且应用保持 fail-closed：OpenFGA 分页读取失败、tuple subject 无法
+对应本地/Casdoor 身份、Casdoor legacy role 使用嵌套 group/role/domain、pending marker 下已有
+无法安全归属的 grant，或来源 digest 冲突。此时应保留备份并逐项核对 Casdoor、OpenFGA 与 DB，
+不得直接 `UPDATE authorization_authority_cutover SET status='completed'`，也不得清空
+`authorization_grants` 强行放行。应用回滚时保留已导入 grant、audit、outbox 和 completed marker。
+
+上线 evidence 至少记录发布版本、source digest、导入/跳过数量、marker 完成时间、projection
+worker 收敛结果，以及预期管理员的实际登录/降权验证；不得记录 Casdoor token、secret 或用户
+敏感字段。
 
 ## 发布流程
 

@@ -46,9 +46,11 @@ Claude 两轮共有 117 个原始标签，均已完成源码级复核：
 
 ## 3. 当前致命、高、中级队列
 
-复核后没有 P0。已确认的 P1/P2 均已形成独立实施提交并有与风险相称的本地回归证据；当前
-致命、高、中级**本地代码队列为空**。真实 Casdoor/OpenFGA 账号闭环、发布和故障演练仍是
-`production-pending`，统一列在第 8 节，不能把“本地队列为空”误写成“已经上线”。
+复核后没有 P0。Claude 两轮中已确认的 P1/P2 均已形成独立实施提交。PR #21 后续审查新增的
+4 个线程也已再次按当前调用链交叉复核，均确认存在较窄但真实的 correctness / authorization
+问题；对应最小完整修复均已形成独立提交并通过仓库级回归，详见第 5 节，当前本地 P0/P1/P2
+代码队列已清空。真实 Casdoor/OpenFGA 账号闭环、发布和故障演练仍是
+`production-pending`，统一列在第 8 节。
 
 ### IAM-01 不变量
 
@@ -158,6 +160,27 @@ OpenAPI、生成契约及 StuHelper 自有包元数据已对齐。`clients/admin
 OpenAPI License Object 使用 GNU 官方许可证 URL，而不是仅适用于 3.1 的 `identifier` 字段；
 这样既保留明确的 AGPL-3.0-only 声明，也兼容当前生成后嵌入契约的运行时校验路径。
 
+### 2026-08-01 PR #21 新增审查线程复核
+
+| 线程 | 交叉复核 | 是否必须修改 / 是否过度设计 | 当前处置与证据 | 状态 |
+|------|----------|-----------------------------|----------------|------|
+| 首次启用 `authorization_grants` 会让旧 scoped operator 消失 | `confirmed`。migration 先创建空 DB 账本，而新读路径立即只信 DB；旧 Casdoor membership 与 OpenFGA direct tuple 没有迁移步骤，升级后有效操作者会被静默锁出 | 必须修改；不能靠发布说明手工补 grant。也不需要双写、2PC 或通用 IAM 迁移平台 | 新增 durable pending/completed marker 与一次性命令；仅导入“当前 Casdoor 身份/管理员状态”或“遗留 scoped membership ∩ OpenFGA direct tuple”的最小交集；未知/间接主体 fail-closed；grant/audit/outbox/marker 同事务，production-like 启动前强制门禁，重复部署幂等。提交 `5a84be64` | `implemented`、`production-pending` |
+| refresh 先消费 provider refresh token，后做 Casdoor user lookup | `confirmed`。lookup 503 时 provider 可能已轮换 refresh token，本地仍保留旧 token，下一次重试可能永久失败 | 必须修改；无需重写 token service | 从已校验 session 取绑定 subject，先执行 Casdoor lookup；依赖失败不调用 token endpoint、不清 cookie。交换后再强制新 ID token subject 与 session subject 一致。故障注入断言 token endpoint 调用数为 0。提交 `d5ec46f4` | `implemented`、`production-pending` |
+| Koishi admission 管理动作按内部 user ID 直接读 DB snapshot | `confirmed`。HTTP middleware 有 Casdoor 实时降权，但 service-credential / bot 调用经过 raw Authorization Service，陈旧 `super_admin` 可继续批准 admission | 必须修改；无需让所有普通 bot 请求都访问 Casdoor | admission gateway 改用 identity adapter；仅 DB snapshot 仍含 `super_admin` 的候选用户触发实时 lookup，降权先写 revoke fence 并重载，provider 故障 fail-closed。提交 `b8d417dc` | `implemented`、`production-pending` |
+| grant list 空页把真实 total 返回为 0 | `confirmed`。`COUNT(*) OVER()` 只能从返回行扫描 total；`offset >= total` 时没有行，管理端得到错误总数 | 必须修改；这是 API correctness，不是无证据的全库分页优化 | 只把 Authorization grant list 改为同过滤条件的独立 COUNT + data query，越过末页返回非 nil 空数组和真实 total；集成测试覆盖 2 条数据、limit=1、offset=2。提交 `a9baffcd` | `implemented` |
+
+为让首次授权切换能完整读取旧 direct tuple，原第二轮 `#68` 也从 P3 长尾提升并实施：OpenFGA
+`ReadTuples` 现在显式设置 higher-consistency、page size，并遍历全部 continuation token；同时防御
+重复 token，避免超过单页时漏导入或让 `WriteMissingTuples` 把既有 tuple 误判为缺失。该修改是
+切换正确性的必要依赖，不扩展为通用批处理框架；独立提交为 `2fffa1b3`，状态为
+`implemented`。
+
+本轮共同验证证据：全量 Go race+coverage 通过，总语句覆盖率 64.3%，受保护包阈值全部满足；
+最终 fail-closed 增量再次通过 Authorization race test、golangci-lint 与 gosec；全仓 gosec
+扫描 417 个 Go 文件、0 issue，govulncheck 报告代码调用链 0 vulnerability；migration 按 CI
+角色前置条件完成全量上行、最新 migration 回滚与重新上行；Koishi 全工作区 production build、
+基础设施 contract、文档/自定义 Semgrep/OpenAPI drift 守卫和新增 cutover shellcheck 均通过。
+
 ## 6. 低优先级、条件性和决策项
 
 以下条目经过复核后不属于当前致命/高/中级队列。它们只有在产品决策、真实规模、运行指标或
@@ -192,7 +215,7 @@ OpenAPI License Object 使用 GNU 官方许可证 URL，而不是仅适用于 3.
 | R-16 | 条件性：真实 academics connector 上线前再做 batching |
 | R-17 | P3：review list page/pageSize 契约 |
 
-### 第二轮长尾（18 个唯一根因）
+### 第二轮长尾（17 个唯一根因）
 
 | 别名 | 最终处置 |
 |------|----------|
@@ -201,7 +224,6 @@ OpenAPI License Object 使用 GNU 官方许可证 URL，而不是仅适用于 3.
 | #41 | P3：teacher profile append error 保留已有列表 |
 | #58 | P3：moderation route 渐进使用现有 capability |
 | #66 | P3：OIDC ES256/RS256 配置与 verifier 行为对齐 |
-| #68 | P3：OpenFGA `ReadTuples` continuation token 分页 |
 | #69 | P3：Native SSO 保存经校验的登录前 redirect |
 | #70 | P3：通用评课列表从 OpenAPI 增加 `isOwner` |
 | #71 | P3：inline edit 对齐 10–5000 字规则 |
@@ -231,6 +253,8 @@ OpenAPI License Object 使用 GNU 官方许可证 URL，而不是仅适用于 3.
 当前审计分支上的修复尚不能统一宣称已发布。下列证据必须按实际发布范围逐项补齐：
 
 - 真实 Casdoor organization admin 晋升、降权、lookup 故障关闭和 MFA step-up；
+- 首次授权账本切换的 digest/count/marker/audit/outbox evidence，以及旧 scoped operator 保留验证；
+- refresh lookup 503 时 provider token endpoint 未被调用，以及 Koishi 已降权管理员被拒绝；
 - OpenFGA projection applied、撤权 fence 生效时点、漂移 reconcile 和全量 rebuild；
 - PostgreSQL 生产备份取回与 PITR；
 - 受保护 GitHub environment 的发布/回滚；
@@ -251,6 +275,7 @@ OpenAPI License Object 使用 GNU 官方许可证 URL，而不是仅适用于 3.
 6. 一个唯一根因形成一个提交，不混入无关工作树文件；
 7. 只有提交和验证证据齐全后，才把状态改为 `implemented`。
 
-截至本实施提交，已再次从源码、OpenAPI、migration、回归测试和本台账反向核对：不存在其他
-未提交的 P0/P1/P2 根因。第 6 节条目均为已降级的 P3/P4、条件性、先测或产品决策项，不应为了
-关闭审计数字自动进入实现；第 8 节生产门禁必须在真实环境单独留证。
+截至当前提交，已再次从源码、OpenAPI、migration、回归测试和本台账反向核对：第 5 节 4 个
+PR 线程及其 OpenFGA 分页依赖均已实施，没有发现其他未实施的 P0/P1/P2 根因。第 6 节其余
+条目均为已降级的 P3/P4、条件性、先测或产品决策项，不应为了关闭审计数字自动进入实现；
+第 8 节生产门禁必须在真实环境单独留证。

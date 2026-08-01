@@ -2,7 +2,7 @@
 type: adr
 audience: maintainers, backend-dev, ops
 status: current
-authoritative-source: server/migrations/000023_casdoor_org_admin_authority.*.sql + server/internal/modules/authorization/ + server/internal/platform/casdoor/user_lookup.go
+authoritative-source: server/migrations/000023_casdoor_org_admin_authority.*.sql + server/migrations/000024_authorization_authority_cutover.*.sql + server/internal/modules/authorization/ + server/internal/platform/casdoor/
 last-verified: 2026-08-01
 ---
 
@@ -72,10 +72,12 @@ StuHelper 的 school/section scope。因此本决策只为 Casdoor 用户对象�
 
 ## Migration
 
-迁移 `000023_casdoor_org_admin_authority` 为 grant 增加 `source`，把现存 `super_admin` 标记为
-`casdoor_org_admin`，并用数据库约束禁止 `super_admin/manual` 或 scoped role/provider source
-的非法组合。发布前必须确认这些存量 `super_admin` 在 Casdoor 目标 organization 中确实仍为
-`IsAdmin=true`；否则其下一次受保护请求会触发撤权。
+迁移 `000023_casdoor_org_admin_authority` 为 grant 增加 `source` 并用数据库约束禁止
+`super_admin/manual` 或 scoped role/provider source 的非法组合。迁移
+`000024_authorization_authority_cutover` 增加一次性 pending/completed marker；发布脚本在应用
+启动前读取当前 Casdoor organization `IsAdmin`，并把验证后的 `super_admin` 与 scoped legacy
+交集写入账本、审计和 outbox。未完成 marker 时 production-like 应用拒绝启动，不能依赖用户
+“下一次请求”再被动纠正首次切换造成的空窗。
 
 旧的 `authorization-bootstrap` binary、运维脚本、`STUHELPER_INITIAL_SUPER_ADMINS` 配置和
 双管理员合同测试被删除。生产初始化改为：设置 Casdoor organization administrator → 正常登录
