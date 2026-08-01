@@ -142,6 +142,20 @@ Claude 两轮共有 117 个原始标签，均已完成源码级复核：
 这些提交均有对应定向回归；提交时记录的全量测试结果可从 Git 历史中的旧台账取证。生产、远端
 或真实第三方依赖验证未发生的条目仍属于 `production-pending`，不能仅凭本表宣称已上线。
 
+### 2026-08-01 PR #21 合并门禁复核
+
+| 门禁 | 交叉复核结论 | 处置与证据 | 状态 |
+|------|--------------|------------|------|
+| Dependency review | `ansible-core==2.20.2` 命中 GHSA-w8p5-mx5w-cpqj，属于真实供应链风险 | 升级到修复后的稳定版 2.20.7；版本契约、三个 playbook 语法检查和全量基础设施契约通过 | `implemented` |
+| Secret history scan | 两个命中均为历史生成 Go 文件中的 OpenAPI 压缩 Base64 分片，不是凭据 | 仅增加完整 commit/path/rule/line fingerprint；1545 个可达提交、约 40.50 MB 完整扫描为 0 未基线化泄漏 | `implemented` |
+| Backend / Gosec G115 | 正常 claim 只有 1–5 次，实际不可溢出；但 `int` 到 PostgreSQL `INTEGER` 参数的转换缺少显式领域证明 | 转换前验证 claimed-action 范围，超界 fail-closed；边界测试、Admission 全包测试及 Gosec 412 文件/78,690 行扫描通过 | `implemented` |
+| CodeQL excessive allocation | Service 最大 100、Repository 最大 200，实际内存放大链不可达，属于静态分析未识别字段钳位的误报 | Repository 使用独立归一化边界，响应空数组不再从请求值派生预分配容量；边界测试和 Authorization 全包测试通过 | `implemented` |
+
+项目所有者同时决定整个 StuHelper monorepo 采用 GNU Affero General Public License v3.0 only
+（SPDX：`AGPL-3.0-only`）。根 `LICENSE` 与 GNU 官方原文 SHA-256 一致；README、贡献规则、
+OpenAPI、生成契约及 StuHelper 自有包元数据已对齐。`clients/admin/` 中源自 Vben 的代码继续
+保留其 MIT 许可证与版权声明，第三方通知不因根许可证而被删除或替代。
+
 ## 6. 低优先级、条件性和决策项
 
 以下条目经过复核后不属于当前致命/高/中级队列。它们只有在产品决策、真实规模、运行指标或
