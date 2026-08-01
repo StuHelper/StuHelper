@@ -49,7 +49,7 @@
     "eslint-plugin-vuejs-accessibility": "2.5.0",
     "globals": "^17.4.0",
     "openapi-typescript": "^7.13.0",
-    "typescript": "^5.9.0",
+    "typescript": "^7.0.2",
     "typescript-eslint": "^8.57.0",
     "vue-eslint-parser": "^10.4.0"
   },
