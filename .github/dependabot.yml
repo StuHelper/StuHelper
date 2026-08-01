@@ -89,6 +89,16 @@ updates:
         update-types:
           - "version-update:semver-minor"
           - "version-update:semver-patch"
+    ignore:
+      # UniAppX packages form one exact DCloud/Vue/Pinia build train. Its
+      # dependencies remain visible through the shared pnpm lockfile even when
+      # the manifest is excluded, so ignore routine DCloud version updates in
+      # this workspace. These version-update filters do not suppress security
+      # updates.
+      - dependency-name: "@dcloudio/*"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
 
   - package-ecosystem: npm
     directory: /clients/admin
