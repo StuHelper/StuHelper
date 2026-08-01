@@ -3,7 +3,7 @@ type: guide
 audience: backend-dev
 status: current
 authoritative-source: server/api/openapi.yaml + server/internal/
-last-verified: 2026-07-31
+last-verified: 2026-08-01
 ---
 
 # 后端开发规范
@@ -77,7 +77,9 @@ server/
   [数据库迁移运行手册](database-migrations.md)
 - 参数化查询，禁止拼接
 - 动态排序使用白名单
-- 分页优先 `COUNT(*) OVER()`
+- 分页方案按响应契约选择：如果越过末页时仍必须返回精确 `total`，使用相同过滤条件的独立
+  `COUNT(*)` 与数据查询；只有在“结果至少一行”有明确保证，或空页不需要 total 时才使用
+  `COUNT(*) OVER()`。必须有 `offset >= total` 的回归测试，不能从当前页首行推导总数。
 
 ## 授权模型
 

@@ -352,6 +352,33 @@ func TestAuthorizationReconcilePreservesActiveGrantWhileRepairingProjection(t *t
 	assert.NotEmpty(t, list.Items[0].SubjectUsername)
 }
 
+func TestAuthorizationListGrantsPreservesTotalBeyondLastPage(t *testing.T) {
+	ctx := context.Background()
+	postgres := postgresfixture.Start(t)
+	service := NewService(NewRepository(postgres.DB))
+	actorID := seedAuthorizationUser(t, postgres, "list-total-actor")
+	targetOneID := seedAuthorizationUser(t, postgres, "list-total-target-one")
+	targetTwoID := seedAuthorizationUser(t, postgres, "list-total-target-two")
+	schoolID := seedAuthorizationSchool(t, postgres, 4111010018)
+
+	for _, targetID := range []int64{targetOneID, targetTwoID} {
+		_, err := service.CreateGrant(ctx, CreateGrantInput{
+			SubjectUserID: targetID,
+			Role:          RoleSchoolAdmin,
+			SchoolID:      &schoolID,
+			Reason:        "school administration",
+			ActorUserID:   actorID,
+		})
+		require.NoError(t, err)
+	}
+
+	list, err := service.ListGrants(ctx, ListGrantsFilter{Limit: 1, Offset: 2})
+
+	require.NoError(t, err)
+	assert.Empty(t, list.Items)
+	assert.Equal(t, 2, list.Total)
+}
+
 func TestAuthorizationReconcileAllRebuildsOpenFGAFromLedgerWithoutLockout(t *testing.T) {
 	ctx := context.Background()
 	postgres := postgresfixture.Start(t)

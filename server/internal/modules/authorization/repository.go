@@ -525,7 +525,7 @@ func (r *Repository) ListGrants(ctx context.Context, filter ListGrantsFilter) (G
 		filter.Offset = 0
 	}
 
-	args := make([]any, 0, 5)
+	args := make([]any, 0, 6)
 	clauses := []string{"TRUE"}
 	add := func(value any, clause string) {
 		args = append(args, value)
@@ -543,6 +543,19 @@ func (r *Repository) ListGrants(ctx context.Context, filter ListGrantsFilter) (G
 	if filter.Projection != nil {
 		add(*filter.Projection, "g.projection_status = $%d")
 	}
+	var total int
+	if err := r.db.QueryRow(ctx, `
+		SELECT COUNT(*)
+		FROM authorization_grants g
+		JOIN users u ON u.id = g.subject_user_id
+		WHERE `+strings.Join(clauses, " AND "), args...).Scan(&total); err != nil {
+		return GrantList{}, fmt.Errorf("count authorization grants: %w", err)
+	}
+	items := make([]Grant, 0)
+	if total == 0 || filter.Offset >= total {
+		return GrantList{Items: items, Total: total}, nil
+	}
+
 	args = append(args, filter.Limit, filter.Offset)
 	limitPosition := len(args) - 1
 	offsetPosition := len(args)
@@ -550,8 +563,7 @@ func (r *Repository) ListGrants(ctx context.Context, filter ListGrantsFilter) (G
 	rows, err := r.db.Query(ctx, `
 		SELECT `+grantColumns+`,
 		       u.username,
-		       COALESCE(NULLIF(u.username, ''), 'user-' || u.id::text),
-		       COUNT(*) OVER()
+		       COALESCE(NULLIF(u.username, ''), 'user-' || u.id::text)
 		FROM authorization_grants g
 		JOIN users u ON u.id = g.subject_user_id
 		WHERE `+strings.Join(clauses, " AND ")+`
@@ -566,10 +578,8 @@ func (r *Repository) ListGrants(ctx context.Context, filter ListGrantsFilter) (G
 
 	// Keep the response as a non-nil empty slice without deriving an allocation
 	// size from request data. The SQL query still uses the repository-owned cap.
-	items := make([]Grant, 0)
-	total := 0
 	for rows.Next() {
-		grant, scanErr := scanGrantWithSubject(rows, &total)
+		grant, scanErr := scanGrantWithSubjectOnly(rows)
 		if scanErr != nil {
 			return GrantList{}, scanErr
 		}
@@ -952,37 +962,6 @@ func scanGrant(row pgx.Row) (Grant, error) {
 		&grant.UpdatedAt,
 	)
 	return grant, err
-}
-
-func scanGrantWithSubject(row pgx.Row, total *int) (Grant, error) {
-	var grant Grant
-	err := row.Scan(
-		&grant.ID,
-		&grant.SubjectUserID,
-		&grant.Role,
-		&grant.Source,
-		&grant.SchoolID,
-		&grant.SectionID,
-		&grant.DesiredState,
-		&grant.ProjectionStatus,
-		&grant.Revision,
-		&grant.Reason,
-		&grant.CreatedByUserID,
-		&grant.UpdatedByUserID,
-		&grant.ActivatedAt,
-		&grant.RevokedAt,
-		&grant.ProjectedAt,
-		&grant.LastError,
-		&grant.CreatedAt,
-		&grant.UpdatedAt,
-		&grant.SubjectUsername,
-		&grant.SubjectDisplayName,
-		total,
-	)
-	if err != nil {
-		return Grant{}, fmt.Errorf("scan authorization grant list: %w", err)
-	}
-	return grant, nil
 }
 
 func scanGrantWithSubjectOnly(row pgx.Row) (Grant, error) {
