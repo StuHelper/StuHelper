@@ -274,7 +274,12 @@ test('扫描待认证成员时会路由到记录绑定的 bot 实例', async () 
     secondBot.sendMessage = async () => ['msg-2']
 
     receiveJoin(secondBot, '10003', 'group-3', '515')
-    await waitFor(async () => (await root.database.get(GUARD_MEMBER_TABLE, {})).length > 0)
+    await waitFor(async () => {
+      const records = await root.database.get(GUARD_MEMBER_TABLE, {})
+      return records.length > 0
+        && secondBotMuteActions.length > 0
+        && Boolean(findEventByAction(admissionEvents, 'remind'))
+    })
 
     const [record] = await root.database.get(GUARD_MEMBER_TABLE, {})
     assert.equal(record.botSelfId, '515')
@@ -282,7 +287,6 @@ test('扫描待认证成员时会路由到记录绑定的 bot 实例', async () 
     assert.equal(secondBotMuteActions[0].groupId, 'group-3')
     assert.equal(secondBotMuteActions[0].memberId, '10003')
     assert.ok(secondBotMuteActions[0].duration > 29 * 24 * 60 * 60 * 1000)
-    await waitFor(() => Boolean(findEventByAction(admissionEvents, 'remind')))
 
     releaseEnabled = true
     await waitFor(() => Boolean(findEventByAction(admissionEvents, 'release')), 2500)
