@@ -144,7 +144,7 @@ catalog:
   json-bigint: ^1.0.0
   lefthook: ^2.1.4
   lodash.clonedeep: ^4.5.0
-  lucide-vue-next: ^0.577.0
+  lucide-vue-next: ^1.0.0
   nitropack: ^2.13.4
   nprogress: ^0.2.0
   ora: ^9.3.0
