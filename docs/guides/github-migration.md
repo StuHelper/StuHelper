@@ -179,20 +179,22 @@ GitHub 原生检测不能替代仓库内的完整历史 Gitleaks 门禁：两者
 
 ## 当前就绪状态
 
-以下状态于 2026-07-30 通过 GitHub API 重新核验：
+以下状态于 2026-08-01 通过 GitHub API 和受保护工作流重新核验：
 
 | 项目 | 状态 | 当前事实 |
 |------|------|----------|
-| 仓库与分支 | 已验证 | `StuHelper/StuHelper` 为 public，默认分支为 `main`；`main` / `develop` 受同一 ruleset 保护 |
+| 仓库与分支 | 已验证 | `StuHelper/StuHelper` 为 public，默认分支为 `main`；人类长期分支只有 `main` / `develop`，二者受同一 ruleset 保护并保持相同提交。Dependabot 为开放依赖更新 PR 创建的临时 head branch 不属于长期分支，关闭或合并对应 PR 后删除 |
 | 合并门禁 | 已验证 | 默认要求 PR、1 个 approval、CODEOWNERS、撤销旧审批、最后推送者之外的批准、解决 review thread、线性历史和 squash merge；Required、Go CodeQL、JavaScript/TypeScript CodeQL 为必需检查。唯一例外是 `Xauryan` 的 `pull_request`-only ruleset bypass；它仍要求 PR 和审计轨迹，不产生作者自审记录，也不允许直接推送 |
 | Actions 供应链 | 已验证 | Actions 已启用 selected-actions 策略，外部 action 固定完整 commit SHA，默认 `GITHUB_TOKEN` 只读且不能批准 PR |
 | Code security | 已验证 | Secret scanning、push protection、Dependabot alerts/security updates 和 private vulnerability reporting 已启用；当前 CodeQL、Dependabot、secret-scanning alert 均为 0 |
 | Environments | 部分验证 | `staging` 与 `production` 分支策略存在；production 当前只有一名 reviewer 且允许自批，不构成双人复核 |
 | 部署凭据 | 未就绪 | 两个 environment 的 secrets 和 variables 都为空，仓库级 Actions secrets/variables 也为空 |
-| GHCR | 未就绪 | 当前没有 `backend`、`frontend`、`admin` container package；尚无可验证的 digest/provenance 发布物 |
-| 真实部署与回滚 | 未验证 | 因缺少 environment secrets、第二名 production reviewer 和已发布 GHCR 镜像，尚未执行 staging/production 部署或回滚演练 |
+| GHCR | 部分验证 | `backend`、`frontend`、`admin` container package 已由受保护 `main` / `develop` 工作流发布 full-SHA immutable tag、branch alias 和 provenance；当前 visibility 为 private。实际部署前仍须验证目标主机能以最小 `read:packages` 凭据按 digest 拉取 |
+| 真实部署与回滚 | 未验证 | environment secrets/variables 仍未配置，production 尚无第二名独立 reviewer，private GHCR 镜像的目标主机拉取链路也未验收；尚未执行 staging/production 部署或回滚演练 |
 
-因此，代码与仓库治理可进入 PR 审核；镜像发布、真实 staging、production 和 rollback 必须在上述外部条件补齐后单独验收，不能用本地 smoke 或 workflow 静态检查代替。
+因此，代码、仓库治理和镜像发布控制面已经建立；真实 staging、production 和 rollback 必须在
+environment 配置、GHCR 拉取凭据与独立生产审批条件补齐后单独验收，不能用本地 smoke、
+镜像发布成功或 workflow 静态检查替代。
 
 ## 许可证状态
 
