@@ -453,7 +453,7 @@ async function promptRevokeReason(grant: OpenPlatformResourceGrant) {
               size="small"
               type="danger"
               :disabled="actionLoading || Boolean(loadError)"
-              @click="revokeGrant(row)"
+              @click="revokeGrant(row as OpenPlatformResourceGrant)"
             >
               {{ $t('admin.openPlatform.apps.revokeGrant') }}
             </ElButton>

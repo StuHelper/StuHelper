@@ -37,11 +37,11 @@ updates:
           - minor
           - patch
 
+  # Keep each JavaScript workspace independently reviewable. Version-update PRs
+  # are limited to minor/patch releases; Dependabot security updates are not
+  # restricted by this allow rule and may still cross a major version.
   - package-ecosystem: npm
-    directories:
-      - /clients
-      - /clients/admin
-      - /bots/koishi
+    directory: /bots/koishi
     schedule:
       interval: weekly
       day: monday
@@ -49,24 +49,70 @@ updates:
       timezone: Asia/Shanghai
     cooldown:
       default-days: 7
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 3
     groups:
-      npm-minor-and-patch:
+      koishi-minor-and-patch:
         patterns:
           - "*"
         update-types:
           - minor
           - patch
+    allow:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
+  - package-ecosystem: npm
+    directory: /clients
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:35"
+      timezone: Asia/Shanghai
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 3
+    groups:
+      clients-minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+    allow:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
+
+  - package-ecosystem: npm
+    directory: /clients/admin
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:40"
+      timezone: Asia/Shanghai
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 3
+    groups:
+      admin-minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+    allow:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
     ignore:
-      - dependency-name: "@types/node"
-        update-types:
-          - "version-update:semver-major"
-      - dependency-name: "typescript"
-        update-types:
-          - "version-update:semver-major"
-      - dependency-name: "zod"
-        update-types:
-          - "version-update:semver-major"
+      # zod-defaults >= 0.2 requires Zod 4, while the current form stack and
+      # @vee-validate/zod remain on Zod 3. Revisit in the coordinated Zod 4 migration.
+      - dependency-name: "zod-defaults"
+        versions:
+          - ">=0.2.0"
 
   - package-ecosystem: docker
     directories:
