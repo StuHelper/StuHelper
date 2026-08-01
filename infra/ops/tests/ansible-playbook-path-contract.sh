@@ -68,7 +68,7 @@ resolved_bundle="$(realpath -m "${PLAYBOOK_DIR}/../../generated/deploy/stuhelper
 [[ "${resolved_bundle}" == "${REPO_ROOT}/infra/generated/deploy/stuhelper-deploy-bundle.tar.gz" ]] ||
   fail "playbook upload path does not match the bundle script default: ${resolved_bundle}"
 
-assert_contains "${ANSIBLE_REQUIREMENTS}" '^ansible-core==2\.20\.2$'
+assert_contains "${ANSIBLE_REQUIREMENTS}" '^ansible-core==2\.20\.7$'
 assert_contains "${ANSIBLE_CONFIG}" '^stdout_callback = default$'
 assert_contains "${ANSIBLE_CONFIG}" '^callback_result_format = yaml$'
 assert_not_contains "${ANSIBLE_CONFIG}" '^stdout_callback = yaml$'
