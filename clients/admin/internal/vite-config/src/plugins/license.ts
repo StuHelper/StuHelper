@@ -1,8 +1,3 @@
-import type {
-  NormalizedOutputOptions,
-  OutputBundle,
-  OutputChunk,
-} from 'rolldown';
 import type { PluginOption } from 'vite';
 
 import { EOL } from 'node:os';
@@ -27,7 +22,7 @@ async function viteLicensePlugin(
     apply: 'build',
     enforce: 'post',
     generateBundle: {
-      handler: (_options: NormalizedOutputOptions, bundle: OutputBundle) => {
+      handler: (_options, bundle) => {
         const date = dateUtil().format('YYYY-MM-DD ');
         const copyrightText = `/*!
   * Vben Admin
@@ -44,13 +39,12 @@ async function viteLicensePlugin(
 
         for (const [, fileContent] of Object.entries(bundle)) {
           if (fileContent.type === 'chunk' && fileContent.isEntry) {
-            const chunkContent = fileContent as OutputChunk;
             // 插入版权信息
-            const content = chunkContent.code;
+            const content = fileContent.code;
             const updatedContent = `${copyrightText}${EOL}${content}`;
 
             // 更新bundle
-            (fileContent as OutputChunk).code = updatedContent;
+            fileContent.code = updatedContent;
           }
         }
       },

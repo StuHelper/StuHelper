@@ -46,13 +46,11 @@ const javascript: OxlintConfig = {
     'no-empty': ['error', { allowEmptyCatch: true }],
     'no-fallthrough': 'error',
     'no-new-func': 'error',
-    'no-new-object': 'error',
-    'no-new-symbol': 'error',
+    'no-object-constructor': 'error',
+    'no-new-native-nonconstructor': 'error',
     'no-labels': ['error', { allowLoop: false, allowSwitch: false }],
     'no-lone-blocks': 'error',
     'no-multi-str': 'error',
-    'no-octal': 'error',
-    'no-octal-escape': 'error',
     'no-proto': 'error',
     'no-prototype-builtins': 'error',
     'no-redeclare': ['error', { builtinGlobals: false }],
@@ -69,7 +67,6 @@ const javascript: OxlintConfig = {
     ],
     'no-template-curly-in-string': 'error',
     'no-throw-literal': 'error',
-    'no-undef-init': 'error',
     'no-unused-expressions': [
       'error',
       {
@@ -89,6 +86,11 @@ const javascript: OxlintConfig = {
     'no-eval': 'error',
     'no-iterator': 'error',
     'no-new-wrappers': 'error',
+    // Oxlint minor releases may add rules to the enabled categories. Preserve
+    // the existing project policy here; adopting these rules requires a
+    // dedicated migration instead of silently changing lint semantics during
+    // a dependency refresh.
+    'no-underscore-dangle': 'off',
     'no-restricted-globals': [
       'error',
       { message: 'Use `globalThis` instead.', name: 'global' },
@@ -106,7 +108,6 @@ const javascript: OxlintConfig = {
         ignoreConstructors: false,
       },
     ],
-    'one-var': ['error', { initialized: 'never' }],
     'prefer-const': [
       'error',
       {
@@ -132,7 +133,6 @@ const javascript: OxlintConfig = {
     'prefer-rest-params': 'error',
     'prefer-spread': 'error',
     'prefer-template': 'error',
-    'spaced-comment': 'error',
     'symbol-description': 'error',
     'unicode-bom': ['error', 'never'],
     'use-isnan': [

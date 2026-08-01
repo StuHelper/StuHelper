@@ -35,12 +35,12 @@ withDefaults(defineProps<Props>(), {
 
 .btn-primary {
   background: var(--color-primary);
-  color: white;
+  color: var(--color-text-inverse);
 }
 
 .btn-secondary {
   background: var(--color-secondary);
-  color: white;
+  color: var(--color-text-inverse);
 }
 
 .btn-ghost {

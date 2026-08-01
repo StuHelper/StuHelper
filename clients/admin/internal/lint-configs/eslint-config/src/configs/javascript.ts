@@ -104,6 +104,10 @@ export async function javascript(): Promise<Linter.Config[]> {
         'keyword-spacing': 'off',
         'no-control-regex': 'error',
         'no-empty-function': 'off',
+        // Oxlint 1.75 no longer exposes these legacy ESLint rules. Keep their
+        // policy coverage in ESLint instead of silently weakening the checks.
+        'no-octal': 'error',
+        'no-octal-escape': 'error',
         'no-restricted-properties': [
           'error',
           {
@@ -137,8 +141,11 @@ export async function javascript(): Promise<Linter.Config[]> {
           'TSExportAssignment',
         ],
         'no-undef': 'off',
+        'no-undef-init': 'error',
         'no-unreachable-loop': 'error',
+        'one-var': ['error', { initialized: 'never' }],
         'space-before-function-paren': 'off',
+        'spaced-comment': 'error',
 
         'unused-imports/no-unused-imports': 'error',
         'unused-imports/no-unused-vars': [

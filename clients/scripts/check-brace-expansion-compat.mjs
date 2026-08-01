@@ -12,6 +12,14 @@ const virtualStores = [
 
 let checkedPackages = 0
 
+function isSupportedBraceExpansionVersion(version) {
+  const match = /^(\d+)\.(\d+)\.(\d+)(?:-|$)/.exec(version)
+  if (!match) return false
+
+  const [, major, minor, patch] = match.map(Number)
+  return major === 5 && (minor > 0 || patch >= 8)
+}
+
 for (const virtualStore of virtualStores) {
   if (!existsSync(virtualStore)) {
     throw new Error(`missing pnpm virtual store: ${virtualStore}`)
@@ -41,13 +49,18 @@ for (const virtualStore of virtualStores) {
     const bracePackagePath = requireFromPackage.resolve('brace-expansion/package.json')
     const bracePackage = requireFromPackage(bracePackagePath)
     const braceModule = requireFromPackage('brace-expansion')
+    const hasCompatibleExports =
+      typeof braceModule?.expand === 'function' &&
+      // 5.0.8 needs the repository patch to stay callable for minimatch < 10.
+      (bracePackage.version !== '5.0.8' || typeof braceModule === 'function')
 
     if (
-      bracePackage.version !== '5.0.8' ||
-      typeof braceModule !== 'function' ||
-      typeof braceModule.expand !== 'function'
+      !isSupportedBraceExpansionVersion(bracePackage.version) ||
+      !hasCompatibleExports
     ) {
-      throw new Error(`${entry} is not using the patched brace-expansion 5.0.8 export`)
+      throw new Error(
+        `${entry} is not using a compatible brace-expansion >= 5.0.8 export`,
+      )
     }
 
     checkedPackages += 1
@@ -59,5 +72,5 @@ if (checkedPackages === 0) {
 }
 
 console.log(
-  `[check-brace-expansion-compat] OK: ${checkedPackages} minimatch installations use patched brace-expansion 5.0.8`,
+  `[check-brace-expansion-compat] OK: ${checkedPackages} minimatch installations use compatible brace-expansion >= 5.0.8`,
 )
