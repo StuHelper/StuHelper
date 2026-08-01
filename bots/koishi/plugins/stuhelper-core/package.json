@@ -15,7 +15,7 @@
     "@stuhelper/koishi-moderation-core": "workspace:*",
     "@stuhelper/koishi-shared": "workspace:*",
     "koishi": "^4.18.7",
-    "zod": "^3.25.76"
+    "zod": "^4.4.3"
   },
   "koishi": {
     "description": {
