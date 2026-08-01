@@ -50,7 +50,7 @@
     "globals": "^17.4.0",
     "openapi-typescript": "^7.13.0",
     "typescript": "^5.9.0",
-    "typescript-eslint": "^8.57.0",
+    "typescript-eslint": "^8.65.0",
     "vue-eslint-parser": "^10.4.0"
   },
   "dependencies": {
