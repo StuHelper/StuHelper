@@ -20,6 +20,11 @@ import (
 const authorizationGrantsTable = "authorization_grants"
 const superAdminMutationAdvisoryLock int64 = 0x53545541555448
 
+const (
+	repositoryDefaultGrantListLimit = 50
+	repositoryMaxGrantListLimit     = 200
+)
+
 const casdoorOrganizationAdminSyncReason = "Casdoor StuHelper organization administrator status synchronized"
 
 var errConcurrentGrantInsert = errors.New("authorization grant was inserted concurrently")
@@ -515,12 +520,7 @@ func (r *Repository) GetGrant(ctx context.Context, grantID int64) (Grant, error)
 
 func (r *Repository) ListGrants(ctx context.Context, filter ListGrantsFilter) (GrantList, error) {
 	ctx = db.WithTableHint(ctx, authorizationGrantsTable)
-	if filter.Limit <= 0 {
-		filter.Limit = 50
-	}
-	if filter.Limit > 200 {
-		filter.Limit = 200
-	}
+	filter.Limit = normalizeRepositoryGrantListLimit(filter.Limit)
 	if filter.Offset < 0 {
 		filter.Offset = 0
 	}
@@ -564,7 +564,9 @@ func (r *Repository) ListGrants(ctx context.Context, filter ListGrantsFilter) (G
 	}
 	defer rows.Close()
 
-	items := make([]Grant, 0, filter.Limit)
+	// Keep the response as a non-nil empty slice without deriving an allocation
+	// size from request data. The SQL query still uses the repository-owned cap.
+	items := make([]Grant, 0)
 	total := 0
 	for rows.Next() {
 		grant, scanErr := scanGrantWithSubject(rows, &total)
@@ -577,6 +579,16 @@ func (r *Repository) ListGrants(ctx context.Context, filter ListGrantsFilter) (G
 		return GrantList{}, fmt.Errorf("list authorization grants rows: %w", err)
 	}
 	return GrantList{Items: items, Total: total}, nil
+}
+
+func normalizeRepositoryGrantListLimit(limit int) int {
+	if limit <= 0 {
+		return repositoryDefaultGrantListLimit
+	}
+	if limit > repositoryMaxGrantListLimit {
+		return repositoryMaxGrantListLimit
+	}
+	return limit
 }
 
 func (r *Repository) ResolveAccessSnapshotByUserID(ctx context.Context, userID int64) (AccessSnapshot, error) {

@@ -9,6 +9,26 @@ import (
 	"github.com/StuHelper/StuHelper/server/internal/pkg/fga"
 )
 
+func TestNormalizeRepositoryGrantListLimit(t *testing.T) {
+	tests := []struct {
+		name  string
+		limit int
+		want  int
+	}{
+		{name: "negative uses default", limit: -1, want: repositoryDefaultGrantListLimit},
+		{name: "zero uses default", limit: 0, want: repositoryDefaultGrantListLimit},
+		{name: "positive is preserved", limit: 25, want: 25},
+		{name: "maximum is preserved", limit: repositoryMaxGrantListLimit, want: repositoryMaxGrantListLimit},
+		{name: "oversized is capped", limit: 1_000_000, want: repositoryMaxGrantListLimit},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.want, normalizeRepositoryGrantListLimit(test.limit))
+		})
+	}
+}
+
 func TestNormalizeCreateGrantInputAcceptsOnlyFixedRoleScopePairs(t *testing.T) {
 	schoolID := int64(4111010006)
 	sectionID := fga.ReviewModerationSectionID("4111010006")
