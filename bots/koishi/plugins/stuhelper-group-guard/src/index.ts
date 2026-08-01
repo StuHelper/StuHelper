@@ -37,7 +37,10 @@ import { registerAdmissionAdminCommands } from './admission-admin-commands'
 import { AdmissionReminderDeduper } from './admission-reminder-deduper'
 import { AdmissionSubjectCoordinator } from './admission-subject-coordinator'
 import { registerAdmissionActionStreams } from './admission-action-stream'
-import { registerAdmissionConsoleAPI } from './admission-console-api'
+import {
+  registerAdmissionConsoleAPI,
+  type AdmissionConsoleGuildScope,
+} from './admission-console-api'
 import { syncGuardPolicyFromAdmissionTargets } from './guard-policy-bootstrap'
 import { createGroupGuardAISettingsProvider } from './group-guard-ai-provider'
 import { createGroupGuardMessageProvider } from './group-guard-message-provider'
@@ -45,7 +48,7 @@ import { createGroupGuardMessageProvider } from './group-guard-message-provider'
 export const name = 'stuhelper-group-guard'
 export const inject = {
   required: ['database'],
-  optional: ['console'],
+  optional: ['console', 'stuhelperGroupCenter'],
 }
 
 export type Config = StuhelperGroupGuardPluginConfig
@@ -147,17 +150,27 @@ export function startGroupGuardRuntime(ctx: Context, config: Config) {
     reminderDeduper: admissionReminderDeduper,
   })
 
-  registerAdmissionConsoleAPI(ctx, {
-    config,
-    platform,
-    runtimeSettings,
-    behaviorSettings,
-    messageProvider,
-    guardStore,
-    policyStore,
-    moderationStore,
-    admissionSubjectCoordinator,
-    onRuntimeSettingsChanged: () => actionStreams.refresh(),
+  ctx.inject(['console', 'stuhelperGroupCenter'], (consoleCtx) => {
+    registerAdmissionConsoleAPI(consoleCtx, {
+      config,
+      platform,
+      runtimeSettings,
+      behaviorSettings,
+      messageProvider,
+      guardStore,
+      policyStore,
+      moderationStore,
+      admissionSubjectCoordinator,
+      onRuntimeSettingsChanged: () => actionStreams.refresh(),
+      resolveConsoleScope: (client) => {
+        const service = (consoleCtx as Context & {
+          stuhelperGroupCenter: {
+            resolveConsoleGuildScope(client: unknown): Promise<AdmissionConsoleGuildScope>
+          }
+        }).stuhelperGroupCenter
+        return service.resolveConsoleGuildScope(client)
+      },
+    })
   })
 
   ctx.on('ready', async () => {

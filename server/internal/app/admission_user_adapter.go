@@ -59,12 +59,3 @@ func normalizeAdmissionAcademicLookupError(err error) error {
 	}
 	return err
 }
-
-func (g admissionUserGateway) EnqueueFreshmanProvisionalRoleSyncTx(
-	ctx context.Context,
-	tx db.Tx,
-	userID int64,
-	approved bool,
-) error {
-	return g.service.EnqueueFreshmanProvisionalRoleSyncTx(ctx, tx, userID, approved)
-}

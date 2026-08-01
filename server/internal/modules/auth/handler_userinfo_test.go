@@ -207,7 +207,6 @@ func TestGetCurrentUser_SyncsLocalUser(t *testing.T) {
 		Username:       "alice",
 		Email:          "alice@example.com",
 		AvatarURL:      &avatarURL,
-		Roles:          []string{"school_admin"},
 	}, repo.upsertInput)
 }
 

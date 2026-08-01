@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand/v2"
+	"runtime/debug"
 	"time"
 
 	"go.uber.org/zap"
@@ -101,8 +102,22 @@ func ProcessBatch[T any](
 	}
 
 	var batchErr error
-	for _, job := range jobs {
-		if err := process(ctx, job); err != nil {
+	for index, job := range jobs {
+		if ctx.Err() != nil {
+			return errors.Join(
+				batchErr,
+				ctx.Err(),
+				abandonClaimedJobs(ctx, cfg, jobs[index:], markFailure, meta),
+			)
+		}
+		if err := processJobSafely(ctx, process, job); err != nil {
+			if ctx.Err() != nil {
+				return errors.Join(
+					batchErr,
+					ctx.Err(),
+					abandonClaimedJobs(ctx, cfg, jobs[index:], markFailure, meta),
+				)
+			}
 			jobMeta := meta(job)
 			terminalFailed := reachedMaxAttempts(cfg, jobMeta.AttemptCount)
 			var nextAttempt time.Time
@@ -150,6 +165,60 @@ func ProcessBatch[T any](
 		}
 	}
 	return batchErr
+}
+
+// processJobSafely turns a single handler panic into the same retry/dead-letter
+// path as an ordinary process error. Recovery belongs at this per-job boundary:
+// the next job in the batch must still run, and a poison job must consume the
+// configured bounded retry budget instead of terminating the polling worker.
+func processJobSafely[T any](
+	ctx context.Context,
+	process ProcessFunc[T],
+	job T,
+) (err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("job handler panicked: %v\n%s", recovered, debug.Stack())
+		}
+	}()
+	return process(ctx, job)
+}
+
+func abandonClaimedJobs[T any](
+	ctx context.Context,
+	cfg WorkerConfig,
+	jobs []T,
+	markFailure MarkFailureFunc,
+	meta MetaFunc[T],
+) error {
+	var abandonErr error
+	for _, job := range jobs {
+		jobMeta := meta(job)
+		finalizeCtx, cancel := finalizeContext(ctx, cfg)
+		err := markFailure(
+			finalizeCtx,
+			jobMeta.ID,
+			jobMeta.LockedAt,
+			time.Time{},
+			"",
+			false,
+		)
+		cancel()
+		if err == nil {
+			continue
+		}
+		abandonErr = errors.Join(
+			abandonErr,
+			fmt.Errorf("abandon %s job %d: %w", cfg.Name, jobMeta.ID, err),
+		)
+		logger.L().Error(
+			"failed to abandon "+cfg.Name+" job during shutdown",
+			zap.Int64("job_id", jobMeta.ID),
+			zap.String("job_type", jobMeta.JobType),
+			zap.Error(err),
+		)
+	}
+	return abandonErr
 }
 
 func finalizeContext(ctx context.Context, cfg WorkerConfig) (context.Context, context.CancelFunc) {

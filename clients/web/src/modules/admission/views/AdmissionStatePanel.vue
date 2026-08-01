@@ -1,8 +1,12 @@
 <template>
   <section
+    :aria-atomic="true"
+    :aria-busy="state === 'loading' ? 'true' : undefined"
+    :aria-live="liveMode"
     class="admission-state-panel"
     :class="toneClass"
     :data-state="state"
+    :role="liveRole"
   >
     <div class="admission-state-panel__heading">
       <span class="admission-state-panel__icon" aria-hidden="true">
@@ -55,6 +59,8 @@ const descriptionLines = computed(() => {
   return props.description ? [props.description] : []
 })
 
+const liveMode = computed(() => (props.tone === 'danger' ? 'assertive' : 'polite'))
+const liveRole = computed(() => (props.tone === 'danger' ? 'alert' : 'status'))
 const toneClass = computed(() => `admission-state-panel--${props.tone}`)
 </script>
 

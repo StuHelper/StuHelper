@@ -2,9 +2,12 @@ package token
 
 import (
 	"context"
+	"errors"
+	"net"
 	"testing"
 	"time"
 
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -35,6 +38,55 @@ func TestBlacklist_Add(t *testing.T) {
 	assert.True(t, isBlacklisted)
 }
 
+func TestBlacklist_AddUntilUsesVerifiedAbsoluteExpiry(t *testing.T) {
+	require.NoError(t, crypto.InitHMACKey("test-blacklist-until-secret", false))
+
+	fixture := setupTestRedis(t)
+	bl := NewBlacklist(fixture.Client)
+	t.Cleanup(bl.Close)
+	ctx := t.Context()
+	expiresAt := time.Now().Add(8 * time.Minute)
+
+	require.NoError(t, bl.AddUntil(ctx, "provider-access-token", expiresAt))
+
+	hash, err := hashToken("provider-access-token")
+	require.NoError(t, err)
+	ttl, err := fixture.Client.PTTL(ctx, blacklistPrefix+hash).Result()
+	require.NoError(t, err)
+	assert.Greater(t, ttl, 7*time.Minute+50*time.Second)
+	assert.LessOrEqual(t, ttl, 8*time.Minute)
+}
+
+func TestBlacklistTTLUntilBoundaryPolicy(t *testing.T) {
+	now := time.Date(2026, 7, 31, 12, 0, 0, 0, time.UTC)
+
+	ttl, required, err := blacklistTTLUntil(time.Time{}, now)
+	require.Error(t, err)
+	assert.Zero(t, ttl)
+	assert.False(t, required)
+
+	ttl, required, err = blacklistTTLUntil(now.Add(-time.Second), now)
+	require.NoError(t, err)
+	assert.Zero(t, ttl)
+	assert.False(t, required)
+
+	ttl, required, err = blacklistTTLUntil(now.Add(100*time.Millisecond), now)
+	require.NoError(t, err)
+	assert.Equal(t, minBlacklistTTL, ttl)
+	assert.True(t, required)
+
+	ttl, required, err = blacklistTTLUntil(now.Add(2*time.Hour), now)
+	require.NoError(t, err)
+	assert.Equal(t, 2*time.Hour, ttl)
+	assert.True(t, required)
+
+	ttl, required, err = blacklistTTLUntil(now.Add(maxBlacklistTTL+time.Second), now)
+	require.Error(t, err)
+	assert.Zero(t, ttl)
+	assert.False(t, required)
+	assert.Contains(t, err.Error(), "exceeds hard maximum")
+}
+
 func TestBlacklist_IsBlacklisted(t *testing.T) {
 	// 显式初始化 HMAC key，确保单独运行时不依赖其他测试的副作用
 	require.NoError(t, crypto.InitHMACKey("test-blacklist-secret", false))
@@ -55,6 +107,45 @@ func TestBlacklist_IsBlacklisted(t *testing.T) {
 	isBlacklisted, err = bl.IsBlacklisted(ctx, "blacklisted-token")
 	assert.NoError(t, err)
 	assert.True(t, isBlacklisted)
+}
+
+func TestBlacklist_IsBlacklistedClassifiesCallerCancellationAsNeutral(t *testing.T) {
+	require.NoError(t, crypto.InitHMACKey("test-blacklist-cancellation-secret", false))
+
+	backendErr := errors.New("test redis backend unavailable")
+	rdb := redis.NewClient(&redis.Options{
+		Addr:       "unused:6379",
+		MaxRetries: -1,
+		Dialer: func(ctx context.Context, _, _ string) (net.Conn, error) {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			return nil, backendErr
+		},
+	})
+	t.Cleanup(func() { require.NoError(t, rdb.Close()) })
+	bl := NewBlacklist(rdb)
+	t.Cleanup(bl.Close)
+
+	canceledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+	blacklisted, err := bl.IsBlacklisted(canceledCtx, "caller-canceled-token")
+	require.ErrorIs(t, err, context.Canceled)
+	assert.True(t, blacklisted, "canceled lookup must remain fail-closed")
+	assert.Equal(t, 0, bl.CircuitBreakerMetrics()["failures"])
+	assert.Equal(t, circuitbreaker.StateClosed.String(), bl.CircuitBreakerMetrics()["state"])
+
+	deadlineCtx, deadlineCancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	defer deadlineCancel()
+	blacklisted, err = bl.IsBlacklisted(deadlineCtx, "deadline-exceeded-token")
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.True(t, blacklisted, "deadline exceeded must remain fail-closed")
+	assert.Equal(t, 1, bl.CircuitBreakerMetrics()["failures"])
+
+	blacklisted, err = bl.IsBlacklisted(context.Background(), "backend-failure-token")
+	require.ErrorIs(t, err, backendErr)
+	assert.True(t, blacklisted, "backend failure must remain fail-closed")
+	assert.Equal(t, 2, bl.CircuitBreakerMetrics()["failures"])
 }
 
 func TestBlacklist_TryConsumeRefreshToken(t *testing.T) {

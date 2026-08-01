@@ -10,6 +10,7 @@
       <div v-else-if="error" class="flex items-center gap-3 text-text-muted text-sm">
         <span>{{ errorText ?? t('common.loadFailed') }}</span>
         <button
+          type="button"
           class="px-3 py-1 bg-transparent rounded-sm text-text-secondary text-sm cursor-pointer transition-all duration-fast hover:border-text-primary hover:text-text-primary"
           @click="$emit('retry')"
         >

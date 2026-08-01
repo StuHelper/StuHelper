@@ -9,8 +9,11 @@ Course:
       type: integer
       format: int64
     departmentID:
-      type: integer
+      type:
+        - integer
+        - "null"
       format: int64
+      description: 课程尚未归类到院系时为 null。
     departmentName:
       type: string
     code:
@@ -18,8 +21,11 @@ Course:
     name:
       type: string
     credits:
-      type: number
+      type:
+        - number
+        - "null"
       format: double
+      description: 数据源未提供学分时为 null，不得以 0 代替未知值。
     category:
       type: string
     reviewCount:
@@ -107,10 +113,16 @@ DepartmentGroup:
   required: [departmentID, departmentName, courses]
   properties:
     departmentID:
-      type: integer
+      type:
+        - integer
+        - "null"
       format: int64
+      description: 未分类课程分组为 null。
     departmentName:
-      type: string
+      type:
+        - string
+        - "null"
+      description: 未分类课程分组为 null。
     courses:
       type: array
       items:

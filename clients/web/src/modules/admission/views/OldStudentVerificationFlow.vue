@@ -37,6 +37,7 @@
         v-if="linked && selectedSchoolHasEmailOTP"
         class="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4"
         data-school-email-otp-form
+        :aria-busy="submitting || requestingOTP"
         @submit.prevent="verifyEmailOTP"
       >
         <div v-if="selectedSchoolRequiresAcademicEmail" class="grid gap-3 sm:grid-cols-2">
@@ -65,6 +66,9 @@
           v-if="selectedSchoolRequiresAcademicEmail && academicMatchMessage"
           :class="academicMatchMessageClass"
           data-academic-match-status
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
         >
           {{ academicMatchMessage }}
         </p>
@@ -93,7 +97,15 @@
             {{ selectedSchoolRequiresAcademicEmail ? '校验并发送验证码' : '发送验证码' }}
           </button>
         </div>
-        <p v-if="successMessage" class="text-sm text-green-700">{{ successMessage }}</p>
+        <p
+          v-if="successMessage"
+          class="text-sm text-green-700"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          {{ successMessage }}
+        </p>
         <label class="field-label">
           验证码
           <input
@@ -122,7 +134,13 @@
         当前学校暂未开通加群老生认证方式。
       </div>
 
-      <p v-if="errorMessage" class="text-sm text-red-600">{{ errorMessage }}</p>
+      <p
+        v-if="errorMessage"
+        class="text-sm text-red-600"
+        role="alert"
+      >
+        {{ errorMessage }}
+      </p>
     </div>
   </section>
 </template>

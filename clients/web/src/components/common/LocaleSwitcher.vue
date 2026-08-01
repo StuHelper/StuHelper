@@ -1,5 +1,6 @@
 <template>
   <button
+    type="button"
     class="group relative inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-transparent text-text-secondary transition-all duration-fast hover:border-white/20 hover:bg-bg-card hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
     :aria-label="isZhCN ? t('common.locale.switchToEnglish') : t('common.locale.switchToChinese')"
     :title="isZhCN ? t('common.locale.switchToEnglish') : t('common.locale.switchToChinese')"

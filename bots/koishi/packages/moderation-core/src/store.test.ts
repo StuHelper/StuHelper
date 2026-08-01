@@ -103,6 +103,46 @@ test('ModerationStore updates existing records without primary key churn', async
   assert.equal(writes[3].patch.updatedAt, updatedAt)
 })
 
+test('ModerationStore bounds recent message reads inside the database', async () => {
+  const records = [
+    createMessage({
+      messageId: 'message-older',
+      createdAt: new Date('2026-06-05T03:00:00.000Z'),
+    }),
+    createMessage({
+      messageId: 'message-newer',
+      createdAt: new Date('2026-06-05T04:00:00.000Z'),
+    }),
+  ]
+  const reads: Array<{
+    table: string
+    query: Record<string, unknown>
+    cursor: Record<string, unknown> | undefined
+  }> = []
+  const store = new ModerationStore({
+    database: {
+      async get(
+        table: string,
+        query: Record<string, unknown>,
+        cursor?: Record<string, unknown>,
+      ) {
+        reads.push({ table, query, cursor })
+        return records
+      },
+    },
+  } as never)
+
+  assert.deepEqual(await store.listRecentMessages('guild-1', 3), records)
+  assert.deepEqual(reads, [{
+    table: MODERATION_MESSAGE_LEDGER_TABLE,
+    query: { guildId: 'guild-1' },
+    cursor: {
+      sort: { createdAt: 'desc' },
+      limit: 3,
+    },
+  }])
+})
+
 test('ModerationStore reads and deletes keyword rules by id', async () => {
   const rule = createKeywordRule()
   const deletes: Array<{ table: string; query: Record<string, unknown> }> = []

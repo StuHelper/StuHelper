@@ -3,7 +3,7 @@ type: guide
 audience: ops
 status: current
 authoritative-source: infra/ops/*.sh
-last-verified: 2026-04-19
+last-verified: 2026-07-30
 ---
 
 # PostgreSQL 备份与恢复手册
@@ -31,6 +31,8 @@ export BACKUP_DATABASE_URL='postgres://...'
 
 - 生成 PostgreSQL custom-format dump
 - 生成同名 `.sha256` 校验文件
+- 先在同步目录之外生成工件，以目标目录中的 `.partial.<pid>` 名称完成跨文件系统复制，
+  再原子改名发布；失败不会留下可被同步器当成完整备份的最终文件
 - 通过非 root、只读、仅挂载客户端 CA 的一次性 `postgres-client` 容器连接数据库；宿主机无需安装 PostgreSQL 客户端，备份任务不会接触数据库数据卷或服务端 TLS 私钥
 
 ## Base Backup（pg_basebackup）
@@ -44,6 +46,18 @@ BACKUP_MODE=basebackup ./infra/ops/backup-postgres.sh backups/stuhelper-$(date +
 
 - 需要保留更完整的实例级恢复点
 - 配合 WAL 归档做 PITR
+
+物理备份不是把 tar 流直接写入最终目录。脚本会在独立 staging 中使用
+`pg_basebackup --format=plain --wal-method=stream` 生成完整 PGDATA，使用临时 replication slot
+保护备份期间所需 WAL，以 `pg_verifybackup` 校验 manifest 和全部文件后才压缩、生成 SHA256
+并原子发布。这里不创建需要运维生命周期管理的持久复制槽，也不使用 `fetch` 模式依赖
+`wal_keep_size` 在长备份期间保留全部 WAL。
+
+目标文件或 sidecar 已存在时脚本会拒绝覆盖。直接运行时，默认 staging 是用户 local-state
+下的 `postgres/backup-staging`；systemd 安装器会以 deploy 用户、`0700` 权限创建并注入
+`/var/lib/stuhelper/postgres/backup-staging`。需要放到专用磁盘时设置
+`BACKUP_STAGING_DIR` 并确保 timer 用户可写。staging 至少要容纳一份未压缩 PGDATA 和正在
+生成的压缩包。
 
 ## 定时备份
 
@@ -59,6 +73,7 @@ BACKUP_MODE=basebackup ./infra/ops/backup-postgres.sh backups/stuhelper-$(date +
 - `run-scheduled-backup.sh` 会在本地生成备份文件
 - 它会清理超出保留期的 logical / base / WAL 文件
 - 最后会自动调用 `./infra/ops/sync-postgres-backups.sh`，把逻辑备份、base backup、WAL 归档镜像到对象存储
+- 同步器显式排除 `*.partial*`、WAL 归档的 `*.tmp*` 和 staging 路径；只有已经原子发布的工件会上传
 
 生产机建议直接安装 systemd timer：
 
@@ -95,6 +110,27 @@ sudo ./infra/ops/install-backup-timers.sh
 - `backups/postgres/base`
 - `${POSTGRES_WAL_RESTORE_DIR:-$HOME/Library/Application Support/StuHelper/postgres/wal-restore}`（Linux 默认 `~/.local/state/stuhelper/postgres/wal-restore`）
 
+## 备份 evidence
+
+```bash
+./infra/ops/postgres-backup-evidence.sh
+```
+
+该入口会同时验证：
+
+- 本地最新逻辑备份与物理 base backup 的 SHA256 和新鲜度
+- 从对象存储重新取回的最新逻辑备份与物理 base backup 的 SHA256 和新鲜度
+- 两份物理 tar.gz 都可完整遍历
+- 可检查时，三个 systemd timer 的安装与启用状态
+
+默认逻辑备份最长允许 36 小时，周度物理备份最长允许 8 天；可分别用
+`POSTGRES_BACKUP_EVIDENCE_MAX_LOGICAL_AGE_SECONDS` 和
+`POSTGRES_BACKUP_EVIDENCE_MAX_BASE_AGE_SECONDS` 收紧。生成的
+`infra/generated/postgres-backup-evidence.json` 不含连接串或对象存储密钥。
+
+**evidence 通过不等于 PITR 已验收。**它证明近期工件存在、完整且能从远端取回；仍须按下方
+演练清单，在隔离实例实际启动恢复后的 PGDATA，并在目标时间点恢复场景中验证 WAL 连续性。
+
 ## 逻辑备份恢复
 
 > 恢复是破坏性操作，必须先确认目标库、确认当前连接字符串、确认业务窗口。
@@ -128,10 +164,16 @@ WAL_ARCHIVE_DIR=/var/lib/stuhelper/postgres/wal-restore \
 
 脚本会写入 `restore_command` 和 `recovery.signal`，让 PostgreSQL 从 WAL 归档继续恢复。运行中的 PostgreSQL 实例使用 Docker named volume `postgres_wal_archive` 保存在线 WAL 归档；恢复演练则显式使用本地 restore cache 目录，避免把活动 WAL 写回仓库树。
 
+恢复脚本会先按 sidecar 中的摘要验证实际输入文件，再检查压缩包可读，之后才清空明确传入的
+PGDATA 目录；提取后还会要求 `PG_VERSION` 和 `backup_manifest` 存在。sidecar 中只依赖摘要，
+因此对象存储取回到不同目录后仍可验证。
+
 ## 生产规则
 
 - 每次 production 发布前至少做一次人工备份
 - 生产机必须启用逻辑备份 / base backup / backup sync timer
+- 发布前 `postgres-backup-evidence.sh` 必须同时显示四份（本地/取回 × 逻辑/物理）工件
+  `sha256Verified=true`、`fresh=true`，物理工件还须 `archiveReadable=true`
 - 任何包含破坏性迁移的发布，必须先做恢复演练
 - 恢复前先用 `fetch-postgres-backups.sh` 验证对象存储工件能拉回
 - 恢复后必须跑 `./infra/ops/smoke-check.sh`

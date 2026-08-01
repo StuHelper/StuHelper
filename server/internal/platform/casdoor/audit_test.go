@@ -15,22 +15,22 @@ func TestCasdoorAdminAuditEventRedactsCredentialsAndRecordsPurpose(t *testing.T)
 	t.Parallel()
 
 	credential := Credential{
-		Purpose:      PurposeRoleSync,
+		Purpose:      PurposeUserProfile,
 		Endpoint:     "https://sso.example.test",
-		ClientID:     "role-sync-client",
+		ClientID:     "user-profile-client",
 		ClientSecret: "super-secret",
 		Organization: "stuhelper",
-		Application:  "casdoor-admin-role-sync",
+		Application:  "casdoor-admin-user-profile",
 	}
 
-	event := casdoorAdminAuditEvent(credential, "update role users verified_student", nil)
+	event := casdoorAdminAuditEvent(credential, "update user profile", nil)
 
 	assert.Equal(t, "iam.casdoor_admin_api.call", string(event.Type))
 	assert.Equal(t, "admin_operation", event.Category)
 	assert.Equal(t, "system", event.ActorType)
-	assert.Equal(t, string(PurposeRoleSync), event.UserID)
+	assert.Equal(t, string(PurposeUserProfile), event.UserID)
 	assert.Equal(t, "success", event.Result)
-	assert.Equal(t, "role-sync-client", event.Details["client_id"])
+	assert.Equal(t, "user-profile-client", event.Details["client_id"])
 	assert.NotContains(t, event.Details, "client_secret")
 	assert.NotContains(t, event.Details, "certificate")
 }
@@ -54,8 +54,8 @@ func TestCasdoorAdminAuditEventUsesContextRequestID(t *testing.T) {
 
 	ctx := logger.WithRequestID(context.Background(), "req-casdoor-1")
 	event := audit.EventFromContext(ctx, casdoorAdminAuditEvent(
-		Credential{Purpose: PurposeRoleSync, Organization: "stuhelper", Application: "casdoor-admin-role-sync"},
-		"update role users verified_student",
+		Credential{Purpose: PurposeUserProfile, Organization: "stuhelper", Application: "casdoor-admin-user-profile"},
+		"update user profile",
 		nil,
 	))
 

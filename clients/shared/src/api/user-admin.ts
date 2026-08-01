@@ -10,6 +10,9 @@ export const createUserAdminApi = (client: ApiClient) => ({
   listIdentityVerifications: (params?: { status?: 'pending' | 'verified' | 'rejected' | 'all'; page?: number; pageSize?: number }) =>
     client.GET('/api/v1/admin/identities', { params: { query: params } }),
 
+  getIdentityVerificationReviewDetail: (userID: number) =>
+    client.GET('/api/v1/admin/identities/{userID}', { params: { path: { userID } } }),
+
   reviewIdentity: (userID: number, data: ReviewIdentityRequest) =>
     client.PUT('/api/v1/admin/identities/{userID}', { params: { path: { userID } }, body: data }),
 

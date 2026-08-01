@@ -21,15 +21,20 @@ export async function ensureAdminCommandAccess(input: {
   readonly messages?: AdminMessages
 }) {
   const { store, session, commandId } = input
+  const messages = resolveAdminMessages(input.messages)
   if (input.runtimeSettings && !await input.runtimeSettings.isAdminCommandsEnabled()) {
-    return renderMessageTemplate(resolveAdminMessages(input.messages).adminCommandsDisabled)
+    return renderMessageTemplate(messages.adminCommandsDisabled)
+  }
+  if (!session) {
+    return renderMessageTemplate(messages.commandAccessDenied)
   }
   const targetGuildId = input.targetGuildId ?? session?.guildId
   const guildId = targetGuildId
-  if (!session || !guildId) return
   const [policy, memberRoles] = await Promise.all([
     store.getCommandPolicy(commandId),
-    store.getMemberRoles(guildId, session.userId),
+    guildId
+      ? store.getMemberRoles(guildId, session.userId)
+      : Promise.resolve([]),
   ])
   const allowed = canExecuteCommand({
     authority: resolveAuthority(session),
@@ -38,7 +43,7 @@ export async function ensureAdminCommandAccess(input: {
   })
   return allowed
     ? undefined
-    : renderMessageTemplate(resolveAdminMessages(input.messages).commandAccessDenied)
+    : renderMessageTemplate(messages.commandAccessDenied)
 }
 
 export function resolveGuildId(session: Session | undefined, guildId: string | undefined) {

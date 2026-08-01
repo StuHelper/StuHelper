@@ -3,7 +3,7 @@ type: product-spec
 audience: product, backend-dev
 status: current
 authoritative-source: server/api/openapi.yaml
-last-verified: 2026-04-19
+last-verified: 2026-07-31
 ---
 
 # 课程与评课
@@ -13,6 +13,13 @@ last-verified: 2026-04-19
 ## 覆盖范围
 
 课程实体（院系、学期、分类、教师）、评课列表与搜索、发布与编辑、投票与回复、举报与审核、后台运营。
+
+### 课程元数据完整性
+
+课程名、学校和分类属于目录主干事实；课程代码、所属院系和学分可能因上游数据源不完整而暂缺。
+API 对缺失代码/院系名省略可选字段，对必需出现的 `departmentID`、`credits` 明确返回 `null`。
+客户端应展示“未分类/未提供”，不得把未知院系或学分渲染为 `0`；Repository 也不得用
+`COALESCE(..., 0/'')` 伪造元数据。按学分排序时，未知学分排在已知值之后。
 
 ## 端点
 
@@ -52,9 +59,9 @@ last-verified: 2026-04-19
 | `/api/v1/course/review/courses/{courseID}/favorites` | GET | 收藏状态 |
 | `/api/v1/course/review/courses/{courseID}/favorites` | POST | 添加收藏 |
 | `/api/v1/course/review/courses/{courseID}/favorites` | DELETE | 取消收藏 |
+| `/api/v1/course/review/drafts` | GET | 获取当前用户的单槽草稿；不存在时返回 `data: null` |
 | `/api/v1/course/review/drafts` | POST | 保存草稿 |
-| `/api/v1/course/review/drafts/{courseID}` | GET | 获取草稿 |
-| `/api/v1/course/review/drafts/{courseID}` | DELETE | 删除草稿 |
+| `/api/v1/course/review/drafts` | DELETE | 删除当前用户的单槽草稿 |
 | `/api/v1/course/review/content/check` | POST | 内容敏感词检查 |
 
 ### 用户中心（需要认证）
@@ -81,7 +88,7 @@ last-verified: 2026-04-19
 | `/api/v1/course/review/admin/reviews/batch` | PATCH | 批量操作 |
 | `/api/v1/course/review/admin/stats` | GET | 后台统计 |
 | `/api/v1/course/review/admin/logs` | GET | 操作日志 |
-| `/api/v1/course/review/admin/export` | GET | 导出（NDJSON/CSV） |
+| `/api/v1/course/review/admin/export` | GET | 导出（NDJSON/CSV；每次请求写成功或失败审计） |
 | `/api/v1/course/review/admin/teachers` | GET | 教师管理列表 |
 | `/api/v1/course/review/admin/teachers` | POST | 创建教师 |
 | `/api/v1/course/review/admin/teachers/{teacherID}` | PUT | 更新教师 |
@@ -105,7 +112,10 @@ last-verified: 2026-04-19
 
 ### 删除
 
-软删除，同步更新计数。
+软删除，同步更新计数。当前没有面向作者或管理员的受支持恢复入口，因此 Web“我的评课”
+必须在发送 DELETE 前显示局部二次确认；首次点击只进入确认态，取消不得发请求，确认请求
+进行中必须保持 single-flight。该交互约束不改变 API 的单次 DELETE 语义，也不等同于提供
+undo 或 restore 能力。
 
 ## 互动
 
@@ -114,8 +124,15 @@ last-verified: 2026-04-19
 | 投票 | like / dislike，支持切换和取消 |
 | 回复 | 楼中楼，经过净化和敏感词检查 |
 | 收藏 | 按课程收藏 |
-| 草稿 | 每用户每课程一份，支持自动保存 |
+| 草稿 | 每用户一个服务端单槽，可选绑定课程；Web 支持自动保存，固定课程发布入口只能在课程匹配或未绑定时恢复，发布成功后不得删除其他课程的槽内容 |
 | 举报 | 每用户每评课一次 |
+
+## 评分展示
+
+评课社区的公开展示面不显示精确评分数字，使用已发布的五级定性文案与表情语义。课程详情中的
+维度条虽然通过长度和颜色可视化平均值，但每一行必须同时提供“维度名称 + 定性等级”的可访问
+名称，并把纯视觉填充层从辅助技术树隐藏。无障碍修复不得借机把原始 `avgRating` 数值写入
+`aria-label`、title 或隐藏文本。
 
 ## 内容审核
 
@@ -125,6 +142,15 @@ last-verified: 2026-04-19
 
 **后台能力**：评课管理、举报处理、批量操作、内容编辑、教师管理、敏感词管理、操作日志、NDJSON/CSV 导出、内容标记。
 
+### 敏感批量导出
+
+评课导出最多处理 10,000 行，可按状态筛选；`json` 与 `ndjson` 都返回 NDJSON 流，CSV 与
+NDJSON 只有出现 `# EXPORT_COMPLETE` 标记才代表响应完整。每次导出请求必须恰好写入一条
+`category=admin_operation`、`event_type=data.export` 的审计事件，记录管理员、规范化后的格式
+与状态、处理行数、行上限以及 success/failure；数据库流、序列化、写响应或完成标记失败时也
+必须留下 failure 事件。审计持久化沿用不受请求取消影响的安全上下文，但 `row_count` 只表示
+服务端已序列化/处理的行数，不等同于客户端已可靠保存的字节数。
+
 ## 访问控制
 
 | 用户 | 权限 |
@@ -132,7 +158,8 @@ last-verified: 2026-04-19
 | 游客 | 课程/教师/评课预览 |
 | 已登录未认证 | 比游客多，评课正文有限制 |
 | 已认证学生 | 完整评课、发布评课 |
-| 管理员 | 完整内容、后台管理 |
+| 全局评课管理员 | 完整内容、后台管理 |
+| 带学校/板块范围的评课管理员 | scoped grant 本身不提升公共列表正文权限；通过带资源边界的后台审核路由管理授权范围内内容 |
 
 发布评课需要：已登录 + 实名认证通过 + 学生认证通过。
 

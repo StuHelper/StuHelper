@@ -3,14 +3,14 @@ type: guide
 audience: ops
 status: current
 authoritative-source: infra/ops/*.sh + infra/ansible/
-last-verified: 2026-07-29
+last-verified: 2026-07-31
 ---
 
 # 发布运行手册
 
 ## 适用范围
 
-- GitHub Actions 迁移目标链路，以及迁移验收期保留的 GitLab CI/CD 自动发布。
+- GitHub Actions、GHCR、受保护 environment 的发布与回滚。
 - 手工 SSH 到部署机执行的应急发布。
 
 首次生产落地先按 [production-go-live.md](production-go-live.md) 完成域名、宝塔 Nginx、secret backend、对象存储、备份与告警准备；本文只描述发布与回滚运行流程。
@@ -20,8 +20,8 @@ last-verified: 2026-07-29
 - [ ] 本次变更已通过 CI（web / admin / backend / koishi）。
 - [ ] admission MVP 相关变更已在本地执行 `make check-admission-mvp`；该入口覆盖 admission 后端、auth/user 依赖后端、Web admission 和用户认证 Vitest、认证/admission 与用户中心 Playwright、Web build、Koishi group guard、生产入口和 evidence 契约。
 - [ ] 涉及运维脚本、部署配置、生产 evidence、Nginx preflight 或 CI 漂移门禁时，本地已执行 `make check-infra-contracts`；该入口同时覆盖 `infra/ops/tests/*.sh` 和 `infra/ops/tests/*.mjs`。
-- [ ] `Runtime image security` / `runtime_image_security` 已通过并保留本次 JSON evidence；`infra/security/runtime-images.json` 中没有过期的 pin review、漏洞例外或 VEX，生产 `.env.prod.shared` 中的基础设施镜像引用与已扫描策略一致。
-- [ ] production 发布已由发布人手工审批（`deploy_production`）。
+- [ ] GitHub Actions `Runtime image security` 已通过并保留本次 JSON evidence；`infra/security/runtime-images.json` 中没有过期的 pin review、漏洞例外或 VEX，生产 `.env.prod.shared` 中的基础设施镜像引用与已扫描策略一致。
+- [ ] production `Deploy` 作业已通过受保护 GitHub environment 的人工审批。
 - [ ] 如果包含数据库变更，已完成备份（注：`prod-deploy.sh` 现已自动在迁移前执行 `backup-postgres.sh`）。
 - [ ] 生产机上的逻辑备份 / base backup / backup sync timer 已启用。
 - [ ] 承载 `postgres_data` / `redis_data` 的宿主机块设备已启用静态加密；外部 S3 已启用服务端加密、版本/保留和生命周期策略。
@@ -32,45 +32,34 @@ last-verified: 2026-07-29
 - [ ] 关键变量已核对：内置 PostgreSQL 模式的 `POSTGRES_PASSWORD`、所有模式的 `POSTGRES_EXPORTER_DB_PASSWORD`、`REDIS_PASSWORD`、`REDIS_EXPORTER_PASSWORD`、`TAG`、`OBJECT_STORAGE_*`、`BACKUP_OBJECT_STORAGE_*`、`ADMISSION_PUBLIC_BASE_URL=https://join.stuhelper.com`、`WEB_VITE_SSO_URL=https://sso.stuhelper.com`、`WEB_VITE_WEB_URL=https://stuhelper.com`。外部 PostgreSQL 模式不生成、不保存也不要求 StuHelper 自建数据库的超级用户密码。`POSTGRES_EXPORTER_DB_PASSWORD` 必须是 PostgreSQL `stuhelper_metrics` 专用值，不与应用、备份或超级用户复用；`REDIS_EXPORTER_PASSWORD` 必须是 Redis `stuhelper_metrics` 专用值，不与 `REDIS_PASSWORD` 复用。生产对象存储与备份端点必须为 HTTPS；公共 CA 场景下 `OBJECT_STORAGE_TLS_CA` / `OBJECT_STORAGE_TLS_CA_HOST_PATH` 都留空。私有 CA 场景下前者固定为 `/object-storage-tls/ca.crt`，后者指向宿主机可读 PEM CA bundle；`BACKUP_OBJECT_STORAGE_TLS_CA` 独立使用宿主机可读路径。
 - [ ] admission 最小生产数据已通过 `./infra/ops/import-school-directory.sh` 和 `./infra/ops/admission-bootstrap-production-data.sh` 幂等准备：学校目录包含 `school_code=4111010006` 的北京航空航天大学，当前只启用该校，公开学生认证/admission 表单以 `schoolCode=4111010006` 为主识别字段，邮箱域仅 `buaa.edu.cn`，`platform=qq` 的 `178037297` 策略存在，`auto_approve_verified_join=true`、`auto_approve_unverified_join=true`、`forward_raw_material_to_qq=false`。
 - [ ] Koishi/NapCat 独立节点已确认：Koishi service 使用 `env_file` 或等价机制注入 `STUHELPER_PLATFORM_BASE_URL=https://stuhelper.com`、`STUHELPER_PLATFORM_SERVICE_TOKEN`、`STUHELPER_FRESHMAN_MATERIAL_HOSTS=stuhelper.com,join.stuhelper.com`；真实 token 不写入仓库或 runbook。
-- [ ] 生产 PostgreSQL TLS 已核对：默认 `POSTGRES_ENABLE_SSL=on`、`POSTGRES_INTERNAL_SSL_MODE=verify-full`（最低必须为 `verify-ca`）、`DB_SSL_MODE=verify-full`、`DB_SSL_ROOT_CERT=/tls/ca.crt`，且 `DATABASE_URL` / `BACKUP_DATABASE_URL` / `REPLICATION_DATABASE_URL` 都包含 `sslmode=verify-full&sslrootcert=/tls/ca.crt`；若生产机复用宝塔已有明文 Postgres，必须显式设置 `EXTERNAL_POSTGRES_ENABLED=true`、`EXTERNAL_DATASTORE_NETWORK=baota_net`、`EXTERNAL_POSTGRES_ALLOW_PLAINTEXT=true`，并确认外部 Postgres 已为 StuHelper / OpenFGA 创建独立数据库和独立账号、数据已从旧 StuHelper 专用库迁移到外部 Postgres。外部 PostgreSQL 使用 TLS 时必须设置 `POSTGRES_CLIENT_CA_HOST_PATH`；本地 `render-postgres-tls.sh` 不会为外部数据库生成伪 CA。外部数据库管理员还须预置仅有 `pg_monitor`、连接数上限 5、只能连接 `postgres` 维护库的 `stuhelper_metrics`；部署后的严格观测 smoke 必须显示 `up{job="postgres-exporter"}=1` 和 `pg_up=1`。Redis 不复用全局实例，仍由 StuHelper Compose 以独立实例运行。
+- [ ] 生产 PostgreSQL TLS 已核对：默认 `POSTGRES_ENABLE_SSL=on`、`POSTGRES_INTERNAL_SSL_MODE=verify-full`（最低必须为 `verify-ca`）、`DB_SSL_MODE=verify-full`、`DB_SSL_ROOT_CERT=/tls/ca.crt`，且 `DATABASE_URL` / `BACKUP_DATABASE_URL` / `REPLICATION_DATABASE_URL` 都包含 `sslmode=verify-full&sslrootcert=/tls/ca.crt`。若生产机复用宝塔已有 PostgreSQL，必须设置 `EXTERNAL_POSTGRES_ENABLED=true`、`EXTERNAL_DATASTORE_NETWORK=baota_net` 和 `POSTGRES_CLIENT_CA_HOST_PATH`，并先为 StuHelper / OpenFGA 创建独立数据库和独立账号、完成数据迁移；外部实例没有可验证 TLS 时不得上线。`EXTERNAL_POSTGRES_ALLOW_PLAINTEXT` 只允许本地 `prod-parity`，生产必须为 `false`。本地 `render-postgres-tls.sh` 不会为外部数据库生成伪 CA。外部数据库管理员还须预置仅有 `pg_monitor`、连接数上限 5、只能连接 `postgres` 维护库的 `stuhelper_metrics`；部署后的严格观测 smoke 必须显示 `up{job="postgres-exporter"}=1` 和 `pg_up=1`。Redis 不复用全局实例，仍由 StuHelper Compose 以独立实例运行。
 - [ ] Open Platform runtime token 探针已核对：`OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_REQUIRED=true`、`OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_COMMAND=/app/casdoor-runtime-token-probe-runner.mjs` 且不是 `REPLACE_WITH_OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_COMMAND` 占位符；`OPEN_PLATFORM_PRODUCTION_EVIDENCE_ALLOW_LOCAL_TARGETS=false`；专用低权限 `CASDOOR_TOKEN_PROBE_USERNAME` / `CASDOOR_TOKEN_PROBE_PASSWORD` 已通过 secret backend 注入；`CASDOOR_TOKEN_PROBE_SMOKE_*` 专用 smoke app 已配置，发布时会通过 `open-platform-production-evidence.sh` 自动运行 `casdoor-runtime-token-probe-smoke.sh`，且聚合 evidence 会在子 smoke 前验证强制探针门禁开启并默认拒绝 localhost Casdoor/OpenFGA 目标。
 - [ ] OpenFGA 派生配置已核对：`OPENFGA_STORE_ID` / `OPENFGA_MODEL_ID` 由 `bootstrap-platform.sh` 生成，`OPENFGA_RESOURCE_SMOKE_MODE=container`，发布时会通过 `open-platform-production-evidence.sh` 自动运行 `openfga-resource-access-smoke.sh`。
+- [ ] Casdoor token/session lease 与撤销契约已核对：发布流程中的 `bootstrap-platform.sh prod` 必须成功把托管 Web/Admin/UniApp application 收敛到 `ExpireInHours=1`，且运行时 `TOKEN_REFRESH_TTL` 不得小于 provider access-token 寿命（默认 7 天，大于 1 小时）。新登录/refresh 会用已验证 `exp` 再次拒绝“access 剩余寿命大于 session lease”或超过 30 天 hard cap 的漂移；不要通过提高 hard cap 或向下截断绕过。滚动升级期间旧 session 没有 `accessTokenExpiresAt`，其 logout-all 仅在上述约束成立时使用真实 Redis PTTL 作为保守黑名单 TTL。`TOKEN_ACCESS_TTL=300` 只是 cookie/`expiresIn` 策略，不是 Casdoor token 自然失效时间。生产 discovery 还必须满足：没有 `revocation_endpoint` 时，`end_session_endpoint` 精确为同 issuer 的 `/api/logout`；受控测试账号执行 login → logout 与 login → logout-all 后，旧 access introspection 均为 inactive、旧 refresh grant 均返回 `invalid_grant`，且应用日志没有 Casdoor `status=error`、畸形 JSON 或 provider revoke partial failure。滚动升级旧 session 的 logout-all 还要留证“refresh rotation 后替代 family 立即失效”；不能只以 HTTP 200、客户端 cookie 清除或本地 Redis session 删除代替 provider 验收。
 - [ ] 公网 SSO 和入群验证入口门禁已核对：默认 `PUBLIC_INGRESS_CONFIG_PREFLIGHT_ENABLED=true`，远端 preflight / prod deploy 会先审计本机宝塔 Nginx 主站和 join 配置；默认 `PUBLIC_INGRESS_PREFLIGHT_ENABLED=true`，随后验证 `stuhelper.com`、`join.stuhelper.com`、`sso.stuhelper.com` 公共 DNS-over-HTTPS 有公网 A/AAAA 且 TLS 可达。`sso.stuhelper.com` discovery/JWKS/authorize 路由必须反代到 Casdoor。旧 identity smoke 已删除；默认 `ADMISSION_PUBLIC_SMOKE_ENABLED=true`，远端 preflight / prod deploy 都会运行 `admission-public-smoke.sh` 并写入 `infra/generated/admission-public-smoke-evidence.json`，要求 `join.stuhelper.com/verify/<probe>` 由 Web SPA 承载，`join.stuhelper.com/api/v1/metrics/vitals` 和 `/api/v1/metrics/frontend-errors` 接受同源 beacon 并返回 204，`join.stuhelper.com/api/v1/admission/freshman/camera-handoffs/<probe>/events` 无登录探测返回 401 且 `X-Accel-Buffering: no`，`join.stuhelper.com/`、`join.stuhelper.com/developers/apps`、`join.stuhelper.com/verify`、主站 `/verify`、主站 `/verify/*` 全部返回 404，且 `ADMISSION_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS=false`、`ADMISSION_PUBLIC_SMOKE_CURL_INSECURE=false`。默认 `PUBLIC_WEB_AUTH_BROWSER_SMOKE_ENABLED=true`，prod deploy 会运行 `public-web-auth-browser-smoke.mjs`，用 Playwright 真浏览器验证主站登录页非空、开发者入口未登录跳回 `/login?redirect=/developers/apps`、点击登录进入 `sso.stuhelper.com/login/oauth/authorize` 并看到账号密码登录和 `/signup/oauth/authorize` 注册入口、点击注册进入 `sso.stuhelper.com/signup/oauth/authorize` 并看到账号密码注册表单、join 根路径/主站业务路径不渲染主站内容、join verify SPA 可加载、join 手机拍照页允许 camera。
 - [ ] 观测配置已核对：`METRICS_PASSWORD`、`POSTGRES_EXPORTER_DB_PASSWORD`、`REDIS_EXPORTER_PASSWORD`、`GRAFANA_ADMIN_PASSWORD`、`OTEL_ENABLED=true`；严格 smoke 中 PostgreSQL/Redis exporter 的 `up` 与 `pg_up`/`redis_up`、node-exporter 和 cAdvisor 均为 1。
 - [ ] staging 已验证通过（如有 staging）。
 - [ ] 发布 bundle 从干净 Git 工作区打包；`git status --short` 为空，所有待发布改动已经提交并签名。
 
-## GitLab 自动发布链路
+## GitHub 自动发布链路
 
-### staging（develop）
+### 构建与发布镜像
 
-1. `frontend_e2e`
-2. `admin_e2e`
-3. `uniappx_e2e`
-4. `koishi_test`
-5. `package_backend`
-6. `package_frontend`
-7. `package_admin`
-8. `deploy_staging`
-9. `verify_staging`
-10. 远端实际执行：`./infra/ops/remote-preflight.sh` 和 `./infra/ops/remote-prod-deploy.sh`
+1. Pull Request、`develop` 或 `main` push 运行按路径选择的 `CI`。
+2. `CI / Required` 汇总后端、契约、客户端、E2E、Koishi、Infra、依赖和安全扫描。
+3. 只有受信任的 `develop` / `main` push 且聚合门禁成功，才调用 `Publish images`。
+4. backend / frontend / admin 使用完整 commit SHA 构建并在本地接受 Trivy 扫描。
+5. 同一候选镜像推送到 GHCR，记录 manifest digest 并签发 provenance。
 
-### production（main）
+### staging / production
 
-1. `frontend_e2e`
-2. `admin_e2e`
-3. `uniappx_e2e`
-4. `koishi_test`
-5. `backend_security` / `backend_vulnerability_scan`
-6. `frontend_dependency_scan` / `admin_dependency_scan`
-7. `runtime_image_security`
-8. `container_scan_backend` / `container_scan_frontend` / `container_scan_admin`
-9. `package_backend`
-10. `package_frontend`
-11. `package_admin`
-12. 手工触发 `deploy_production`
-13. `verify_production`
-14. 远端实际执行：`./infra/ops/remote-preflight.sh` 和 `./infra/ops/remote-prod-deploy.sh`
+1. 在 GitHub Actions 手工运行 `Deploy`。
+2. 选择 `staging` 或 `production`，输入已发布的完整 40 位 commit SHA。
+3. environment 校验允许分支、审批者和 secrets。
+4. 工作流验证三个 GHCR digest 的来源与 provenance。
+5. 远端实际执行 `./infra/ops/remote-preflight.sh` 和
+   `./infra/ops/remote-prod-deploy.sh`。
+6. 自动运行业务与可观测性 smoke；任何 smoke 失败，本次发布即失败并进入回滚判断。
 
 只要 Smoke Check 失败，本次发布就视为失败，需要立刻进入回滚判断。
 
@@ -105,7 +94,7 @@ make prod-deploy
 
 如果当前生产机不能直接从 registry 拉取镜像，且宝塔 Compose 实际运行目录采用“Compose 根目录 + `source/` 源码副本”的形态，可以执行一次源码包 + 本地镜像 tar 的应急发布。该流程只接受由本地当前仓库生成的产物；不得在生产 `source/`、容器文件系统或 `node_modules` 中手工改代码作为最终状态。
 
-要求：本地打包前记录当前 Git ref、`git status --short` 和源码包 `sha256sum`。源码包不得包含真实 `.env*`、`.deploy/`、`node_modules`、`dist`、临时 SSH 脚本或本地 secret；`infra/ops/build-deploy-bundle.sh` 会全仓库排除常见依赖和构建产物，生成后仍需用 `tar -tzf` 抽查。生产 `source/.env.prod.shared`、`source/.env.prod.secrets.local`、`source/.env.prod.generated`、`source/.env.prod.generated.secrets` 只从旧生产目录保留或由 secret backend 重新生成，不从源码包覆盖。
+要求：本地打包前记录当前 Git ref、`git status --short` 和源码包 `sha256sum`。源码包不得包含真实 `.env*`、`.deploy/`、`node_modules`、`dist`、临时 SSH 脚本或本地 secret；`infra/ops/build-deploy-bundle.sh` 会先拒绝脏工作树，再只打包 Git `HEAD` 中的跟踪文件，并在发布前断言根目录恰好包含 `.env.example`、`.env.prod.example` 两个 env 模板、没有其他根 env 文件。生成后仍需用 `tar -tzf` 抽查。生产 `source/.env.prod.shared`、`source/.env.prod.secrets.local`、`source/.env.prod.generated`、`source/.env.prod.generated.secrets` 只从旧生产目录保留或由 secret backend 重新生成，不从源码包覆盖。
 
 如果旧生产目录已有 `source/infra/generated`，恢复到新 `source/infra/generated` 时复制整个 `generated` 目录本身，目标必须是 `source/infra/generated`，不能变成 `source/infra/generated/generated`。生产仅在仓库内生成 PostgreSQL / Redis TLS；应分别执行 `source/infra/ops/render-postgres-tls.sh`、`source/infra/ops/render-redis-tls.sh`、`source/infra/ops/render-redis-acl.sh` 和 `source/infra/ops/prepare-datastore-client-cas.sh`。PostgreSQL 容器启动时会把只读服务端源目录中的证书和私钥复制到容器内 `/tls` tmpfs，把 `server.key` 设为 PostgreSQL UID/GID 70、模式 0600 后再降权启动；Redis 同样把服务端 key 与仅含密码哈希的 ACL 复制到 UID/GID 999:1000、模式 0600 的 `/redis-runtime` tmpfs。宿主私钥和 ACL 不得放宽为 group/world-readable。应用、迁移、OpenFGA、exporter 以及备份/恢复工具只挂载分别含一个公开 `ca.crt` 的 `postgres-client-ca` / `redis-client-ca`，不得挂载服务端源目录；`postgres-client` 还必须保持非 root、只读根文件系统、无 Linux capability，并且不得挂载 PostgreSQL 数据卷。外部 S3 使用公共 CA 时不恢复对象存储 CA 目录；使用私有 CA 时把经运维核验的 CA bundle 放在 `OBJECT_STORAGE_TLS_CA_HOST_PATH` 指向的位置，再运行 `source/infra/ops/prepare-object-storage-client-ca.sh`。不要把本地 SeaweedFS 的 `s3.json`、`ca.key` 或 `private.key` 恢复到生产应用挂载目录；应用只挂载独立的 `infra/generated/object-storage-client-ca`。宝塔源码目录替换后还必须执行 `source/infra/ops/ensure-baota-runtime-permissions.sh --apply`，它会归一化数据库 TLS/ACL 源文件、客户端 CA 和对象存储客户端 CA 权限，并在同机存在独立 Casdoor Compose 时修复 `conf/app.conf` 与 `logs/` 的 UID 1000 权限。镜像必须在本地从当前代码构建，上传 tar 后在生产执行 `sha256sum -c`，再 `docker load`；记录 backend / web / admin 镜像 ID 和 tar sha256。数据库 bootstrap、migration、readiness、public smoke 仍运行仓库脚本。`admission-bootstrap-production-data.sh` 和 `admission-production-readiness.sh` 在宝塔 `source/` 目录下会自动识别 `.env.prod.shared`、`.env.prod.secrets.local`、`.env.prod.generated`、`.env.prod.generated.secrets`。
 
@@ -217,14 +206,14 @@ curl -fsS -o /dev/null -w 'ready=%{http_code}\n' http://127.0.0.1:18080/health/r
 - Loki：`http://127.0.0.1:3100/ready`
 - Tempo：`http://127.0.0.1:3200/ready`
 - 公网 SSO 入口：`./infra/ops/sso-public-smoke.sh`，留档 `infra/generated/sso-public-smoke-evidence.json`。该检查会断言 `admin/stuhelper-web` 的公开 Casdoor application 元数据仍启用密码登录、注册开关和必填密码注册项，避免生产漂移成只剩 Face ID；同时断言 `https://sso.stuhelper.com/.well-known/openid-configuration` 的 `issuer`、authorize、token 和 JWKS endpoint 都使用公开 HTTPS origin，并把每个请求的 `remoteIP` 写入 evidence。生产模式会拒绝本机、私网、链路本地和保留网段解析；如果运维机 hosts、代理或 `SSO_PUBLIC_SMOKE_RESOLVE_IP` 把 SSO 指到非公网地址，应修正解析或显式指定公网 Edge/source IP 后复跑。若 Casdoor 独立宝塔 Compose 的 `conf/app.conf` 中 `origin = https://sso.stuhelper.com` 已正确但 discovery 仍返回 `http://sso.stuhelper.com`，说明容器尚未重启并仍使用旧内存配置；应通过该 Casdoor Compose 项目重启 `casdoor` 容器，然后重新运行本 smoke，不要只手工修改配置文件后结束。
-- StuHelper Admin break-glass 提权：`built-in/admin` 只用于 Casdoor 系统级维护，不能登录 `stuhelper` 组织的 StuHelper 业务后台。若生产没有任何可用 `super_admin`，在 Casdoor/PostgreSQL 节点执行 `STUHELPER_INITIAL_SUPER_ADMINS=<casdoor-username> ./infra/ops/casdoor-grant-super-admin.sh`，脚本会幂等把 `stuhelper` 组织内已有用户加入 `super_admin` role 的 `users` 列表；Casdoor role membership 的实际格式必须是 `organization/username`，例如 `stuhelper/Xauryan`，脚本会清理同一用户的旧裸用户名成员。Casdoor `user.is_admin=true` 不等于 StuHelper 后台权限；后台只信任 OIDC `roles` claim 中的 `super_admin` / `school_admin` 等 flat role。授权后受影响用户必须退出 StuHelper 和 SSO 并重新登录，拿到包含新 role 的 ID token。该操作属于 break-glass，应在发布记录中写明操作者、用户名、原因和验证结果。
-- StuHelper Admin 初始 MFA bootstrap：生产后台对 `super_admin` / `school_admin` 还要求 StuHelper 本地 `user_mfa_enrollment.active=true` 和当前登录 token 的 MFA proof。若登录后台出现 `A0010204`，说明角色已通过但本地 MFA enrollment 缺失。先确认用户已在 `sso.stuhelper.com/account` 绑定 SMS/App/WebAuthn/TOTP 类 MFA，然后在主站生产节点执行 `STUHELPER_ADMIN_MFA_BOOTSTRAP_USERS=<casdoor-username> ./infra/ops/bootstrap-admin-mfa-enrollment.sh`。脚本会确认 Casdoor 用户属于 `stuhelper` 组织、已有 `super_admin` 或 `school_admin` role membership、已有 SMS/App/WebAuthn/TOTP MFA 证据，再幂等 upsert `user_mfa_enrollment` 并写入 `iam.mfa.bootstrap` 审计事件。执行后受影响用户必须退出 StuHelper 和 SSO 并重新登录，让新 token 带上 MFA proof；如果随后返回 `A0010205`，按前端 step-up 跳转重新完成一次 SSO MFA。
+- StuHelper Admin 最高管理员初始化 / 恢复：不再使用 `STUHELPER_INITIAL_SUPER_ADMINS` 或 `authorization-bootstrap-super-admin.sh`，也不要求两个账号。在 Casdoor 的目标 `stuhelper` organization 中把预期用户（默认一个）设置为 organization administrator（用户对象 `IsAdmin=true`）；`built-in/admin`、其他 organization 的管理员和普通 Casdoor role membership 不会自动映射。目标用户随后完成一次正常 StuHelper 登录或 refresh，系统会用 `casdoor-org-admin-sync` system actor 在同一 PostgreSQL 事务写 `source=casdoor_org_admin` grant、审计和 OpenFGA outbox。新 grant 在 projection verified/applied 前保持 fail-closed。完成后在 `/authorization/grants` 确认来源为 Casdoor 组织管理员、`activatedAt` 非空且 projection 为 `applied`，再验收 Admin 登录和 step-up mutation。降权也必须在 Casdoor 取消 `IsAdmin`；下一次 login/refresh 或该候选 super-admin 的受保护请求会先提交 DB revoke 围栏。允许撤销最后一名管理员；恢复时重新设置 `IsAdmin=true` 并登录/refresh。发布记录应写明 Casdoor 操作者、目标用户名、原因、grant ID 和投影验证结果，但不得记录 token/secret。
+- StuHelper Admin 初始 MFA bootstrap：生产后台对 `super_admin` / `school_admin` 还要求 StuHelper 本地 `user_mfa_enrollment.active=true` 和当前登录 token 的 MFA proof。若登录后台出现 `A0010204`，说明 PostgreSQL 授权 grant 已通过但本地 MFA enrollment 缺失。先确认用户已在 `sso.stuhelper.com/account` 绑定 SMS/App/WebAuthn/TOTP 类 MFA，然后在主站生产节点执行 `STUHELPER_ADMIN_MFA_BOOTSTRAP_USERS=<casdoor-username> ./infra/ops/bootstrap-admin-mfa-enrollment.sh`。脚本会确认 StuHelper `authorization_grants` 中存在 desired `super_admin` 或 `school_admin`、Casdoor 身份仍有效且已有 SMS/App/WebAuthn/TOTP MFA 证据，再幂等 upsert `user_mfa_enrollment` 并写入 `iam.mfa.bootstrap` 审计事件；普通 Casdoor role membership 在整个流程中不参与授权，目标 organization `IsAdmin` 是 `super_admin` 的独立权威。`super_admin` MFA reset 不要求另一名 `super_admin` 复核，但仍必须满足能力/step-up 门禁并落审计；自行 disable 自己 MFA 仍被拒绝。执行后受影响用户必须退出 StuHelper 和 SSO 并重新登录，让新 token 带上 MFA proof；如果随后返回 `A0010205`，按前端 step-up 跳转重新完成一次 SSO MFA。
 - 公网入群验证入口：`./infra/ops/admission-public-smoke.sh`，留档 `infra/generated/admission-public-smoke-evidence.json`，同时验证 join 域根路径和主站业务路径返回 404，验证 `/api/v1/metrics/vitals` 和 `/api/v1/metrics/frontend-errors` 同源 beacon 返回 204，并验证手机拍照接力 SSE 入口 `/api/v1/admission/freshman/camera-handoffs/<probe>/events` 无登录返回 401 且禁用 Nginx buffering。
 - 公网 Web 登录浏览器链路：`./infra/ops/public-web-auth-browser-smoke.mjs`，留档 `infra/generated/public-web-auth-browser-smoke-evidence.json`。该检查会用真实浏览器确认登录按钮进入 `sso.stuhelper.com/login/oauth/authorize` 后仍有账号密码登录和注册入口，确认主站“注册账号”进入 `sso.stuhelper.com/signup/oauth/authorize` 的账号密码注册表单，并确认 join 根路径/主站业务路径不串站、join verify SPA 可加载、join 手机拍照页允许 camera。生产模式会拒绝 `stuhelper.com`、`join.stuhelper.com` 或 `sso.stuhelper.com` 解析到 loopback；如果运维机 `/etc/hosts`、浏览器代理或 Playwright 运行环境把生产域名指到本地开发环境，先修正解析再生成 evidence。
 - 新生材料审核员只读准入：`./infra/ops/admission-reviewer-readiness.sh` 或 `make prod-admission-reviewer-readiness`，留档 `infra/generated/admission-reviewer-readiness.json`。该检查只调用 bot view 接口，不会批准或驳回申请，用来确认至少一个管理群 QQ 已绑定 StuHelper 用户且拥有 `admission:freshman:review` 能力。
 - 学校邮箱 OTP 邮件准入：生产应使用 `EMAIL_DRIVER=multi`、`EMAIL_FROM_NAME=StuHelper 系统邮件`、`EMAIL_STUDENT_VERIFICATION_SUBJECT=学生认证验证码`。`./infra/ops/tencent-ses-template-smoke.sh` 留档 `infra/generated/tencent-ses-template-smoke.json`；该检查不发送邮件，只用生产 secret 调腾讯云 SES `GetEmailTemplate`，要求 `EMAIL_TENCENT_TEMPLATE_ID=49779` 且模板状态为已审核，输出不包含 Secret。`EMAIL_RESEND_API_KEY` 只能在 secret env/secret store 中配置；Resend 兜底发送不使用腾讯云模板 ID，但必须复用仓库内已审核的 `infra/email-templates/tencent-ses/stuhelper-school-email-otp.html` 和 `.txt` 渲染 Resend `html`/`text` 字段。真实发送 smoke 使用 `RESEND_EMAIL_SMOKE_TO=<recipient-email> ./infra/ops/resend-email-channel-smoke.sh`，留档 `infra/generated/resend-email-channel-smoke.json`，输出和 evidence 不得包含 API key 或完整收件地址。管理后台“系统配置”中的 `email.delivery_policy` 用于调整 provider 启用状态、优先级、权重和 `priority`/`weighted` 策略；如果腾讯云 `GetSendEmailStatus` 返回 `SendStatus=0`、`DeliverStatus=1`，但收件人仍无法在学校邮箱看到邮件，应按收件侧隔离/可见性故障处理，临时或长期把 Resend 设为 `priority=10`，腾讯云设为 `priority=20`，因为这种“腾讯云已递送成功”的结果不会触发自动兜底。
 
-- 北航学籍数据准入：学校目录导入只写 `schools`，不是白名单；只有 `school_configs.enabled=true` 才进入学生认证和 admission 白名单。生产学籍源使用外部只读 Oracle，secret backend 配置 `EXTERNAL_STUDENT_SOURCE_ENABLED=true`、`EXTERNAL_STUDENT_SOURCE_PROVIDER=oracle`、`EXTERNAL_STUDENT_SOURCE_SCHOOL_CODE=4111010006` 及 Oracle 连接、表、列、连接池和熔断参数。Oracle 必须启用 TCPS，应用固定使用 `verify-full`、默认端口 `2484` 和独立只读 CA 挂载 `/external-student-source-tls/ca.crt`；证书 SAN 必须覆盖配置 host。专用账号只授予 `CREATE SESSION` 和 `USR_JWBIZ.T_XS_JBXX` 的 `SELECT`，不得使用 `SYS`/`SYSTEM`；账号创建或轮换使用 `EXTERNAL_STUDENT_SOURCE_ORACLE_READONLY_PASSWORD=<secret> ./infra/ops/provision-external-student-source-oracle-readonly.sh`。首选执行 `./infra/ops/admission-student-source-go-live.sh`，并要求 readiness summary 为 `buaa_student_source=external_oracle`、`infra/generated/external-student-source-smoke.json` 中 `tlsVerified=true` 且存在可读记录。抽样 evidence 只记录学号哈希前缀和匹配布尔值。`external_requests_total{client="oracle_student_directory"}` 和 `circuit_breaker_state{name="external_student_source_oracle_4111010006"}` 必须进入 Prometheus；依赖故障对 User/Admission 返回 503。如果没有可用 Oracle，使用 `BUAA_ACADEMIC_STUDENTS_TSV=/path/to/buaa-students.tsv ./infra/ops/admission-student-source-go-live.sh` 校验并幂等导入本地 `academic.buaa_students`；需要单独离线校验或定位 TSV 格式时运行 `BUAA_ACADEMIC_VALIDATE_ONLY=true BUAA_ACADEMIC_STUDENTS_TSV=/path/to/buaa-students.tsv ./infra/ops/import-buaa-academic-students.sh`，不得清空旧数据或打印学生明细。
+- 北航学籍数据准入：学校目录导入只写 `schools`，不是白名单；只有 `school_configs.enabled=true` 才进入学生认证和 admission 白名单。生产学籍源使用外部只读 Oracle，secret backend 配置 `EXTERNAL_STUDENT_SOURCE_ENABLED=true`、`EXTERNAL_STUDENT_SOURCE_PROVIDER=oracle`、`EXTERNAL_STUDENT_SOURCE_SCHOOL_CODE=4111010006` 及 Oracle 连接、表、列、连接池和熔断参数。Oracle 必须启用 TCPS，应用固定使用 `verify-full`、默认端口 `2484` 和独立只读 CA 挂载 `/external-student-source-tls/ca.crt`；证书 SAN 必须覆盖配置 host。专用账号必须与源 schema owner 不同，不得使用 `SYS`、`SYSTEM`、`SYSBACKUP`、`SYSDG`、`SYSKM` 或 `SYSRAC`；只允许直接授予无 `ADMIN OPTION` 的 `CREATE SESSION`，以及 `USR_JWBIZ.T_XS_JBXX` 上无 `GRANT OPTION`、无 `HIERARCHY OPTION` 的 `SELECT`，不得有 role、列级授权或其他系统/对象权限。账号创建或轮换使用 `EXTERNAL_STUDENT_SOURCE_ORACLE_READONLY_PASSWORD=<secret> ./infra/ops/provision-external-student-source-oracle-readonly.sh`。首选执行 `./infra/ops/admission-student-source-go-live.sh`，并要求 readiness summary 为 `buaa_student_source=external_oracle`、`infra/generated/external-student-source-smoke.json` 中 `tlsVerified=true` 且存在可读记录。抽样 evidence 只记录学号哈希前缀和匹配布尔值。`external_requests_total{client="oracle_student_directory"}` 和 `circuit_breaker_state{name="external_student_source_oracle_4111010006"}` 必须进入 Prometheus；依赖故障对 User/Admission 返回 503。如果没有可用 Oracle，使用 `BUAA_ACADEMIC_STUDENTS_TSV=/path/to/buaa-students.tsv ./infra/ops/admission-student-source-go-live.sh` 校验并幂等导入本地 `academic.buaa_students`；需要单独离线校验或定位 TSV 格式时运行 `BUAA_ACADEMIC_VALIDATE_ONLY=true BUAA_ACADEMIC_STUDENTS_TSV=/path/to/buaa-students.tsv ./infra/ops/import-buaa-academic-students.sh`，不得清空旧数据或打印学生明细。
 
 - admission MVP 聚合生产证据：`./infra/ops/admission-mvp-production-evidence.sh`，留档 `infra/generated/admission-mvp-production-evidence.json`。主站节点默认聚合 SSO public smoke、admission public smoke、Web auth browser smoke 和 admission DB readiness；如果 `EXTERNAL_STUDENT_SOURCE_ENABLED=true`，聚合入口会在 `ADMISSION_MVP_PRODUCTION_RUN_EXTERNAL_STUDENT_SOURCE_SMOKE=auto` 默认模式下强制运行 `external-student-source-smoke.sh`，确认外部学籍源可连接、可读取；未启用外部源时，本地 fallback 表仍由 readiness 检查非空。Koishi 节点使用 `ADMISSION_MVP_PRODUCTION_EVIDENCE_MODE=koishi` 聚合 Koishi admission evidence。该普通入口允许真实 QQ E2E 被记录为 skipped，只能作为生产 smoke。最终上线验收必须在主站节点使用 `make prod-admission-mvp-final-evidence`，并在 Koishi 节点使用 `make prod-admission-mvp-final-koishi-evidence`。主站 final evidence 等价于显式设置 `ADMISSION_MVP_PRODUCTION_E2E_REQUIRED=true`、`ADMISSION_MVP_PRODUCTION_E2E_WAIT=true`、`ADMISSION_E2E_QQ_ID=<small-account-qq>`、`ADMISSION_MVP_PRODUCTION_E2E_EXPECTED_STAGE=bot-released` 和 `ADMISSION_MVP_PRODUCTION_E2E_MAX_SESSION_AGE_MINUTES=180`。
 - 如果主站生产机没有 Node/Playwright，先在有 Playwright 的运维机或 CI 上生成 `infra/generated/public-web-auth-browser-smoke-evidence-current.json`，复制到主站源码目录的同一路径，再运行聚合入口；聚合入口会默认读取该 evidence。需要使用其他文件名时，再设置 `ADMISSION_MVP_PRODUCTION_BROWSER_SMOKE_EVIDENCE_FILE=infra/generated/<evidence>.json`。聚合入口会校验该 evidence 新鲜、目标域名正确、浏览器检查全部通过，以及 `/identity` 直接入口、join 防串站 404、camera permission/media capture 成功。预采集 evidence 时不得设置本地 hosts 把生产域名指向 `127.0.0.1`；脚本会直接失败，避免把本地开发环境误判为生产。
@@ -246,8 +235,10 @@ curl -fsS -o /dev/null -w 'ready=%{http_code}\n' http://127.0.0.1:18080/health/r
 失败诊断只输出 claim 名称、nonce 校验布尔值和 OpenFGA 布尔断言等白名单字段，不输出 raw token、
 client secret 或 probe 密码。
 
-`postgres-backup-evidence.sh` 会验证本地最近逻辑备份和从对象存储取回的逻辑备份都带有效
-`.sha256` sidecar，并写入 `infra/generated/postgres-backup-evidence.json`。
+`postgres-backup-evidence.sh` 会验证本地与从对象存储取回的最近逻辑备份、物理 base backup
+均带有效 `.sha256` sidecar且未超过新鲜度阈值，物理压缩包还必须可完整遍历；结果写入
+`infra/generated/postgres-backup-evidence.json`。这份 evidence 不替代隔离恢复启动和 WAL
+连续性/PITR 演练，未执行后两者时不得宣称生产 PITR 已验收。
 
 `OBS_SMOKE_STRICT=true ./infra/ops/observability-smoke-check.sh` 会写入
 `infra/generated/observability-smoke-evidence.json`，证明 Prometheus targets、数据库 exporter
@@ -274,29 +265,59 @@ make prod-rollback
 
 脚本会优先尝试回到 `.deploy/releases.log` 中记录的上一条成功版本。
 
-### GitLab 手工回滚
+### GitHub 手工回滚
 
-如果镜像仍在 registry 中，优先使用 GitLab 手工 Job：
-
-- staging：`rollback_staging`
-- production：`rollback_production`
-
-必填变量：
+优先在 GitHub Actions 运行 `Rollback`，选择 `staging` 或 `production` environment，并输入：
 
 ```text
-ROLLBACK_SHA=<previous-release-full-40-character-commit-sha>
+commit_sha=<previous-release-full-40-character-commit-sha>
+reason=<incident-or-change-record-and-rollback-rationale>
 ```
 
 回滚 Job 会：
 
-1. 校验目标环境、SSH endpoint 和完整 commit SHA
-2. 把 registry 中三个 `<full-sha>` tag 分别解析成不可变镜像 digest
+1. 校验目标环境、SSH endpoint、完整 commit SHA 和回滚原因
+2. 把 GHCR 中三个 `<full-sha>` tag 解析成 digest，并验证发布 provenance
 3. SSH 到远端部署机，并只传递已校验的 digest 引用
 4. 读取目标机 `.deploy/remote.env`，执行回滚
 5. 自动再次运行业务与可观测性 smoke checks
 
-GitLab 手工 Job 不接受 `latest`、短 SHA 或任意业务 tag。仓库本地的 `make prod-rollback`
+GitHub `Rollback` 不接受 `latest`、短 SHA 或任意业务 tag。仓库本地的 `make prod-rollback`
 仍可按上节规则读取上一条成功发布记录，二者不要混淆。
+
+回滚 workflow 使用两份 side-by-side checkout：目标提交只提供待回滚的发布内容；实际校验、
+打包和日历例外控制器来自正在执行的 workflow 对应提交。这样即使目标提交早于当前回滚修复，
+也不会重新启用旧的、已经修复过的发布控制逻辑。传输到目标机的控制器覆盖面刻意限制为
+`prod-rollback.sh` 与 `validate-runtime-image-scan.py`，应用镜像仍必须由目标完整 commit SHA
+解析并通过 provenance 校验。
+
+正常部署和回滚默认都按执行当天硬校验 runtime-image review window。只有当前日期校验失败时，
+回滚才会尝试以下窄范围例外，而且条件必须全部成立：
+
+1. 目标环境存在 `.deploy/releases/<target-tag>.env`，证明该版本曾在**同一环境**成功部署；
+2. `TAG`、`ROLLBACK_TAG` 和发布记录完全相同；
+3. backend、frontend、admin 三个引用都是 digest，且与成功发布记录逐字相同；
+4. 目标提交的完整 runtime-image policy 在原 `DEPLOYED_AT` 日期确实有效，当前生产基础镜像
+   仍与该 policy 完全一致；
+5. 操作人和 12–500 字符的回滚原因已明确提供。
+
+满足这些条件时，脚本只复用该版本原成功部署日期的审核窗口，并把授权尝试写到权限为 0600 的
+`.deploy/rollback-review-exceptions.jsonl`，其中包括 audit ID、操作人、原因、目标 tag、
+policy SHA256 和三个应用镜像 digest。镜像漂移、没有同环境成功记录、policy 结构错误或缺少
+审计上下文仍会 fail-closed；该例外不会放宽普通 `prod-deploy`。
+
+本地在审核窗口已经过期时回滚，需显式提供审计上下文：
+
+```bash
+export ROLLBACK_TAG=<previous-stable-tag>
+export ROLLBACK_REVIEW_ACTOR=<operator-or-change-owner>
+export ROLLBACK_REVIEW_REASON='关联事故或变更单，并说明为何必须回到该成功版本'
+make prod-rollback
+```
+
+GitHub `Rollback` workflow 的 `reason` 输入承担同一作用。另有每日
+`Runtime image review deadlines` workflow，在任一审核窗口剩余不足 3 天时失败告警；
+它只是提前告警，不替代按期更新镜像扫描证据和 policy。
 
 ### 应用 + 数据库回滚（存在破坏性迁移）
 

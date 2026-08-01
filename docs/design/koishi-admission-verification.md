@@ -13,7 +13,7 @@ last-verified: 2026-06-18
 
 后期 QQ 加群问题可写成“访问网站 `join.stuhelper.com` 完成认证”，这是为了绕开 QQ 加群问题的字数限制和文案拦截。群内提醒和系统生成链接使用后端返回的 `https://join.stuhelper.com/verify/<code>`。
 
-当前上线审查结论、已修复问题、最终验收门禁和后续优先级见 [admission-flow-review.md](admission-flow-review.md)。
+入群认证的整体流程、验收分层和门禁见 [admission-flow.md](admission-flow.md)。
 
 ## 目标
 - 老生通过学校官方 SSO 或学校邮箱 OTP 任一方式获得正式学生身份。

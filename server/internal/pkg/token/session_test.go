@@ -27,11 +27,12 @@ func TestSessionStore_CreateAndGet(t *testing.T) {
 	ctx := context.Background()
 
 	data := SessionData{
-		SessionID:       "sess-001",
-		UserID:          "user-001",
-		AccessTokenHash: "acc-hash-001",
-		LoginMethod:     "phone",
-		DeviceInfo:      "test-ua",
+		SessionID:            "sess-001",
+		UserID:               "user-001",
+		AccessTokenHash:      "acc-hash-001",
+		AccessTokenExpiresAt: time.Now().Add(5 * time.Minute).Unix(),
+		LoginMethod:          "phone",
+		DeviceInfo:           "test-ua",
 	}
 
 	err := store.Create(ctx, data)
@@ -43,6 +44,7 @@ func TestSessionStore_CreateAndGet(t *testing.T) {
 	assert.Equal(t, "sess-001", got.SessionID)
 	assert.Equal(t, "user-001", got.UserID)
 	assert.Equal(t, "acc-hash-001", got.AccessTokenHash)
+	assert.Equal(t, data.AccessTokenExpiresAt, got.AccessTokenExpiresAt)
 	assert.Equal(t, "phone", got.LoginMethod)
 	assert.Equal(t, "test-ua", got.DeviceInfo)
 	assert.Greater(t, got.CreatedAt, int64(0))
@@ -58,29 +60,69 @@ func TestSessionStore_GetNonExistent(t *testing.T) {
 	assert.Nil(t, got)
 }
 
+func TestSessionStore_CreateRejectsInvalidAccessTokenExpiry(t *testing.T) {
+	store, _, _ := newTestSessionStore(t)
+
+	err := store.Create(t.Context(), SessionData{
+		SessionID:            "sess-expired-access",
+		UserID:               "user-expired-access",
+		AccessTokenHash:      "expired-access-hash",
+		AccessTokenExpiresAt: time.Now().Add(-time.Minute).Unix(),
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "expiry must be in the future")
+
+	err = store.Create(t.Context(), SessionData{
+		SessionID:            "sess-beyond-session-lease",
+		UserID:               "user-beyond-session-lease",
+		AccessTokenHash:      "beyond-session-lease-hash",
+		AccessTokenExpiresAt: time.Now().Add(11 * time.Minute).Unix(),
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "exceeds session lease")
+
+	err = store.Create(t.Context(), SessionData{
+		SessionID:            "sess-overlong-access",
+		UserID:               "user-overlong-access",
+		AccessTokenHash:      "overlong-access-hash",
+		AccessTokenExpiresAt: time.Now().Add(maxBlacklistTTL + time.Hour).Unix(),
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "exceeds hard maximum")
+}
+
 func TestSessionStore_Touch(t *testing.T) {
 	store, _, _ := newTestSessionStore(t)
 	ctx := context.Background()
 
 	data := SessionData{
-		SessionID:        "sess-002",
-		UserID:           "user-002",
-		AccessTokenHash:  "old-acc",
-		RefreshTokenHash: "old-ref",
+		SessionID:               "sess-002",
+		UserID:                  "user-002",
+		AccessTokenHash:         "old-acc",
+		RefreshTokenHash:        "old-ref",
+		ProviderAccessTokenEnc:  "old-provider-access",
+		ProviderRefreshTokenEnc: "old-provider-refresh",
 	}
 	require.NoError(t, store.Create(ctx, data))
 
 	time.Sleep(10 * time.Millisecond)
+	newAccessExpiry := time.Now().Add(5 * time.Minute).Unix()
 	err := store.Touch(ctx, "sess-002", SessionTouchUpdate{
-		AccessTokenHash:  "new-acc",
-		RefreshTokenHash: "new-ref",
+		AccessTokenHash:         "new-acc",
+		AccessTokenExpiresAt:    newAccessExpiry,
+		RefreshTokenHash:        "new-ref",
+		ProviderAccessTokenEnc:  "new-provider-access",
+		ProviderRefreshTokenEnc: "new-provider-refresh",
 	})
 	require.NoError(t, err)
 
 	got, err := store.Get(ctx, "sess-002")
 	require.NoError(t, err)
 	assert.Equal(t, "new-acc", got.AccessTokenHash)
+	assert.Equal(t, newAccessExpiry, got.AccessTokenExpiresAt)
 	assert.Equal(t, "new-ref", got.RefreshTokenHash)
+	assert.Equal(t, "new-provider-access", got.ProviderAccessTokenEnc)
+	assert.Equal(t, "new-provider-refresh", got.ProviderRefreshTokenEnc)
 	assert.GreaterOrEqual(t, got.LastActiveAt, got.CreatedAt)
 
 	oldRef, err := store.LookupRefreshTokenHash(ctx, "old-ref")
@@ -94,6 +136,28 @@ func TestSessionStore_Touch(t *testing.T) {
 	require.NotNil(t, newRef)
 	assert.Equal(t, "sess-002", newRef.SessionID)
 	assert.Equal(t, "user-002", newRef.UserID)
+}
+
+func TestSessionStore_TouchRequiresExpiryWithNewAccessHash(t *testing.T) {
+	store, _, _ := newTestSessionStore(t)
+	ctx := t.Context()
+	require.NoError(t, store.Create(ctx, SessionData{
+		SessionID:       "sess-touch-expiry-required",
+		UserID:          "user-touch-expiry-required",
+		AccessTokenHash: "old-access",
+	}))
+
+	err := store.Touch(ctx, "sess-touch-expiry-required", SessionTouchUpdate{
+		AccessTokenHash: "new-access",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "verified access token expiry is required")
+
+	got, getErr := store.Get(ctx, "sess-touch-expiry-required")
+	require.NoError(t, getErr)
+	require.NotNil(t, got)
+	assert.Equal(t, "old-access", got.AccessTokenHash)
+	assert.Zero(t, got.AccessTokenExpiresAt)
 }
 
 func TestSessionStore_TouchRestoresUserSessionIndex(t *testing.T) {
@@ -113,8 +177,9 @@ func TestSessionStore_TouchRestoresUserSessionIndex(t *testing.T) {
 	assert.Empty(t, sessions)
 
 	err = store.Touch(ctx, "sess-touch-index", SessionTouchUpdate{
-		AccessTokenHash:  "new-acc",
-		RefreshTokenHash: "new-ref",
+		AccessTokenHash:      "new-acc",
+		AccessTokenExpiresAt: time.Now().Add(5 * time.Minute).Unix(),
+		RefreshTokenHash:     "new-ref",
 	})
 	require.NoError(t, err)
 
@@ -155,14 +220,15 @@ func TestSessionStore_Revoke(t *testing.T) {
 	ctx := context.Background()
 
 	data := SessionData{
-		SessionID:        "sess-003",
-		UserID:           "user-003",
-		AccessTokenHash:  "acc-hash-003",
-		RefreshTokenHash: "ref-hash-003",
+		SessionID:            "sess-003",
+		UserID:               "user-003",
+		AccessTokenHash:      "acc-hash-003",
+		AccessTokenExpiresAt: time.Now().Add(8 * time.Minute).Unix(),
+		RefreshTokenHash:     "ref-hash-003",
 	}
 	require.NoError(t, store.Create(ctx, data))
 
-	revoked, err := store.Revoke(ctx, "sess-003", bl, 5*time.Minute, 10*time.Minute)
+	revoked, err := store.Revoke(ctx, "sess-003", bl, 10*time.Minute)
 	require.NoError(t, err)
 	require.NotNil(t, revoked)
 	assert.Equal(t, "sess-003", revoked.SessionID)
@@ -176,10 +242,63 @@ func TestSessionStore_Revoke(t *testing.T) {
 	isBlocked, err := bl.rdb.Exists(ctx, blacklistPrefix+"acc-hash-003").Result()
 	require.NoError(t, err)
 	assert.Equal(t, int64(1), isBlocked)
+	accessBlacklistTTL, err := bl.rdb.TTL(ctx, blacklistPrefix+"acc-hash-003").Result()
+	require.NoError(t, err)
+	assert.Greater(t, accessBlacklistTTL, 7*time.Minute+50*time.Second)
+	assert.LessOrEqual(t, accessBlacklistTTL, 8*time.Minute)
 
 	isBlocked2, err := bl.rdb.Exists(ctx, blacklistPrefix+"ref-hash-003").Result()
 	require.NoError(t, err)
 	assert.Equal(t, int64(1), isBlocked2)
+}
+
+func TestSessionStore_RevokeLegacySessionUsesActualRedisPTTL(t *testing.T) {
+	store, bl, _ := newTestSessionStore(t)
+	ctx := t.Context()
+	require.NoError(t, store.Create(ctx, SessionData{
+		SessionID:       "sess-legacy-pttl",
+		UserID:          "user-legacy-pttl",
+		AccessTokenHash: "legacy-access-hash",
+	}))
+	require.NoError(t, store.rdb.PExpire(ctx, sessionPrefix+"sess-legacy-pttl", 4*time.Minute).Err())
+
+	_, err := store.Revoke(ctx, "sess-legacy-pttl", bl, 10*time.Minute)
+	require.NoError(t, err)
+
+	ttl, err := bl.rdb.TTL(ctx, blacklistPrefix+"legacy-access-hash").Result()
+	require.NoError(t, err)
+	assert.Greater(t, ttl, 3*time.Minute+50*time.Second)
+	assert.LessOrEqual(t, ttl, 4*time.Minute)
+}
+
+func TestSessionStore_RevokeAllUsesEachAccessTokenExpiry(t *testing.T) {
+	store, bl, _ := newTestSessionStore(t)
+	ctx := t.Context()
+	now := time.Now()
+	require.NoError(t, store.Create(ctx, SessionData{
+		SessionID:            "sess-expiry-short",
+		UserID:               "user-expiry-per-session",
+		AccessTokenHash:      "access-expiry-short",
+		AccessTokenExpiresAt: now.Add(2 * time.Minute).Unix(),
+	}))
+	require.NoError(t, store.Create(ctx, SessionData{
+		SessionID:            "sess-expiry-long",
+		UserID:               "user-expiry-per-session",
+		AccessTokenHash:      "access-expiry-long",
+		AccessTokenExpiresAt: now.Add(8 * time.Minute).Unix(),
+	}))
+
+	require.NoError(t, store.RevokeAll(ctx, "user-expiry-per-session", bl, 10*time.Minute))
+
+	shortTTL, err := bl.rdb.TTL(ctx, blacklistPrefix+"access-expiry-short").Result()
+	require.NoError(t, err)
+	longTTL, err := bl.rdb.TTL(ctx, blacklistPrefix+"access-expiry-long").Result()
+	require.NoError(t, err)
+	assert.Greater(t, shortTTL, time.Minute+50*time.Second)
+	assert.LessOrEqual(t, shortTTL, 2*time.Minute)
+	assert.Greater(t, longTTL, 7*time.Minute+50*time.Second)
+	assert.LessOrEqual(t, longTTL, 8*time.Minute)
+	assert.Greater(t, longTTL-shortTTL, 5*time.Minute)
 }
 
 func TestSessionStore_RevokeExtendsRefreshRefToBlacklistTTL(t *testing.T) {
@@ -196,7 +315,7 @@ func TestSessionStore_RevokeExtendsRefreshRefToBlacklistTTL(t *testing.T) {
 	}))
 	require.NoError(t, store.rdb.PExpire(ctx, refreshTokenRefKey(refreshHash), 50*time.Millisecond).Err())
 
-	revoked, err := store.Revoke(ctx, "sess-revoke-ttl", bl, 5*time.Minute, refreshTTL)
+	revoked, err := store.Revoke(ctx, "sess-revoke-ttl", bl, refreshTTL)
 	require.NoError(t, err)
 	require.NotNil(t, revoked)
 
@@ -229,7 +348,7 @@ func TestSessionStore_RevokeAll(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, sessions, 3)
 
-	err = store.RevokeAll(ctx, "user-multi", bl, 5*time.Minute, 10*time.Minute)
+	err = store.RevokeAll(ctx, "user-multi", bl, 10*time.Minute)
 	require.NoError(t, err)
 
 	sessions, err = store.ListUserSessions(ctx, "user-multi")
@@ -237,27 +356,27 @@ func TestSessionStore_RevokeAll(t *testing.T) {
 	assert.Len(t, sessions, 0)
 }
 
-func TestSessionStore_RevokeAll_ReturnsErrorAndKeepsIndexOnRevokeFailure(t *testing.T) {
+func TestSessionStore_RevokeAll_ReturnsErrorAndKeepsIndexForLegacySessionWithoutTTL(t *testing.T) {
 	store, bl, _ := newTestSessionStore(t)
 	ctx := context.Background()
 
-	for _, sid := range []string{"sess-fail-a", "sess-fail-b"} {
-		require.NoError(t, store.Create(ctx, SessionData{
-			SessionID:       sid,
-			UserID:          "user-revoke-fail",
-			AccessTokenHash: "acc-" + sid,
-		}))
-	}
+	require.NoError(t, store.Create(ctx, SessionData{
+		SessionID:       "sess-fail-no-ttl",
+		UserID:          "user-revoke-fail",
+		AccessTokenHash: "acc-fail-no-ttl",
+	}))
+	require.NoError(t, store.rdb.Persist(ctx, sessionPrefix+"sess-fail-no-ttl").Err())
 
-	err := store.RevokeAll(ctx, "user-revoke-fail", bl, 0, 10*time.Minute)
+	err := store.RevokeAll(ctx, "user-revoke-fail", bl, 10*time.Minute)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "session revoke all")
+	assert.Contains(t, err.Error(), "legacy session has no Redis expiry")
 
 	sessions, err := store.ListUserSessions(ctx, "user-revoke-fail")
 	require.NoError(t, err)
-	assert.Len(t, sessions, 2)
+	assert.Len(t, sessions, 1)
 
-	session, err := store.Get(ctx, "sess-fail-a")
+	session, err := store.Get(ctx, "sess-fail-no-ttl")
 	require.NoError(t, err)
 	assert.NotNil(t, session)
 }
@@ -359,7 +478,7 @@ func TestSessionStore_RevokeAllSkipsCrossUserSessionMembers(t *testing.T) {
 	}))
 	require.NoError(t, store.rdb.SAdd(ctx, userSessionsPrefix+"user-owned", "session-other").Err())
 
-	err := store.RevokeAll(ctx, "user-owned", bl, 5*time.Minute, 10*time.Minute)
+	err := store.RevokeAll(ctx, "user-owned", bl, 10*time.Minute)
 	require.NoError(t, err)
 
 	owned, err := store.Get(ctx, "session-owned")

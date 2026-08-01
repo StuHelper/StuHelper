@@ -115,6 +115,20 @@ func TestRespondAdminUpdateReviewError(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "invalid status transition")
 }
 
+func TestRespondProcessReportErrorMapsMissingReview(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+
+	ok := respondProcessReportError(c, ErrReviewNotFound)
+
+	assert.True(t, ok)
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.Contains(t, w.Body.String(), string(errs.ErrReviewNotFound))
+	assert.Contains(t, w.Body.String(), "review not found")
+}
+
 func TestRespondAdminErrorsMapMissingAdminIdentity(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

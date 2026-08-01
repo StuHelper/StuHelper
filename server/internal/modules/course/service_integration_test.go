@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -62,7 +63,8 @@ func TestCourseService_IntegrationReadPaths(t *testing.T) {
 	course, err := svc.GetCourse(ctx, courseAlgo)
 	require.NoError(t, err)
 	assert.Equal(t, "算法设计", course.Name)
-	assert.Equal(t, "计算机学院", course.DepartmentName)
+	require.NotNil(t, course.DepartmentName)
+	assert.Equal(t, "计算机学院", *course.DepartmentName)
 
 	_, err = svc.GetCourse(ctx, 999999)
 	require.Error(t, err)
@@ -77,7 +79,8 @@ func TestCourseService_IntegrationReadPaths(t *testing.T) {
 	require.Len(t, groups, 2)
 	groupSizes := map[int64]int{}
 	for _, g := range groups {
-		groupSizes[g.DepartmentID] = len(g.Courses)
+		require.NotNil(t, g.DepartmentID)
+		groupSizes[*g.DepartmentID] = len(g.Courses)
 	}
 	assert.Equal(t, 2, groupSizes[deptCS])
 	assert.Equal(t, 1, groupSizes[deptMath])
@@ -100,6 +103,77 @@ func TestCourseService_IntegrationReadPaths(t *testing.T) {
 	assert.True(t, favorited[courseDB])
 	assert.False(t, favorited[courseAlgo])
 	assert.False(t, favorited[courseMath])
+}
+
+func TestCourseReadPaths_PreserveNullableMetadata(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	fixture := postgresfixture.Start(t)
+	repo := NewRepository(fixture.DB)
+	svc := NewService(repo, zap.NewNop())
+	ctx := context.Background()
+
+	var courseID int64
+	require.NoError(t, fixture.Pool.QueryRow(ctx, `
+		INSERT INTO courses (school_id, name, category)
+		VALUES ($1, $2, $3)
+		RETURNING id
+	`, int64(4111010006), "NULL 元数据课程", "待分类").Scan(&courseID))
+	var knownCreditsCourseID int64
+	require.NoError(t, fixture.Pool.QueryRow(ctx, `
+		INSERT INTO courses (school_id, name, code, credits, category)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING id
+	`, int64(4111010006), "已知学分课程", "KNOWN-CREDITS", 2.0, "待分类").Scan(&knownCreditsCourseID))
+
+	course, err := svc.GetCourse(ctx, courseID)
+	require.NoError(t, err)
+	assert.Nil(t, course.DepartmentID)
+	assert.Nil(t, course.DepartmentName)
+	assert.Nil(t, course.Code)
+	assert.Nil(t, course.Credits)
+
+	listed, err := svc.GetCourses(ctx, ListCoursesParams{
+		Sort:     CourseSortCredits,
+		Page:     1,
+		PageSize: 10,
+	})
+	require.NoError(t, err)
+	require.Len(t, listed.List, 2)
+	assert.Equal(t, knownCreditsCourseID, listed.List[0].ID)
+	require.NotNil(t, listed.List[0].Credits)
+	assert.Equal(t, 2.0, *listed.List[0].Credits)
+	assert.Equal(t, courseID, listed.List[1].ID)
+	assert.Nil(t, listed.List[1].DepartmentID)
+	assert.Nil(t, listed.List[1].Credits)
+
+	searched, err := svc.SearchCourses(ctx, SearchCoursesParams{
+		Query:    "NULL 元数据",
+		Page:     1,
+		PageSize: 10,
+	})
+	require.NoError(t, err)
+	require.Len(t, searched.List, 1)
+	assert.Equal(t, courseID, searched.List[0].ID)
+	assert.Nil(t, searched.List[0].Code)
+
+	groups, err := svc.GetCoursesGrouped(ctx)
+	require.NoError(t, err)
+	require.Len(t, groups, 1)
+	assert.Nil(t, groups[0].DepartmentID)
+	assert.Nil(t, groups[0].DepartmentName)
+	require.Len(t, groups[0].Courses, 2)
+
+	handler := &Handler{service: svc}
+	recorder := httptest.NewRecorder()
+	requestContext, _ := gin.CreateTestContext(recorder)
+	requestContext.Request = httptest.NewRequest(http.MethodGet, "/course/courses/"+strconv.FormatInt(courseID, 10), nil)
+	requestContext.Params = gin.Params{{Key: "courseID", Value: strconv.FormatInt(courseID, 10)}}
+	handler.GetCourse(requestContext)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	assert.Contains(t, recorder.Body.String(), `"departmentID":null`)
+	assert.Contains(t, recorder.Body.String(), `"credits":null`)
+	assert.NotContains(t, recorder.Body.String(), `"code"`)
 }
 
 func seedCourseDepartment(t *testing.T, fixture *postgresfixture.Fixture, schoolID int64, name, category string, sortOrder int) int64 {

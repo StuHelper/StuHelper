@@ -163,9 +163,6 @@ require_nonempty CASDOOR_USER_PROFILE_APPLICATION "${CASDOOR_USER_PROFILE_APPLIC
 require_nonempty CASDOOR_INTROSPECTION_CLIENT_ID "${CASDOOR_INTROSPECTION_CLIENT_ID:-}"
 require_nonempty CASDOOR_INTROSPECTION_CLIENT_SECRET "${CASDOOR_INTROSPECTION_CLIENT_SECRET:-}"
 require_nonempty CASDOOR_INTROSPECTION_APPLICATION "${CASDOOR_INTROSPECTION_APPLICATION:-}"
-require_nonempty CASDOOR_ROLE_SYNC_CLIENT_ID "${CASDOOR_ROLE_SYNC_CLIENT_ID:-}"
-require_nonempty CASDOOR_ROLE_SYNC_CLIENT_SECRET "${CASDOOR_ROLE_SYNC_CLIENT_SECRET:-}"
-require_nonempty CASDOOR_ROLE_SYNC_APPLICATION "${CASDOOR_ROLE_SYNC_APPLICATION:-}"
 require_nonempty CASDOOR_USER_LOOKUP_CLIENT_ID "${CASDOOR_USER_LOOKUP_CLIENT_ID:-}"
 require_nonempty CASDOOR_USER_LOOKUP_CLIENT_SECRET "${CASDOOR_USER_LOOKUP_CLIENT_SECRET:-}"
 require_nonempty CASDOOR_USER_LOOKUP_APPLICATION "${CASDOOR_USER_LOOKUP_APPLICATION:-}"
@@ -242,9 +239,6 @@ reject_placeholder CASDOOR_USER_PROFILE_APPLICATION "${CASDOOR_USER_PROFILE_APPL
 reject_placeholder CASDOOR_INTROSPECTION_CLIENT_ID "${CASDOOR_INTROSPECTION_CLIENT_ID:-}" "REPLACE_WITH_CASDOOR_INTROSPECTION_CLIENT_ID"
 reject_placeholder CASDOOR_INTROSPECTION_CLIENT_SECRET "${CASDOOR_INTROSPECTION_CLIENT_SECRET:-}" "REPLACE_WITH_CASDOOR_INTROSPECTION_CLIENT_SECRET"
 reject_placeholder CASDOOR_INTROSPECTION_APPLICATION "${CASDOOR_INTROSPECTION_APPLICATION:-}" "REPLACE_WITH_CASDOOR_INTROSPECTION_APPLICATION"
-reject_placeholder CASDOOR_ROLE_SYNC_CLIENT_ID "${CASDOOR_ROLE_SYNC_CLIENT_ID:-}" "REPLACE_WITH_CASDOOR_ROLE_SYNC_CLIENT_ID"
-reject_placeholder CASDOOR_ROLE_SYNC_CLIENT_SECRET "${CASDOOR_ROLE_SYNC_CLIENT_SECRET:-}" "REPLACE_WITH_CASDOOR_ROLE_SYNC_CLIENT_SECRET"
-reject_placeholder CASDOOR_ROLE_SYNC_APPLICATION "${CASDOOR_ROLE_SYNC_APPLICATION:-}" "REPLACE_WITH_CASDOOR_ROLE_SYNC_APPLICATION"
 reject_placeholder CASDOOR_USER_LOOKUP_CLIENT_ID "${CASDOOR_USER_LOOKUP_CLIENT_ID:-}" "REPLACE_WITH_CASDOOR_USER_LOOKUP_CLIENT_ID"
 reject_placeholder CASDOOR_USER_LOOKUP_CLIENT_SECRET "${CASDOOR_USER_LOOKUP_CLIENT_SECRET:-}" "REPLACE_WITH_CASDOOR_USER_LOOKUP_CLIENT_SECRET"
 reject_placeholder CASDOOR_USER_LOOKUP_APPLICATION "${CASDOOR_USER_LOOKUP_APPLICATION:-}" "REPLACE_WITH_CASDOOR_USER_LOOKUP_APPLICATION"
@@ -319,11 +313,6 @@ require_production_object_storage
 [[ "${CASDOOR_SMS_PROVIDER_TITLE:-}" == "content" ]] || die "CASDOOR_SMS_PROVIDER_TITLE must be content for production deploy"
 [[ "${SMS_ENABLED:-false}" == "true" ]] || die "SMS_ENABLED must be true for production deploy"
 [[ "${OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_REQUIRED:-false}" == "true" ]] || die "OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_REQUIRED must be true for production deploy"
-if [[ "${EXTERNAL_POSTGRES_ALLOW_PLAINTEXT:-false}" == "true" ]]; then
-  [[ "${EXTERNAL_POSTGRES_ENABLED:-false}" == "true" ]] ||
-    die "EXTERNAL_POSTGRES_ENABLED must be true when EXTERNAL_POSTGRES_ALLOW_PLAINTEXT=true"
-  warn "external PostgreSQL plaintext transport is explicitly enabled; TLS is not provided by StuHelper"
-fi
 require_production_postgres_ssl
 require_production_external_student_source_security
 [[ "${REDIS_TLS_ENABLED:-false}" == "true" ]] || die "REDIS_TLS_ENABLED must be true for production deploy"
@@ -406,6 +395,9 @@ compose --profile prod up -d --wait "${authz_services[@]}"
 
 log "bootstrapping runtime identities against external Casdoor and local OpenFGA"
 "${SCRIPT_DIR}/bootstrap-platform.sh" prod
+
+log "importing and sealing the PostgreSQL authorization authority ledger"
+"${SCRIPT_DIR}/authorization-ledger-cutover.sh" prod
 
 log "running Open Platform production evidence smokes"
 "${SCRIPT_DIR}/open-platform-production-evidence.sh"

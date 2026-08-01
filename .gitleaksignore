@@ -1,4 +1,4 @@
-# Baseline for reviewed false positives after the GitHub migration history rewrite.
+# Reviewed false-positive baseline for the repository's reachable history.
 # Keep entries commit-scoped so new findings in the same files still fail CI.
 0675ee7223377e1d2ebf774e546efe335ba2631a:server/internal/api/gen/server.gen.go:generic-api-key:4399
 1937f433a68d9b7415a7a8ff880a2ce226136b89:server/internal/api/gen/server.gen.go:generic-api-key:4919
@@ -13,6 +13,7 @@
 5d38ed96853f3532af7c550cf3739326e4dd9252:server/internal/api/gen/server.gen.go:generic-api-key:6443
 5e2fdee6e21d877b001415981571952c02a5dcaa:server/internal/api/gen/server.gen.go:generic-api-key:3963
 5e2fdee6e21d877b001415981571952c02a5dcaa:server/internal/api/gen/server.gen.go:generic-api-key:4029
+60d2eb17f96984f7be9395a3c014c42f67cbde3f:server/internal/api/gen/server.gen.go:generic-api-key:10532
 6475df8d3e83538c029a163d8d27d435dfe200a0:bots/koishi/plugins/stuhelper-core/src/core/api/chat-scope.test.ts:generic-api-key:456
 66bb41a45911378905826ffe2645baaa95ef0de4:server/internal/modules/admission/service.go:generic-api-key:21
 7568c05c7d6648c6116bbbbb65d3b559f9992fc8:server/internal/api/gen/server.gen.go:generic-api-key:6840
@@ -22,6 +23,8 @@
 9872708953ed265b0831c8f4647f259f3844af71:server/internal/api/gen/server.gen.go:generic-api-key:5404
 9b3a86382327c0e70c15678ef3709a13216f277c:server/internal/modules/identityserver/handler_test.go:generic-api-key:203
 9f7f6022c20e87e92ce62c2e4ecbfbc3a2b10506:server/internal/api/gen/server.gen.go:generic-api-key:5290
+a4457e2acc3de9475816732a220016ac52428b06:server/internal/api/gen/server.gen.go:generic-api-key:10956
 c5cdf62808b15d093365d5eb09ac02ebebeb986c:server/internal/api/gen/server.gen.go:generic-api-key:4366
 df695f30669f4e8d13f21c4b2e0df720afd54d20:server/internal/api/gen/server.gen.go:generic-api-key:2966
 e3dee3ecf6bdce67aa3d995c8b7453dd46b0e8ab:server/internal/api/gen/server.gen.go:generic-api-key:6924
+f7f7efd1e571da84eef864dae33599eb7938ca08:server/internal/api/gen/server.gen.go:generic-api-key:10888

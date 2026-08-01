@@ -81,8 +81,10 @@ export class ModerationStore {
   }
 
   async listRecentMessages(guildId: string, limit: number) {
-    const records = await this.ctx.database.get(MODERATION_MESSAGE_LEDGER_TABLE, { guildId })
-    return records.sort(sortByCreatedDesc).slice(0, limit)
+    return this.ctx.database.get(MODERATION_MESSAGE_LEDGER_TABLE, { guildId }, {
+      sort: { createdAt: 'desc' },
+      limit,
+    }) as Promise<MessageLedgerRecord[]>
   }
 
   async markMessageDeleted(messageId: string, deletedAt: Date) {

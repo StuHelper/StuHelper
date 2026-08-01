@@ -3,7 +3,7 @@ type: internal
 audience: maintainers
 status: current
 authoritative-source: this file
-last-verified: 2026-05-07
+last-verified: 2026-08-01
 ---
 
 # 历史设计快照
@@ -22,3 +22,4 @@ last-verified: 2026-05-07
 | 目录 | 内容 |
 |------|------|
 | [koishi/](koishi/) | Koishi 子系统历史设计草案、完成总结和被 ADR 替代的方案 |
+| [2026-06-02-admission-flow-review.md](2026-06-02-admission-flow-review.md) | Admission 已废弃的评审、修复轨迹与阶段性上线证据 |

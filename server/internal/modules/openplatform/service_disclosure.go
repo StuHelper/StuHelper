@@ -584,20 +584,23 @@ func (s *Service) addScopePayload(ctx context.Context, out map[string]any, proje
 }
 
 func (s *Service) addPhonePayload(ctx context.Context, out map[string]any, projection *UserProjection) error {
-	if !projection.PhoneVerified || len(projection.PhoneEnc) == 0 {
+	if !projection.PhoneVerified {
 		out["phoneVerified"] = false
 		return nil
 	}
-	if s.phoneCipher == nil {
-		return fmt.Errorf("%w: phone decryptor is not configured", ErrDisclosureUnavailable)
+	if s.phoneReader == nil {
+		return fmt.Errorf("%w: authoritative phone reader is not configured", ErrDisclosureUnavailable)
 	}
-	phone, err := s.phoneCipher.Decrypt(projection.PhoneEnc)
+	if projection.UserID <= 0 {
+		return fmt.Errorf("%w: internal user identity is unavailable", ErrDisclosureUnavailable)
+	}
+	phone, err := s.phoneReader.GetPhone(ctx, projection.UserID)
 	if err != nil {
-		return fmt.Errorf("decrypt phone projection: %w", err)
+		return fmt.Errorf("%w: Casdoor phone lookup failed: %v", ErrDisclosureUnavailable, err)
 	}
 	normalized, ok := normalizeCasdoorMainlandPhone(phone)
 	if !ok {
-		return fmt.Errorf("%w: phone projection is unavailable", ErrDisclosureUnavailable)
+		return fmt.Errorf("%w: Casdoor phone is unavailable", ErrDisclosureUnavailable)
 	}
 	out["phone"] = normalized
 	out["phoneMasked"] = phoneutil.Mask(normalized)

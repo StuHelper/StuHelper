@@ -18,8 +18,8 @@ import (
 	"github.com/StuHelper/StuHelper/server/internal/pkg/token"
 )
 
-var ErrProviderRefreshTokenRevocationUnavailable = errors.New(
-	"auth: provider refresh token revocation unavailable",
+var ErrProviderTokenFamilyRevocationUnavailable = errors.New(
+	"auth: provider token-family revocation unavailable",
 )
 
 // Handler 认证处理器
@@ -27,6 +27,7 @@ type Handler struct {
 	svc                    *Service
 	oidcClient             *oidc.Client
 	oidcSubjectValidator   OIDCSubjectValidator
+	organizationAdminSync  OrganizationAdminSynchronizer
 	tokenService           *token.Service
 	tokenConfig            config.TokenConfig
 	redisClient            *redis.Client
@@ -46,10 +47,15 @@ type HandlerConfig struct {
 	AccountSettingsBaseURL string
 	ProviderTokenCipher    pii.EncryptDecryptor
 	OIDCSubjectValidator   OIDCSubjectValidator
+	OrganizationAdminSync  OrganizationAdminSynchronizer
 }
 
 type OIDCSubjectValidator interface {
-	ValidateOIDCSubject(ctx context.Context, subject string) error
+	ValidateOIDCSubject(ctx context.Context, subject string) (organizationAdmin bool, err error)
+}
+
+type OrganizationAdminSynchronizer interface {
+	SyncCasdoorOrganizationAdmin(ctx context.Context, providerSubject string, organizationAdmin bool) error
 }
 
 type AdminAuthorizers struct {
@@ -88,6 +94,7 @@ func NewHandler(
 		svc:                    svc,
 		oidcClient:             oidcClient,
 		oidcSubjectValidator:   cfg.OIDCSubjectValidator,
+		organizationAdminSync:  cfg.OrganizationAdminSync,
 		tokenService:           tokenService,
 		tokenConfig:            cfg.Token,
 		redisClient:            rdb,
@@ -115,26 +122,26 @@ func (h *Handler) SessionRevoker() *Service {
 
 func providerTokenRevocationOptions(oidcClient *oidc.Client, cfg HandlerConfig) ([]ServiceOption, error) {
 	if oidcClient == nil {
-		return nil, fmt.Errorf("%w: OIDC client is required", ErrProviderRefreshTokenRevocationUnavailable)
+		return nil, fmt.Errorf("%w: OIDC client is required", ErrProviderTokenFamilyRevocationUnavailable)
 	}
 	if cfg.ProviderTokenCipher == nil {
-		return nil, fmt.Errorf("%w: provider token cipher is required", ErrProviderRefreshTokenRevocationUnavailable)
+		return nil, fmt.Errorf("%w: provider token cipher is required", ErrProviderTokenFamilyRevocationUnavailable)
 	}
-	supported, err := oidcClient.SupportsRefreshTokenRevocation()
+	supported, err := oidcClient.SupportsTokenFamilyRevocation()
 	if err != nil {
 		return nil, fmt.Errorf(
 			"%w: metadata lookup failed: %w",
-			ErrProviderRefreshTokenRevocationUnavailable,
+			ErrProviderTokenFamilyRevocationUnavailable,
 			err,
 		)
 	}
 	if !supported {
 		return nil, fmt.Errorf(
-			"%w: revocation endpoint is not advertised",
-			ErrProviderRefreshTokenRevocationUnavailable,
+			"%w: supported revocation endpoint is not advertised",
+			ErrProviderTokenFamilyRevocationUnavailable,
 		)
 	}
-	return []ServiceOption{WithProviderRefreshTokenRevocation(oidcClient, cfg.ProviderTokenCipher)}, nil
+	return []ServiceOption{WithProviderTokenFamilyRevocation(oidcClient, cfg.ProviderTokenCipher)}, nil
 }
 
 // buildAllowedRedirectHosts 从 CORS_ORIGINS 提取允许的重定向 host

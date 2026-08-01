@@ -89,6 +89,30 @@ describe('course payload readers', () => {
         list: [{ ...course, credits: '3' }],
       }),
     ).toThrow('Invalid courses response')
+    expect(() =>
+      readCourseListPayload({
+        list: [{ ...course, departmentID: 0 }],
+      }),
+    ).toThrow('Invalid courses response')
+    expect(() =>
+      readCourseListPayload({
+        list: [{ ...course, credits: -1 }],
+      }),
+    ).toThrow('Invalid courses response')
+  })
+
+  it('preserves explicitly unknown course metadata', () => {
+    const nullableCourse = {
+      id: 2,
+      schoolID: 4111010006,
+      departmentID: null,
+      name: '待补全课程',
+      credits: null,
+      category: '待分类',
+      reviewCount: 0,
+    }
+
+    expect(readCourseListPayload({ list: [nullableCourse] })).toEqual([nullableCourse])
   })
 
   it('reads grouped course payloads with optional department names', () => {
@@ -103,6 +127,12 @@ describe('course payload readers', () => {
         groups: [{ departmentName: '', courses: [course] }],
       }),
     ).toEqual([{ departmentName: '', courses: [course] }])
+
+    expect(
+      readGroupedCourseListPayload({
+        groups: [{ departmentID: null, departmentName: null, courses: [course] }],
+      }),
+    ).toEqual([{ departmentName: undefined, courses: [course] }])
   })
 
   it('fails closed when grouped course payloads are malformed', () => {

@@ -6,6 +6,9 @@
         @click.capture="suppressClickAfterDrag"
         @mouseenter="expanded = true"
         @mouseleave="expanded = false"
+        @focusin="expanded = true"
+        @focusout="expanded = false"
+        @keydown.esc="expanded = false"
         @mousedown.prevent="startDrag"
         @touchstart="startDrag"
     >
@@ -15,6 +18,7 @@
                 :to="activeTab.to"
                 data-testid="floating-module-nav-active"
                 class="w-10 h-10 rounded-full bg-bg-glass-heavy backdrop-blur-xl backdrop-saturate-150 border border-white/15 dark:border-white/8 shadow-md flex items-center justify-center no-underline transition-all duration-base hover:shadow-lg"
+                :aria-label="activeTab.label"
                 aria-describedby="tooltip-active"
                 @click.stop
             >
@@ -51,6 +55,7 @@
                     <router-link
                         :to="tab.to"
                         class="w-9 h-9 rounded-full bg-bg-glass backdrop-blur-lg backdrop-saturate-150 border border-white/15 dark:border-white/8 shadow-sm flex items-center justify-center no-underline transition-colors duration-fast hover:bg-primary hover:text-white hover:border-primary"
+                        :aria-label="tab.label"
                         :aria-describedby="`tooltip-tab-${tab.to}`"
                         @click.stop
                     >

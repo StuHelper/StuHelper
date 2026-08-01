@@ -21,6 +21,7 @@ import {
 import { COMMAND_POLICY_IDS, MODERATION_REVIEW_TABLE, ModerationStore } from '@stuhelper/koishi-moderation-core'
 
 import adminPlugin from './index.ts'
+import { ensureAdminCommandAccess } from './command-access.ts'
 import { createKoishiTestRuntime } from '../../test-utils/runtime.ts'
 
 test('管理员可以查看当前群待认证成员', async () => {
@@ -159,6 +160,94 @@ test('私聊显式群号也必须按目标群命令策略校验', async () => {
 
     const client = root.mock.client('20003')
     await client.shouldReply('群审状态 group-1', '命令权限不足。')
+  } finally {
+    runtime.dispose()
+    await rm(tempDir, { recursive: true, force: true })
+  }
+})
+
+test('缺少 session 的管理员命令访问检查 fail-closed', async () => {
+  const store = {
+    getCommandPolicy() {
+      throw new Error('missing sessions must be rejected before policy access')
+    },
+  } as unknown as ModerationStore
+
+  const denial = await ensureAdminCommandAccess({
+    store,
+    session: undefined,
+    commandId: COMMAND_POLICY_IDS.guardReviews,
+  })
+
+  assert.equal(denial, '命令权限不足。')
+})
+
+test('私聊无群号仍校验策略且不会跨群列出复核队列', async () => {
+  const runtime = createKoishiTestRuntime()
+  const { root } = runtime
+  const tempDir = await mkdtemp(join(tmpdir(), 'stuhelper-koishi-admin-'))
+
+  runtime.register(sqlite, { path: join(tempDir, 'koishi.db') })
+  runtime.register(commands)
+  runtime.register(MockBot, { selfId: '514' })
+  runtime.register(adminPlugin, createAdminPluginConfig())
+
+  try {
+    await root.start()
+    await root.mock.initUser('20004', 3)
+    await root.mock.initUser('20005', 5)
+    await root.mock.initChannel('group-1')
+    await root.mock.initChannel('group-2')
+
+    const now = new Date('2026-04-19T09:00:00Z')
+    const moderationStore = new ModerationStore(root)
+    await moderationStore.upsertCommandPolicy({
+      commandId: COMMAND_POLICY_IDS.guardReviews,
+      minAuthority: 5,
+      roles: [],
+      createdAt: now,
+      updatedAt: now,
+    })
+    await moderationStore.createReview({
+      platform: 'mock',
+      botSelfId: '514',
+      guildId: 'group-1',
+      channelId: 'group-1',
+      memberId: '10021',
+      actionType: 'kick',
+      status: 'pending',
+      reason: 'group-1 review',
+      operatorMemberId: null,
+      resolutionNote: null,
+      payload: null,
+    })
+    await moderationStore.createReview({
+      platform: 'mock',
+      botSelfId: '514',
+      guildId: 'group-2',
+      channelId: 'group-2',
+      memberId: '10022',
+      actionType: 'kick',
+      status: 'pending',
+      reason: 'group-2 review',
+      operatorMemberId: null,
+      resolutionNote: null,
+      payload: null,
+    })
+
+    const lowerAuthority = root.mock.client('20004')
+    await lowerAuthority.shouldReply('群审复核', '命令权限不足。')
+    await lowerAuthority.shouldReply('群审复核 group-1', '命令权限不足。')
+
+    const administrator = root.mock.client('20005')
+    await administrator.shouldReply(
+      '群审复核',
+      '请在群聊中执行，或显式传入群号。',
+    )
+    await administrator.shouldReply(
+      '群审复核 group-1',
+      '待复核队列：\n10021 [kick] group-1 review',
+    )
   } finally {
     runtime.dispose()
     await rm(tempDir, { recursive: true, force: true })

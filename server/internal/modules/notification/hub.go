@@ -19,16 +19,17 @@ type Sender interface {
 
 // SendParams 发送通知参数
 type SendParams struct {
-	UserID       int64
-	Type         string
-	Title        string
-	Body         string
-	Content      string
-	Payload      json.RawMessage
-	SourceModule string
-	SourceID     string
-	SourceURL    string
-	CourseID     int64 // 关联课程 ID，用于前端精准跳转；0 表示无关联
+	IdempotencyKey string
+	UserID         int64
+	Type           string
+	Title          string
+	Body           string
+	Content        string
+	Payload        json.RawMessage
+	SourceModule   string
+	SourceID       string
+	SourceURL      string
+	CourseID       int64 // 关联课程 ID，用于前端精准跳转；0 表示无关联
 }
 
 // Notification 通知实体
@@ -52,6 +53,7 @@ type Notification struct {
 type Hub struct {
 	mu          sync.RWMutex
 	connections map[int64]*userConnections // userID -> ordered connections
+	stopped     bool
 }
 
 type userConnections struct {
@@ -83,7 +85,19 @@ func NewHub() *Hub {
 // 当同一用户的连接数达到 maxConnsPerUser 时，按订阅顺序驱逐最老的现有连接。
 func (h *Hub) Subscribe(userID int64) chan SSEEvent {
 	ch := make(chan SSEEvent, sseBufferSize)
+	if h == nil {
+		close(ch)
+		return ch
+	}
 	h.mu.Lock()
+	if h.stopped {
+		close(ch)
+		h.mu.Unlock()
+		return ch
+	}
+	if h.connections == nil {
+		h.connections = make(map[int64]*userConnections)
+	}
 	if h.connections[userID] == nil {
 		h.connections[userID] = &userConnections{}
 	}
@@ -100,6 +114,9 @@ func (h *Hub) Subscribe(userID int64) chan SSEEvent {
 
 // Unsubscribe 注销 SSE 连接
 func (h *Hub) Unsubscribe(userID int64, ch chan SSEEvent) {
+	if h == nil || ch == nil {
+		return
+	}
 	h.mu.Lock()
 	if conns, ok := h.connections[userID]; ok {
 		removed := conns.remove(ch)
@@ -115,6 +132,9 @@ func (h *Hub) Unsubscribe(userID int64, ch chan SSEEvent) {
 
 // Broadcast 向用户的所有连接推送事件
 func (h *Hub) Broadcast(userID int64, event SSEEvent) {
+	if h == nil {
+		return
+	}
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
@@ -137,6 +157,25 @@ func (h *Hub) Broadcast(userID int64, event SSEEvent) {
 
 // Stop 停止 Hub
 func (h *Hub) Stop() {
+	if h == nil {
+		return
+	}
+	h.mu.Lock()
+	if h.stopped {
+		h.mu.Unlock()
+		return
+	}
+	h.stopped = true
+	for _, conns := range h.connections {
+		if conns == nil {
+			continue
+		}
+		for _, ch := range conns.order {
+			close(ch)
+		}
+	}
+	h.connections = nil
+	h.mu.Unlock()
 }
 
 func (u *userConnections) remove(ch chan SSEEvent) bool {

@@ -10,6 +10,7 @@ type MockOptions = {
   paginatedReviews?: boolean
   paginatedUserLists?: boolean
   reviewPage2Failures?: number
+  reviewDraft?: Record<string, unknown> | null
   reviewSortRace?: boolean
   reviewUserVote?: 'like' | 'dislike'
   ssoState?: string
@@ -511,7 +512,7 @@ async function mockUniApi(page: Page, options: MockOptions = {}): Promise<MockUn
       return
     }
     if (method === 'GET' && pathname === '/api/v1/course/review/drafts') {
-      await route.fulfill(ok(null))
+      await route.fulfill(ok(options.reviewDraft ?? null))
       return
     }
     if (method === 'POST' && pathname === '/api/v1/course/review/drafts') {
@@ -1247,6 +1248,7 @@ test.describe('UniAppX H5 surface', () => {
     await expect
       .poll(() => mutations.filter(item => item === 'POST /api/v1/course/review/drafts').length)
       .toBe(1)
+    await expect(page.getByTestId('uni-review-save-draft')).toBeEnabled()
     const draftPayload = requireMutationBody(
       mutationBodies,
       'POST',
@@ -1261,12 +1263,23 @@ test.describe('UniAppX H5 surface', () => {
       termID: term.id,
       title: '移动端草稿标题',
     })
+
+    await page.getByTestId('uni-review-submit').click()
+    await expect
+      .poll(() => mutations.includes('DELETE /api/v1/course/review/drafts'))
+      .toBe(true)
   })
 
   test('authenticated review post page submits a complete review', async ({ page }) => {
     const { mutationBodies, mutations } = await mockUniApi(page, {
       authenticated: true,
       mutationDelayMs: 120,
+      reviewDraft: {
+        id: 'draft-current-course',
+        courseID: course.id,
+        ratings: {},
+        updatedAt: now,
+      },
     })
 
     await gotoUniPage(page, `/#/pages/review/post?courseID=${course.id}`)
@@ -1314,6 +1327,74 @@ test.describe('UniAppX H5 surface', () => {
 
     await expect(page).toHaveURL(new RegExp(`/#/pages/course/detail\\?id=${course.id}`))
     await expect(page.getByText(course.name).first()).toBeVisible()
+  })
+
+  test('review submission preserves a draft bound to another course', async ({ page }) => {
+    const { mutations } = await mockUniApi(page, {
+      authenticated: true,
+      reviewDraft: {
+        id: 'draft-foreign-course',
+        courseID: secondCourse.id,
+        teacherID: teacher.teacherID,
+        termID: term.id,
+        title: '另一门课程的草稿标题',
+        content: '另一门课程的草稿正文，不应载入当前课程。',
+        ratings: { overall: 5, workload: 4 },
+        updatedAt: now,
+      },
+    })
+
+    await gotoUniPage(page, `/#/pages/review/post?courseID=${course.id}`)
+
+    await expect(page.getByTestId('uni-review-title').locator('input')).toHaveValue('')
+    await expect(page.getByTestId('uni-review-content').locator('textarea')).toHaveValue('')
+    await expect(page.getByTestId('uni-review-teacher-value')).toContainText('请选择教师')
+
+    await setUniFieldValue(page, 'uni-review-title', '当前课程的新评课')
+    await setUniFieldValue(
+      page,
+      'uni-review-content',
+      '这是当前课程的新评课正文，提交成功后不能删除另一门课程的草稿。',
+    )
+    await page.getByTestId('uni-review-rating-overall-5').click()
+    await page.getByTestId('uni-review-rating-workload-4').click()
+    await page.getByTestId('uni-review-submit').click()
+
+    await expect
+      .poll(() => mutations.includes('POST /api/v1/course/review/reviews'))
+      .toBe(true)
+    await expect(page).toHaveURL(new RegExp(`/#/pages/course/detail\\?id=${course.id}`))
+    expect(mutations).not.toContain('DELETE /api/v1/course/review/drafts')
+  })
+
+  test('unbound drafts restore content without restoring a teacher', async ({ page }) => {
+    const { mutations } = await mockUniApi(page, {
+      authenticated: true,
+      reviewDraft: {
+        id: 'draft-unbound',
+        teacherID: teacher.teacherID,
+        termID: term.id,
+        title: '未绑定课程的草稿',
+        content: '这是一份未绑定课程的通用草稿正文，可以恢复到当前课程。',
+        ratings: { overall: 5, workload: 4 },
+        updatedAt: now,
+      },
+    })
+
+    await gotoUniPage(page, `/#/pages/review/post?courseID=${course.id}`)
+
+    await expect(page.getByTestId('uni-review-title').locator('input')).toHaveValue(
+      '未绑定课程的草稿',
+    )
+    await expect(page.getByTestId('uni-review-content').locator('textarea')).toHaveValue(
+      '这是一份未绑定课程的通用草稿正文，可以恢复到当前课程。',
+    )
+    await expect(page.getByTestId('uni-review-teacher-value')).toContainText('请选择教师')
+
+    await page.getByTestId('uni-review-submit').click()
+    await expect
+      .poll(() => mutations.includes('DELETE /api/v1/course/review/drafts'))
+      .toBe(true)
   })
 
   test('authenticated user center pages render profile data and user lists', async ({

@@ -294,6 +294,14 @@ test.describe("Review actions", () => {
         await expect(page.getByText("评价已更新")).toBeVisible();
 
         await page.getByRole("button", { name: "删除我的评价" }).click();
+        await expect(
+            page.getByRole("group", { name: "确定要删除这条评价吗？" }),
+        ).toBeVisible();
+        expect(deleteCalled).toBe(false);
+
+        await page
+            .getByTestId(`review-delete-confirm-action-${ownReview.id}`)
+            .click();
         await expect.poll(() => deleteCalled).toBe(true);
         await expect(page.getByText("需要维护的评价")).toHaveCount(0);
         await expect(page.getByText("评价已删除")).toBeVisible();

@@ -45,8 +45,8 @@ type oidcAuthURLBuilder interface {
 	GetAuthURL(clientID string, redirectURI string, scopes []string, state string) string
 }
 
-type phoneDecryptor interface {
-	Decrypt(ciphertext []byte) (string, error)
+type authoritativePhoneReader interface {
+	GetPhone(ctx context.Context, userID int64) (string, error)
 }
 
 type resourceRelationClient interface {
@@ -61,7 +61,7 @@ type Service struct {
 	rdb                *redis.Client
 	provisioner        appProvisioner
 	oidc               oidcAuthURLBuilder
-	phoneCipher        phoneDecryptor
+	phoneReader        authoritativePhoneReader
 	resourceFGA        resourceRelationClient
 	consentBaseURL     string
 	accountBaseURL     string
@@ -83,9 +83,9 @@ func WithAppProvisioner(provisioner appProvisioner) ServiceOption {
 	}
 }
 
-func WithPhoneDecryptor(cipher phoneDecryptor) ServiceOption {
+func WithAuthoritativePhoneReader(reader authoritativePhoneReader) ServiceOption {
 	return func(s *Service) {
-		s.phoneCipher = cipher
+		s.phoneReader = reader
 	}
 }
 

@@ -19,14 +19,15 @@ func TestSensitiveAdminAuthorizersRequireStepUpMFA(t *testing.T) {
 	})
 
 	middlewares := map[string]gin.HandlerFunc{
-		"auth account unlock": authAdminAuthorizers().StepUpMFA,
-		"user mutation":       userAdminAuthorizers().StepUpMFA,
+		"auth account unlock":  authAdminAuthorizers().StepUpMFA,
+		"authorization change": authorizationAdminAuthorizers().StepUpMFA,
+		"user mutation":        userAdminAuthorizers().StepUpMFA,
 	}
 	for name, stepUp := range middlewares {
 		t.Run(name, func(t *testing.T) {
 			w, called := exerciseStepUpMiddleware(stepUp)
 
-			assert.Equal(t, http.StatusPreconditionRequired, w.Code)
+			assert.Equal(t, http.StatusPreconditionFailed, w.Code)
 			assert.False(t, called)
 		})
 	}
@@ -54,7 +55,7 @@ func TestReviewAdminAuthorizerRequiresStepUpMFA(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/admin/reviews", nil)
 	engine.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusPreconditionRequired, w.Code)
+	assert.Equal(t, http.StatusPreconditionFailed, w.Code)
 	assert.False(t, called)
 }
 

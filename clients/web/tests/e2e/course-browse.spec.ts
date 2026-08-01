@@ -591,9 +591,32 @@ test.describe('Course Browse Flow', () => {
             success: true,
             data: {
               courseID: 1,
-              overall: { termName: '总体', dimensions: [] },
-              byTerm: [],
-              allDimensionKeys: [],
+              overall: {
+                termName: '总体',
+                dimensions: [
+                  {
+                    key: 'teaching',
+                    name: 'Teaching',
+                    avgRating: 4.6,
+                    ratingCount: 5,
+                  },
+                ],
+              },
+              byTerm: [
+                {
+                  termID: '2025-fall',
+                  termName: '2025 秋',
+                  dimensions: [
+                    {
+                      key: 'teaching',
+                      name: 'Teaching',
+                      avgRating: 4.6,
+                      ratingCount: 5,
+                    },
+                  ],
+                },
+              ],
+              allDimensionKeys: ['teaching'],
             },
           }),
         }),
@@ -622,6 +645,10 @@ test.describe('Course Browse Flow', () => {
     // Assert course name and department rendered from mocked data
     await expect(page.getByText('高等数学A')).toBeVisible({ timeout: 10_000 })
     await expect(page.getByText('数学科学学院')).toBeVisible()
+    await expect(
+      page.getByRole('img', { name: '教学质量：超赞' }),
+    ).toBeVisible()
+    await expect(page.getByText('4.6', { exact: true })).toHaveCount(0)
     await expect(page).toHaveTitle(/高等数学A - StuHelper/)
   })
 

@@ -1,5 +1,5 @@
 <template>
-  <main class="mx-auto max-w-[1040px] p-6 animate-fade-in max-sm:p-4">
+  <section class="mx-auto max-w-[1040px] p-6 animate-fade-in max-sm:p-4">
     <header class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div class="min-w-0">
         <p class="m-0 text-xs font-semibold uppercase text-primary">
@@ -21,6 +21,37 @@
         {{ t('user.accountProfile.backToIdentity') }}
       </router-link>
     </header>
+
+    <div
+      v-if="statusPending"
+      data-account-profile-status-loading
+      class="mb-4 flex items-center gap-3 rounded-lg border border-border bg-bg-card px-4 py-3 text-sm text-text-secondary"
+      role="status"
+      aria-live="polite"
+    >
+      <span
+        class="size-2 shrink-0 animate-pulse rounded-full bg-primary"
+        aria-hidden="true"
+      />
+      {{ t('common.actions.loading') }}
+    </div>
+
+    <div
+      v-else-if="statusLoadState === 'error'"
+      data-account-profile-status-error
+      class="mb-4 flex flex-col gap-3 rounded-lg border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger sm:flex-row sm:items-center sm:justify-between"
+      role="alert"
+    >
+      <span>{{ t('common.loadFailed') }}</span>
+      <button
+        type="button"
+        data-account-profile-status-retry
+        class="inline-flex h-9 shrink-0 items-center justify-center rounded-md border border-danger/30 bg-bg-card px-3 font-medium text-danger transition-colors duration-fast hover:bg-danger/10"
+        @click="loadStatus"
+      >
+        {{ t('common.actions.retry') }}
+      </button>
+    </div>
 
     <section class="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
       <section class="rounded-lg border border-border bg-bg-card p-5 shadow-sm">
@@ -81,21 +112,24 @@
             :value="user?.email || t('user.accountProfile.missing.email')"
             :badge="emailBadge"
           />
-          <ProfileField
-            :label="t('user.accountProfile.fields.phone')"
-            :value="profile?.phone || t('user.accountProfile.missing.phone')"
-            :badge="phoneBadge"
-          />
-          <ProfileField
-            :label="t('user.accountProfile.fields.qq')"
-            :value="qqBindingLabel"
-            :badge="qqBadge"
-          />
+          <template v-if="statusReady">
+            <ProfileField
+              :label="t('user.accountProfile.fields.phone')"
+              :value="profile?.phone || t('user.accountProfile.missing.phone')"
+              :badge="phoneBadge"
+            />
+            <ProfileField
+              :label="t('user.accountProfile.fields.qq')"
+              :value="qqBindingLabel"
+              :badge="qqBadge"
+            />
+          </template>
         </dl>
       </section>
     </section>
 
     <section
+      v-if="statusReady"
       class="mt-4 grid gap-4 md:grid-cols-3"
       :aria-label="t('user.accountProfile.verification.actionsLabel')"
     >
@@ -127,6 +161,18 @@
       </router-link>
     </section>
 
+    <section
+      v-else-if="statusPending"
+      class="mt-4 grid gap-4 md:grid-cols-3"
+      aria-hidden="true"
+    >
+      <div
+        v-for="index in 3"
+        :key="index"
+        class="h-36 animate-pulse rounded-lg border border-border bg-bg-card"
+      />
+    </section>
+
     <section class="mt-4 rounded-lg border border-border bg-bg-card p-5 shadow-sm">
       <header class="flex items-start gap-3">
         <span class="grid size-10 shrink-0 place-items-center rounded-lg bg-primary-alpha text-primary">
@@ -153,11 +199,11 @@
         />
       </dl>
     </section>
-  </main>
+  </section>
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent, h, markRaw, onMounted, type PropType } from 'vue'
+import { computed, defineComponent, h, markRaw, onMounted, ref, type PropType } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   ArrowLeft,
@@ -195,6 +241,8 @@ interface DisclosureFieldInfo {
   badge: string
   badgeClass: string
 }
+
+type StatusLoadState = 'idle' | 'loading' | 'ready' | 'error'
 
 const ProfileField = defineComponent({
   name: 'ProfileField',
@@ -279,11 +327,18 @@ const DisclosureField = defineComponent({
 const { t } = useI18n()
 const authStore = useAuthStore()
 const verificationStore = useVerificationStore()
+const statusLoadState = ref<StatusLoadState>('idle')
 
 const user = computed(() => authStore.user)
 const profile = computed(() => verificationStore.profile)
 const identity = computed(() => verificationStore.identity)
 const qqBinding = computed(() => verificationStore.qqBinding)
+const statusPending = computed(
+  () =>
+    authStore.isAuthenticated &&
+    (statusLoadState.value === 'idle' || statusLoadState.value === 'loading'),
+)
+const statusReady = computed(() => statusLoadState.value === 'ready')
 
 const displayName = computed(
   () => user.value?.displayName || user.value?.name || t('nav.user'),
@@ -366,51 +421,68 @@ const verificationItems = computed<VerificationItem[]>(() => [
   },
 ])
 
-const disclosureFields = computed<DisclosureFieldInfo[]>(() => [
-  {
-    key: 'profile',
-    label: t('user.accountProfile.disclosure.profile.title'),
-    description: t('user.accountProfile.disclosure.profile.description'),
-    badge: t('user.accountProfile.status.available'),
-    badgeClass: successClass,
-  },
-  {
-    key: 'email',
-    label: t('user.accountProfile.disclosure.email.title'),
-    description: t('user.accountProfile.disclosure.email.description'),
-    badge: emailBadge.value.label,
-    badgeClass: emailBadge.value.className,
-  },
-  {
-    key: 'phone',
-    label: t('user.accountProfile.disclosure.phone.title'),
-    description: t('user.accountProfile.disclosure.phone.description'),
-    badge: phoneBadge.value.label,
-    badgeClass: phoneBadge.value.className,
-  },
-  {
-    key: 'identity',
-    label: t('user.accountProfile.disclosure.identity.title'),
-    description: t('user.accountProfile.disclosure.identity.description'),
-    badge: identityStatus.value.label,
-    badgeClass: badgeClass(identityStatus.value.variant),
-  },
-  {
-    key: 'student',
-    label: t('user.accountProfile.disclosure.student.title'),
-    description: t('user.accountProfile.disclosure.student.description'),
-    badge: studentStatus.value.label,
-    badgeClass: badgeClass(studentStatus.value.variant),
-  },
-])
+const disclosureFields = computed<DisclosureFieldInfo[]>(() => {
+  const reliableFields: DisclosureFieldInfo[] = [
+    {
+      key: 'profile',
+      label: t('user.accountProfile.disclosure.profile.title'),
+      description: t('user.accountProfile.disclosure.profile.description'),
+      badge: t('user.accountProfile.status.available'),
+      badgeClass: successClass,
+    },
+    {
+      key: 'email',
+      label: t('user.accountProfile.disclosure.email.title'),
+      description: t('user.accountProfile.disclosure.email.description'),
+      badge: emailBadge.value.label,
+      badgeClass: emailBadge.value.className,
+    },
+  ]
+
+  if (!statusReady.value) return reliableFields
+
+  return [
+    ...reliableFields,
+    {
+      key: 'phone',
+      label: t('user.accountProfile.disclosure.phone.title'),
+      description: t('user.accountProfile.disclosure.phone.description'),
+      badge: phoneBadge.value.label,
+      badgeClass: phoneBadge.value.className,
+    },
+    {
+      key: 'identity',
+      label: t('user.accountProfile.disclosure.identity.title'),
+      description: t('user.accountProfile.disclosure.identity.description'),
+      badge: identityStatus.value.label,
+      badgeClass: badgeClass(identityStatus.value.variant),
+    },
+    {
+      key: 'student',
+      label: t('user.accountProfile.disclosure.student.title'),
+      description: t('user.accountProfile.disclosure.student.description'),
+      badge: studentStatus.value.label,
+      badgeClass: badgeClass(studentStatus.value.variant),
+    },
+  ]
+})
+
+async function loadStatus() {
+  if (!authStore.isAuthenticated || statusLoadState.value === 'loading') return
+
+  statusLoadState.value = 'loading'
+  try {
+    await verificationStore.fetchStatus()
+    statusLoadState.value = 'ready'
+  } catch (error) {
+    statusLoadState.value = 'error'
+    if (import.meta.env.DEV) {
+      console.warn('[AccountProfilePage] failed to fetch verification status', error)
+    }
+  }
+}
 
 onMounted(() => {
-  if (authStore.isAuthenticated) {
-    void verificationStore.fetchStatus().catch((error) => {
-      if (import.meta.env.DEV) {
-        console.warn('[AccountProfilePage] failed to fetch verification status', error)
-      }
-    })
-  }
+  void loadStatus()
 })
 </script>

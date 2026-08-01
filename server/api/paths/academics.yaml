@@ -208,6 +208,8 @@
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '403':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '412':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
 
 /api/v1/admin/academics/import-jobs:
   get:
@@ -249,6 +251,8 @@
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '403':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '412':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
   post:
     tags: [Academics, Admin]
     operationId: triggerAcademicImport
@@ -278,6 +282,8 @@
       '401':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '412':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '404':
         $ref: '../components/responses/common.yaml#/ErrorResponse'

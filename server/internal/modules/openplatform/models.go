@@ -324,10 +324,10 @@ type AdminUserConsentListResult struct {
 }
 
 type UserProjection struct {
+	UserID           int64
 	Username         string
 	Email            string
 	AvatarURL        *string
-	PhoneEnc         []byte
 	PhoneVerified    bool
 	IdentityVerified bool
 	ProfileStatus    *string

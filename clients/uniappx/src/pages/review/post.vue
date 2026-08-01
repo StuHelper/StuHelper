@@ -16,6 +16,7 @@ const courseID = ref(0)
 const submitting = ref(false)
 const savingDraft = ref(false)
 const loading = ref(false)
+const draftCleanupEligible = ref(false)
 const course = ref<components['schemas']['Course'] | null>(null)
 const terms = ref<components['schemas']['Term'][]>([])
 const teachers = ref<components['schemas']['CourseTeacherStats'][]>([])
@@ -69,8 +70,15 @@ async function loadPage() {
 
     const draftResult = await api.draft.getDraft()
     const draft = unwrapOptionalData<components['schemas']['ReviewDraft']>(draftResult)
-    if (draft) {
-      form.value.teacherID = draft.teacherID || 0
+    const draftCourseID = draft?.courseID
+    const draftIsUnbound = draftCourseID === undefined
+    if (
+      draft &&
+      course.value &&
+      (draftIsUnbound || draftCourseID === course.value.id)
+    ) {
+      draftCleanupEligible.value = true
+      form.value.teacherID = draftIsUnbound ? 0 : draft.teacherID || 0
       form.value.termID = draft.termID || form.value.termID
       form.value.title = draft.title || ''
       form.value.content = draft.content || ''
@@ -115,6 +123,7 @@ async function saveDraft() {
       grade: normalizedGrade(),
       ratings: (Object.keys(form.value.ratings).length > 0 ? form.value.ratings : undefined) as ReviewRatings | undefined,
     }))
+    draftCleanupEligible.value = true
     uni.showToast({ title: t('review.post.draftSaved'), icon: 'success' })
   } catch (error) {
     uni.showToast({
@@ -141,11 +150,14 @@ async function submitReview() {
       ratings: form.value.ratings as ReviewRatings,
     }))
     uni.showToast({ title: t('review.post.submitSuccess'), icon: 'success' })
-    try {
-      await api.draft.deleteDraft()
-    } catch (_error) {
-      void _error
-      // Draft cleanup is best-effort after a successful review submission.
+    if (draftCleanupEligible.value) {
+      try {
+        await api.draft.deleteDraft()
+        draftCleanupEligible.value = false
+      } catch (_error) {
+        void _error
+        // Draft cleanup is best-effort after a successful review submission.
+      }
     }
     setTimeout(() => {
       uni.redirectTo({ url: `/pages/course/detail?id=${course.value?.id}` })
@@ -202,6 +214,7 @@ onLoad(async (options) => {
         <input
           v-model="form.title"
           class="input-field"
+          :aria-label="t('review.post.reviewTitle')"
           data-testid="uni-review-title"
           maxlength="40"
           :placeholder="t('review.post.titlePlaceholder')"
@@ -213,6 +226,7 @@ onLoad(async (options) => {
         <input
           v-model="form.grade"
           class="input-field"
+          :aria-label="t('review.post.grade')"
           data-testid="uni-review-grade"
           maxlength="20"
           :placeholder="t('review.post.gradePlaceholder')"
@@ -245,6 +259,7 @@ onLoad(async (options) => {
         <textarea
           v-model="form.content"
           class="textarea-field"
+          :aria-label="t('review.post.content')"
           data-testid="uni-review-content"
           maxlength="5000"
           :placeholder="t('review.post.contentPlaceholder')"

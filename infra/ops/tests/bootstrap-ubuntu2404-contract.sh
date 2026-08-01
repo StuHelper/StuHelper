@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 BOOTSTRAP_SCRIPT="${REPO_ROOT}/infra/ops/bootstrap-ubuntu2404.sh"
+BACKUP_TIMER_INSTALLER="${REPO_ROOT}/infra/ops/install-backup-timers.sh"
 
 fail() {
   echo "[bootstrap-ubuntu2404-contract][error] $*" >&2
@@ -26,6 +27,7 @@ assert_contains "${BOOTSTRAP_SCRIPT}" 'DEPLOY_USER="\$\{DEPLOY_USER:-stuhelper\}
 assert_contains "${BOOTSTRAP_SCRIPT}" 'DEPLOY_APP_DIR="\$\{DEPLOY_APP_DIR:-/opt/stuhelper\}"'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'CONFIGURE_UFW="\$\{CONFIGURE_UFW:-true\}"'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'INSTALL_BACKUP_TIMERS="\$\{INSTALL_BACKUP_TIMERS:-true\}"'
+assert_contains "${BOOTSTRAP_SCRIPT}" 'BACKUP_STAGING_DIR="\$\{BACKUP_STAGING_DIR:-/var/lib/stuhelper/postgres/backup-staging\}"'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'INSTALL_GO="\$\{INSTALL_GO:-true\}"'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'GO_VERSION="\$\{GO_VERSION:-1\.26\.5\}"'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'run as root \(sudo bash infra/ops/bootstrap-ubuntu2404\.sh\)'
@@ -45,6 +47,7 @@ assert_contains "${BOOTSTRAP_SCRIPT}" '\$\{DEPLOY_APP_DIR\}/\.secrets/vault'
 assert_contains "${BOOTSTRAP_SCRIPT}" '\$\{DEPLOY_APP_DIR\}/infra/generated'
 assert_contains "${BOOTSTRAP_SCRIPT}" '\$\{DEPLOY_APP_DIR\}/backups/postgres/logical'
 assert_contains "${BOOTSTRAP_SCRIPT}" '\$\{DEPLOY_APP_DIR\}/backups/postgres/base'
+assert_contains "${BOOTSTRAP_SCRIPT}" 'install -d -o "\$\{DEPLOY_USER\}".*-m 0700 "\$\{BACKUP_STAGING_DIR\}"'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'chmod 0600'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'DEPLOY_SSH_PUBKEY'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'authorized_keys'
@@ -69,7 +72,15 @@ assert_contains "${BOOTSTRAP_SCRIPT}" 'ln -sf /usr/local/go/bin/gofmt /usr/local
 assert_contains "${BOOTSTRAP_SCRIPT}" 'stuhelper-postgres-dump-backup\.service'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'stuhelper-postgres-basebackup\.service'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'stuhelper-postgres-backup-sync\.service'
+assert_contains "${BOOTSTRAP_SCRIPT}" 'Environment=BACKUP_STAGING_DIR=\$\{BACKUP_STAGING_DIR\}'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'systemctl daemon-reload'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'systemctl enable --now stuhelper-postgres-dump-backup\.timer stuhelper-postgres-basebackup\.timer stuhelper-postgres-backup-sync\.timer'
+
+[[ -f "${BACKUP_TIMER_INSTALLER}" ]] ||
+  fail "missing backup timer installer: ${BACKUP_TIMER_INSTALLER}"
+bash -n "${BACKUP_TIMER_INSTALLER}"
+assert_contains "${BACKUP_TIMER_INSTALLER}" 'BACKUP_STAGING_DIR="\$\{BACKUP_STAGING_DIR:-/var/lib/stuhelper/postgres/backup-staging\}"'
+assert_contains "${BACKUP_TIMER_INSTALLER}" 'install -d -o "\$\{DEPLOY_USER\}".*-m 0700 "\$\{BACKUP_STAGING_DIR\}"'
+assert_contains "${BACKUP_TIMER_INSTALLER}" 'Environment=BACKUP_STAGING_DIR=\$\{BACKUP_STAGING_DIR\}'
 
 echo "[bootstrap-ubuntu2404-contract] all assertions passed"

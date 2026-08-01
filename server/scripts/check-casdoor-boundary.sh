@@ -116,4 +116,4 @@ run_git_check \
   "tracked server/infra/env files must not reference retired Zitadel identifiers" \
   'Zitadel|ZITADEL|zitadel|urn:zitadel' \
   '^server/scripts/check-casdoor-boundary\.sh$' \
-  server infra .env.example .env.prod.example docker-compose.yml docker-compose.prod.yml Makefile .gitlab-ci.yml
+  server infra .env.example .env.prod.example docker-compose.yml docker-compose.prod.yml Makefile .github

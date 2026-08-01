@@ -3,7 +3,7 @@ type: guide
 audience: backend-dev
 status: current
 authoritative-source: server/api/openapi.yaml + server/internal/
-last-verified: 2026-04-19
+last-verified: 2026-08-01
 ---
 
 # 后端开发规范
@@ -70,17 +70,23 @@ server/
 
 ## 数据库规则
 
-- 结构变更直接更新 `server/migrations/000001_initial_schema.up.sql`
-- `server/migrations/000001_initial_schema.up.sql` 是唯一 schema 权威来源
+- `server/migrations/` 中按版本顺序应用的完整 migration 集合是 schema 权威来源
+- `000001_initial_schema.*.sql` 是不可变初始基线；任何结构或数据演进都新增递增编号的
+  `.up.sql` / `.down.sql` 文件对，禁止修改已有编号向已迁移环境发布变更
+- 迁移、回退、dirty state 和生产演练要求见
+  [数据库迁移运行手册](database-migrations.md)
 - 参数化查询，禁止拼接
 - 动态排序使用白名单
-- 分页优先 `COUNT(*) OVER()`
+- 分页方案按响应契约选择：如果越过末页时仍必须返回精确 `total`，使用相同过滤条件的独立
+  `COUNT(*)` 与数据查询；只有在“结果至少一行”有明确保证，或空页不需要 total 时才使用
+  `COUNT(*) OVER()`。必须有 `offset >= total` 的回归测试，不能从当前页首行推导总数。
 
 ## 授权模型
 
-1. Casdoor JWT roles claim → 身份侧扁平角色
-2. 角色静态展开 → capability（零 DB 查询）
-3. 业务事实 + OpenFGA → 资源级判断
+1. Casdoor OIDC token → 只提供已验证身份、应用和 MFA proof；role claim 永不参与 allow/deny
+2. PostgreSQL `authorization_grants` + DB 业务事实 → DB-derived access snapshot
+3. snapshot role/scope 静态展开 → capability；撤权由 DB desired-state 立即围栏
+4. OpenFGA serving projection → 资源级关系判断；可从 PostgreSQL 账本重建
 
 新路由需考虑：是否需要登录、需要哪些 capability、是否需要资源级校验。
 
@@ -90,10 +96,19 @@ server/
 |------|------|
 | PostgreSQL | 业务数据 |
 | Redis | 缓存、限流、token 黑名单 |
-| Casdoor | OIDC / 角色目录投影 |
-| OpenFGA | 资源关系授权 |
+| Casdoor | OIDC 认证、会话、token 与登录层 MFA |
+| OpenFGA | 可从 PostgreSQL 重建的资源关系授权投影 |
 | Tencent SMS | 手机 OTP（仅当 `SMS_ENABLED=true`） |
 | OpenTelemetry | trace / metrics / logs |
+
+### 版本化业务缓存的故障语义
+
+- Redis 中不存在版本 key 时，版本化缓存可以使用初始版本 `v0`。
+- Redis 连接、超时或请求取消导致版本无法确认时，必须把版本视为“未知”：缓存读取按 miss
+  处理、缓存写入按 no-op 处理，并回源 PostgreSQL；不得把依赖故障伪装成 `v0`，也不得把
+  这个结果写入本地版本缓存。
+- `cache.Helper.BuildVersionedKey` 以空 key 表示版本未知；`GetRaw`、`GetAs` 和 `Set`
+  对空 key 分别执行 miss、miss 和 no-op。业务 Handler 不应自行拼接版本化 key 或绕过这组语义。
 
 ## 日志和错误
 

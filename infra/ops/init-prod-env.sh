@@ -194,9 +194,6 @@ fi
 if placeholder_or_empty "${CASDOOR_INTROSPECTION_CLIENT_SECRET:-}"; then
   upsert_env_file "${SECRETS_ENV_FILE}" "CASDOOR_INTROSPECTION_CLIENT_SECRET" "prod-casdoor-introspection-$(random_hex 24)"
 fi
-if placeholder_or_empty "${CASDOOR_ROLE_SYNC_CLIENT_SECRET:-}"; then
-  upsert_env_file "${SECRETS_ENV_FILE}" "CASDOOR_ROLE_SYNC_CLIENT_SECRET" "prod-casdoor-role-sync-$(random_hex 24)"
-fi
 if placeholder_or_empty "${CASDOOR_USER_LOOKUP_CLIENT_SECRET:-}"; then
   upsert_env_file "${SECRETS_ENV_FILE}" "CASDOOR_USER_LOOKUP_CLIENT_SECRET" "prod-casdoor-user-lookup-$(random_hex 24)"
 fi
@@ -217,26 +214,30 @@ ensure_value "LOG_LEVEL" "${LOG_LEVEL:-}" "info"
 ensure_prod_default "LOG_FORMAT" "${LOG_FORMAT:-}" "json" "console"
 ensure_value "LOG_OUTPUT" "${LOG_OUTPUT:-}" "stdout"
 ensure_value "EXTERNAL_POSTGRES_ENABLED" "${EXTERNAL_POSTGRES_ENABLED:-}" "false"
-ensure_value "EXTERNAL_POSTGRES_ALLOW_PLAINTEXT" "${EXTERNAL_POSTGRES_ALLOW_PLAINTEXT:-}" "false"
+ensure_prod_default "EXTERNAL_POSTGRES_ALLOW_PLAINTEXT" "${EXTERNAL_POSTGRES_ALLOW_PLAINTEXT:-}" "false" "true"
 ensure_value "EXTERNAL_DATASTORE_NETWORK" "${EXTERNAL_DATASTORE_NETWORK:-}" ""
-if [[ "${EXTERNAL_POSTGRES_ALLOW_PLAINTEXT:-false}" == "true" ]]; then
-  ensure_value "DATABASE_URL" "${DATABASE_URL:-}" "postgres://stuhelper_app:REPLACE_WITH_STUHELPER_APP_DB_PASSWORD@postgres:5432/stuhelper?sslmode=disable"
-  ensure_value "BACKUP_DATABASE_URL" "${BACKUP_DATABASE_URL:-}" "postgres://stuhelper_backup:REPLACE_WITH_STUHELPER_BACKUP_DB_PASSWORD@postgres:5432/stuhelper?sslmode=disable"
-  ensure_value "REPLICATION_DATABASE_URL" "${REPLICATION_DATABASE_URL:-}" "postgres://stuhelper_replication:REPLACE_WITH_STUHELPER_REPLICATION_DB_PASSWORD@postgres:5432/stuhelper?sslmode=disable"
-  ensure_value "DB_SSL_MODE" "${DB_SSL_MODE:-}" "disable"
-  ensure_value "POSTGRES_ENABLE_SSL" "${POSTGRES_ENABLE_SSL:-}" "off"
-  ensure_value "POSTGRES_INTERNAL_SSL_MODE" "${POSTGRES_INTERNAL_SSL_MODE:-}" "disable"
-  ensure_value "POSTGRES_CLIENT_CA_HOST_PATH" "${POSTGRES_CLIENT_CA_HOST_PATH:-}" ""
-else
-  ensure_prod_default "DATABASE_URL" "${DATABASE_URL:-}" "postgres://stuhelper_app:REPLACE_WITH_STUHELPER_APP_DB_PASSWORD@postgres:5432/stuhelper?sslmode=verify-full&sslrootcert=/tls/ca.crt" "postgres://stuhelper:dev123@localhost:5432/stuhelper?sslmode=disable" "postgres://stuhelper_app:REPLACE_WITH_STUHELPER_APP_DB_PASSWORD@localhost:5432/stuhelper?sslmode=disable"
-  ensure_prod_default "BACKUP_DATABASE_URL" "${BACKUP_DATABASE_URL:-}" "postgres://stuhelper_backup:REPLACE_WITH_STUHELPER_BACKUP_DB_PASSWORD@postgres:5432/stuhelper?sslmode=verify-full&sslrootcert=/tls/ca.crt"
-  ensure_prod_default "REPLICATION_DATABASE_URL" "${REPLICATION_DATABASE_URL:-}" "postgres://stuhelper_replication:REPLACE_WITH_STUHELPER_REPLICATION_DB_PASSWORD@postgres:5432/stuhelper?sslmode=verify-full&sslrootcert=/tls/ca.crt"
-  ensure_prod_default "DB_SSL_MODE" "${DB_SSL_MODE:-}" "verify-full" "require" "disable"
-  ensure_prod_default "DB_SSL_ROOT_CERT" "${DB_SSL_ROOT_CERT:-}" "/tls/ca.crt"
-  ensure_prod_default "POSTGRES_ENABLE_SSL" "${POSTGRES_ENABLE_SSL:-}" "on" "off"
-  ensure_prod_default "POSTGRES_INTERNAL_SSL_MODE" "${POSTGRES_INTERNAL_SSL_MODE:-}" "verify-full" "require" "disable"
-  ensure_value "POSTGRES_CLIENT_CA_HOST_PATH" "${POSTGRES_CLIENT_CA_HOST_PATH:-}" ""
-fi
+ensure_prod_default \
+  "DATABASE_URL" \
+  "${DATABASE_URL:-}" \
+  "postgres://stuhelper_app:REPLACE_WITH_STUHELPER_APP_DB_PASSWORD@postgres:5432/stuhelper?sslmode=verify-full&sslrootcert=/tls/ca.crt" \
+  "postgres://stuhelper:dev123@localhost:5432/stuhelper?sslmode=disable" \
+  "postgres://stuhelper_app:REPLACE_WITH_STUHELPER_APP_DB_PASSWORD@localhost:5432/stuhelper?sslmode=disable" \
+  "postgres://stuhelper_app:REPLACE_WITH_STUHELPER_APP_DB_PASSWORD@postgres:5432/stuhelper?sslmode=disable"
+ensure_prod_default \
+  "BACKUP_DATABASE_URL" \
+  "${BACKUP_DATABASE_URL:-}" \
+  "postgres://stuhelper_backup:REPLACE_WITH_STUHELPER_BACKUP_DB_PASSWORD@postgres:5432/stuhelper?sslmode=verify-full&sslrootcert=/tls/ca.crt" \
+  "postgres://stuhelper_backup:REPLACE_WITH_STUHELPER_BACKUP_DB_PASSWORD@postgres:5432/stuhelper?sslmode=disable"
+ensure_prod_default \
+  "REPLICATION_DATABASE_URL" \
+  "${REPLICATION_DATABASE_URL:-}" \
+  "postgres://stuhelper_replication:REPLACE_WITH_STUHELPER_REPLICATION_DB_PASSWORD@postgres:5432/stuhelper?sslmode=verify-full&sslrootcert=/tls/ca.crt" \
+  "postgres://stuhelper_replication:REPLACE_WITH_STUHELPER_REPLICATION_DB_PASSWORD@postgres:5432/stuhelper?sslmode=disable"
+ensure_prod_default "DB_SSL_MODE" "${DB_SSL_MODE:-}" "verify-full" "require" "disable"
+ensure_prod_default "DB_SSL_ROOT_CERT" "${DB_SSL_ROOT_CERT:-}" "/tls/ca.crt"
+ensure_prod_default "POSTGRES_ENABLE_SSL" "${POSTGRES_ENABLE_SSL:-}" "on" "off"
+ensure_prod_default "POSTGRES_INTERNAL_SSL_MODE" "${POSTGRES_INTERNAL_SSL_MODE:-}" "verify-full" "require" "disable"
+ensure_value "POSTGRES_CLIENT_CA_HOST_PATH" "${POSTGRES_CLIENT_CA_HOST_PATH:-}" ""
 ensure_prod_default "POSTGRES_PGDATA" "${POSTGRES_PGDATA:-}" "/var/lib/postgresql/data" "/var/lib/postgresql/18/docker"
 ensure_value "POSTGRES_ARCHIVE_MODE" "${POSTGRES_ARCHIVE_MODE:-}" "off"
 ensure_value "POSTGRES_ARCHIVE_TIMEOUT" "${POSTGRES_ARCHIVE_TIMEOUT:-}" "15min"
@@ -269,7 +270,6 @@ ensure_prod_default "CASDOOR_PUBLIC_AUTH_BASE_URL" "${CASDOOR_PUBLIC_AUTH_BASE_U
 ensure_prod_default "CASDOOR_REDIRECT_URI" "${CASDOOR_REDIRECT_URI:-}" "https://stuhelper.com/api/v1/auth/callback" "REPLACE_WITH_CASDOOR_REDIRECT_URI" "http://localhost:8080/api/v1/auth/callback"
 ensure_prod_default "CASDOOR_CLIENT_ID" "${CASDOOR_CLIENT_ID:-}" "REPLACE_WITH_CASDOOR_CLIENT_ID" "stuhelper-web"
 ensure_value "CASDOOR_ORGANIZATION" "${CASDOOR_ORGANIZATION:-}" "stuhelper"
-ensure_value "CASDOOR_ROLES_CLAIM" "${CASDOOR_ROLES_CLAIM:-}" "roles"
 ensure_prod_default "CASDOOR_BOOTSTRAP_ENABLED" "${CASDOOR_BOOTSTRAP_ENABLED:-}" "true" "false"
 ensure_value "CASDOOR_BOOTSTRAP_ENV_FILE" "${CASDOOR_BOOTSTRAP_ENV_FILE:-}" ".env.casdoor-bootstrap.local"
 ensure_value "CASDOOR_ADMIN_CLIENT_ID" "${CASDOOR_ADMIN_CLIENT_ID:-}" "stuhelper-admin"
@@ -347,8 +347,6 @@ ensure_prod_default "CASDOOR_USER_PROFILE_CLIENT_ID" "${CASDOOR_USER_PROFILE_CLI
 ensure_prod_default "CASDOOR_USER_PROFILE_APPLICATION" "${CASDOOR_USER_PROFILE_APPLICATION:-}" "casdoor-admin-user-profile" "REPLACE_WITH_CASDOOR_USER_PROFILE_APPLICATION"
 ensure_prod_default "CASDOOR_INTROSPECTION_CLIENT_ID" "${CASDOOR_INTROSPECTION_CLIENT_ID:-}" "casdoor-token-introspection" "REPLACE_WITH_CASDOOR_INTROSPECTION_CLIENT_ID"
 ensure_prod_default "CASDOOR_INTROSPECTION_APPLICATION" "${CASDOOR_INTROSPECTION_APPLICATION:-}" "casdoor-token-introspection" "REPLACE_WITH_CASDOOR_INTROSPECTION_APPLICATION"
-ensure_prod_default "CASDOOR_ROLE_SYNC_CLIENT_ID" "${CASDOOR_ROLE_SYNC_CLIENT_ID:-}" "casdoor-admin-role-sync" "REPLACE_WITH_CASDOOR_ROLE_SYNC_CLIENT_ID"
-ensure_prod_default "CASDOOR_ROLE_SYNC_APPLICATION" "${CASDOOR_ROLE_SYNC_APPLICATION:-}" "casdoor-admin-role-sync" "REPLACE_WITH_CASDOOR_ROLE_SYNC_APPLICATION"
 ensure_prod_default "CASDOOR_USER_LOOKUP_CLIENT_ID" "${CASDOOR_USER_LOOKUP_CLIENT_ID:-}" "casdoor-admin-user-lookup" "REPLACE_WITH_CASDOOR_USER_LOOKUP_CLIENT_ID"
 ensure_prod_default "CASDOOR_USER_LOOKUP_APPLICATION" "${CASDOOR_USER_LOOKUP_APPLICATION:-}" "casdoor-admin-user-lookup" "REPLACE_WITH_CASDOOR_USER_LOOKUP_APPLICATION"
 ensure_prod_default "CASDOOR_TOKEN_PROBE_SMOKE_CLIENT_ID" "${CASDOOR_TOKEN_PROBE_SMOKE_CLIENT_ID:-}" "casdoor-token-probe-smoke" "REPLACE_WITH_CASDOOR_TOKEN_PROBE_SMOKE_CLIENT_ID"

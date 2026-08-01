@@ -26,7 +26,7 @@ func TestCacheRefreshContextUsesServiceLifecycleContext(t *testing.T) {
 	lifecycleCtx, cancelLifecycle := context.WithCancel(context.Background())
 	cancelLifecycle()
 
-	service := &Service{asyncCtx: lifecycleCtx}
+	service := &Service{backgroundCtx: lifecycleCtx}
 	ctx, cancel := service.cacheRefreshContext(context.Background(), time.Second)
 	defer cancel()
 

@@ -23,6 +23,7 @@ export const ADMIN_MESSAGE_KEYS = Object.freeze([
   'freshmanBlacklistReleaseCommandDescription',
   'commandAccessDenied',
   'adminCommandsDisabled',
+  'guardGuildContextRequired',
   'guardWarningMissingContext',
   'guardBatchMuteGroupOnly',
   'guardBatchMuteInvalidPayload',

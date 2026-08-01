@@ -14,7 +14,16 @@ import (
 // CreateIdentity 创建实名认证记录
 func (r *Repository) CreateIdentity(ctx context.Context, identity *IdentityRecord) error {
 	ctx = withDBTable(ctx, "user_identities")
-	_, err := r.db.Exec(ctx, `
+	return createIdentity(ctx, r.db.Exec, identity, "CreateIdentity")
+}
+
+func (r *Repository) CreateIdentityTx(ctx context.Context, tx pgx.Tx, identity *IdentityRecord) error {
+	ctx = withDBTable(ctx, "user_identities")
+	return createIdentity(ctx, tx.Exec, identity, "CreateIdentityTx")
+}
+
+func createIdentity(ctx context.Context, exec execFn, identity *IdentityRecord, op string) error {
+	_, err := exec(ctx, `
 		INSERT INTO user_identities (
 			user_id, doc_type, doc_number_enc, person_uid, real_name,
 			verified, verify_method, reviewed_at, verified_at,
@@ -27,7 +36,7 @@ func (r *Repository) CreateIdentity(ctx context.Context, identity *IdentityRecor
 		identity.RejectionReason,
 	)
 	if err != nil {
-		return fmt.Errorf("CreateIdentity: %w", err)
+		return fmt.Errorf("%s: %w", op, err)
 	}
 	return nil
 }
@@ -35,7 +44,16 @@ func (r *Repository) CreateIdentity(ctx context.Context, identity *IdentityRecor
 // UpdateIdentitySubmission 覆盖已驳回的实名认证提交内容，并重置审核状态。
 func (r *Repository) UpdateIdentitySubmission(ctx context.Context, identity *IdentityRecord) error {
 	ctx = withDBTable(ctx, "user_identities")
-	tag, err := r.db.Exec(ctx, `
+	return updateIdentitySubmission(ctx, r.db.Exec, identity, "UpdateIdentitySubmission")
+}
+
+func (r *Repository) UpdateIdentitySubmissionTx(ctx context.Context, tx pgx.Tx, identity *IdentityRecord) error {
+	ctx = withDBTable(ctx, "user_identities")
+	return updateIdentitySubmission(ctx, tx.Exec, identity, "UpdateIdentitySubmissionTx")
+}
+
+func updateIdentitySubmission(ctx context.Context, exec execFn, identity *IdentityRecord, op string) error {
+	tag, err := exec(ctx, `
 		UPDATE user_identities SET
 			doc_type = $2,
 			doc_number_enc = $3,
@@ -57,7 +75,7 @@ func (r *Repository) UpdateIdentitySubmission(ctx context.Context, identity *Ide
 		identity.RejectionReason,
 	)
 	if err != nil {
-		return fmt.Errorf("UpdateIdentitySubmission: %w", err)
+		return fmt.Errorf("%s: %w", op, err)
 	}
 	if tag.RowsAffected() == 0 {
 		return ErrIdentityNotFound
@@ -65,17 +83,17 @@ func (r *Repository) UpdateIdentitySubmission(ctx context.Context, identity *Ide
 	return nil
 }
 
-// GetIdentityStatusByUserID 根据用户ID获取实名认证状态（最小字段集，不含 doc_number_enc/person_uid）
-func (r *Repository) GetIdentityStatusByUserID(ctx context.Context, userID int64) (*IdentityStatus, error) {
-	ctx = withDBTable(ctx, "user_identities")
-	var item IdentityStatus
-	err := r.db.QueryRow(ctx, `
+const selectIdentityStatusByUserIDSQL = `
 		SELECT user_id, doc_type, real_name,
 		       verified, verify_method, reviewed_at, verified_at,
 		       rejection_reason, created_at, updated_at
 		FROM user_identities
 		WHERE user_id = $1
-	`, userID).Scan(
+`
+
+func scanIdentityStatus(row rowScanner) (*IdentityStatus, error) {
+	var item IdentityStatus
+	err := row.Scan(
 		&item.UserID, &item.DocType, &item.RealName,
 		&item.Verified, &item.VerifyMethod, &item.ReviewedAt, &item.VerifiedAt,
 		&item.RejectionReason, &item.CreatedAt, &item.UpdatedAt,
@@ -84,9 +102,40 @@ func (r *Repository) GetIdentityStatusByUserID(ctx context.Context, userID int64
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("GetIdentityStatusByUserID: %w", err)
+		return nil, err
 	}
 	return &item, nil
+}
+
+// GetIdentityStatusByUserID 根据用户ID获取实名认证状态（最小字段集，不含 doc_number_enc/person_uid）
+func (r *Repository) GetIdentityStatusByUserID(ctx context.Context, userID int64) (*IdentityStatus, error) {
+	ctx = withDBTable(ctx, "user_identities")
+	item, err := scanIdentityStatus(r.db.QueryRow(ctx, selectIdentityStatusByUserIDSQL, userID))
+	if err != nil {
+		return nil, fmt.Errorf("GetIdentityStatusByUserID: %w", err)
+	}
+	return item, nil
+}
+
+// GetIdentityStatusByUserIDTx serializes submissions per user and locks an
+// existing identity row so concurrent submission/review transitions cannot
+// overwrite one another.
+func (r *Repository) GetIdentityStatusByUserIDTx(ctx context.Context, tx pgx.Tx, userID int64) (*IdentityStatus, error) {
+	ctx = withDBTable(ctx, "user_identities")
+	var lockedUserID int64
+	if err := tx.QueryRow(ctx, `
+		SELECT id
+		FROM users
+		WHERE id = $1
+		FOR UPDATE
+	`, userID).Scan(&lockedUserID); err != nil {
+		return nil, fmt.Errorf("GetIdentityStatusByUserIDTx lock user: %w", err)
+	}
+	item, err := scanIdentityStatus(tx.QueryRow(ctx, selectIdentityStatusByUserIDSQL+` FOR UPDATE`, userID))
+	if err != nil {
+		return nil, fmt.Errorf("GetIdentityStatusByUserIDTx: %w", err)
+	}
+	return item, nil
 }
 
 // ListIdentityReviewItems 分页查询实名认证审核列表（不含 doc_number_enc/person_uid）
@@ -119,7 +168,6 @@ func (r *Repository) ListIdentityReviewItems(ctx context.Context, status string,
 	rows, err := r.db.Query(ctx, `
 		SELECT user_id, doc_type, real_name,
 		       verified, verify_method, reviewed_at, verified_at,
-		       doc_photo_front, doc_photo_back, doc_photo_selfie,
 		       rejection_reason, created_at, updated_at
 		FROM user_identities
 	`+whereClause+`
@@ -137,7 +185,6 @@ func (r *Repository) ListIdentityReviewItems(ctx context.Context, status string,
 		if err := rows.Scan(
 			&item.UserID, &item.DocType, &item.RealName,
 			&item.Verified, &item.VerifyMethod, &item.ReviewedAt, &item.VerifiedAt,
-			&item.DocPhotoFront, &item.DocPhotoBack, &item.DocPhotoSelfie,
 			&item.RejectionReason, &item.CreatedAt, &item.UpdatedAt,
 		); err != nil {
 			return nil, 0, fmt.Errorf("ListIdentityReviewItems scan: %w", err)
@@ -148,6 +195,33 @@ func (r *Repository) ListIdentityReviewItems(ctx context.Context, status string,
 		return nil, 0, fmt.Errorf("ListIdentityReviewItems rows: %w", err)
 	}
 	return list, total, nil
+}
+
+// GetIdentityReviewItemByUserID 查询单条实名认证审核详情。
+// 仅详情链路加载照片对象 key；不读取加密证件号或 person_uid。
+func (r *Repository) GetIdentityReviewItemByUserID(ctx context.Context, userID int64) (*IdentityReviewItem, error) {
+	ctx = withDBTable(ctx, "user_identities")
+	var item IdentityReviewItem
+	err := r.db.QueryRow(ctx, `
+		SELECT user_id, doc_type, real_name,
+		       verified, verify_method, reviewed_at, verified_at,
+		       doc_photo_front, doc_photo_back, doc_photo_selfie,
+		       rejection_reason, created_at, updated_at
+		FROM user_identities
+		WHERE user_id = $1
+	`, userID).Scan(
+		&item.UserID, &item.DocType, &item.RealName,
+		&item.Verified, &item.VerifyMethod, &item.ReviewedAt, &item.VerifiedAt,
+		&item.DocPhotoFront, &item.DocPhotoBack, &item.DocPhotoSelfie,
+		&item.RejectionReason, &item.CreatedAt, &item.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("GetIdentityReviewItemByUserID: %w", err)
+	}
+	return &item, nil
 }
 
 // UpdateIdentityReviewStatus 精准更新实名认证审核状态（只更新状态字段，不触碰敏感字段）
@@ -170,12 +244,21 @@ func (r *Repository) UpdateIdentityReviewStatus(
 			rejection_reason = $6,
 			updated_at = NOW()
 		WHERE user_id = $1
+		  AND verified = false
+		  AND reviewed_at IS NULL
+		  AND (
+		    NOT $2
+		    OR (
+		      NULLIF(BTRIM(doc_photo_front), '') IS NOT NULL
+		      AND NULLIF(BTRIM(doc_photo_selfie), '') IS NOT NULL
+		    )
+		  )
 	`, userID, approved, verifyMethod, reviewedAt, verifiedAt, rejectionReason)
 	if err != nil {
 		return fmt.Errorf("UpdateIdentityReviewStatus: %w", err)
 	}
 	if tag.RowsAffected() == 0 {
-		return ErrIdentityNotFound
+		return ErrVerificationReviewStateConflict
 	}
 	return nil
 }

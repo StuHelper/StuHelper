@@ -37,6 +37,28 @@ func TestExternalStudentDirectoryAdapterMapsSourceFailureToDependencyError(t *te
 	require.ErrorIs(t, err, sourceErr)
 }
 
+func TestExternalStudentDirectoryAdapterKeepsIntegrityErrorsOnDependencyContract(t *testing.T) {
+	registry, err := externaldata.NewStudentDirectoryRegistry([]externaldata.StudentSource{{
+		Name:       "test",
+		SchoolCode: "4111010006",
+		Directory: fakeExternalDirectorySource{
+			err: externaldata.ErrStudentSourceInvalidRecord,
+		},
+	}})
+	require.NoError(t, err)
+
+	record, handled, err := newExternalStudentDirectoryAdapter(registry).LookupStudent(
+		context.Background(),
+		"4111010006",
+		"20250001",
+	)
+
+	require.Nil(t, record)
+	require.True(t, handled)
+	require.ErrorIs(t, err, user.ErrAcademicLookupUnavailable)
+	require.ErrorIs(t, err, externaldata.ErrStudentSourceInvalidRecord)
+}
+
 func (s fakeExternalDirectorySource) LookupStudent(context.Context, string) (*externaldata.StudentRecord, error) {
 	return s.record, s.err
 }

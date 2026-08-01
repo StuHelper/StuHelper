@@ -10,7 +10,79 @@ source "${SCRIPT_DIR}/lib/retired-idp-env.sh"
 require_cmd python3
 export STUHELPER_PRESERVE_POSTGRES_URL_PLACEHOLDERS=true
 
+if [[ "${DEV_CRYPTO_STATE_FILE+x}" == "x" ]]; then
+  dev_crypto_state_file="${DEV_CRYPTO_STATE_FILE}"
+elif [[ "${ENV_FILE}" == "${REPO_ROOT}/.env" ]]; then
+  dev_crypto_state_file="${LOCAL_STATE_DIR}/dev/crypto.env"
+else
+  dev_crypto_state_file=""
+fi
+
+restore_dev_crypto_state() {
+  [[ -n "${dev_crypto_state_file}" ]] || return 0
+  [[ ! -L "${dev_crypto_state_file}" ]] ||
+    die "development crypto state must not be a symlink: ${dev_crypto_state_file}"
+  [[ -f "${dev_crypto_state_file}" ]] || return 0
+
+  local current_hmac_secret="${HMAC_SECRET-}"
+  local current_doc_aes_active_key_id="${DOC_AES_ACTIVE_KEY_ID-}"
+  local current_doc_aes_keys="${DOC_AES_KEYS-}"
+  local stored_hmac_secret=""
+  local stored_doc_aes_active_key_id=""
+  local stored_doc_aes_keys=""
+
+  source_env_file "${dev_crypto_state_file}"
+  stored_hmac_secret="${HMAC_SECRET-}"
+  stored_doc_aes_active_key_id="${DOC_AES_ACTIVE_KEY_ID-}"
+  stored_doc_aes_keys="${DOC_AES_KEYS-}"
+
+  HMAC_SECRET="${current_hmac_secret}"
+  DOC_AES_ACTIVE_KEY_ID="${current_doc_aes_active_key_id}"
+  DOC_AES_KEYS="${current_doc_aes_keys}"
+
+  [[ -n "${stored_hmac_secret}" ]] ||
+    die "development crypto state is missing HMAC_SECRET: ${dev_crypto_state_file}"
+  [[ -n "${stored_doc_aes_active_key_id}" ]] ||
+    die "development crypto state is missing DOC_AES_ACTIVE_KEY_ID: ${dev_crypto_state_file}"
+  [[ -n "${stored_doc_aes_keys}" ]] ||
+    die "development crypto state is missing DOC_AES_KEYS: ${dev_crypto_state_file}"
+
+  upsert_env_file "${ENV_FILE}" "HMAC_SECRET" "${stored_hmac_secret}"
+  upsert_env_file "${ENV_FILE}" "DOC_AES_ACTIVE_KEY_ID" "${stored_doc_aes_active_key_id}"
+  upsert_env_file "${ENV_FILE}" "DOC_AES_KEYS" "${stored_doc_aes_keys}"
+  log "restored stable development crypto keys from ${dev_crypto_state_file}"
+}
+
+persist_dev_crypto_state() {
+  [[ -n "${dev_crypto_state_file}" ]] || return 0
+  [[ -n "${HMAC_SECRET:-}" ]] || die "HMAC_SECRET is required before persisting development crypto state"
+  [[ -n "${DOC_AES_ACTIVE_KEY_ID:-}" ]] || die "DOC_AES_ACTIVE_KEY_ID is required before persisting development crypto state"
+  [[ -n "${DOC_AES_KEYS:-}" ]] || die "DOC_AES_KEYS is required before persisting development crypto state"
+
+  local state_dir
+  local state_tmp
+  state_dir="$(dirname "${dev_crypto_state_file}")"
+  [[ ! -L "${state_dir}" ]] ||
+    die "development crypto state directory must not be a symlink: ${state_dir}"
+  [[ ! -L "${dev_crypto_state_file}" ]] ||
+    die "development crypto state must not be a symlink: ${dev_crypto_state_file}"
+
+  mkdir -p "${state_dir}"
+  chmod 700 "${state_dir}"
+  state_tmp="$(mktemp "${dev_crypto_state_file}.XXXXXX")"
+  (
+    umask 077
+    printf 'HMAC_SECRET=%s\n' "${HMAC_SECRET}"
+    printf 'DOC_AES_ACTIVE_KEY_ID=%s\n' "${DOC_AES_ACTIVE_KEY_ID}"
+    printf 'DOC_AES_KEYS=%s\n' "${DOC_AES_KEYS}"
+  ) >"${state_tmp}"
+  chmod 600 "${state_tmp}"
+  mv -f "${state_tmp}" "${dev_crypto_state_file}"
+  log "persisted stable development crypto keys to ${dev_crypto_state_file}"
+}
+
 ensure_env_file
+restore_dev_crypto_state
 ensure_generated_files
 remove_retired_idp_env_files "${ENV_FILE}" "${GENERATED_ENV_FILE}" "${GENERATED_SECRET_ENV_FILE}"
 remove_env_key_prefixes_from_file "${ENV_FILE}" "TRAEFIK_"
@@ -213,15 +285,6 @@ fi
 if placeholder_or_empty "${CASDOOR_INTROSPECTION_APPLICATION:-}"; then
   upsert_env_file "${ENV_FILE}" "CASDOOR_INTROSPECTION_APPLICATION" "casdoor-token-introspection"
 fi
-if placeholder_or_empty "${CASDOOR_ROLE_SYNC_CLIENT_ID:-}"; then
-  upsert_env_file "${ENV_FILE}" "CASDOOR_ROLE_SYNC_CLIENT_ID" "casdoor-admin-role-sync"
-fi
-if placeholder_or_empty "${CASDOOR_ROLE_SYNC_CLIENT_SECRET:-}"; then
-  upsert_env_file "${ENV_FILE}" "CASDOOR_ROLE_SYNC_CLIENT_SECRET" "dev-casdoor-role-sync-$(random_hex 16)"
-fi
-if placeholder_or_empty "${CASDOOR_ROLE_SYNC_APPLICATION:-}"; then
-  upsert_env_file "${ENV_FILE}" "CASDOOR_ROLE_SYNC_APPLICATION" "casdoor-admin-role-sync"
-fi
 if placeholder_or_empty "${CASDOOR_USER_LOOKUP_CLIENT_ID:-}"; then
   upsert_env_file "${ENV_FILE}" "CASDOOR_USER_LOOKUP_CLIENT_ID" "casdoor-admin-user-lookup"
 fi
@@ -309,6 +372,7 @@ replace_legacy_env_value "PROD_PARITY_POSTGRES_PORT" "${PROD_PARITY_POSTGRES_POR
 replace_legacy_env_value "SHARED_POSTGRES_SUPERUSER" "${SHARED_POSTGRES_SUPERUSER:-}" "" "postgres"
 replace_legacy_env_value "SHARED_POSTGRES_DB" "${SHARED_POSTGRES_DB:-}" "" "postgres"
 replace_legacy_env_value "POSTGRES_HOST" "${POSTGRES_HOST:-}" "localhost" "postgres"
+replace_legacy_env_value "REDIS_TLS_ENABLED" "${REDIS_TLS_ENABLED:-}" "true" "false"
 replace_legacy_env_value "PUBLIC_INGRESS_CASDOOR_UPSTREAM_PREFLIGHT_ENABLED" "${PUBLIC_INGRESS_CASDOOR_UPSTREAM_PREFLIGHT_ENABLED:-}" "false" "true"
 replace_legacy_env_value "OPEN_PLATFORM_PRODUCTION_EVIDENCE_ALLOW_LOCAL_TARGETS" "${OPEN_PLATFORM_PRODUCTION_EVIDENCE_ALLOW_LOCAL_TARGETS:-}" "false" "true"
 replace_legacy_env_value "OTEL_EXPORTER_OTLP_ENDPOINT" "${OTEL_EXPORTER_OTLP_ENDPOINT:-}" "http://localhost:4318" "http://alloy:4318"
@@ -340,7 +404,6 @@ ensure_dev_default "CASDOOR_PUBLIC_AUTH_BASE_URL" "${CASDOOR_PUBLIC_AUTH_BASE_UR
 ensure_dev_default "CASDOOR_REDIRECT_URI" "${CASDOOR_REDIRECT_URI:-}" "http://localhost:8080/api/v1/auth/callback" "http://127.0.0.1:28080/api/v1/auth/callback" "http://stuhelper.com/api/v1/auth/callback" "https://stuhelper.com/api/v1/auth/callback"
 ensure_dev_default "CASDOOR_ADDITIONAL_REDIRECT_URIS" "${CASDOOR_ADDITIONAL_REDIRECT_URIS:-}" "http://localhost:3000/api/v1/auth/callback,http://127.0.0.1:3000/api/v1/auth/callback,http://join.localhost:3000/api/v1/auth/callback" "http://localhost:28000/api/v1/auth/callback,http://127.0.0.1:28000/api/v1/auth/callback,http://join.localhost:28000/api/v1/auth/callback"
 ensure_value "CASDOOR_ORGANIZATION" "${CASDOOR_ORGANIZATION:-}" "stuhelper"
-ensure_value "CASDOOR_ROLES_CLAIM" "${CASDOOR_ROLES_CLAIM:-}" "roles"
 ensure_dev_default "CASDOOR_BOOTSTRAP_ENABLED" "${CASDOOR_BOOTSTRAP_ENABLED:-}" "false" "true"
 ensure_dev_pattern_default "CASDOOR_BOOTSTRAP_ENV_FILE" "${CASDOOR_BOOTSTRAP_ENV_FILE:-}" ".env.casdoor-bootstrap.local" "*/.run/prod-parity/.env.casdoor-bootstrap.local"
 ensure_dev_default "CASDOOR_ADMIN_REDIRECT_URI" "${CASDOOR_ADMIN_REDIRECT_URI:-}" "http://localhost:8080/api/v1/auth/callback" "http://127.0.0.1:28080/api/v1/auth/callback" "http://stuhelper.com/api/v1/auth/callback" "https://stuhelper.com/api/v1/auth/callback"
@@ -429,6 +492,8 @@ ensure_dev_pattern_default "BACKEND_IMAGE_REF" "${BACKEND_IMAGE_REF:-}" "stuhelp
 ensure_dev_pattern_default "FRONTEND_IMAGE_REF" "${FRONTEND_IMAGE_REF:-}" "stuhelper/frontend:dev-placeholder" "stuhelper/frontend:prod-parity-*"
 ensure_dev_pattern_default "ADMIN_IMAGE_REF" "${ADMIN_IMAGE_REF:-}" "stuhelper/admin:dev-placeholder" "stuhelper/admin:prod-parity-*"
 
+load_env
+persist_dev_crypto_state
 "${SCRIPT_DIR}/render-redis-tls.sh"
 "${SCRIPT_DIR}/render-redis-acl.sh"
 "${SCRIPT_DIR}/prepare-datastore-client-cas.sh"

@@ -2,8 +2,8 @@
 type: guide
 audience: ops
 status: current
-authoritative-source: docker-compose.prod.yml + infra/ops/*.sh + infra/nginx/baota-stuhelper.conf
-last-verified: 2026-05-30
+authoritative-source: docker-compose.prod.yml + infra/ops/*.sh + infra/nginx/baota-stuhelper.conf + server/migrations/ + server/internal/app/modules.go
+last-verified: 2026-08-01
 ---
 
 # 生产上线缺漏清单与执行指导
@@ -171,13 +171,13 @@ sudo ./infra/ops/apply-baota-nginx-templates.sh --profile sso --apply --reload -
 
 北航老生学号邮箱 OTP 使用外部只读 Oracle 学籍源。Oracle DBA 必须提供启用 TCPS 的监听器和证书，证书 SAN 必须覆盖 `EXTERNAL_STUDENT_SOURCE_ORACLE_HOST`；应用固定使用 `EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_MODE=verify-full`，默认端口 `2484`，并从 `EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_HOST_PATH` 复制公开 CA 到只读容器路径 `/external-student-source-tls/ca.crt`。该挂载不得包含数据库文件、服务端私钥或 CA 私钥。
 
-生产 secret backend 中启用 `EXTERNAL_STUDENT_SOURCE_ENABLED=true`，配置 `EXTERNAL_STUDENT_SOURCE_PROVIDER=oracle`、`EXTERNAL_STUDENT_SOURCE_SCHOOL_CODE=4111010006`、host/service/user/password/schema/table/column、连接超时、查询超时和连接池参数。密码只能存在于 secret backend。运行账号不得使用 `SYS` 或 `SYSTEM`；在 Oracle 源端通过 `EXTERNAL_STUDENT_SOURCE_ORACLE_READONLY_PASSWORD=<secret> ./infra/ops/provision-external-student-source-oracle-readonly.sh` 管理专用账号，只授予 `CREATE SESSION` 和 `USR_JWBIZ.T_XS_JBXX` 的 `SELECT`。应用只查询 `XH` 与 `XM`，单次学号查询最多读取两行，并拒绝空值、不一致学号、冲突姓名和非法字符。
+生产 secret backend 中启用 `EXTERNAL_STUDENT_SOURCE_ENABLED=true`，配置 `EXTERNAL_STUDENT_SOURCE_PROVIDER=oracle`、`EXTERNAL_STUDENT_SOURCE_SCHOOL_CODE=4111010006`、host/service/user/password/schema/table/column、连接超时、查询超时和连接池参数。密码只能存在于 secret backend。运行账号必须与源 schema owner 不同，且不得使用 `SYS`、`SYSTEM`、`SYSBACKUP`、`SYSDG`、`SYSKM` 或 `SYSRAC`；在 Oracle 源端通过 `EXTERNAL_STUDENT_SOURCE_ORACLE_READONLY_PASSWORD=<secret> ./infra/ops/provision-external-student-source-oracle-readonly.sh` 管理专用账号。脚本会拒绝任何 role、列级授权或额外系统/对象权限，只允许直接授予无 `ADMIN OPTION` 的 `CREATE SESSION`，以及 `USR_JWBIZ.T_XS_JBXX` 上无 `GRANT OPTION`、无 `HIERARCHY OPTION` 的 `SELECT`。应用只查询 `XH` 与 `XM`，单次学号查询最多读取两行，并拒绝空值、不一致学号、冲突姓名和非法字符。
 
-运行时默认使用 4 个最大连接、1 个空闲连接、300 秒连接寿命和 60 秒空闲寿命。熔断参数由 `EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_FAILURE_THRESHOLD=5`、`EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_SUCCESS_THRESHOLD=2`、`EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_OPEN_SECONDS=30` 控制；半开状态只允许一个恢复探测。Oracle 超时、TLS、查询或数据完整性故障记录到 `external_requests_total{client="oracle_student_directory"}` 和 `circuit_breaker_state`，User 与 Admission 接口返回 503，不把依赖故障伪装成“学号姓名不匹配”。
+运行时默认使用 4 个最大连接、1 个空闲连接、300 秒连接寿命和 60 秒空闲寿命。熔断参数由 `EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_FAILURE_THRESHOLD=5`、`EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_SUCCESS_THRESHOLD=2`、`EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_OPEN_SECONDS=30` 控制；半开状态只允许一个恢复探测。Oracle 内部查询超时、TLS、连接、驱动或返回学号与绑定参数不一致等源级故障会增加 breaker failure；调用方取消/截止以及单条记录缺字段、非法姓名或冲突重复行属于 neutral outcome，既不增加也不重置健康计数，并会释放已占用的半开探针。所有失败请求仍记录到 `external_requests_total{client="oracle_student_directory"}`；三类固定的数据完整性原因另记录到 `external_data_integrity_errors_total{client="oracle_student_directory",reason=~"invalid_record|ambiguous_record|identity_mismatch"}`。User 与 Admission 接口继续返回 503，不把依赖或源数据故障伪装成“学号姓名不匹配”。
 
 `./infra/ops/admission-student-source-go-live.sh` 是统一上线入口：外部源模式先运行 `external-student-source-smoke.sh`，本地 TSV 模式先校验再导入 `BUAA_ACADEMIC_STUDENTS_TSV`，随后统一运行 `admission-production-readiness.sh`。readiness summary 必须标记 `buaa_student_source=external_oracle`，并留档 `infra/generated/external-student-source-smoke.json`。需要抽样校验时，在 secret backend 设置 `EXTERNAL_STUDENT_SOURCE_SMOKE_REQUIRE_SAMPLE=true`、`EXTERNAL_STUDENT_SOURCE_SMOKE_STUDENT_ID` 和可选 `EXTERNAL_STUDENT_SOURCE_SMOKE_EXPECTED_NAME`；evidence 只保留学号哈希前缀、TLS 验证状态和匹配布尔值，不记录原始学号、姓名或密码。
 
-如果暂时没有可用 Oracle 外部源，才使用本地 fallback 表 `academic.buaa_students`。拿到真实 TSV 后，先用 `BUAA_ACADEMIC_VALIDATE_ONLY=true BUAA_ACADEMIC_STUDENTS_TSV=/path/to/buaa-students.tsv ./infra/ops/import-buaa-academic-students.sh` 做离线校验，再用 `BUAA_ACADEMIC_STUDENTS_TSV=/path/to/buaa-students.tsv ./infra/ops/import-buaa-academic-students.sh` 导入。TSV 至少包含 `xh` 和 `xm` 列，也接受 `学号` 和 `姓名` 列名；可选列包括 `sfzjlxdm`、`sfzjh_hash`、`yxdm`、`zydm`、`bjdm`、`xznj`、`rxnj`、`pyccdm`、`xslbdm`、`sjh`、`dzxx`、`xjztdm`、`sfzx`、`sfzj`。脚本只做幂等 upsert，不清空旧数据，不打印学生明细。
+如果暂时没有可用 Oracle 外部源，才使用本地 fallback 表 `academic.buaa_students`。拿到真实 TSV 后，先用 `BUAA_ACADEMIC_VALIDATE_ONLY=true BUAA_ACADEMIC_STUDENTS_TSV=/path/to/buaa-students.tsv ./infra/ops/import-buaa-academic-students.sh` 做离线校验，再用 `BUAA_ACADEMIC_STUDENTS_TSV=/path/to/buaa-students.tsv ./infra/ops/import-buaa-academic-students.sh` 导入。TSV 至少包含 `xh` 和 `xm` 列，也接受 `学号` 和 `姓名` 列名；可选列包括 `sfzjlxdm`、`yxdm`、`zydm`、`bjdm`、`xznj`、`rxnj`、`pyccdm`、`xslbdm`、`sjh`、`dzxx`、`xjztdm`、`sfzx`、`sfzj`。普通 TSV 入口不接受 `sfzjh_enc` 和 `sfzjh_hash`：数据库要求二者作为安全配对原子写入，而普通 upsert 只保留已有配对。当前仓库不提供该入口；确需导入身份证件号时，必须先实现并审计一个从同一明文原子生成 AES envelope 和 HMAC 的专用工具。脚本只做幂等 upsert，不清空旧数据，不打印学生明细。
 
 ## Koishi Admission MVP 配置
 
@@ -232,6 +232,43 @@ stuhelper-core:console:
 该包必须包含 `koishi-plugin-stuhelper-core` 的 `lib/` 和 `dist/`，以及 `koishi-plugin-stuhelper-group-guard`、`koishi-plugin-stuhelper-binding`、`@stuhelper/koishi-shared`、`@stuhelper/koishi-moderation-core` 的运行时 `lib/` 产物；同时必须包含 `koishi/local-workspaces/...` 和 `koishi/STUHELPER_KOISHI_APPLY_LOCAL_WORKSPACES.cjs`，用于把 StuHelper 私有插件固定为本地 `workspace:*` 依赖，避免 Koishi Market 更新普通插件时请求 npm registry 并因 `koishi-plugin-stuhelper-core@0.0.0` 未发布而失败。否则 admission WebUI 页面或 group-guard Console API 会在生产漂移。
 
 若宝塔 Compose 环境只能手工覆盖包，也必须记录包 sha256、覆盖路径和重启步骤；源码修复必须回写到仓库。
+
+## 授权账本首次切换门禁
+
+`000024_authorization_authority_cutover` 之后，production 与 prod-parity 应用不会在切换 marker
+仍为 `pending` 时启动。标准 `prod-deploy.sh` 已固定以下顺序：数据库 migration → OpenFGA
+启动与 Casdoor/OpenFGA bootstrap → `authorization-ledger-cutover.sh` → 应用启动。不得绕过脚本
+单独启动新应用。
+
+首次升级前先确认：
+
+- 目标 Casdoor organization 中预期最高管理员是当前有效的 organization administrator；
+- 旧 scoped operator 若确实需要保留，同时具有遗留 Casdoor `school_admin` / `section_*`
+  membership 与对应 OpenFGA direct tuple；单边陈旧记录不会被导入；
+- pre-deploy PostgreSQL 备份和对象存储同步 evidence 已通过；
+- OpenFGA 旧 store ID 正确保留，不能误建空 store 后继续切换。
+
+标准发布会自动执行；需要在维护窗口独立重试时使用：
+
+```bash
+./infra/ops/authorization-ledger-cutover.sh prod
+```
+
+成功只输出非敏感 JSON：`changed`、64 位 `sourceDigest`、`importedGrantCount` 和
+`skippedTupleCount`。首次成功后 marker、每条 imported grant audit 和 projection outbox 在同一
+PostgreSQL 事务落地；重复执行返回 `changed=false` 和原 digest/count，不重复导入。fresh install
+没有 shadow user 时可以用空集合安全完成，后续 Casdoor organization administrator 在正常登录
+或 refresh 时按 ADR-0009 同步。
+
+遇到以下任一情况，脚本会中止且应用保持 fail-closed：OpenFGA 分页读取失败、tuple subject 无法
+对应本地/Casdoor 身份、Casdoor legacy role 使用嵌套 group/role/domain、pending marker 下已有
+无法安全归属的 grant，或来源 digest 冲突。此时应保留备份并逐项核对 Casdoor、OpenFGA 与 DB，
+不得直接 `UPDATE authorization_authority_cutover SET status='completed'`，也不得清空
+`authorization_grants` 强行放行。应用回滚时保留已导入 grant、audit、outbox 和 completed marker。
+
+上线 evidence 至少记录发布版本、source digest、导入/跳过数量、marker 完成时间、projection
+worker 收敛结果，以及预期管理员的实际登录/降权验证；不得记录 Casdoor token、secret 或用户
+敏感字段。
 
 ## 发布流程
 

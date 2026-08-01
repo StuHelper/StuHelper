@@ -14,16 +14,16 @@ type Department struct {
 
 // Course 课程
 type Course struct {
-	ID             int64   `json:"id"`
-	SchoolID       int64   `json:"schoolID"`
-	DepartmentID   int64   `json:"departmentID"`
-	DepartmentName string  `json:"departmentName,omitempty"`
-	Code           string  `json:"code,omitempty"`
-	Name           string  `json:"name"`
-	Credits        float64 `json:"credits,omitempty"`
-	Category       string  `json:"category"`
-	ReviewCount    int     `json:"reviewCount"`
-	IsFavorited    *bool   `json:"isFavorited,omitempty"`
+	ID             int64    `json:"id"`
+	SchoolID       int64    `json:"schoolID"`
+	DepartmentID   *int64   `json:"departmentID"`
+	DepartmentName *string  `json:"departmentName,omitempty"`
+	Code           *string  `json:"code,omitempty"`
+	Name           string   `json:"name"`
+	Credits        *float64 `json:"credits"`
+	Category       string   `json:"category"`
+	ReviewCount    int      `json:"reviewCount"`
+	IsFavorited    *bool    `json:"isFavorited,omitempty"`
 }
 
 // CourseCategory 课程分类（后台可配置）
@@ -60,7 +60,7 @@ type Stats struct {
 
 // DepartmentGroup 按院系分组的课程列表
 type DepartmentGroup struct {
-	DepartmentID   int64    `json:"departmentID"`
-	DepartmentName string   `json:"departmentName"`
+	DepartmentID   *int64   `json:"departmentID"`
+	DepartmentName *string  `json:"departmentName"`
 	Courses        []Course `json:"courses"`
 }

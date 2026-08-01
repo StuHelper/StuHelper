@@ -22,13 +22,14 @@ const (
 	CtxKeyAvatar             = "avatar"
 	CtxKeyRoles              = "roles"
 	CtxKeyTokenScopes        = "token_scopes"
-	CtxKeyOrgScopedRoles     = "org_scoped_roles" // map[string][]string — StuHelper scoped role grants
+	CtxKeyScopedRoleGrants   = "scoped_role_grants" // map[string][]string — StuHelper scoped role grants
 	CtxKeyCapabilities       = "capabilities"
 	CtxKeyGlobalCapabilities = "global_capabilities"
 	CtxKeyCapabilityGrants   = "capability_grants"
 	CtxKeyCapabilitySet      = "capability_set"       // map[string]struct{} — O(1) 查找
 	CtxKeyAuthBackendFailure = "auth_backend_failure" // OptionalAuth 后端故障诊断标记
 	CtxKeyAuthenticationTime = "authentication_time"
+	CtxKeyAccessTokenExpiry  = "access_token_expiry"
 )
 
 // authResult 认证解析结果
@@ -37,39 +38,40 @@ type authResult struct {
 	avatar                                      *string
 	tokenScopes                                 []string
 	roles                                       []string
-	orgScopedRoles                              map[string][]string
+	scopedRoleGrants                            map[string][]string
 	authTime                                    time.Time
 	mfaProofAt                                  time.Time
+	accessTokenExpiresAt                        time.Time
 }
 
-func withResolvedRoleScopes(ctx context.Context, auth *authResult, resolver RoleScopeResolver) (*authResult, error) {
-	if auth == nil || resolver == nil {
-		return auth, nil
+func withResolvedAccessSnapshot(
+	ctx context.Context,
+	auth *authResult,
+	resolver AccessSnapshotResolver,
+) (*authResult, error) {
+	if auth == nil {
+		return nil, nil
 	}
-	scopes, err := resolver.ResolveRoleScopes(ctx, auth.userID, auth.roles)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %w", errRoleScopeUnavailable, err)
-	}
-	if len(scopes) == 0 {
-		return auth, nil
-	}
+
+	// Authentication establishes only a subject. Provider role and org-scoped
+	// role claims are deliberately discarded before authorization context is built.
 	resolved := *auth
-	resolved.orgScopedRoles = mergeRoleScopes(auth.orgScopedRoles, scopes)
+	resolved.roles = []string{"user"}
+	resolved.scopedRoleGrants = nil
+	if resolver == nil {
+		return &resolved, nil
+	}
+
+	roles, scopes, err := resolver.ResolveAccessSnapshot(ctx, auth.userID)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", errAccessSnapshotUnavailable, err)
+	}
+	resolved.roles = append([]string(nil), roles...)
+	resolved.scopedRoleGrants = normalizeScopedRoleGrants(scopes)
 	return &resolved, nil
 }
 
-func mergeRoleScopes(base, overlay map[string][]string) map[string][]string {
-	merged := make(map[string][]string, len(base)+len(overlay))
-	for role, values := range base {
-		merged[role] = append([]string(nil), values...)
-	}
-	for role, values := range overlay {
-		merged[role] = append(merged[role], values...)
-	}
-	return normalizeOrgScopedRoles(merged)
-}
-
-func normalizeOrgScopedRoles(scopedRoles map[string][]string) map[string][]string {
+func normalizeScopedRoleGrants(scopedRoles map[string][]string) map[string][]string {
 	if len(scopedRoles) == 0 {
 		return nil
 	}
@@ -111,8 +113,8 @@ func normalizeOrgScopedRoles(scopedRoles map[string][]string) map[string][]strin
 // setClaimsToContext 将用户信息、角色和能力集合注入 Gin context。
 // 同时构建 capability set（map）供 HasCapability 进行 O(1) 查找。
 func setClaimsToContext(c *gin.Context, auth *authResult) {
-	orgScopedRoles := normalizeOrgScopedRoles(auth.orgScopedRoles)
-	grants := capability.ExpandRoleGrants(auth.roles, orgScopedRoles)
+	scopedRoleGrants := normalizeScopedRoleGrants(auth.scopedRoleGrants)
+	grants := capability.ExpandRoleGrants(auth.roles, scopedRoleGrants)
 	snapshot := capability.BuildUserAccessSnapshot(grants)
 	capSet := make(map[string]struct{}, len(snapshot.Capabilities))
 	for _, cap := range snapshot.Capabilities {
@@ -127,8 +129,8 @@ func setClaimsToContext(c *gin.Context, auth *authResult) {
 	setAvatarContext(c, auth.avatar)
 	c.Set(CtxKeyTokenScopes, append([]string(nil), auth.tokenScopes...))
 	c.Set(CtxKeyRoles, auth.roles)
-	if orgScopedRoles != nil {
-		c.Set(CtxKeyOrgScopedRoles, orgScopedRoles)
+	if scopedRoleGrants != nil {
+		c.Set(CtxKeyScopedRoleGrants, scopedRoleGrants)
 	}
 	c.Set(CtxKeyCapabilities, snapshot.Capabilities)
 	c.Set(CtxKeyGlobalCapabilities, snapshot.GlobalCapabilities)
@@ -136,6 +138,9 @@ func setClaimsToContext(c *gin.Context, auth *authResult) {
 	c.Set(CtxKeyCapabilitySet, capSet)
 	SetAuthenticationTime(c, auth.authTime)
 	SetMFAProofVerifiedAt(c, auth.mfaProofAt)
+	if !auth.accessTokenExpiresAt.IsZero() {
+		c.Set(CtxKeyAccessTokenExpiry, auth.accessTokenExpiresAt.UTC())
+	}
 }
 
 func setAvatarContext(c *gin.Context, avatar *string) {
@@ -155,6 +160,17 @@ func GetAppID(c *gin.Context) string {
 	return getContextString(c, CtxKeyAppID)
 }
 
+// GetAccessTokenExpiresAt returns the expiry from the token verification result.
+// A zero value means the verifier/provider did not supply a usable expiry.
+func GetAccessTokenExpiresAt(c *gin.Context) time.Time {
+	if val, exists := getContextValue(c, CtxKeyAccessTokenExpiry); exists {
+		if expiresAt, ok := val.(time.Time); ok {
+			return expiresAt.UTC()
+		}
+	}
+	return time.Time{}
+}
+
 func GetTokenScopes(c *gin.Context) []string {
 	if val, exists := getContextValue(c, CtxKeyTokenScopes); exists {
 		if scopes, ok := val.([]string); ok {
@@ -164,10 +180,10 @@ func GetTokenScopes(c *gin.Context) []string {
 	return nil
 }
 
-func GetOrgScopedRoles(c *gin.Context) map[string][]string {
-	if val, exists := getContextValue(c, CtxKeyOrgScopedRoles); exists {
+func GetScopedRoleGrants(c *gin.Context) map[string][]string {
+	if val, exists := getContextValue(c, CtxKeyScopedRoleGrants); exists {
 		if scopedRoles, ok := val.(map[string][]string); ok {
-			return normalizeOrgScopedRoles(scopedRoles)
+			return normalizeScopedRoleGrants(scopedRoles)
 		}
 	}
 	return nil

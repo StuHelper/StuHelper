@@ -128,6 +128,9 @@ func (h *Handler) handleStreamBotAdmissionActions(c *gin.Context) {
 	if !h.writeQueuedAdmissionActions(c, filter) {
 		return
 	}
+	if h.writeStreamShutdownEvent(c) {
+		return
+	}
 
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
@@ -138,14 +141,34 @@ func (h *Handler) handleStreamBotAdmissionActions(c *gin.Context) {
 		select {
 		case <-c.Request.Context().Done():
 			return
+		case <-h.streamStop:
+			h.writeStreamShutdownEvent(c)
+			return
 		case <-keepalive.C:
+			if h.writeStreamShutdownEvent(c) {
+				return
+			}
 			c.SSEvent("keepalive", time.Now().UTC().Format(time.RFC3339))
 			c.Writer.Flush()
 		case <-ticker.C:
+			if h.writeStreamShutdownEvent(c) {
+				return
+			}
 			if !h.writeQueuedAdmissionActions(c, filter) {
 				return
 			}
 		}
+	}
+}
+
+func (h *Handler) writeStreamShutdownEvent(c *gin.Context) bool {
+	select {
+	case <-h.streamStop:
+		c.SSEvent("end", "shutdown")
+		c.Writer.Flush()
+		return true
+	default:
+		return false
 	}
 }
 

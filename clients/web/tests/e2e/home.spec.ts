@@ -280,7 +280,9 @@ test('locale switcher updates rendered language and persists preference', async 
   await page.goto('/')
 
   await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN')
-  await expect(page.getByText('StuHelper 评课社区')).toBeVisible()
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'StuHelper 评课社区' }),
+  ).toBeVisible()
 
   await page.getByRole('button', { name: '切换到英文' }).click()
 
@@ -305,7 +307,9 @@ test('locale switcher updates rendered language and persists preference', async 
   await page.getByRole('button', { name: 'Switch to Chinese' }).click()
 
   await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN')
-  await expect(page.getByText('StuHelper 评课社区')).toBeVisible()
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'StuHelper 评课社区' }),
+  ).toBeVisible()
   await expect
     .poll(() => page.evaluate(() => localStorage.getItem('locale')))
     .toBe('zh-CN')

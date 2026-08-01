@@ -61,15 +61,18 @@ bash -n "${RESOLVER}"
 run_resolver() {
   local output_file="$1"
   shift
-  env \
-    PATH="${tmpdir}/bin:${PATH}" \
-    COMMIT_SHA="${VALID_SHA}" \
-    IMAGE_NAME=ghcr.io/stuhelper/backend \
-    GITHUB_REPOSITORY=StuHelper/StuHelper \
-    GITHUB_OUTPUT="${output_file}" \
-    GH_CALLS_FILE="${tmpdir}/gh-calls" \
-    "$@" \
+  (
+    export PATH="${tmpdir}/bin:${PATH}"
+    export COMMIT_SHA="${VALID_SHA}"
+    export IMAGE_NAME=ghcr.io/stuhelper/backend
+    export GITHUB_REPOSITORY=StuHelper/StuHelper
+    export GITHUB_OUTPUT="${output_file}"
+    export GH_CALLS_FILE="${tmpdir}/gh-calls"
+    if (( $# > 0 )); then
+      export "$@"
+    fi
     "${RESOLVER}"
+  )
 }
 
 trusted_output="${tmpdir}/trusted-output"

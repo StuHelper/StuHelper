@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -209,6 +210,16 @@ func TestIsProductionLikeEnvTrimsWhitespace(t *testing.T) {
 	assert.True(t, IsProductionLikeEnv(" production "))
 	assert.True(t, IsProductionLikeEnv("\tprod-parity\n"))
 	assert.False(t, IsProductionLikeEnv(" development "))
+}
+
+func TestLoadAppConfigDefaultBodyLimitAccommodatesTenMiBBase64Payload(t *testing.T) {
+	t.Setenv("MAX_BODY_SIZE", "")
+	var parseErrs []string
+
+	cfg := loadAppConfig(&parseErrs)
+
+	require.Empty(t, parseErrs)
+	assert.Equal(t, int64(16<<20), cfg.MaxBodySize)
 }
 
 func TestValidate_RejectsAppEnvWhitespace(t *testing.T) {
@@ -681,6 +692,7 @@ func TestLoad_EmptyOptionalTypedEnvUsesDefaults(t *testing.T) {
 	t.Setenv("EMAIL_TENCENT_TEMPLATE_ID", "")
 	t.Setenv("EMAIL_TENCENT_TEMPLATE_EXPIRE_MINUTES", "")
 	t.Setenv("OTEL_TRACE_SAMPLE_RATIO", "")
+	t.Setenv("REVIEW_TEACHER_STATS_REFRESH_TIMEOUT_SECONDS", "")
 
 	cfg, err := Load()
 
@@ -690,6 +702,37 @@ func TestLoad_EmptyOptionalTypedEnvUsesDefaults(t *testing.T) {
 	assert.Equal(t, int64(0), cfg.Email.TencentTemplateID)
 	assert.Equal(t, 5, cfg.Email.TencentTemplateExpireMinutes)
 	assert.InDelta(t, 0.2, cfg.Observability.TraceSampleRatio, 0.0001)
+	assert.Equal(t, 60, cfg.Review.TeacherStatsRefreshTimeoutSeconds)
+}
+
+func TestValidateReviewConfigRejectsTimeoutOutsideProjectionLeaseBudget(t *testing.T) {
+	for _, timeout := range []string{"0", "4", "91"} {
+		t.Run(timeout, func(t *testing.T) {
+			t.Setenv("REVIEW_TEACHER_STATS_REFRESH_TIMEOUT_SECONDS", timeout)
+			var parseErrs []string
+
+			reviewCfg := loadReviewConfig(&parseErrs)
+			require.Empty(t, parseErrs)
+			cfg := validProductionConfigForTest()
+			cfg.Review = reviewCfg
+
+			err := cfg.validate(parseErrs)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(),
+				"REVIEW_TEACHER_STATS_REFRESH_TIMEOUT_SECONDS must be between 5 and 90 seconds")
+		})
+	}
+}
+
+func TestValidateReviewConfigAcceptsLeaseSafeBoundaries(t *testing.T) {
+	for _, timeout := range []int{5, 60, 90} {
+		t.Run(fmt.Sprint(timeout), func(t *testing.T) {
+			cfg := validProductionConfigForTest()
+			cfg.Review.TeacherStatsRefreshTimeoutSeconds = timeout
+
+			require.NoError(t, cfg.validate(nil))
+		})
+	}
 }
 
 func TestValidate_ProductionRequiresSMSEnabled(t *testing.T) {
@@ -911,7 +954,7 @@ func TestValidate_EmailMultiAllowsProduction(t *testing.T) {
 	require.NoError(t, c.validate(nil))
 }
 
-func TestValidate_ProductionAllowsExplicitExternalPlaintextPostgres(t *testing.T) {
+func TestValidate_ProductionRejectsExplicitExternalPlaintextPostgres(t *testing.T) {
 	c := validProductionConfigForTest()
 	c.Database.SSLMode = "disable"
 	c.Database.SSLRootCert = ""
@@ -919,7 +962,19 @@ func TestValidate_ProductionAllowsExplicitExternalPlaintextPostgres(t *testing.T
 
 	err := c.validate(nil)
 
-	require.NoError(t, err)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "EXTERNAL_POSTGRES_ALLOW_PLAINTEXT is only allowed in prod-parity")
+	assert.Contains(t, err.Error(), "DB_SSL_MODE must be 'verify-full' in production")
+}
+
+func TestValidate_ProdParityAllowsExplicitPlaintextPostgres(t *testing.T) {
+	c := validProductionConfigForTest()
+	c.App.Env = EnvProdParity
+	c.Database.SSLMode = "disable"
+	c.Database.SSLRootCert = ""
+	c.Database.AllowPlaintext = true
+
+	require.NoError(t, c.validate(nil))
 }
 
 func TestValidate_ProductionRejectsImplicitPlaintextDatastores(t *testing.T) {
@@ -950,7 +1005,7 @@ func TestLoadExternalDataConfigFromEnv(t *testing.T) {
 	t.Setenv("EXTERNAL_STUDENT_SOURCE_SCHOOL_CODE", "4111010006")
 	t.Setenv("EXTERNAL_STUDENT_SOURCE_ORACLE_HOST", "oracle.example.test")
 	t.Setenv("EXTERNAL_STUDENT_SOURCE_ORACLE_SERVICE_NAME", "ORCLPDB1")
-	t.Setenv("EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME", "SYSTEM")
+	t.Setenv("EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME", "stuhelper_academic_ro")
 	t.Setenv("EXTERNAL_STUDENT_SOURCE_ORACLE_PASSWORD", "secret")
 	t.Setenv("EXTERNAL_STUDENT_SOURCE_ORACLE_SCHEMA", "USR_JWBIZ")
 	t.Setenv("EXTERNAL_STUDENT_SOURCE_ORACLE_TABLE", "T_XS_JBXX")
@@ -989,7 +1044,7 @@ func TestValidateRejectsIncompleteExternalStudentSource(t *testing.T) {
 			Host:                    "oracle.example.test",
 			Port:                    1521,
 			ServiceName:             "ORCLPDB1",
-			Username:                "SYSTEM",
+			Username:                "stuhelper_academic_ro",
 			TLSMode:                 "verify-full",
 			TLSCAFile:               "/external-student-source-tls/ca.crt",
 			Schema:                  "USR_JWBIZ",
@@ -1050,6 +1105,72 @@ func TestValidateRejectsPlaintextOracleStudentSourceInProduction(t *testing.T) {
 	assert.Contains(t, err.Error(), "EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_MODE must be verify-full in production")
 }
 
+func TestValidateRejectsAdministrativeOracleStudentSourceAccount(t *testing.T) {
+	for _, username := range []string{"SYS", "system", "SYSBACKUP", "SYSDG", "SYSKM", "SYSRAC"} {
+		t.Run(username, func(t *testing.T) {
+			errs := validateExternalOracleStudentSource(ExternalOracleStudentSourceConfig{
+				Host:                    "oracle.example.test",
+				Port:                    2484,
+				ServiceName:             "ORCLPDB1",
+				Username:                username,
+				Password:                "secret",
+				TLSMode:                 "verify-full",
+				TLSCAFile:               "/external-student-source-tls/ca.crt",
+				Schema:                  "USR_JWBIZ",
+				Table:                   "T_XS_JBXX",
+				StudentIDColumn:         "XH",
+				StudentNameColumn:       "XM",
+				ConnectTimeoutSeconds:   5,
+				QueryTimeoutSeconds:     3,
+				MaxOpenConns:            4,
+				MaxIdleConns:            1,
+				ConnMaxLifetimeSeconds:  300,
+				ConnMaxIdleTimeSeconds:  60,
+				BreakerFailureThreshold: 5,
+				BreakerSuccessThreshold: 2,
+				BreakerOpenSeconds:      30,
+			}, true)
+
+			assert.Contains(
+				t,
+				errs,
+				"EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME must be a dedicated non-administrative account",
+			)
+		})
+	}
+}
+
+func TestValidateRejectsOracleStudentSourceSchemaOwnerAccount(t *testing.T) {
+	errs := validateExternalOracleStudentSource(ExternalOracleStudentSourceConfig{
+		Host:                    "oracle.example.test",
+		Port:                    2484,
+		ServiceName:             "ORCLPDB1",
+		Username:                "usr_jwbiz",
+		Password:                "secret",
+		TLSMode:                 "verify-full",
+		TLSCAFile:               "/external-student-source-tls/ca.crt",
+		Schema:                  "USR_JWBIZ",
+		Table:                   "T_XS_JBXX",
+		StudentIDColumn:         "XH",
+		StudentNameColumn:       "XM",
+		ConnectTimeoutSeconds:   5,
+		QueryTimeoutSeconds:     3,
+		MaxOpenConns:            4,
+		MaxIdleConns:            1,
+		ConnMaxLifetimeSeconds:  300,
+		ConnMaxIdleTimeSeconds:  60,
+		BreakerFailureThreshold: 5,
+		BreakerSuccessThreshold: 2,
+		BreakerOpenSeconds:      30,
+	}, true)
+
+	assert.Contains(
+		t,
+		errs,
+		"EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME must not own the source schema",
+	)
+}
+
 func TestValidate_DevelopmentAllowsMissingBotServiceToken(t *testing.T) {
 	c := validProductionConfigForTest()
 	c.App.Env = "development"
@@ -1065,7 +1186,6 @@ func TestValidate_ProductionRequiresCasdoorAdminCredentials(t *testing.T) {
 	c := validProductionConfigForTest()
 	c.Casdoor.AppProvisioningClientID = ""
 	c.Casdoor.UserProfileClientSecret = ""
-	c.Casdoor.RoleSyncClientSecret = ""
 	c.Casdoor.UserLookupApplication = ""
 
 	err := c.validate(nil)
@@ -1073,7 +1193,6 @@ func TestValidate_ProductionRequiresCasdoorAdminCredentials(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "CASDOOR_APP_PROVISIONING_CLIENT_ID is required")
 	assert.Contains(t, err.Error(), "CASDOOR_USER_PROFILE_CLIENT_SECRET is required")
-	assert.Contains(t, err.Error(), "CASDOOR_ROLE_SYNC_CLIENT_SECRET is required")
 	assert.Contains(t, err.Error(), "CASDOOR_USER_LOOKUP_APPLICATION is required")
 }
 
@@ -1085,9 +1204,6 @@ func TestValidate_ProductionRejectsBlankCasdoorAdminCredentials(t *testing.T) {
 	c.Casdoor.UserProfileClientID = "  "
 	c.Casdoor.UserProfileClientSecret = "  "
 	c.Casdoor.UserProfileApplication = "  "
-	c.Casdoor.RoleSyncClientID = "  "
-	c.Casdoor.RoleSyncClientSecret = "  "
-	c.Casdoor.RoleSyncApplication = "  "
 	c.Casdoor.UserLookupClientID = "  "
 	c.Casdoor.UserLookupClientSecret = "  "
 	c.Casdoor.UserLookupApplication = "  "
@@ -1102,9 +1218,6 @@ func TestValidate_ProductionRejectsBlankCasdoorAdminCredentials(t *testing.T) {
 		"CASDOOR_USER_PROFILE_CLIENT_ID is required",
 		"CASDOOR_USER_PROFILE_CLIENT_SECRET is required",
 		"CASDOOR_USER_PROFILE_APPLICATION is required",
-		"CASDOOR_ROLE_SYNC_CLIENT_ID is required",
-		"CASDOOR_ROLE_SYNC_CLIENT_SECRET is required",
-		"CASDOOR_ROLE_SYNC_APPLICATION is required",
 		"CASDOOR_USER_LOOKUP_CLIENT_ID is required",
 		"CASDOOR_USER_LOOKUP_CLIENT_SECRET is required",
 		"CASDOOR_USER_LOOKUP_APPLICATION is required",
@@ -1308,21 +1421,6 @@ func TestValidate_DevelopmentRejectsPartialCasdoorUserProfileCredential(t *testi
 	assert.Contains(t, err.Error(), "CASDOOR_USER_PROFILE_APPLICATION is required")
 }
 
-func TestValidate_DevelopmentRejectsPartialCasdoorRoleSyncCredential(t *testing.T) {
-	c := validProductionConfigForTest()
-	c.App.Env = "development"
-	c.Token.CookieSecure = false
-	c.Casdoor.RoleSyncClientID = "role-sync-client"
-	c.Casdoor.RoleSyncClientSecret = ""
-	c.Casdoor.RoleSyncApplication = ""
-
-	err := c.validate(nil)
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "CASDOOR_ROLE_SYNC_CLIENT_SECRET is required")
-	assert.Contains(t, err.Error(), "CASDOOR_ROLE_SYNC_APPLICATION is required")
-}
-
 func TestValidate_RejectsInvalidTraceSampleRatio(t *testing.T) {
 	c := &Config{
 		Observability: ObservabilityConfig{
@@ -1447,6 +1545,7 @@ func TestValidate_SMSRejectsBlankRequiredConfigWhenEnabled(t *testing.T) {
 
 func TestValidate_SMSDisabledAllowsEmptyConfig(t *testing.T) {
 	c := &Config{
+		Review: ReviewConfig{TeacherStatsRefreshTimeoutSeconds: 60},
 		App: AppConfig{
 			Env:                "development",
 			Port:               "8080",
@@ -1814,6 +1913,7 @@ func TestValidate_RejectsBlankIdentityAndAuthorizationConfig(t *testing.T) {
 
 func validProductionConfigForTest() *Config {
 	return &Config{
+		Review: ReviewConfig{TeacherStatsRefreshTimeoutSeconds: 60},
 		App: AppConfig{
 			Env:                "production",
 			Port:               "8080",
@@ -1849,9 +1949,6 @@ func validProductionConfigForTest() *Config {
 			UserProfileClientID:         "user-profile-client",
 			UserProfileClientSecret:     "user-profile-secret",
 			UserProfileApplication:      "stuhelper-user-profile",
-			RoleSyncClientID:            "role-sync-client",
-			RoleSyncClientSecret:        "role-sync-secret",
-			RoleSyncApplication:         "stuhelper-role-sync",
 			UserLookupClientID:          "user-lookup-client",
 			UserLookupClientSecret:      "user-lookup-secret",
 			UserLookupApplication:       "stuhelper-user-lookup",

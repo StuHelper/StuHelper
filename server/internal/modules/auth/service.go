@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"go.uber.org/zap"
 
@@ -76,13 +77,30 @@ func sessionRotationCommitted(err error) bool {
 // 并在签发 JWT 的 Sid claim 中使用同一值——否则 JWT sid 与服务端存储的
 // session key 不一致，refresh / revoke 都会失效。
 func (s *Service) CreateSession(ctx context.Context, sessionID, userID, accessToken, refreshToken, loginMethod, deviceInfo string) (*SessionInfo, error) {
-	return s.CreateSessionForApplication(ctx, sessionID, userID, accessToken, refreshToken, loginMethod, "", deviceInfo)
+	return s.CreateSessionForApplication(
+		ctx,
+		sessionID,
+		userID,
+		accessToken,
+		time.Now().Add(s.tokenService.GetAccessTokenTTL()).Unix(),
+		accessToken,
+		refreshToken,
+		loginMethod,
+		"",
+		deviceInfo,
+	)
 }
 
 func (s *Service) CreateSessionForApplication(
 	ctx context.Context,
-	sessionID, userID, accessToken, refreshToken, loginMethod, providerAppKey, deviceInfo string,
+	sessionID, userID, accessToken string,
+	accessTokenExpiresAt int64,
+	providerAccessToken, refreshToken, loginMethod, providerAppKey, deviceInfo string,
 ) (*SessionInfo, error) {
+	if accessTokenExpiresAt <= 0 {
+		return nil, errors.New("create session: verified access token expiry is required")
+	}
+
 	var err error
 	sessionID, err = normalizeRequiredSessionID(sessionID)
 	if err != nil {
@@ -105,7 +123,16 @@ func (s *Service) CreateSessionForApplication(
 			return nil, fmt.Errorf("create session: hash refresh token: %w", err)
 		}
 	}
-	providerRefreshTokenEnc, err := s.encryptProviderRefreshToken(loginMethod, refreshToken)
+	if s.providerTokens.enabled() &&
+		providerTokenFamilyTracked(loginMethod) &&
+		normalizeProviderToken(providerAccessToken) == "" {
+		return nil, errors.New("create session: provider access token is required")
+	}
+	providerAccessTokenEnc, err := s.encryptProviderToken(loginMethod, providerAccessToken)
+	if err != nil {
+		return nil, fmt.Errorf("create session: %w", err)
+	}
+	providerRefreshTokenEnc, err := s.encryptProviderToken(loginMethod, refreshToken)
 	if err != nil {
 		return nil, fmt.Errorf("create session: %w", err)
 	}
@@ -114,7 +141,9 @@ func (s *Service) CreateSessionForApplication(
 		SessionID:               sessionID,
 		UserID:                  userID,
 		AccessTokenHash:         accessHash,
+		AccessTokenExpiresAt:    accessTokenExpiresAt,
 		RefreshTokenHash:        refreshHash,
+		ProviderAccessTokenEnc:  providerAccessTokenEnc,
 		ProviderRefreshTokenEnc: providerRefreshTokenEnc,
 		ProviderAppKey:          providerAppKeyForSession(loginMethod, providerAppKey),
 		LoginMethod:             loginMethod,
@@ -128,17 +157,29 @@ func (s *Service) CreateSessionForApplication(
 	return &SessionInfo{SessionID: sessionID}, nil
 }
 
-func (s *Service) OIDCApplicationForRefresh(ctx context.Context, sessionID, refreshToken string) (string, error) {
+type oidcRefreshSession struct {
+	applicationKey string
+	subject        string
+}
+
+func (s *Service) OIDCSessionForRefresh(
+	ctx context.Context,
+	sessionID,
+	refreshToken string,
+) (oidcRefreshSession, error) {
 	var err error
 	sessionID, err = normalizeRequiredSessionID(sessionID)
 	if err != nil {
-		return "", fmt.Errorf("resolve oidc application: %w", err)
+		return oidcRefreshSession{}, fmt.Errorf("resolve oidc refresh session: %w", err)
 	}
 	session, err := s.verifyTrackedSession(ctx, sessionID, trackedSessionExpectation{refreshToken: refreshToken})
 	if err != nil {
-		return "", fmt.Errorf("resolve oidc application: %w", err)
+		return oidcRefreshSession{}, fmt.Errorf("resolve oidc refresh session: %w", err)
 	}
-	return providerAppKeyForSession(session.LoginMethod, session.ProviderAppKey), nil
+	return oidcRefreshSession{
+		applicationKey: providerAppKeyForSession(session.LoginMethod, session.ProviderAppKey),
+		subject:        session.UserID,
+	}, nil
 }
 
 // RotateSession 在 refresh 流程中轮换 session 内的 token 对（Token Family 模式）。
@@ -146,18 +187,23 @@ func (s *Service) OIDCApplicationForRefresh(ctx context.Context, sessionID, refr
 //  1. 校验旧 refresh token 仍属于该 tracked session
 //  2. 计算新 token 的 HMAC hash
 //  3. 原子更新 session store
-//  4. 撤销旧 provider refresh token
-//  5. 将旧 refresh token 加入黑名单
+//  4. 将旧 refresh token 加入黑名单
 //
 // 任何步骤失败都返回 error。Touch 前失败表示本地 session 未提交，调用方可
-// 补偿撤销刚签发但尚未写入 session 的 provider refresh token。Touch 后的
-// provider token 撤销和旧 refresh token 黑名单错误会以
+// 补偿撤销刚签发但尚未写入 session 的 provider token family。Casdoor 的
+// refresh grant 已原子删除旧 provider row，因此 Touch 后不再对旧 access
+// token 调用 /api/logout；旧 refresh token 黑名单错误会以
 // sessionRotationCommitted 标记为已提交，调用方不得把新 provider refresh
-// token 当作孤儿 token 撤销。
+// token family 当作孤儿凭据撤销。
 //
 // sessionID 为空时直接失败。调用方必须先定位到被追踪的 session family，
 // 否则 refresh 不能继续签发“不受 session store 跟踪”的新 token。
-func (s *Service) RotateSession(ctx context.Context, sessionID, userID, oldRefreshToken, newAccessToken, newRefreshToken string) error {
+func (s *Service) RotateSession(
+	ctx context.Context,
+	sessionID, userID, oldRefreshToken, newAccessToken string,
+	newAccessTokenExpiresAt int64,
+	newProviderAccessToken, newRefreshToken string,
+) error {
 	var err error
 	userID, err = normalizeRequiredSessionUserID(userID)
 	if err != nil {
@@ -187,14 +233,25 @@ func (s *Service) RotateSession(ctx context.Context, sessionID, userID, oldRefre
 			return fmt.Errorf("rotate session: hash new refresh token: %w", err)
 		}
 	}
-	providerRefreshTokenEnc, err := s.encryptProviderRefreshToken(session.LoginMethod, newRefreshToken)
+	if s.providerTokens.enabled() &&
+		providerTokenFamilyTracked(session.LoginMethod) &&
+		normalizeProviderToken(newProviderAccessToken) == "" {
+		return errors.New("rotate session: provider access token is required")
+	}
+	providerAccessTokenEnc, err := s.encryptProviderToken(session.LoginMethod, newProviderAccessToken)
+	if err != nil {
+		return fmt.Errorf("rotate session: %w", err)
+	}
+	providerRefreshTokenEnc, err := s.encryptProviderToken(session.LoginMethod, newRefreshToken)
 	if err != nil {
 		return fmt.Errorf("rotate session: %w", err)
 	}
 
 	update := token.SessionTouchUpdate{
 		AccessTokenHash:         newAccessHash,
+		AccessTokenExpiresAt:    newAccessTokenExpiresAt,
 		RefreshTokenHash:        newRefreshHash,
+		ProviderAccessTokenEnc:  providerAccessTokenEnc,
 		ProviderRefreshTokenEnc: providerRefreshTokenEnc,
 		ProviderAppKey:          providerAppKeyForSession(session.LoginMethod, session.ProviderAppKey),
 	}
@@ -203,10 +260,6 @@ func (s *Service) RotateSession(ctx context.Context, sessionID, userID, oldRefre
 	}
 
 	var cleanupErr error
-	if err := s.revokeProviderRefreshTokenFromSession(ctx, session); err != nil {
-		cleanupErr = errors.Join(cleanupErr, fmt.Errorf("revoke old provider refresh token: %w", err))
-	}
-
 	refreshTTL := s.tokenService.GetRefreshTokenTTL()
 	if session.RefreshTokenHash != "" {
 		if err := s.tokenService.GetSessionStore().RememberRefreshTokenHash(ctx, session.RefreshTokenHash, token.RefreshTokenRef{
@@ -230,7 +283,11 @@ func (s *Service) RotateSession(ctx context.Context, sessionID, userID, oldRefre
 //
 // 优先通过 session store 撤销（将 session 内 token hash 加入黑名单）；
 // 若调用方持有 token 原文（例如 session ID 无法解析），直接按 token 原文加黑名单作兜底。
-func (s *Service) RevokeSession(ctx context.Context, sessionID, userID, accessToken, refreshToken string) error {
+func (s *Service) RevokeSession(
+	ctx context.Context,
+	sessionID, userID, accessToken, refreshToken string,
+	accessTokenExpiresAt time.Time,
+) error {
 	var err error
 	userID, err = normalizeRequiredSessionUserID(userID)
 	if err != nil {
@@ -250,27 +307,25 @@ func (s *Service) RevokeSession(ctx context.Context, sessionID, userID, accessTo
 		_, err = s.tokenService.GetSessionStore().Revoke(
 			ctx, sessionID,
 			s.tokenService.GetBlacklist(),
-			s.tokenService.GetAccessTokenTTL(),
 			s.tokenService.GetRefreshTokenTTL(),
 		)
 		if err != nil {
 			return fmt.Errorf("revoke session: %w", err)
 		}
-		if err := s.revokeProviderRefreshTokenFromSession(ctx, session); err != nil {
+		if err := s.revokeProviderTokenFamilyFromSession(ctx, session, accessToken); err != nil {
 			return fmt.Errorf("revoke session: local session revoked; provider revoke failed: %w", err)
 		}
+		return nil
 	}
 
-	// 兜底：无 session ID 或 session 已过期时，按 token 原文加黑名单
+	// 兜底：无 session ID 时，只能按已验证 token 的真实绝对过期时间写黑名单。
 	if accessToken != "" {
-		if blErr := s.tokenService.GetBlacklist().Add(ctx, accessToken, s.tokenService.GetAccessTokenTTL()); blErr != nil {
+		if blErr := s.tokenService.GetBlacklist().AddUntil(ctx, accessToken, accessTokenExpiresAt); blErr != nil {
 			logger.L().Error("revoke session: failed to blacklist access token",
 				zap.String("user_id", userID),
 				zap.Error(blErr),
 			)
-			if sessionID == "" {
-				return fmt.Errorf("revoke access token: %w", blErr)
-			}
+			return fmt.Errorf("revoke access token: %w", blErr)
 		}
 	}
 	if refreshToken != "" {
@@ -279,9 +334,7 @@ func (s *Service) RevokeSession(ctx context.Context, sessionID, userID, accessTo
 				zap.String("user_id", userID),
 				zap.Error(blErr),
 			)
-			if sessionID == "" {
-				return fmt.Errorf("revoke refresh token: %w", blErr)
-			}
+			return fmt.Errorf("revoke refresh token: %w", blErr)
 		}
 	}
 	return nil
@@ -314,14 +367,21 @@ func (s *Service) RevokeAllSessions(ctx context.Context, userID string) error {
 		return fmt.Errorf("revoke all sessions: %w", err)
 	}
 
-	providerErr := s.revokeProviderRefreshTokensForUser(ctx, userID)
-	if err := s.tokenService.GetSessionStore().RevokeAll(
+	// Provider credentials live inside the sessions that RevokeAll deletes, so
+	// capture them first. Local blacklist/session revocation then happens before
+	// any external call, ensuring provider latency cannot consume the cleanup
+	// deadline and leave locally valid sessions behind.
+	providerSessions, providerErr := s.loadProviderTokenFamiliesForUser(ctx, userID)
+	localErr := s.tokenService.GetSessionStore().RevokeAll(
 		ctx, userID,
 		s.tokenService.GetBlacklist(),
-		s.tokenService.GetAccessTokenTTL(),
 		s.tokenService.GetRefreshTokenTTL(),
-	); err != nil {
-		return fmt.Errorf("revoke all sessions: %w", errors.Join(err, providerErr))
+	)
+	if providerErr == nil {
+		providerErr = s.revokeProviderTokenFamilies(ctx, providerSessions)
+	}
+	if localErr != nil {
+		return fmt.Errorf("revoke all sessions: %w", errors.Join(localErr, providerErr))
 	}
 	if providerErr != nil {
 		return fmt.Errorf("revoke all sessions: local sessions revoked; provider revoke failed: %w", providerErr)

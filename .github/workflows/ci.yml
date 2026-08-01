@@ -25,6 +25,7 @@ jobs:
       clients: ${{ steps.filter.outputs.clients }}
       contract: ${{ steps.filter.outputs.contract }}
       docs: ${{ steps.filter.outputs.docs }}
+      guards: ${{ steps.filter.outputs.guards }}
       infra: ${{ steps.filter.outputs.infra }}
       koishi: ${{ steps.filter.outputs.koishi }}
       workflows: ${{ steps.filter.outputs.workflows }}
@@ -42,10 +43,15 @@ jobs:
           filters: |
             backend:
               - 'server/**'
+              - '.env.example'
+              - '.env.prod.example'
             clients:
               - 'clients/**'
               - 'server/api/**'
               - 'server/internal/pkg/capability/**'
+              - 'scripts/check-vue-ui-contracts.mjs'
+              - '.node-version'
+              - '.nvmrc'
             contract:
               - 'server/api/**'
               - 'server/internal/api/gen/**'
@@ -56,23 +62,51 @@ jobs:
               - 'clients/package.json'
               - 'clients/pnpm-lock.yaml'
               - 'clients/pnpm-workspace.yaml'
+              - '.node-version'
+              - '.nvmrc'
             docs:
               - 'AGENTS.md'
               - 'README.md'
               - 'docs/**'
               - 'scripts/check-docs-hygiene*'
+              - 'scripts/lib/**'
+            guards:
+              - 'scripts/**'
+              - 'tools/**'
+              - '.node-version'
+              - '.nvmrc'
             infra:
               - '.env.example'
               - '.env.prod.example'
+              - '.github/**'
               - 'Makefile'
               - 'docker-compose*.yml'
               - 'infra/**'
+              - '.node-version'
+              - '.nvmrc'
             koishi:
               - 'bots/koishi/**'
               - 'server/api/**'
+              - 'scripts/check-vue-ui-contracts.mjs'
+              - '.node-version'
+              - '.nvmrc'
             workflows:
               - '.github/**'
               - '.gitleaksignore'
+
+  static-contracts:
+    name: Static file contracts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Assert supply-chain pinning and CI wiring
+        run: |
+          bash infra/ops/tests/dockerfile-supply-chain-contract.sh
+          bash infra/ops/tests/ci-and-drift-contract.sh
 
   repository-policy:
     name: Repository policy
@@ -81,6 +115,7 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       needs.changes.outputs.docs == 'true' ||
       needs.changes.outputs.clients == 'true' ||
+      needs.changes.outputs.guards == 'true' ||
       needs.changes.outputs.workflows == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -105,6 +140,9 @@ jobs:
 
       - name: Check UniAppX shadow files
         run: bash scripts/check-uniappx-shadow-files.sh
+
+      - name: Check UniAppX supported targets
+        run: node scripts/check-uniappx-platform-contract.mjs
 
       - name: Lint GitHub Actions workflows
         run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
@@ -234,7 +272,7 @@ jobs:
           GRANT USAGE, CREATE ON SCHEMA public TO stuhelper_app;
           SQL
 
-      - name: Apply the database baseline
+      - name: Apply pending database migrations
         working-directory: server
         run: make migrate-up
 
@@ -489,6 +527,9 @@ jobs:
         working-directory: bots/koishi
         run: corepack yarn test
 
+      - name: Validate deployable StuHelper package bundle
+        run: bash infra/ops/tests/koishi-stuhelper-package-contract.sh
+
       - name: Upload Koishi evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -527,7 +568,23 @@ jobs:
       - name: Install contract dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install --yes curl jq openssl
+          sudo apt-get install --yes curl jq openssl python3-venv
+
+      - name: Install pinned Ansible controller
+        run: |
+          python3 -m venv "${RUNNER_TEMP}/stuhelper-ansible"
+          "${RUNNER_TEMP}/stuhelper-ansible/bin/pip" install \
+            --disable-pip-version-check \
+            --requirement infra/ansible/requirements.txt
+          echo "${RUNNER_TEMP}/stuhelper-ansible/bin" >> "${GITHUB_PATH}"
+
+      - name: Validate Ansible playbooks and bundle path
+        working-directory: infra/ansible
+        run: |
+          ansible-playbook -i inventory/staging.example.ini --syntax-check playbooks/bootstrap.yml
+          ansible-playbook -i inventory/staging.example.ini --syntax-check playbooks/deploy.yml
+          ansible-playbook -i inventory/staging.example.ini --syntax-check playbooks/rollback.yml
+          ansible-playbook -i inventory/staging.example.ini playbooks/deploy.yml --tags deploy-bundle
 
       - name: Install browser client dependencies used by smoke contracts
         working-directory: clients
@@ -596,6 +653,7 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       needs.changes.outputs.clients == 'true' ||
       needs.changes.outputs.backend == 'true' ||
+      needs.changes.outputs.guards == 'true' ||
       needs.changes.outputs.workflows == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -635,6 +693,7 @@ jobs:
     if: always()
     needs:
       - changes
+      - static-contracts
       - repository-policy
       - secret-scan
       - dependency-review

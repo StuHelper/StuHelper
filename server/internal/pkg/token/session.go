@@ -28,13 +28,15 @@ import (
 // KEYS[1] = session key (session:<sessionID>)
 // ARGV[1] = new lastActiveAt unix timestamp (string)
 // ARGV[2] = new access token hash (empty string == keep current)
-// ARGV[3] = new refresh token hash (empty string == keep current)
-// ARGV[4] = provider refresh token ciphertext (empty string == keep current)
-// ARGV[5] = provider app key (empty string == keep current)
-// ARGV[6] = TTL seconds
-// ARGV[7] = user session set prefix
+// ARGV[3] = new access token expiry unix timestamp (required with ARGV[2])
+// ARGV[4] = new refresh token hash (empty string == keep current)
+// ARGV[5] = provider access token ciphertext (empty string == keep current)
+// ARGV[6] = provider refresh token ciphertext (empty string == keep current)
+// ARGV[7] = provider app key (empty string == keep current)
+// ARGV[8] = TTL seconds
+// ARGV[9] = user session set prefix
 //
-// KEYS[2] = refresh token ref key for ARGV[3] (ignored when ARGV[3] is empty)
+// KEYS[2] = refresh token ref key for ARGV[4] (ignored when ARGV[4] is empty)
 //
 // 返回 1 表示成功，0 表示 session 不存在。
 const touchSessionScript = `
@@ -46,24 +48,28 @@ local data = cjson.decode(raw)
 data['lastActiveAt'] = tonumber(ARGV[1])
 if ARGV[2] ~= '' then
     data['accessTokenHash'] = ARGV[2]
-end
-if ARGV[3] ~= '' then
-    data['refreshTokenHash'] = ARGV[3]
-    local ref = {sessionID=data['sessionID'], userID=data['userID']}
-	    redis.call('SET', KEYS[2], cjson.encode(ref), 'EX', tonumber(ARGV[6]))
+    data['accessTokenExpiresAt'] = tonumber(ARGV[3])
 end
 if ARGV[4] ~= '' then
-    data['providerRefreshTokenEnc'] = ARGV[4]
+    data['refreshTokenHash'] = ARGV[4]
+    local ref = {sessionID=data['sessionID'], userID=data['userID']}
+	    redis.call('SET', KEYS[2], cjson.encode(ref), 'EX', tonumber(ARGV[8]))
 end
 if ARGV[5] ~= '' then
-    data['providerAppKey'] = ARGV[5]
+    data['providerAccessTokenEnc'] = ARGV[5]
+end
+if ARGV[6] ~= '' then
+    data['providerRefreshTokenEnc'] = ARGV[6]
+end
+if ARGV[7] ~= '' then
+    data['providerAppKey'] = ARGV[7]
 end
 if data['userID'] and data['sessionID'] then
-    local userKey = ARGV[7] .. data['userID']
+    local userKey = ARGV[9] .. data['userID']
     redis.call('SADD', userKey, data['sessionID'])
-    redis.call('EXPIRE', userKey, tonumber(ARGV[6]))
+    redis.call('EXPIRE', userKey, tonumber(ARGV[8]))
 end
-redis.call('SET', KEYS[1], cjson.encode(data), 'EX', tonumber(ARGV[6]))
+redis.call('SET', KEYS[1], cjson.encode(data), 'EX', tonumber(ARGV[8]))
 return 1
 `
 
@@ -82,12 +88,18 @@ const (
 
 // SessionData 服务端存储的 session 元数据
 type SessionData struct {
-	SessionID        string `json:"sessionID"`
-	UserID           string `json:"userID"`
-	CreatedAt        int64  `json:"createdAt"`
-	LastActiveAt     int64  `json:"lastActiveAt"`
-	AccessTokenHash  string `json:"accessTokenHash"`
-	RefreshTokenHash string `json:"refreshTokenHash,omitempty"`
+	SessionID       string `json:"sessionID"`
+	UserID          string `json:"userID"`
+	CreatedAt       int64  `json:"createdAt"`
+	LastActiveAt    int64  `json:"lastActiveAt"`
+	AccessTokenHash string `json:"accessTokenHash"`
+	// AccessTokenExpiresAt is the verified provider token expiry in Unix seconds.
+	// Zero is accepted only for sessions created before this field existed.
+	AccessTokenExpiresAt int64  `json:"accessTokenExpiresAt,omitempty"`
+	RefreshTokenHash     string `json:"refreshTokenHash,omitempty"`
+	// ProviderAccessTokenEnc stores an encrypted provider access token for the
+	// Casdoor token-family logout contract. It is never sent to clients again.
+	ProviderAccessTokenEnc string `json:"providerAccessTokenEnc,omitempty"`
 	// ProviderRefreshTokenEnc stores an encrypted provider refresh token.
 	ProviderRefreshTokenEnc string `json:"providerRefreshTokenEnc,omitempty"`
 	// ProviderAppKey records which OIDC application owns provider token ops.
@@ -100,7 +112,9 @@ type SessionData struct {
 
 type SessionTouchUpdate struct {
 	AccessTokenHash         string
+	AccessTokenExpiresAt    int64
 	RefreshTokenHash        string
+	ProviderAccessTokenEnc  string
 	ProviderRefreshTokenEnc string
 	ProviderAppKey          string
 }
@@ -133,6 +147,11 @@ func GenerateSessionID() (string, error) {
 func (s *SessionStore) Create(ctx context.Context, data SessionData) error {
 	if data.SessionID == "" || data.UserID == "" {
 		return fmt.Errorf("session create: sessionID and userID are required")
+	}
+	if data.AccessTokenExpiresAt != 0 {
+		if err := validateNewAccessTokenExpiry(data.AccessTokenExpiresAt, time.Now(), s.sessionTTL); err != nil {
+			return fmt.Errorf("session create: %w", err)
+		}
 	}
 
 	now := time.Now().Unix()
@@ -192,13 +211,23 @@ func (s *SessionStore) Get(ctx context.Context, sessionID string) (*SessionData,
 // 轮换的 token hash 失去追踪，使旧 token 绕过黑名单。session 不存在时返回
 // ErrSessionNotFound。
 func (s *SessionStore) Touch(ctx context.Context, sessionID string, update SessionTouchUpdate) error {
+	if update.AccessTokenHash != "" {
+		if err := validateNewAccessTokenExpiry(update.AccessTokenExpiresAt, time.Now(), s.sessionTTL); err != nil {
+			return fmt.Errorf("session touch: %w", err)
+		}
+	} else if update.AccessTokenExpiresAt != 0 {
+		return errors.New("session touch: access token expiry requires an access token hash")
+	}
+
 	now := time.Now().Unix()
 	res, err := touchSessionScriptObj.Run(
 		ctx, s.rdb,
 		[]string{sessionPrefix + sessionID, refreshTokenRefKey(update.RefreshTokenHash)},
 		now,
 		update.AccessTokenHash,
+		update.AccessTokenExpiresAt,
 		update.RefreshTokenHash,
+		update.ProviderAccessTokenEnc,
 		update.ProviderRefreshTokenEnc,
 		update.ProviderAppKey,
 		int(s.sessionTTL.Seconds()),
@@ -213,9 +242,26 @@ func (s *SessionStore) Touch(ctx context.Context, sessionID string, update Sessi
 	return nil
 }
 
+func validateNewAccessTokenExpiry(expiresAt int64, now time.Time, sessionTTL time.Duration) error {
+	if expiresAt <= 0 {
+		return errors.New("verified access token expiry is required")
+	}
+	ttl, required, err := blacklistTTLUntil(time.Unix(expiresAt, 0), now)
+	if err != nil {
+		return fmt.Errorf("invalid access token expiry: %w", err)
+	}
+	if !required {
+		return errors.New("access token expiry must be in the future")
+	}
+	if ttl > sessionTTL {
+		return fmt.Errorf("access token remaining lifetime %v exceeds session lease %v", ttl, sessionTTL)
+	}
+	return nil
+}
+
 // Revoke 撤销单个 session，同时将该 session 内的 token 加入黑名单。
 // 返回被撤销的 session 数据（供调用方决定是否需要额外清理）。
-func (s *SessionStore) Revoke(ctx context.Context, sessionID string, blacklist *Blacklist, accessTTL, refreshTTL time.Duration) (*SessionData, error) {
+func (s *SessionStore) Revoke(ctx context.Context, sessionID string, blacklist *Blacklist, refreshTTL time.Duration) (*SessionData, error) {
 	data, err := s.Get(ctx, sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("session revoke: %w", err)
@@ -225,13 +271,13 @@ func (s *SessionStore) Revoke(ctx context.Context, sessionID string, blacklist *
 		return nil, nil
 	}
 
-	return s.revokeLoadedSession(ctx, data, blacklist, accessTTL, refreshTTL)
+	return s.revokeLoadedSession(ctx, data, blacklist, refreshTTL)
 }
 
-func (s *SessionStore) revokeLoadedSession(ctx context.Context, data *SessionData, blacklist *Blacklist, accessTTL, refreshTTL time.Duration) (*SessionData, error) {
+func (s *SessionStore) revokeLoadedSession(ctx context.Context, data *SessionData, blacklist *Blacklist, refreshTTL time.Duration) (*SessionData, error) {
 	// 将 session 内的 token hash 加入黑名单
 	if data.AccessTokenHash != "" {
-		if blErr := blacklist.AddByHash(ctx, data.AccessTokenHash, accessTTL); blErr != nil {
+		if blErr := s.blacklistSessionAccessToken(ctx, data, blacklist); blErr != nil {
 			return nil, fmt.Errorf("session revoke: blacklist access token: %w", blErr)
 		}
 	}
@@ -261,8 +307,39 @@ func (s *SessionStore) revokeLoadedSession(ctx context.Context, data *SessionDat
 	return data, nil
 }
 
+func (s *SessionStore) blacklistSessionAccessToken(ctx context.Context, data *SessionData, blacklist *Blacklist) error {
+	if data.AccessTokenExpiresAt > 0 {
+		return blacklist.AddByHashUntil(
+			ctx,
+			data.AccessTokenHash,
+			time.Unix(data.AccessTokenExpiresAt, 0),
+		)
+	}
+
+	// Rolling-upgrade compatibility: sessions written before
+	// accessTokenExpiresAt existed can only use their actual remaining Redis
+	// lease as a conservative upper bound. The managed Casdoor applications
+	// have a one-hour access-token lifetime, while validation requires the
+	// session/refresh lease to be at least one hour. A missing/non-expiring key
+	// is not silently mapped to a guessed local TTL.
+	remaining, err := s.rdb.PTTL(ctx, sessionPrefix+data.SessionID).Result()
+	if err != nil {
+		return fmt.Errorf("load legacy session remaining TTL: %w", err)
+	}
+	switch remaining {
+	case -2:
+		return nil
+	case -1:
+		return errors.New("legacy session has no Redis expiry")
+	}
+	if remaining <= 0 {
+		return nil
+	}
+	return blacklist.AddByHashUntil(ctx, data.AccessTokenHash, time.Now().Add(remaining))
+}
+
 // RevokeAll 撤销用户的所有 session。
-func (s *SessionStore) RevokeAll(ctx context.Context, userID string, blacklist *Blacklist, accessTTL, refreshTTL time.Duration) error {
+func (s *SessionStore) RevokeAll(ctx context.Context, userID string, blacklist *Blacklist, refreshTTL time.Duration) error {
 	userKey := userSessionsPrefix + userID
 
 	sessionIDs, err := s.rdb.SMembers(ctx, userKey).Result()
@@ -296,7 +373,7 @@ func (s *SessionStore) RevokeAll(ctx context.Context, userID string, blacklist *
 			staleSessionIDs = append(staleSessionIDs, sid)
 			continue
 		}
-		if _, rErr := s.revokeLoadedSession(ctx, data, blacklist, accessTTL, refreshTTL); rErr != nil {
+		if _, rErr := s.revokeLoadedSession(ctx, data, blacklist, refreshTTL); rErr != nil {
 			logger.L().Warn("session revoke all: failed to revoke session",
 				zap.String("user_id", userID),
 				zap.Bool("session_reference_present", sid != ""),

@@ -22,17 +22,29 @@ prefix="${BACKUP_OBJECT_STORAGE_PREFIX:-postgres}"
 
 mkdir -p "${logical_dir}" "${base_dir}"
 
+sync_excludes=(
+  --exclude '*.partial'
+  --exclude '*.partial.*'
+  --exclude '*.tmp'
+  --exclude '*.tmp.*'
+  --exclude '.stuhelper-postgres-backup-staging/**'
+  --exclude 'backup-staging/**'
+)
+
 run_backup_object_storage_rclone \
   "0:0" \
   "type=bind,src=${logical_dir},dst=/source,readonly" \
-  copy /source "target:${BACKUP_OBJECT_STORAGE_BUCKET}/${prefix}/logical"
+  copy /source "target:${BACKUP_OBJECT_STORAGE_BUCKET}/${prefix}/logical" \
+  "${sync_excludes[@]}"
 run_backup_object_storage_rclone \
   "0:0" \
   "type=bind,src=${base_dir},dst=/source,readonly" \
-  copy /source "target:${BACKUP_OBJECT_STORAGE_BUCKET}/${prefix}/base"
+  copy /source "target:${BACKUP_OBJECT_STORAGE_BUCKET}/${prefix}/base" \
+  "${sync_excludes[@]}"
 run_backup_object_storage_rclone \
   "0:0" \
   "type=volume,src=${wal_archive_volume},dst=/source,readonly" \
-  copy /source "target:${BACKUP_OBJECT_STORAGE_BUCKET}/${prefix}/wal"
+  copy /source "target:${BACKUP_OBJECT_STORAGE_BUCKET}/${prefix}/wal" \
+  "${sync_excludes[@]}"
 
 log "synchronized PostgreSQL backup artifacts to object storage"

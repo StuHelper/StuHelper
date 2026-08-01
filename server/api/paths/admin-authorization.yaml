@@ -1,0 +1,288 @@
+/api/v1/admin/authorization/grants:
+  get:
+    tags: [Admin]
+    operationId: listAuthorizationGrants
+    summary: 查询管理员授权账本
+    description: |
+      查询 PostgreSQL 授权投影账本。super_admin 的权威来源是 Casdoor StuHelper
+      organization user.isAdmin；school/section 角色的管理真源仍是本账本。需要全局
+      `iam:grants:manage` capability；返回期望状态与 OpenFGA 投影状态，便于识别
+      pending/failed grant。
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - name: subjectUserID
+        in: query
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: role
+        in: query
+        schema:
+          $ref: '../components/schemas/authorization.yaml#/AuthorizationRole'
+      - name: desiredState
+        in: query
+        schema:
+          $ref: '../components/schemas/authorization.yaml#/AuthorizationDesiredState'
+      - name: projectionStatus
+        in: query
+        schema:
+          $ref: '../components/schemas/authorization.yaml#/AuthorizationProjectionStatus'
+      - $ref: '../components/parameters/common.yaml#/PageParam'
+      - $ref: '../components/parameters/common.yaml#/PageSizeParam'
+    responses:
+      '200':
+        description: 授权账本分页列表
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/authorization.yaml#/AuthorizationGrantList'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+  post:
+    tags: [Admin]
+    operationId: createAuthorizationGrant
+    summary: 创建或恢复管理员授权
+    description: |
+      在同一 PostgreSQL 事务中写入 grant desired state、不可变审计和 outbox。
+      返回成功只表示期望状态已接受；只有 `projectionStatus=applied` 后授权才会生效。
+      只允许人工授予 school_admin 与 section_*；super_admin 必须在 Casdoor StuHelper
+      organization 中设置用户的 IsAdmin，登录或 refresh 时由系统自动同步。
+      需要全局 `iam:grants:manage` capability 和最近 5 分钟内的 step-up MFA。
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/authorization.yaml#/CreateAuthorizationGrantRequest'
+    responses:
+      '201':
+        description: 授权期望状态已创建或恢复
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/authorization.yaml#/AuthorizationGrantMutationResult'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '412':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/authorization/grants/{grantID}:
+  get:
+    tags: [Admin]
+    operationId: getAuthorizationGrant
+    summary: 获取单条管理员授权
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - $ref: '#/components/parameters/GrantID'
+    responses:
+      '200':
+        description: 授权详情
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/authorization.yaml#/AuthorizationGrant'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/authorization/grants/{grantID}/revoke:
+  post:
+    tags: [Admin]
+    operationId: revokeAuthorizationGrant
+    summary: 撤销管理员授权
+    description: |
+      先提交 PostgreSQL `desiredState=revoked`，因此请求成功后撤权围栏立即拒绝，
+      不等待 OpenFGA tuple 删除完成。Casdoor 托管的 super_admin 不接受本接口撤销；
+      应在 Casdoor StuHelper organization 中取消该用户的 IsAdmin，系统会自动同步撤权。
+      需要全局 `iam:grants:manage` capability 和最近 5 分钟内的 step-up MFA。
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - $ref: '#/components/parameters/GrantID'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/authorization.yaml#/AuthorizationGrantMutationRequest'
+    responses:
+      '200':
+        description: 撤权期望状态已提交
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/authorization.yaml#/AuthorizationGrantMutationResult'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '412':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/authorization/grants/{grantID}/reconcile:
+  post:
+    tags: [Admin]
+    operationId: reconcileAuthorizationGrant
+    summary: 重新对账并投影管理员授权
+    description: |
+      针对账本中的当前 desired state 增加 revision、写入审计并重新生成 outbox 投影。
+      不接受任意 OpenFGA tuple。尚未首次激活的 grant 继续 fail-closed；已经激活的 grant
+      在修复期间仍由 PostgreSQL activation fence 授权，撤销则始终由 desired-state 围栏拒绝。
+      需要全局 `iam:grants:manage` capability 和最近 5 分钟内的 step-up MFA。
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    parameters:
+      - $ref: '#/components/parameters/GrantID'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/authorization.yaml#/AuthorizationGrantMutationRequest'
+    responses:
+      '200':
+        description: 对账投影已重新入队
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/authorization.yaml#/AuthorizationGrantMutationResult'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '412':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/authorization/projections/reconcile:
+  post:
+    tags: [Admin]
+    operationId: reconcileAllAuthorizationProjections
+    summary: 从授权账本重建全部 OpenFGA 投影
+    description: |
+      对授权账本中的每一条当前 desired state 增加 revision、写入逐条不可变审计并重新投递
+      精确 OpenFGA tuple。接口不接受任意 relation/object，因此不能绕过固定角色和 scope 白名单。
+      已激活授权在修复期间继续由 PostgreSQL activation fence 生效；撤销记录继续立即拒绝。
+      需要全局 `iam:grants:manage` capability 和最近 5 分钟内的 step-up MFA。
+    security:
+      - cookieAuth: []
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/authorization.yaml#/AuthorizationGrantMutationRequest'
+    responses:
+      '200':
+        description: 全量投影已原子重新入队
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/authorization.yaml#/AuthorizationProjectionReconcileResult'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '412':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+components:
+  parameters:
+    GrantID:
+      name: grantID
+      in: path
+      required: true
+      description: 授权账本 ID
+      schema:
+        type: integer
+        format: int64
+        minimum: 1

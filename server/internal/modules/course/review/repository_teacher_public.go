@@ -103,7 +103,11 @@ func (r *Repository) ListHotTeachers(ctx context.Context, limit int) ([]TeacherS
 // 使用 CONCURRENTLY 避免阻塞读操作（需要 UNIQUE INDEX）。
 func (r *Repository) RefreshTeacherPublicStats(ctx context.Context) error {
 	ctx = withDBTable(ctx, "mv_teacher_public_stats")
-	_, err := r.db.Exec(ctx, `REFRESH MATERIALIZED VIEW CONCURRENTLY mv_teacher_public_stats`)
+	_, err := r.db.ExecWithTimeout(
+		ctx,
+		r.teacherStatsRefreshTimeout,
+		`REFRESH MATERIALIZED VIEW CONCURRENTLY mv_teacher_public_stats`,
+	)
 	if err != nil {
 		return fmt.Errorf("RefreshTeacherPublicStats: %w", err)
 	}

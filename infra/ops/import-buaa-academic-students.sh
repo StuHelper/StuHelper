@@ -42,11 +42,14 @@ Optional:
   BUAA_ACADEMIC_DRY_RUN=true is accepted as an alias for validate-only.
 
 Supported optional columns:
-  sfzjlxdm, sfzjh_hash, yxdm, zydm, bjdm, xznj, rxnj, pyccdm, xslbdm, sjh,
+  sfzjlxdm, yxdm, zydm, bjdm, xznj, rxnj, pyccdm, xslbdm, sjh,
   dzxx, xjztdm, sfzx, sfzj
 
-sfzjh_enc is intentionally not imported from this TSV. Use a dedicated encrypted
-identity sync path for encrypted ID document numbers.
+sfzjh_enc and sfzjh_hash are rejected by this ordinary TSV importer because the
+schema requires them to be written as a secure pair. Existing pairs are preserved
+by the upsert. This repository does not currently provide a secure-pair import
+path. Before importing identity documents, implement and audit a dedicated writer
+that atomically encrypts and hashes the same plaintext value.
 
 The script performs an idempotent upsert and does not print student details.
 USAGE
@@ -118,7 +121,6 @@ columns = [
     "xh",
     "xm",
     "sfzjlxdm",
-    "sfzjh_hash",
     "yxdm",
     "zydm",
     "bjdm",
@@ -143,6 +145,16 @@ with source.open("r", encoding="utf-8-sig", newline="") as fh:
         raise SystemExit("BUAA academic TSV must have a header row")
 
     header = {name.strip(): name for name in reader.fieldnames if name is not None}
+    forbidden_identity_columns = [
+        column for column in ("sfzjh_enc", "sfzjh_hash") if column in header
+    ]
+    if forbidden_identity_columns:
+        raise SystemExit(
+            "BUAA academic TSV must not contain encrypted identity column(s): "
+            f"{', '.join(forbidden_identity_columns)}; "
+            "sfzjh_enc and sfzjh_hash require an audited secure-pair writer, "
+            "which this repository does not currently provide"
+        )
 
     def source_key(column: str) -> str | None:
         for candidate in aliases.get(column, [column]):
@@ -211,7 +223,6 @@ CREATE TEMP TABLE tmp_buaa_academic_students (
   xh text NOT NULL,
   xm text NOT NULL,
   sfzjlxdm text,
-  sfzjh_hash text,
   yxdm text,
   zydm text,
   bjdm text,
@@ -226,17 +237,16 @@ CREATE TEMP TABLE tmp_buaa_academic_students (
   sfzj text
 );
 
-\copy tmp_buaa_academic_students (xh, xm, sfzjlxdm, sfzjh_hash, yxdm, zydm, bjdm, xznj, rxnj, pyccdm, xslbdm, sjh, dzxx, xjztdm, sfzx, sfzj) FROM '/tmp/buaa_academic_students.normalized.tsv' WITH (FORMAT csv, HEADER true, DELIMITER E'\t', NULL '');
+\copy tmp_buaa_academic_students (xh, xm, sfzjlxdm, yxdm, zydm, bjdm, xznj, rxnj, pyccdm, xslbdm, sjh, dzxx, xjztdm, sfzx, sfzj) FROM '/tmp/buaa_academic_students.normalized.tsv' WITH (FORMAT csv, HEADER true, DELIMITER E'\t', NULL '');
 
 INSERT INTO academic.buaa_students (
-  xh, xm, sfzjlxdm, sfzjh_hash, yxdm, zydm, bjdm, xznj, rxnj, pyccdm,
+  xh, xm, sfzjlxdm, yxdm, zydm, bjdm, xznj, rxnj, pyccdm,
   xslbdm, sjh, dzxx, xjztdm, sfzx, sfzj, synced_at
 )
 SELECT
   btrim(xh),
   btrim(xm),
   NULLIF(btrim(sfzjlxdm), ''),
-  NULLIF(btrim(sfzjh_hash), ''),
   NULLIF(btrim(yxdm), ''),
   NULLIF(btrim(zydm), ''),
   NULLIF(btrim(bjdm), ''),
@@ -254,7 +264,6 @@ FROM tmp_buaa_academic_students
 ON CONFLICT (xh) DO UPDATE
 SET xm = EXCLUDED.xm,
     sfzjlxdm = EXCLUDED.sfzjlxdm,
-    sfzjh_hash = EXCLUDED.sfzjh_hash,
     yxdm = EXCLUDED.yxdm,
     zydm = EXCLUDED.zydm,
     bjdm = EXCLUDED.bjdm,

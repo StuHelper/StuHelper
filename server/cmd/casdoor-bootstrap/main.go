@@ -35,10 +35,9 @@ func main() {
 	}
 
 	log.Printf(
-		"Casdoor bootstrap ensured organization=%s applications=%d roles=%d providers=%d",
+		"Casdoor bootstrap ensured identity organization=%s applications=%d providers=%d",
 		settings.plan.Organization.Name,
 		len(settings.plan.Applications),
-		len(settings.plan.Roles),
 		len(settings.plan.Providers),
 	)
 }

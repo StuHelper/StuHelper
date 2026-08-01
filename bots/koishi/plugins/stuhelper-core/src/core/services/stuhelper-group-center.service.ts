@@ -15,6 +15,7 @@ import {
   toErrorMessage,
 } from './stuhelper-group-center.utils'
 import { redactSensitiveText } from '../modules/log-redaction'
+import { resolveRequiredConsoleGuildScope } from '../api/console-guild-scope'
 
 const CACHE_WARM_DELAY_MS = 2_000
 
@@ -47,6 +48,7 @@ declare module 'koishi' {
 export class StuhelperGroupCenterService extends Service {
   static inject = ['database']
 
+  private readonly context: Context
   /** 数据管理器 */
   private _data: DataManager
   /** 功能模块注册表 */
@@ -64,6 +66,7 @@ export class StuhelperGroupCenterService extends Service {
 
   constructor(ctx: Context) {
     super(ctx, 'stuhelperGroupCenter')
+    this.context = ctx
     this.serviceLogger = ctx.logger('stuhelperGroupCenter')
     this._data = new DataManager(ctx)
     this._settingsManager = new SettingsManager(this._data.dataPath, this.serviceLogger)
@@ -94,6 +97,14 @@ export class StuhelperGroupCenterService extends Service {
   /** 获取权限服务 */
   get auth(): AuthService {
     return this._auth
+  }
+
+  resolveConsoleGuildScope(client: unknown) {
+    return resolveRequiredConsoleGuildScope(client, {
+      roles: this._auth.getRoles(),
+      getUserRoleIds: (userId: string) => this._auth.getUserRoleIds(userId),
+      listBindingsByAuthId: (authId: number) => this.context.database.get('binding', { aid: authId }),
+    })
   }
 
   /**

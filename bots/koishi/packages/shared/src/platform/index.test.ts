@@ -113,6 +113,7 @@ test('platform admission client sends expected paths and payloads', async (t) =>
   await client.recordAdmissionActionEvent('42', {
     action: 'release',
     success: true,
+    dispatchAttempt: 1,
     messageID: 'message-2',
   })
   await client.listPendingFreshmanForwards()
@@ -192,6 +193,7 @@ test('platform client accepts empty success responses for void requests', async 
   await client.recordAdmissionActionEvent('42', {
     action: 'release',
     success: true,
+    dispatchAttempt: 1,
   })
 })
 

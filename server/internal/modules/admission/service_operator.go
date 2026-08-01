@@ -50,7 +50,8 @@ func (s *Service) authorizeBotFreshmanReviewer(
 	ctx context.Context,
 	input BotFreshmanReviewInput,
 ) (int64, error) {
-	if err := s.ensureManagementGuild(ctx, input); err != nil {
+	schoolID, err := s.ensureManagementGuild(ctx, input)
+	if err != nil {
 		return 0, err
 	}
 	userID, err := s.repo.GetUserIDByQQID(ctx, input.OperatorQQID)
@@ -60,32 +61,37 @@ func (s *Service) authorizeBotFreshmanReviewer(
 	if userID == nil {
 		return 0, ErrAdmissionOperatorUnbound
 	}
-	if err := s.ensureOperatorCapability(ctx, *userID); err != nil {
+	if err := s.ensureOperatorCapability(ctx, *userID, schoolID); err != nil {
 		return 0, err
 	}
 	return *userID, nil
 }
 
-func (s *Service) ensureManagementGuild(ctx context.Context, input BotFreshmanReviewInput) error {
+func (s *Service) ensureManagementGuild(ctx context.Context, input BotFreshmanReviewInput) (int64, error) {
 	app, err := s.repo.GetFreshmanApplicationForReviewPolicy(ctx, input.ApplicationID)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	policy, err := s.policyForFreshmanApplication(ctx, app)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if !stringInSlice(input.GuildID, policy.ManagementGuildIDs) {
-		return ErrAdmissionManagementGuildForbidden
+		return 0, ErrAdmissionManagementGuildForbidden
 	}
-	return nil
+	return app.SchoolID, nil
 }
 
-func (s *Service) ensureOperatorCapability(ctx context.Context, userID int64) error {
+func (s *Service) ensureOperatorCapability(ctx context.Context, userID, schoolID int64) error {
 	if s.operatorAccess == nil {
 		return ErrAdmissionOperatorAccessUnavailable
 	}
-	allowed, err := s.operatorAccess.UserHasCapability(ctx, userID, capability.AdmissionFreshmanReview)
+	allowed, err := s.operatorAccess.UserHasCapabilityInSchool(
+		ctx,
+		userID,
+		capability.AdmissionFreshmanReview,
+		schoolID,
+	)
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrAdmissionOperatorAccessUnavailable, err)
 	}
@@ -160,9 +166,6 @@ func (s *Service) applyFreshmanApprovalTx(
 	if input.Update.Status != FreshmanApplicationApproved {
 		return nil
 	}
-	if s.projection == nil {
-		return ErrAdmissionProjectionUnavailable
-	}
 	if input.Update.ProvisionalExpiresAt == nil {
 		return ErrAdmissionInvalidStatus
 	}
@@ -179,7 +182,7 @@ func (s *Service) applyFreshmanApprovalTx(
 	if err := s.queueVerifiedUserReleaseActionsTx(ctx, input.Tx, input.App.UserID, input.App.SchoolID, s.now()); err != nil {
 		return err
 	}
-	return s.projection.EnqueueFreshmanProvisionalRoleSyncTx(ctx, input.Tx, input.App.UserID, true)
+	return nil
 }
 
 type freshmanApprovalTxInput struct {

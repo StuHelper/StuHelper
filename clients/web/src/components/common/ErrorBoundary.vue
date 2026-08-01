@@ -6,6 +6,7 @@
     <h2 class="text-lg font-semibold text-text-primary">{{ t('errors.boundary.title') }}</h2>
     <p class="text-sm text-text-secondary max-w-md">{{ t('errors.boundary.description') }}</p>
     <button
+      type="button"
       class="mt-2 py-2 px-6 text-sm font-medium text-white bg-primary rounded-full cursor-pointer transition-opacity duration-fast hover:opacity-90"
       @click="handleReload"
     >
@@ -20,6 +21,7 @@ import { ref, onErrorCaptured, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { AlertTriangle } from 'lucide-vue-next'
+import { reportFrontendError } from '@/utils/observability'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -37,6 +39,7 @@ onErrorCaptured((err: Error) => {
   if (import.meta.env.DEV) {
     console.error('[ErrorBoundary] Captured error:', err)
   }
+  reportFrontendError('vue-error')
   error.value = err
   // 返回 false 阻止错误继续向上传播
   return false

@@ -8,6 +8,7 @@ DEPLOY_SSH_PUBKEY="${DEPLOY_SSH_PUBKEY:-}"
 CONFIGURE_UFW="${CONFIGURE_UFW:-true}"
 ALLOW_HTTP_PORTS="${ALLOW_HTTP_PORTS:-80,443}"
 INSTALL_BACKUP_TIMERS="${INSTALL_BACKUP_TIMERS:-true}"
+BACKUP_STAGING_DIR="${BACKUP_STAGING_DIR:-/var/lib/stuhelper/postgres/backup-staging}"
 INSTALL_GO="${INSTALL_GO:-true}"
 GO_VERSION="${GO_VERSION:-1.26.5}"
 
@@ -63,6 +64,7 @@ ensure_deploy_user() {
   install -d -o "${DEPLOY_USER}" -g "${DEPLOY_GROUP}" -m 0755 "${DEPLOY_APP_DIR}/infra/generated/postgres"
   install -d -o "${DEPLOY_USER}" -g "${DEPLOY_GROUP}" -m 0755 "${DEPLOY_APP_DIR}/backups/postgres/logical"
   install -d -o "${DEPLOY_USER}" -g "${DEPLOY_GROUP}" -m 0755 "${DEPLOY_APP_DIR}/backups/postgres/base"
+  install -d -o "${DEPLOY_USER}" -g "${DEPLOY_GROUP}" -m 0700 "${BACKUP_STAGING_DIR}"
   touch \
     "${DEPLOY_APP_DIR}/.env.prod.shared" \
     "${DEPLOY_APP_DIR}/.env.prod.secrets" \
@@ -189,12 +191,14 @@ EOF
 install_backup_timers() {
   [[ "${INSTALL_BACKUP_TIMERS}" == "true" ]] || return 0
 
-  if [[ -x "${DEPLOY_APP_DIR}/infra/ops/install-backup-timers.sh" ]]; then
+  local backup_timer_installer="${DEPLOY_APP_DIR}/infra/ops/install-backup-timers.sh"
+  if [[ -x "${backup_timer_installer}" ]]; then
     log "installing PostgreSQL backup timers from deploy bundle"
     DEPLOY_USER="${DEPLOY_USER}" \
     DEPLOY_GROUP="${DEPLOY_GROUP}" \
     DEPLOY_APP_DIR="${DEPLOY_APP_DIR}" \
-    "${DEPLOY_APP_DIR}/infra/ops/install-backup-timers.sh"
+    BACKUP_STAGING_DIR="${BACKUP_STAGING_DIR}" \
+    "${backup_timer_installer}"
     return 0
   fi
 
@@ -215,6 +219,7 @@ Environment=ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.shared
 Environment=SECRETS_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.secrets
 Environment=GENERATED_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.generated
 Environment=GENERATED_SECRET_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.generated.secrets
+Environment=BACKUP_STAGING_DIR=${BACKUP_STAGING_DIR}
 ExecStart=/bin/bash -lc 'cd "${DEPLOY_APP_DIR}" && ./infra/ops/run-scheduled-backup.sh dump'
 EOF
 
@@ -245,6 +250,7 @@ Environment=ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.shared
 Environment=SECRETS_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.secrets
 Environment=GENERATED_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.generated
 Environment=GENERATED_SECRET_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.generated.secrets
+Environment=BACKUP_STAGING_DIR=${BACKUP_STAGING_DIR}
 ExecStart=/bin/bash -lc 'cd "${DEPLOY_APP_DIR}" && ./infra/ops/run-scheduled-backup.sh basebackup'
 EOF
 
@@ -332,9 +338,10 @@ Next steps:
 4. Review the remote deploy control plane in ${DEPLOY_APP_DIR}/.deploy/remote.env
    - registry/shared/generated secret refs should point to your remote secret backend
 5. Ensure the deploy bundle is synced to ${DEPLOY_APP_DIR}; re-run bootstrap or install-backup-timers.sh afterwards if you want systemd timers installed from the repo
-6. Ensure the GitLab CI variables are set:
+6. Configure the staging and production GitHub environment secrets:
    - DEPLOY_HOST / DEPLOY_PORT / DEPLOY_USER / DEPLOY_APP_DIR / DEPLOY_SSH_KEY
-7. Push to main and approve the production deploy job to trigger build -> push -> remote deploy
+   - DEPLOY_SSH_KNOWN_HOSTS
+7. Publish a trusted main commit, then run the protected GitHub Deploy workflow for production
 EOF
 }
 

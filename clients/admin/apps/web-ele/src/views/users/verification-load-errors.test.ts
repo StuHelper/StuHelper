@@ -64,7 +64,7 @@ describe('verification admin views error contract', () => {
     expect(studentSource).toContain('@keyup.enter="resetPageAndFetch"');
   });
 
-  it('keeps identity review loading scoped to the active user', async () => {
+  it('keeps identity review loading scoped to the active evidence target', async () => {
     const source = await readFile(
       resolve(process.cwd(), 'src/views/users/identity-review/index.vue'),
       'utf8',
@@ -75,14 +75,18 @@ describe('verification admin views error contract', () => {
       'reviewingActionsByUserId[userId] = action',
       'delete reviewingActionsByUserId[userId]',
       ':disabled="userReviewing(row.userID)"',
-      ':loading="userActionLoading(row.userID, \'approve\')"',
-      ':loading="userActionLoading(row.userID, \'reject\')"',
+      'function detailTargetReviewing()',
+      'function detailTargetActionLoading(action: IdentityReviewAction)',
+      ':disabled="detailTargetReviewing()"',
+      ':loading="detailTargetActionLoading(\'approve\')"',
+      ':loading="detailTargetActionLoading(\'reject\')"',
       ':disabled="rejectTargetReviewing()"',
       ':loading="rejectTargetActionLoading(\'reject\')"',
     ]) {
       expect(source).toContain(token);
     }
 
+    expect(source).not.toContain('@confirm="handleReview(row.userID, true)"');
     expect(source).not.toContain('const actionLoading = ref(false)');
     expect(source).not.toContain(':loading="actionLoading"');
   });

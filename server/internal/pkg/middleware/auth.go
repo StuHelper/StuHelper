@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"go.uber.org/zap"
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/StuHelper/StuHelper/server/internal/pkg/ctxutil"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/errs"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/logger"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/metrics"
@@ -28,19 +30,22 @@ type OptionalAuthConfig struct {
 	CookieSecure bool
 }
 
-type RoleScopeResolver interface {
-	ResolveRoleScopes(ctx context.Context, casdoorSubject string, roles []string) (map[string][]string, error)
+type AccessSnapshotResolver interface {
+	ResolveAccessSnapshot(
+		ctx context.Context,
+		providerSubject string,
+	) (roles []string, roleScopes map[string][]string, err error)
 }
 
 // resolveToken 认证哨兵错误
 var (
-	errNoToken              = errors.New("missing token")
-	errTokenRevoked         = errors.New("token revoked")
-	errBlacklistFail        = errors.New("blacklist unavailable")
-	errSessionInvalid       = errors.New("session invalid")
-	errSessionUnavailable   = errors.New("session unavailable")
-	errRoleScopeUnavailable = errors.New("role scope unavailable")
-	errTokenMalformed       = errors.New("malformed token")
+	errNoToken                   = errors.New("missing token")
+	errTokenRevoked              = errors.New("token revoked")
+	errBlacklistFail             = errors.New("blacklist unavailable")
+	errSessionInvalid            = errors.New("session invalid")
+	errSessionUnavailable        = errors.New("session unavailable")
+	errAccessSnapshotUnavailable = errors.New("access snapshot unavailable")
+	errTokenMalformed            = errors.New("malformed token")
 )
 
 // resolveToken 从请求中提取、验证并解析 Token。
@@ -56,7 +61,7 @@ func resolveToken(c *gin.Context, oidcClient *oidc.Client, tokenService *token.S
 	}
 
 	// 检查 token 是否在应用级黑名单中（紧急吊销，两种来源都检查）
-	blacklistCtx, cancel := context.WithTimeout(c.Request.Context(), authBlacklistLookupTimeout)
+	blacklistCtx, cancel := ctxutil.DetachedTimeout(c.Request.Context(), authBlacklistLookupTimeout)
 	defer cancel()
 	isBlacklisted, err := tokenService.GetBlacklist().IsBlacklisted(blacklistCtx, tokenString)
 	if err != nil {
@@ -88,17 +93,21 @@ func resolveToken(c *gin.Context, oidcClient *oidc.Client, tokenService *token.S
 			logger.L().Debug("bearer token rejected for unknown OIDC client", zap.String("client_id", result.GetAppID()))
 			return nil, fmt.Errorf("invalid token audience: %w", oidc.ErrInvalidAudience)
 		}
+		subject := strings.TrimSpace(result.Sub)
+		if subject == "" {
+			logger.L().Debug("bearer token rejected without a subject")
+			return nil, errTokenMalformed
+		}
 		return &authResult{
-			userID:         result.Sub,
-			appID:          result.GetAppID(),
-			username:       result.Username,
-			email:          result.Email,
-			displayName:    result.Name,
-			tokenScopes:    result.Scopes(),
-			roles:          result.Roles,
-			orgScopedRoles: result.OrgScopedRoles,
-			authTime:       timeFromUnix(result.AuthTime),
-			mfaProofAt:     result.MFAProofVerifiedAt(),
+			userID:               subject,
+			appID:                result.GetAppID(),
+			username:             result.Username,
+			email:                result.Email,
+			displayName:          result.Name,
+			tokenScopes:          result.Scopes(),
+			authTime:             timeFromUnix(result.AuthTime),
+			mfaProofAt:           result.MFAProofVerifiedAt(),
+			accessTokenExpiresAt: timeFromUnix(result.ExpiresAt),
 		}, nil
 	}
 
@@ -106,33 +115,39 @@ func resolveToken(c *gin.Context, oidcClient *oidc.Client, tokenService *token.S
 }
 
 func AuthMiddleware(oidcClient *oidc.Client, tokenService *token.Service) gin.HandlerFunc {
-	return AuthMiddlewareWithRoleScopeResolver(oidcClient, tokenService, nil)
+	return AuthMiddlewareWithAccessSnapshotResolver(oidcClient, tokenService, nil)
 }
 
 func AuthMiddlewareWithConfig(oidcClient *oidc.Client, tokenService *token.Service, cfg OptionalAuthConfig) gin.HandlerFunc {
-	return AuthMiddlewareWithConfigAndRoleScopeResolver(oidcClient, tokenService, cfg, nil)
+	return AuthMiddlewareWithConfigAndAccessSnapshotResolver(oidcClient, tokenService, cfg, nil)
 }
 
-// AuthMiddlewareWithRoleScopeResolver 强制认证并补全 DB/OpenFGA role scope。
-func AuthMiddlewareWithRoleScopeResolver(
+// AuthMiddlewareWithAccessSnapshotResolver 强制认证并从 StuHelper DB 权威来源加载 access snapshot。
+// Provider token 中的业务 role 与 scoped role 始终被忽略。
+func AuthMiddlewareWithAccessSnapshotResolver(
 	oidcClient *oidc.Client,
 	tokenService *token.Service,
-	scopeResolver RoleScopeResolver,
+	accessResolver AccessSnapshotResolver,
 ) gin.HandlerFunc {
-	return AuthMiddlewareWithConfigAndRoleScopeResolver(oidcClient, tokenService, OptionalAuthConfig{}, scopeResolver)
+	return AuthMiddlewareWithConfigAndAccessSnapshotResolver(
+		oidcClient,
+		tokenService,
+		OptionalAuthConfig{},
+		accessResolver,
+	)
 }
 
-func AuthMiddlewareWithConfigAndRoleScopeResolver(
+func AuthMiddlewareWithConfigAndAccessSnapshotResolver(
 	oidcClient *oidc.Client,
 	tokenService *token.Service,
 	cfg OptionalAuthConfig,
-	scopeResolver RoleScopeResolver,
+	accessResolver AccessSnapshotResolver,
 ) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		_, source := getTokenWithSource(c)
 		result, err := resolveToken(c, oidcClient, tokenService)
 		if err == nil {
-			result, err = withResolvedRoleScopes(c.Request.Context(), result, scopeResolver)
+			result, err = withResolvedAccessSnapshot(c.Request.Context(), result, accessResolver)
 		}
 		if err != nil {
 			if source == tokenSourceCookie && !authBackendUnavailable(err) {
@@ -165,14 +180,14 @@ func AuthMiddlewareWithConfigAndRoleScopeResolver(
 //  4. 后端故障（黑名单/Redis 不可用）→ 注入诊断标记到 context 供
 //     handler 按路由敏感度决定是否拒绝，匿名继续。
 func OptionalAuthMiddleware(oidcClient *oidc.Client, tokenService *token.Service, cfg OptionalAuthConfig) gin.HandlerFunc {
-	return OptionalAuthMiddlewareWithRoleScopeResolver(oidcClient, tokenService, cfg, nil)
+	return OptionalAuthMiddlewareWithAccessSnapshotResolver(oidcClient, tokenService, cfg, nil)
 }
 
-func OptionalAuthMiddlewareWithRoleScopeResolver(
+func OptionalAuthMiddlewareWithAccessSnapshotResolver(
 	oidcClient *oidc.Client,
 	tokenService *token.Service,
 	cfg OptionalAuthConfig,
-	scopeResolver RoleScopeResolver,
+	accessResolver AccessSnapshotResolver,
 ) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		_, source := getTokenWithSource(c)
@@ -183,7 +198,7 @@ func OptionalAuthMiddlewareWithRoleScopeResolver(
 
 		result, err := resolveToken(c, oidcClient, tokenService)
 		if err == nil {
-			result, err = withResolvedRoleScopes(c.Request.Context(), result, scopeResolver)
+			result, err = withResolvedAccessSnapshot(c.Request.Context(), result, accessResolver)
 		}
 		if err == nil {
 			setClaimsToContext(c, result)
@@ -226,7 +241,7 @@ func OptionalAuthMiddlewareWithRoleScopeResolver(
 func authBackendUnavailable(err error) bool {
 	return errors.Is(err, errBlacklistFail) ||
 		errors.Is(err, errSessionUnavailable) ||
-		errors.Is(err, errRoleScopeUnavailable) ||
+		errors.Is(err, errAccessSnapshotUnavailable) ||
 		errors.Is(err, oidc.ErrProviderUnavailable)
 }
 

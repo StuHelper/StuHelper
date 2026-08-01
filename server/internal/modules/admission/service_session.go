@@ -845,6 +845,11 @@ func (s *Service) RecordBotActionEvent(ctx context.Context, actionID string, eve
 		if event.Action != action.Action && (action.Action != BotActionKick || event.Action != BotActionBlacklist) {
 			return ErrAdmissionInvalidStatus
 		}
+		if action.Status != AdmissionBotActionDispatched ||
+			event.DispatchAttempt <= 0 ||
+			event.DispatchAttempt != action.AttemptCount {
+			return nil
+		}
 		session := &action.Session
 		if !sessionCanApplyBotEvent(session, event.Action) ||
 			!queuedBotActionStillMatchesSession(action.Action, session, s.now()) {
@@ -858,7 +863,15 @@ func (s *Service) RecordBotActionEvent(ctx context.Context, actionID string, eve
 			}); err != nil {
 				return err
 			}
-			return s.repo.MarkBotActionFailedTx(ctx, tx, botActionID, event, s.now(), action.AttemptCount)
+			return s.repo.MarkBotActionFailedTx(
+				ctx,
+				tx,
+				botActionID,
+				event.DispatchAttempt,
+				event,
+				s.now(),
+				action.AttemptCount,
+			)
 		}
 		if event.Action == BotActionRelease {
 			if err := s.applySuccessfulBotEventTx(ctx, successfulBotEventTxInput{
@@ -868,7 +881,7 @@ func (s *Service) RecordBotActionEvent(ctx context.Context, actionID string, eve
 			}); err != nil {
 				return err
 			}
-			return s.repo.MarkBotActionSucceededTx(ctx, tx, botActionID, event, s.now())
+			return s.repo.MarkBotActionSucceededTx(ctx, tx, botActionID, event.DispatchAttempt, event, s.now())
 		}
 		policy, err := s.loadPolicy(ctx, session.Platform, session.GuildID)
 		if err != nil {
@@ -882,7 +895,7 @@ func (s *Service) RecordBotActionEvent(ctx context.Context, actionID string, eve
 		}); err != nil {
 			return err
 		}
-		return s.repo.MarkBotActionSucceededTx(ctx, tx, botActionID, event, s.now())
+		return s.repo.MarkBotActionSucceededTx(ctx, tx, botActionID, event.DispatchAttempt, event, s.now())
 	})
 }
 
@@ -1275,10 +1288,11 @@ func normalizeStringPtr(value *string) *string {
 
 func normalizeBotEventInput(event BotEventInput) BotEventInput {
 	return BotEventInput{
-		Action:    BotAction(strings.TrimSpace(string(event.Action))),
-		Success:   event.Success,
-		MessageID: strings.TrimSpace(event.MessageID),
-		Error:     strings.TrimSpace(event.Error),
+		Action:          BotAction(strings.TrimSpace(string(event.Action))),
+		Success:         event.Success,
+		DispatchAttempt: event.DispatchAttempt,
+		MessageID:       strings.TrimSpace(event.MessageID),
+		Error:           strings.TrimSpace(event.Error),
 	}
 }
 

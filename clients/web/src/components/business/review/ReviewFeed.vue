@@ -18,6 +18,7 @@
     <div v-else-if="error && reviews.length === 0" class="text-center py-8 px-4 text-text-muted text-sm" role="alert" aria-live="polite">
       <p class="mb-3">{{ error }}</p>
       <button
+        type="button"
         class="text-primary font-medium cursor-pointer underline underline-offset-2 hover:text-primary-dark"
         @click="handleRetry"
       >
@@ -49,6 +50,7 @@
       <div v-if="error" class="text-center py-8 px-4 text-text-muted text-sm" role="alert" aria-live="polite">
         <p class="mb-3">{{ error }}</p>
         <button
+          type="button"
           class="text-primary font-medium cursor-pointer underline underline-offset-2 hover:text-primary-dark"
           @click="handleRetry"
         >

@@ -78,7 +78,7 @@
               </div>
               <a
                 class="completion-action"
-                :href="profileCompletionActionURL(field.actionURL)"
+                :href="profileCompletionActionURL(field)"
                 target="_blank"
                 rel="noreferrer"
               >
@@ -153,8 +153,11 @@ import {
   readAuthorizationTargetPayload,
   readProfileCompletionPagePayload,
 } from '@/modules/open-platform/pagePayload'
-import { accountCenterURLForHref } from '@/utils/redirect'
+import { resolveProfileCompletionActionURL } from '@/modules/open-platform/profileCompletionAction'
 import type { OpenPlatformProfileCompletionPageResponse } from '@stuhelper/shared/api'
+
+type ProfileCompletionField =
+  OpenPlatformProfileCompletionPageResponse['missingFields'][number]
 
 const route = useRoute()
 const authStore = useAuthStore()
@@ -222,8 +225,8 @@ function redirectToURL(rawURL: string) {
   window.location.assign(parsed.toString())
 }
 
-function profileCompletionActionURL(actionURL: string): string {
-  return accountCenterURLForHref(actionURL) ?? actionURL
+function profileCompletionActionURL(field: ProfileCompletionField): string {
+  return resolveProfileCompletionActionURL(field, authStore.user?.accountSettingsUrl)
 }
 
 onMounted(loadCompletion)

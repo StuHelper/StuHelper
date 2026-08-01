@@ -56,7 +56,7 @@ export function registerMemberBlacklistConsoleAPI(
 ) {
   if (!ctx.console) return
 
-  const addAuthorityListener = createAuthority4ListenerRegistrar(ctx.console)
+  const addAuthorityListener = createAuthority4ListenerRegistrar(ctx)
   const platform = options.platform || DEFAULT_MEMBER_BLACKLIST_PLATFORM
 
   addAuthorityListener('stuhelperGroupCenter/blacklist/list', async function () {

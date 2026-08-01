@@ -25,10 +25,11 @@
         <textarea
           :id="reasonId"
           v-model="reason"
+          :aria-label="t('review.admin.moderateReasonLabel')"
           :placeholder="t('review.admin.moderateReasonPlaceholder')"
           maxlength="500"
           rows="3"
-          autofocus
+          data-dialog-initial-focus
           :disabled="submitting"
           class="w-full rounded-lg bg-bg-input px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none"
         />

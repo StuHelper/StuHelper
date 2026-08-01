@@ -9,6 +9,7 @@
       <h1 class="text-xl font-bold text-text-primary mb-3">{{ t('errors.loadError.title') }}</h1>
       <p class="text-sm text-text-secondary mb-6">{{ t('errors.loadError.description') }}</p>
       <button
+        type="button"
         class="inline-flex items-center gap-2 px-6 py-2.5 bg-gradient-to-br from-indigo-500 to-violet-500 text-white text-sm font-medium border-none rounded-full cursor-pointer hover:opacity-90 transition-opacity"
         @click="reload"
       >

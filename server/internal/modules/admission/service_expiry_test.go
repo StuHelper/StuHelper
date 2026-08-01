@@ -11,7 +11,7 @@ import (
 	"github.com/StuHelper/StuHelper/server/internal/testutil/postgresfixture"
 )
 
-func TestExpiredFreshmanCredentialRevokesOnlyFreshmanProjection(t *testing.T) {
+func TestExpiredFreshmanCredentialMarksOnlyFreshmanCredentialProcessed(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	svc := newOperatorTestService(t, fixture)
 	operatorID := seedAdmissionUser(t, fixture, "expiry-operator")
@@ -27,22 +27,17 @@ func TestExpiredFreshmanCredentialRevokesOnlyFreshmanProjection(t *testing.T) {
 	freshmanCredentialID := credentialIDByKind(t, fixture, approved.UserID, CredentialFreshmanMaterialManual)
 	insertSchoolSSOCredential(t, fixture, approved.UserID)
 	expireFreshmanCredential(t, fixture, freshmanCredentialID, svc.now().Add(-time.Minute))
-	resetProjectionCalls(t, svc)
 
 	processed, err := svc.ProcessExpiredFreshmanCredentials(context.Background())
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, processed)
-	assertProjectionEnqueued(t, svc, approved.UserID, false)
 	assertCredentialExpiryProcessed(t, fixture, freshmanCredentialID)
 	assertCredentialNotRevoked(t, fixture, "school-sso-expiry")
-}
 
-func resetProjectionCalls(t *testing.T, svc *Service) {
-	t.Helper()
-	gateway, ok := svc.projection.(*testFreshmanProjectionGateway)
-	require.True(t, ok)
-	gateway.calls = nil
+	processed, err = svc.ProcessExpiredFreshmanCredentials(context.Background())
+	require.NoError(t, err)
+	assert.Zero(t, processed)
 }
 
 func credentialIDByKind(

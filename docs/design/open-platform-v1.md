@@ -3,7 +3,7 @@ type: design
 audience: backend-dev, frontend-dev, ops, product
 status: current
 authoritative-source: server/api/openapi.yaml
-last-verified: 2026-05-30
+last-verified: 2026-07-31
 ---
 
 # StuHelper Open Platform v1
@@ -92,6 +92,23 @@ StuHelper 后端校验至少包括：
 ```
 
 如果当前 Casdoor 版本和应用类型能够稳定表达自定义业务 scope、展示 display name / description，并把最终授权结果作为可验证 scope 传给 StuHelper API，可以把上述 scope 同意页放在 `sso.stuhelper.com`。否则，Casdoor 只负责登录与标准 OIDC consent，StuHelper 在 `stuhelper.com` 的 Open Platform 页面承载业务数据授权。无论 UI 放在哪里，业务授权真源都是 StuHelper 数据库里的 app、scope approval、user consent 和审计记录。
+
+### 资料补全动作边界
+
+Open Platform 的资料补全页必须把字段送到其权威维护方，不能把所有缺失字段统一指向
+StuHelper 的只读资料摘要：
+
+- `profile.username`、`profile.email`、`profile.avatar` 由 Casdoor 维护，Web 使用
+  `/auth/me` 已校验的绝对 `accountSettingsUrl` 打开上游账号设置。
+- `profile.phone`、`profile.identity`、`profile.student`、`profile.school` 由
+  StuHelper 业务流程维护，继续使用后端 `missingFields[].actionURL` 指向手机号绑定、
+  身份认证或学生认证页面。
+- `accountSettingsUrl` 缺失时只回退到后端声明的 action，不在浏览器中猜测 issuer、
+  拼接 Casdoor 路径或复制服务端 fallback 规则。
+
+用户在新标签页完成资料后，原资料补全页通过“重新检查”刷新缺失字段，再调用
+`profile-completion/continue` 继续原授权请求。字段动作解析不能改变 token、scope、
+redirect URI 或 Continue 的 fail-closed 校验。
 
 ## Casdoor Properties 使用原则
 

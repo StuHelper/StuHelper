@@ -129,7 +129,6 @@ func (s *Service) VerifyStudent(ctx context.Context, userID int64, req VerifyStu
 		if err != nil {
 			logger.L().Warn("LDAP query user info failed after successful login",
 				zap.Int64("user_id", userID),
-				zap.String("student_id", trimmedStudentID),
 				zap.Error(err),
 			)
 		}
@@ -223,7 +222,7 @@ func (s *Service) VerifyStudent(ctx context.Context, userID int64, req VerifyStu
 	}
 
 	if err := s.repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		txExisting, err := s.repo.GetProfileByUserIDTx(ctx, tx, userID)
+		txExisting, err := s.repo.GetProfileByUserIDForUpdateTx(ctx, tx, userID)
 		if err != nil {
 			return fmt.Errorf("VerifyStudent check existing tx: %w", err)
 		}

@@ -67,7 +67,7 @@ func TestHandleAdminListIdentitiesRequiresStepUpProof(t *testing.T) {
 
 	router.ServeHTTP(recorder, req)
 
-	require.Equal(t, http.StatusPreconditionRequired, recorder.Code)
+	require.Equal(t, http.StatusPreconditionFailed, recorder.Code)
 }
 
 func TestHandleAdminListIdentities_IncludesReviewMeta(t *testing.T) {
@@ -111,4 +111,51 @@ func TestHandleAdminListIdentities_IncludesReviewMeta(t *testing.T) {
 	assert.NotContains(t, item, "docPhotoFront")
 	assert.NotContains(t, item, "docPhotoBack")
 	assert.NotContains(t, item, "docPhotoSelfie")
+}
+
+func TestHandleAdminGetIdentity_ReturnsOnlyPresignedOwnedEvidence(t *testing.T) {
+	front := "identities/202/2026/07/1777777777777777001-front.png"
+	back := "identities/202/2026/07/1777777777777777002-back.png"
+	selfie := "identities/202/2026/07/1777777777777777003-selfie.png"
+	store := &fakeIdentityPhotoStore{
+		presignURL: "https://storage.example.test/presigned-identity-photo",
+	}
+	repo := &mockRepo{
+		onGetIdentityReviewItemByUserID: func(_ context.Context, userID int64) (*IdentityReviewItem, error) {
+			assert.Equal(t, int64(202), userID)
+			return &IdentityReviewItem{
+				UserID:          userID,
+				DocType:         DocTypePassport,
+				RealName:        "李四",
+				DocPhotoFront:   &front,
+				DocPhotoBack:    &back,
+				DocPhotoSelfie:  &selfie,
+				RejectionReason: nil,
+			}, nil
+		},
+	}
+
+	router := setupAdminHandlerTestRouterWithRoleAndProof(
+		t,
+		repo,
+		[]string{"super_admin"},
+		nil,
+		time.Now(),
+		WithIdentityPhotoStore(store),
+	)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/identities/202", nil)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var responseBody map[string]any
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &responseBody))
+	data := responseBody["data"].(map[string]any)
+
+	assert.Equal(t, float64(202), data["userID"])
+	assert.Equal(t, store.presignURL, data["docPhotoFrontURL"])
+	assert.Equal(t, store.presignURL, data["docPhotoBackURL"])
+	assert.Equal(t, store.presignURL, data["docPhotoSelfieURL"])
+	assert.NotContains(t, data, "docPhotoFront")
+	assert.Equal(t, []string{front, back, selfie}, store.presignedKeys)
 }

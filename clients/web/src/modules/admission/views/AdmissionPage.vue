@@ -1,8 +1,9 @@
 <template>
-  <AdmissionShell
-    :display-qq="displayQQ"
-    :status-label="admissionStatusLabel"
-  >
+  <div data-admission-page-root>
+    <AdmissionShell
+      :display-qq="displayQQ"
+      :status-label="admissionStatusLabel"
+    >
     <template #progress>
         <AdmissionProgress
           :page-state="pageState"
@@ -134,47 +135,74 @@
               重新加载
             </button>
           </div>
-          <div class="admission-flow__tabs">
+          <div
+            class="admission-flow__tabs"
+            role="tablist"
+            aria-label="学生认证方式"
+          >
             <button
+              v-if="showOldStudentFlow"
+              id="admission-old-student-tab"
+              ref="oldStudentTab"
               class="flow-tab"
               :class="{ 'flow-tab--active': activeFlow === 'oldStudent' }"
+              role="tab"
               type="button"
+              aria-controls="admission-old-student-panel"
+              :aria-selected="activeFlow === 'oldStudent'"
+              :tabindex="activeFlow === 'oldStudent' ? 0 : -1"
               @click="selectAdmissionFlow('oldStudent')"
+              @keydown="handleAdmissionFlowKeydown($event, 'oldStudent')"
             >
               老生认证
             </button>
             <button
+              v-if="showFreshmanSubmission"
+              id="admission-freshman-tab"
+              ref="freshmanTab"
               class="flow-tab"
               :class="{ 'flow-tab--active': activeFlow === 'freshman' }"
+              role="tab"
               type="button"
+              aria-controls="admission-freshman-panel"
+              :aria-selected="activeFlow === 'freshman'"
+              :tabindex="activeFlow === 'freshman' ? 0 : -1"
               @click="selectAdmissionFlow('freshman')"
+              @keydown="handleAdmissionFlowKeydown($event, 'freshman')"
             >
               新生认证
             </button>
           </div>
-          <OldStudentVerificationFlow
-            v-if="activeFlow === 'oldStudent'"
-            :admission-session-id="session?.id"
-            :current-return-url="currentAdmissionURL()"
-            :linked="pageState === 'linked'"
-            :schools="admissionSchools"
-            @expired="handleAdmissionExpired"
-            @verified="handleOldStudentVerified"
-          />
-          <FreshmanCameraFlow
-            v-else-if="showFreshmanSubmission"
-            :admission-session-id="session?.id"
-            :max-material-bytes="session?.maxMaterialBytes"
-            :schools="admissionSchools"
-            @expired="handleAdmissionExpired"
-            @submitted="markPendingReview"
-          />
           <div
-            v-else
-            class="formal-student-credential"
-            data-formal-student-credential
+            v-if="activeFlow === 'oldStudent' && showOldStudentFlow"
+            id="admission-old-student-panel"
+            role="tabpanel"
+            aria-labelledby="admission-old-student-tab"
+            tabindex="0"
           >
-            已完成老生认证。
+            <OldStudentVerificationFlow
+              :admission-session-id="session?.id"
+              :current-return-url="currentAdmissionURL()"
+              :linked="pageState === 'linked'"
+              :schools="admissionSchools"
+              @expired="handleAdmissionExpired"
+              @verified="handleOldStudentVerified"
+            />
+          </div>
+          <div
+            v-else-if="showFreshmanSubmission"
+            id="admission-freshman-panel"
+            role="tabpanel"
+            aria-labelledby="admission-freshman-tab"
+            tabindex="0"
+          >
+            <FreshmanCameraFlow
+              :admission-session-id="session?.id"
+              :max-material-bytes="session?.maxMaterialBytes"
+              :schools="admissionSchools"
+              @expired="handleAdmissionExpired"
+              @submitted="markPendingReview"
+            />
           </div>
     </section>
 
@@ -245,7 +273,7 @@
       title="无法打开认证"
       tone="danger"
     />
-  </AdmissionShell>
+    </AdmissionShell>
 
     <Dialog :open="bindConfirmationDialogOpen" @update:open="handleBindConfirmationOpenChange">
       <DialogContent
@@ -319,6 +347,7 @@
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -346,6 +375,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { getErrorStatus } from '@/api/errors'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
@@ -402,9 +432,13 @@ const errorMessage = ref('认证链接暂时无法打开，请稍后重试。')
 const linkedResourceErrorMessage = ref('')
 const consumedTokenNeedsLogin = ref(false)
 const linking = ref(false)
-const activeFlow = ref<'freshman' | 'oldStudent'>('freshman')
+type AdmissionFlow = 'freshman' | 'oldStudent'
+
+const activeFlow = ref<AdmissionFlow>('freshman')
 const projectionRefreshTimedOut = ref(false)
 const activeFlowManuallySelected = ref(false)
+const oldStudentTab = ref<HTMLButtonElement | null>(null)
+const freshmanTab = ref<HTMLButtonElement | null>(null)
 const bindConfirmationDialogOpen = ref(false)
 const bindConfirmationQQ = ref('')
 const bindConfirmationTouched = ref(false)
@@ -483,6 +517,9 @@ const hasOldStudentAdmissionMethod = computed(() => {
     schoolHasAdmissionSSO(school) || schoolHasAdmissionEmailOTP(school)
   ))
 })
+const showOldStudentFlow = computed(() => (
+  hasOldStudentAdmissionMethod.value || !showFreshmanSubmission.value
+))
 
 function applyError(error: unknown) {
   pageState.value = mapAdmissionApiError(error)
@@ -524,6 +561,10 @@ async function loadLinkedResources(options?: { refreshAdmission?: boolean }): Pr
 }
 
 function syncDefaultAdmissionFlow(): void {
+  if (!showOldStudentFlow.value) {
+    activeFlow.value = 'freshman'
+    return
+  }
   if (!showFreshmanSubmission.value) {
     activeFlow.value = 'oldStudent'
     return
@@ -532,9 +573,51 @@ function syncDefaultAdmissionFlow(): void {
   activeFlow.value = hasOldStudentAdmissionMethod.value ? 'oldStudent' : 'freshman'
 }
 
-function selectAdmissionFlow(flow: 'freshman' | 'oldStudent'): void {
+function selectAdmissionFlow(flow: AdmissionFlow): void {
+  if (flow === 'oldStudent' && !showOldStudentFlow.value) return
+  if (flow === 'freshman' && !showFreshmanSubmission.value) return
   activeFlowManuallySelected.value = true
   activeFlow.value = flow
+}
+
+function handleAdmissionFlowKeydown(
+  event: KeyboardEvent,
+  currentFlow: AdmissionFlow,
+): void {
+  const flows: AdmissionFlow[] = []
+  if (showOldStudentFlow.value) flows.push('oldStudent')
+  if (showFreshmanSubmission.value) flows.push('freshman')
+  if (flows.length === 0) return
+  const currentIndex = Math.max(flows.indexOf(currentFlow), 0)
+  let targetIndex: number
+
+  switch (event.key) {
+    case 'ArrowRight':
+    case 'ArrowDown':
+      targetIndex = (currentIndex + 1) % flows.length
+      break
+    case 'ArrowLeft':
+    case 'ArrowUp':
+      targetIndex = (currentIndex - 1 + flows.length) % flows.length
+      break
+    case 'Home':
+      targetIndex = 0
+      break
+    case 'End':
+      targetIndex = flows.length - 1
+      break
+    default:
+      return
+  }
+
+  event.preventDefault()
+  const targetFlow = flows[targetIndex]
+  if (!targetFlow) return
+  selectAdmissionFlow(targetFlow)
+  const target = targetFlow === 'oldStudent'
+    ? oldStudentTab.value
+    : freshmanTab.value
+  target?.focus()
 }
 
 function scheduleLinkedResourcesLoad(options?: { refreshAdmission?: boolean }): void {
@@ -659,7 +742,12 @@ function scheduleProjectionRefresh(): void {
       else projectionRefreshTimedOut.value = true
     })
     .catch((error) => {
-      if (!isAbortError(error)) applyError(error)
+      if (isAbortError(error)) return
+      if (getErrorStatus(error) === 401) {
+        pageState.value = 'needsLogin'
+        return
+      }
+      projectionRefreshTimedOut.value = true
     })
 }
 

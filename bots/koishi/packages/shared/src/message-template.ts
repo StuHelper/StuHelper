@@ -31,6 +31,7 @@ export const DEFAULT_ADMIN_MESSAGES: StuhelperAdminMessageConfig = Object.freeze
   freshmanBlacklistReleaseCommandDescription: '解除新生入群认证黑名单',
   commandAccessDenied: '命令权限不足。',
   adminCommandsDisabled: '管理员命令已由 StuHelper WebUI 关闭。',
+  guardGuildContextRequired: '请在群聊中执行，或显式传入群号。',
   guardWarningMissingContext: '请在群聊中执行，或显式传入群号和成员 ID。',
   guardBatchMuteGroupOnly: '请在目标群聊中执行批量禁言。',
   guardBatchMuteInvalidPayload: '请提供禁言秒数和成员 ID 列表，例如：群审批量禁言 120 10001,10002',

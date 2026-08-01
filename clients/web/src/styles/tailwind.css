@@ -15,7 +15,7 @@
   --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
 
   /* ── 颜色 — 亮色模式 (蓝粉柔和) ──────────────── */
-  --color-primary: #5b7cf7;
+  --color-primary: #3f5ccb;
   --color-primary-light: #7e9aff;
   --color-primary-dark: #4563d8;
   --color-primary-alpha: rgba(91, 124, 247, 0.12);
@@ -49,8 +49,8 @@
   /* 文本 */
   --color-text-primary: #2e2845;
   --color-text-secondary: #635c78;
-  --color-text-muted: #968faa;
-  --color-text-tertiary: #b0a8c4;
+  --color-text-muted: #6b647d;
+  --color-text-tertiary: #6b647d;
   --color-text-inverse: #ffffff;
 
   /* 边框 — 极淡，仅在需要分隔线时使用 */
@@ -65,7 +65,7 @@
   /* 评分色阶 — 柔和但可辨识 */
   --color-rating-1: #d86060;
   --color-rating-2: #d89850;
-  --color-rating-3: #968faa;
+  --color-rating-3: #6b647d;
   --color-rating-4: #52c07a;
   --color-rating-5: #40b090;
 
@@ -257,8 +257,8 @@
 
     --color-text-primary: #e8e4f0;
     --color-text-secondary: #a8a0c0;
-    --color-text-muted: #706888;
-    --color-text-tertiary: #8880a0;
+    --color-text-muted: #8f86a5;
+    --color-text-tertiary: #8f86a5;
     --color-text-inverse: #151020;
 
     --color-border: rgba(255, 255, 255, 0.06);
@@ -324,8 +324,8 @@
 
       --color-text-primary: #e8e4f0;
       --color-text-secondary: #a8a0c0;
-      --color-text-muted: #706888;
-      --color-text-tertiary: #8880a0;
+      --color-text-muted: #8f86a5;
+      --color-text-tertiary: #8f86a5;
       --color-text-inverse: #151020;
 
       --color-border: rgba(255, 255, 255, 0.06);
@@ -473,6 +473,33 @@
 }
 
 /* Utility classes */
+.app-shell-skip-link {
+  position: fixed;
+  top: max(8px, env(safe-area-inset-top));
+  left: max(8px, env(safe-area-inset-left));
+  z-index: var(--z-tooltip);
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--color-bg-card);
+  color: var(--color-text-primary);
+  font-size: 0.875rem;
+  font-weight: 700;
+  box-shadow: var(--shadow-lg);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(calc(-100% - 24px));
+  transition:
+    opacity var(--duration-fast) var(--ease-smooth),
+    transform var(--duration-fast) var(--ease-smooth);
+}
+
+.app-shell-skip-link:focus-visible {
+  color: var(--color-text-primary);
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
 .app-shell-main {
   min-height: 100dvh;
   padding-bottom: max(24px, env(safe-area-inset-bottom));

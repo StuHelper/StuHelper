@@ -141,16 +141,6 @@
   padding: 12px;
 }
 
-.formal-student-credential {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  color: #334155;
-  font-size: 14px;
-  line-height: 22px;
-  padding: 16px;
-}
-
 @media (max-width: 520px) {
   .admission-flow__header {
     grid-template-columns: 1fr;

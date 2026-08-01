@@ -144,7 +144,7 @@ func TestApplicationValidationAllowsClientCredentialsWithoutRedirect(t *testing.
 	api := &fakeApplicationAPI{addOK: true}
 	client := newTestClient(t, api)
 	spec := validApplicationSpec()
-	spec.Name = "casdoor-admin-role-sync"
+	spec.Name = "casdoor-admin-user-lookup"
 	spec.GrantTypes = []string{"client_credentials"}
 	spec.RedirectURIs = nil
 

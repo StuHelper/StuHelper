@@ -3,7 +3,6 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
-CI_FILE="${REPO_ROOT}/.gitlab-ci.yml"
 GITHUB_CI_FILE="${REPO_ROOT}/.github/workflows/ci.yml"
 GITHUB_PUBLISH_FILE="${REPO_ROOT}/.github/workflows/publish-images.yml"
 SECRET_SCAN_SCRIPT="${REPO_ROOT}/scripts/check-secrets.sh"
@@ -19,6 +18,8 @@ CLIENTS_PACKAGE="${REPO_ROOT}/clients/package.json"
 CLIENTS_WORKSPACE="${REPO_ROOT}/clients/pnpm-workspace.yaml"
 ADMIN_WORKSPACE="${REPO_ROOT}/clients/admin/pnpm-workspace.yaml"
 BRACE_EXPANSION_PATCH="${REPO_ROOT}/clients/patches/npm/brace-expansion@5.0.8.patch"
+NODE_VERSION_FILE="${REPO_ROOT}/.node-version"
+NVMRC_FILE="${REPO_ROOT}/.nvmrc"
 
 fail() {
   echo "[ci-and-drift-contract][error] $*" >&2
@@ -41,38 +42,97 @@ assert_not_contains() {
   fi
 }
 
-stage_line() {
-  local stage="$1"
-  local line
-  line="$(grep -nE "^- ${stage}$" "${CI_FILE}" | head -n1 | cut -d: -f1)"
-  [[ -n "${line}" ]] || fail "missing GitLab stage: ${stage}"
-  printf '%s\n' "${line}"
+workflow_filter_block() {
+  local filter_name="$1"
+  awk -v target="${filter_name}" '
+    $0 == "            " target ":" {
+      in_filter = 1
+      next
+    }
+    in_filter && $0 ~ /^            [[:alnum:]_-]+:$/ {
+      exit
+    }
+    in_filter {
+      print
+    }
+  ' "${GITHUB_CI_FILE}"
 }
 
-build_line="$(stage_line build)"
-scan_line="$(stage_line package_scan)"
-package_line="$(stage_line package)"
+assert_text_contains() {
+  local text="$1"
+  local pattern="$2"
+  local description="$3"
+  if ! grep -Eq -- "${pattern}" <<<"${text}"; then
+    fail "expected ${description} to contain pattern: ${pattern}"
+  fi
+}
 
-if (( scan_line <= build_line )); then
-  fail "container scan stage must run after build"
-fi
-if (( package_line <= scan_line )); then
-  fail "package stage must run after container scans"
-fi
-
-assert_contains "${CI_FILE}" '^[[:space:]]*stage: package_scan$'
-assert_contains "${CI_FILE}" 'apt-get install -y curl jq nodejs openssl'
-assert_contains "${CI_FILE}" 'bash infra/ops/tests/run-infra-contracts\.sh'
-assert_contains "${CI_FILE}" '^koishi_test:$'
-assert_contains "${CI_FILE}" 'image: mcr\.microsoft\.com/playwright:v1\.58\.2-noble'
-assert_contains "${CI_FILE}" 'bots/koishi/playwright-report'
-assert_contains "${CI_FILE}" 'bots/koishi/test-results'
+[[ ! -e "${REPO_ROOT}/.gitlab-ci.yml" ]] ||
+  fail "retired GitLab pipeline must not remain in the GitHub repository"
+[[ ! -d "${REPO_ROOT}/.gitlab" ]] ||
+  [[ -z "$(find "${REPO_ROOT}/.gitlab" -type f -print -quit)" ]] ||
+  fail "retired GitLab pipeline fragments must not remain in the GitHub repository"
+node_version="$(tr -d '[:space:]' <"${NODE_VERSION_FILE}")"
+nvmrc_version="$(tr -d '[:space:]' <"${NVMRC_FILE}")"
+[[ -n "${node_version}" && "${node_version}" == "${nvmrc_version}" ]] ||
+  fail ".node-version and .nvmrc must contain the same non-empty Node.js version"
 assert_contains "${GITHUB_CI_FILE}" 'DATABASE_URL: postgres://stuhelper_app:test@127\.0\.0\.1:5432/test'
 assert_contains "${GITHUB_CI_FILE}" 'STUHELPER_TEST_POSTGRES_URL: postgres://test:test@127\.0\.0\.1:5432/postgres'
 assert_contains "${GITHUB_CI_FILE}" 'CREATE ROLE stuhelper_app;'
 assert_contains "${GITHUB_CI_FILE}" 'WITH LOGIN PASSWORD .* NOSUPERUSER NOCREATEDB NOCREATEROLE CONNECTION LIMIT 30;'
 assert_contains "${GITHUB_CI_FILE}" 'ALTER DATABASE test OWNER TO stuhelper_app;'
 assert_contains "${GITHUB_CI_FILE}" 'ALTER SCHEMA public OWNER TO stuhelper_app;'
+assert_contains "${GITHUB_CI_FILE}" "^[[:space:]]+- '\\.github/\\*\\*'$"
+assert_contains "${GITHUB_CI_FILE}" 'guards: \$\{\{ steps\.filter\.outputs\.guards \}\}'
+
+guards_filter="$(workflow_filter_block guards)"
+assert_text_contains "${guards_filter}" "^[[:space:]]+- 'scripts/\\*\\*'$" "guards path filter"
+assert_text_contains "${guards_filter}" "^[[:space:]]+- 'tools/\\*\\*'$" "guards path filter"
+assert_text_contains "${guards_filter}" "^[[:space:]]+- '\\.node-version'$" "guards path filter"
+assert_text_contains "${guards_filter}" "^[[:space:]]+- '\\.nvmrc'$" "guards path filter"
+
+docs_filter="$(workflow_filter_block docs)"
+assert_text_contains "${docs_filter}" "^[[:space:]]+- 'scripts/lib/\\*\\*'$" "docs path filter"
+
+clients_filter="$(workflow_filter_block clients)"
+contract_filter="$(workflow_filter_block contract)"
+backend_filter="$(workflow_filter_block backend)"
+infra_filter="$(workflow_filter_block infra)"
+koishi_filter="$(workflow_filter_block koishi)"
+for filter_name in clients contract infra koishi; do
+  case "${filter_name}" in
+    clients) filter_block="${clients_filter}" ;;
+    contract) filter_block="${contract_filter}" ;;
+    infra) filter_block="${infra_filter}" ;;
+    koishi) filter_block="${koishi_filter}" ;;
+  esac
+  assert_text_contains "${filter_block}" "^[[:space:]]+- '\\.node-version'$" "${filter_name} path filter"
+  assert_text_contains "${filter_block}" "^[[:space:]]+- '\\.nvmrc'$" "${filter_name} path filter"
+done
+assert_text_contains "${clients_filter}" "^[[:space:]]+- 'scripts/check-vue-ui-contracts\\.mjs'$" "clients path filter"
+assert_text_contains "${koishi_filter}" "^[[:space:]]+- 'scripts/check-vue-ui-contracts\\.mjs'$" "koishi path filter"
+assert_text_contains "${backend_filter}" "^[[:space:]]+- '\\.env\\.example'$" "backend path filter"
+assert_text_contains "${backend_filter}" "^[[:space:]]+- '\\.env\\.prod\\.example'$" "backend path filter"
+
+repository_policy_block="$(sed -n '/^  repository-policy:$/,/^  secret-scan:$/p' "${GITHUB_CI_FILE}")"
+sast_job_block="$(sed -n '/^  sast:$/,/^  required:$/p' "${GITHUB_CI_FILE}")"
+assert_text_contains "${repository_policy_block}" "needs\\.changes\\.outputs\\.guards == 'true'" "repository-policy job"
+assert_text_contains "${repository_policy_block}" "node scripts/check-uniappx-platform-contract\\.mjs" "repository-policy job"
+assert_text_contains "${sast_job_block}" "needs\\.changes\\.outputs\\.guards == 'true'" "sast job"
+
+static_contracts_block="$(sed -n '/^  static-contracts:$/,/^  repository-policy:$/p' "${GITHUB_CI_FILE}")"
+assert_text_contains "${static_contracts_block}" 'bash infra/ops/tests/dockerfile-supply-chain-contract\.sh$' "static-contracts job"
+assert_text_contains "${static_contracts_block}" 'bash infra/ops/tests/ci-and-drift-contract\.sh$' "static-contracts job"
+if grep -Eq '^    (if|needs):' <<<"${static_contracts_block}"; then
+  fail "GitHub static file contracts must run on every workflow without a changes-job condition"
+fi
+
+koishi_job_block="$(sed -n '/^  koishi:$/,/^  infra:$/p' "${GITHUB_CI_FILE}")"
+assert_text_contains "${koishi_job_block}" 'bash infra/ops/tests/koishi-stuhelper-package-contract\.sh$' "koishi job"
+
+required_job_block="$(sed -n '/^  required:$/,/^  publish-images:$/p' "${GITHUB_CI_FILE}")"
+assert_text_contains "${required_job_block}" '^      - static-contracts$' "required job"
+
 assert_contains "${GITHUB_CI_FILE}" 'INSTALL_ADMIN: \$\{\{ matrix\.install_admin \}\}'
 assert_contains "${GITHUB_CI_FILE}" 'if \[ "\$\{INSTALL_ADMIN\}" = "true" \]; then'
 assert_not_contains "${GITHUB_CI_FILE}" 'if \[\[ "\$\{INSTALL_ADMIN\}"'
@@ -81,7 +141,7 @@ infra_job_block="$(sed -n '/^  infra:$/,/^  runtime-image-security:$/p' "${GITHU
 if grep -Eq '^    container:' <<<"${infra_job_block}"; then
   fail "GitHub infrastructure contracts require the hosted runner Docker CLI and must not run in a job container"
 fi
-if ! grep -Eq '^[[:space:]]+sudo apt-get install --yes curl jq openssl$' <<<"${infra_job_block}"; then
+if ! grep -Eq '^[[:space:]]+sudo apt-get install --yes curl jq openssl python3-venv$' <<<"${infra_job_block}"; then
   fail "GitHub infrastructure contracts must install host dependencies with sudo"
 fi
 if ! grep -Eq '^[[:space:]]+run: pnpm --filter @stuhelper/web exec playwright install --with-deps chromium$' <<<"${infra_job_block}"; then
@@ -117,15 +177,9 @@ assert_contains "${GITHUB_CI_FILE}" 'fail-on-severity: moderate'
 assert_contains "${GITHUB_CI_FILE}" '^      - dependency-review$'
 assert_contains "${SECRET_SCAN_SCRIPT}" '^gitleaks git "\$\{source_path\}"'
 assert_contains "${SECRET_SCAN_SCRIPT}" '--gitleaks-ignore-path "\$\{source_path%/\}/\.gitleaksignore"'
-assert_contains "${SECRET_SCAN_SCRIPT}" '--platform gitlab'
+assert_contains "${SECRET_SCAN_SCRIPT}" '--platform github'
 assert_contains "${SECRET_SCAN_SCRIPT}" '--redact=100'
 assert_not_contains "${SECRET_SCAN_SCRIPT}" 'gitleaks detect'
-assert_contains "${CI_FILE}" 'pnpm audit --registry=https://registry\.npmjs\.org --audit-level=moderate$'
-assert_contains "${CI_FILE}" 'YARN_NPM_REGISTRY_SERVER=https://registry\.npmjs\.org corepack yarn npm audit --all --severity moderate$'
-assert_not_contains "${CI_FILE}" 'pnpm audit .* --prod'
-assert_contains "${CI_FILE}" 'pnpm --dir admin install --frozen-lockfile$'
-assert_contains "${CI_FILE}" 'pnpm run test:all$'
-assert_not_contains "${CI_FILE}" '^admin_unit_test:$'
 assert_contains "${CLIENTS_PACKAGE}" '"test:all": "pnpm run check:dependency-compat .*pnpm run test:admin"'
 assert_contains "${CLIENTS_WORKSPACE}" 'brace-expansion@<5\.0\.8: 5\.0\.8'
 assert_contains "${CLIENTS_WORKSPACE}" 'brace-expansion@5\.0\.8: patches/npm/brace-expansion@5\.0\.8\.patch'
@@ -135,10 +189,12 @@ assert_contains "${BRACE_EXPANSION_PATCH}" 'module\.exports = Object\.assign\(ex
 assert_contains "${BRACE_EXPANSION_PATCH}" '^\+export default expand;$'
 assert_contains "${ROOT_MAKEFILE}" '^check-infra-contracts:$'
 assert_contains "${ROOT_MAKEFILE}" 'bash infra/ops/tests/run-infra-contracts\.sh'
-assert_contains "${CI_FILE}" 'docker buildx build .*--file clients/web/Dockerfile .* \.$'
-assert_contains "${CI_FILE}" 'docker buildx build .*--build-arg "VITE_QQ_BOT_ENTRY=\$\{WEB_VITE_QQ_BOT_ENTRY:-\}"'
-assert_contains "${CI_FILE}" 'docker buildx build .*--build-arg "VITE_QQ_BIND_COMMAND=\$\{WEB_VITE_QQ_BIND_COMMAND:-绑定\}"'
-assert_contains "${CI_FILE}" 'docker buildx build .*--file clients/admin/scripts/deploy/Dockerfile .* clients$'
+assert_contains "${GITHUB_PUBLISH_FILE}" '^[[:space:]]+context: \.$'
+assert_contains "${GITHUB_PUBLISH_FILE}" '^[[:space:]]+file: clients/web/Dockerfile$'
+assert_contains "${GITHUB_PUBLISH_FILE}" '^[[:space:]]+context: clients$'
+assert_contains "${GITHUB_PUBLISH_FILE}" '^[[:space:]]+file: clients/admin/scripts/deploy/Dockerfile$'
+assert_contains "${GITHUB_PUBLISH_FILE}" 'VITE_QQ_BOT_ENTRY=\$\{\{ vars\.WEB_VITE_QQ_BOT_ENTRY \}\}'
+assert_contains "${GITHUB_PUBLISH_FILE}" "VITE_QQ_BIND_COMMAND=\\$\\{\\{ vars\\.WEB_VITE_QQ_BIND_COMMAND \\|\\| '绑定' \\}\\}"
 assert_contains "${WEB_DOCKERFILE}" '^COPY clients/patches \./patches$'
 assert_contains "${ADMIN_DOCKERFILE}" '^RUN corepack enable && corepack prepare pnpm@10\.32\.1 --activate$'
 assert_contains "${ADMIN_DOCKERFILE}" '^ARG VITE_BASE=/admin/$'
@@ -161,5 +217,9 @@ assert_contains "${CLIENTS_DOCKERIGNORE}" '^\*\*/\.env\.\*$'
 assert_contains "${SERVER_MAKEFILE}" '^check-drift-ts: bundle-spec$'
 assert_contains "${SERVER_MAKEFILE}" '^check-drift-capabilities:$'
 assert_contains "${SERVER_MAKEFILE}" '^check-drift-all: check-bundled-drift check-drift-go check-drift-ts check-drift-capabilities$'
+assert_contains "${SERVER_MAKEFILE}" '^[[:space:]]+@\$\(MIGRATE\) -path migrations -database "\$\(DATABASE_URL\)"'
+assert_contains "${SERVER_MAKEFILE}" '^[[:space:]]+@psql "\$\(DATABASE_URL\)" -v ON_ERROR_STOP=1 -f scripts/seed\.sql$'
+assert_not_contains "${SERVER_MAKEFILE}" '^[[:space:]]+\$\(MIGRATE\) -path migrations -database "\$\(DATABASE_URL\)"'
+assert_not_contains "${SERVER_MAKEFILE}" '^[[:space:]]+psql "\$\(DATABASE_URL\)" -v ON_ERROR_STOP=1 -f scripts/seed\.sql$'
 
 echo "[ci-and-drift-contract] all assertions passed"

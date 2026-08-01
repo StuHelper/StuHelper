@@ -8,6 +8,7 @@ import (
 
 func validConfigForValidation() *Config {
 	return &Config{
+		Review: ReviewConfig{TeacherStatsRefreshTimeoutSeconds: 60},
 		App: AppConfig{
 			Env:                "development",
 			Port:               "8080",

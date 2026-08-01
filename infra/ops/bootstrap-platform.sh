@@ -99,9 +99,6 @@ require_casdoor_bootstrap_config() {
     CASDOOR_INTROSPECTION_CLIENT_ID \
     CASDOOR_INTROSPECTION_CLIENT_SECRET \
     CASDOOR_INTROSPECTION_APPLICATION \
-    CASDOOR_ROLE_SYNC_CLIENT_ID \
-    CASDOOR_ROLE_SYNC_CLIENT_SECRET \
-    CASDOOR_ROLE_SYNC_APPLICATION \
     CASDOOR_USER_LOOKUP_CLIENT_ID \
     CASDOOR_USER_LOOKUP_CLIENT_SECRET \
     CASDOOR_USER_LOOKUP_APPLICATION \
@@ -223,10 +220,6 @@ CASDOOR_BOOTSTRAP_ENV_KEYS=(
   CASDOOR_INTROSPECTION_CLIENT_ID
   CASDOOR_INTROSPECTION_CLIENT_SECRET
   CASDOOR_INTROSPECTION_APPLICATION
-  CASDOOR_ROLE_SYNC_LOGO
-  CASDOOR_ROLE_SYNC_CLIENT_ID
-  CASDOOR_ROLE_SYNC_CLIENT_SECRET
-  CASDOOR_ROLE_SYNC_APPLICATION
   CASDOOR_USER_LOOKUP_LOGO
   CASDOOR_USER_LOOKUP_CLIENT_ID
   CASDOOR_USER_LOOKUP_CLIENT_SECRET
@@ -277,7 +270,7 @@ if casdoor_bootstrap_required; then
   [[ -n "${CASDOOR_CLIENT_SECRET:-}" ]] || die "CASDOOR_CLIENT_SECRET must be configured before platform bootstrap"
   log "using configured Casdoor OIDC application ${CASDOOR_CLIENT_ID}"
   require_casdoor_bootstrap_config
-  log "bootstrapping Casdoor organization, applications, roles, and providers"
+  log "bootstrapping Casdoor identity organization, applications, and providers"
   if command -v go >/dev/null 2>&1; then
     if ! run_casdoor_bootstrap_with_go; then
       warn "full Casdoor bootstrap failed; retrying applications-only bootstrap with app provisioning credentials"

@@ -25,7 +25,10 @@ const { t } = useI18n()
     <ParticleBackground />
 
     <div class="hero-content">
-      <TypeWriter :text="title" class="hero-title" />
+      <h1 class="hero-title">
+        <span class="sr-only">{{ title }}</span>
+        <TypeWriter :text="title" aria-hidden="true" />
+      </h1>
 
       <p class="hero-subtitle">
         {{ subtitle }}

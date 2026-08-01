@@ -61,19 +61,23 @@ func (s *Service) Send(ctx context.Context, params SendParams) error {
 	if body == "" {
 		body = params.Content
 	}
-	notifID, err := s.repo.Create(ctx, CreateParams{
-		UserID:       params.UserID,
-		Type:         params.Type,
-		Title:        params.Title,
-		Body:         body,
-		Payload:      params.Payload,
-		SourceModule: params.SourceModule,
-		SourceID:     params.SourceID,
-		SourceURL:    nilIfEmpty(params.SourceURL),
-		CourseID:     courseIDOrNil(params.CourseID),
+	notifID, created, err := s.repo.CreateIdempotent(ctx, CreateParams{
+		IdempotencyKey: params.IdempotencyKey,
+		UserID:         params.UserID,
+		Type:           params.Type,
+		Title:          params.Title,
+		Body:           body,
+		Payload:        params.Payload,
+		SourceModule:   params.SourceModule,
+		SourceID:       params.SourceID,
+		SourceURL:      nilIfEmpty(params.SourceURL),
+		CourseID:       courseIDOrNil(params.CourseID),
 	})
 	if err != nil {
 		return fmt.Errorf("notification send: %w", err)
+	}
+	if !created {
+		return nil
 	}
 
 	s.publishRealtime(ctx, params.UserID, SSEEvent{

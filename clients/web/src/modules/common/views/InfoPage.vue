@@ -33,7 +33,7 @@ const pageContent = computed(() => {
 </script>
 
 <template>
-  <main
+  <article
     class="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.14),_transparent_38%),linear-gradient(180deg,_#f8fafc_0%,_#ffffff_100%)] px-6 py-16"
   >
     <section
@@ -85,5 +85,5 @@ const pageContent = computed(() => {
         </div>
       </div>
     </section>
-  </main>
+  </article>
 </template>

@@ -3,7 +3,7 @@ type: product-spec
 audience: product, backend-dev
 status: current
 authoritative-source: server/api/openapi.yaml
-last-verified: 2026-04-19
+last-verified: 2026-07-31
 ---
 
 # 审计日志
@@ -45,6 +45,10 @@ API：`logger.L()` / `logger.S()` / `logger.FromGin(c)`（带 request_id）
 查询：`GET /api/v1/course/review/admin/logs`
 
 留存：管理员操作默认 90 天；IAM v2 高敏事件按 IAM v2 spec 的更长保留期执行。
+
+敏感批量导出必须使用 `event_type = 'data.export'`，每次请求只写一条 success/failure 事件，
+并在 `details` 记录规范化的筛选条件、格式、处理行数和硬上限。流式响应失败或客户端取消不能
+跳过审计；处理行数不是客户端已接收或持久化成功的证明。
 
 历史说明：旧表 `admin_operation_logs` 已迁入 `audit_events` 并从现行 schema 移除。
 

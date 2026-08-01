@@ -9,80 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestParseProviderRolesFromRaw_CasdoorFlatRoles(t *testing.T) {
-	roles, err := ParseProviderRolesFromRaw([]byte(`{"roles":["school_admin","verified_student","school_admin"]}`), "roles")
-	require.NoError(t, err)
-	assert.Equal(t, []string{"school_admin", "verified_student"}, roles)
-}
-
-func TestParseProviderRolesFromRaw_TrimsAndDedupesRoleNames(t *testing.T) {
-	roles, err := ParseProviderRolesFromRaw([]byte(`{"roles":[" super_admin ","super_admin"," ","school_admin"]}`), "roles")
-	require.NoError(t, err)
-	assert.Equal(t, []string{"school_admin", "super_admin"}, roles)
-}
-
-func TestParseProviderRolesFromRaw_CustomRolesClaim(t *testing.T) {
-	raw := []byte(`{"stuhelper_roles":["super_admin","user"]}`)
-
-	roles, err := ParseProviderRolesFromRaw(raw, "stuhelper_roles")
-
-	require.NoError(t, err)
-	assert.Equal(t, []string{"super_admin", "user"}, roles)
-}
-
-func TestParseProviderRolesFromRaw_TrimsConfiguredRolesClaim(t *testing.T) {
-	raw := []byte(`{"stuhelper_roles":["super_admin"]}`)
-
-	roles, err := ParseProviderRolesFromRaw(raw, " stuhelper_roles ")
-
-	require.NoError(t, err)
-	assert.Equal(t, []string{"super_admin"}, roles)
-}
-
-func TestParseProviderRolesFromRaw_CasdoorRoleObjects(t *testing.T) {
-	raw := []byte(`{"roles":[
-		{"owner":"stuhelper","name":" super_admin "},
-		{"owner":"stuhelper","name":"verified_student"},
-		{"owner":"stuhelper","name":"super_admin"}
-	]}`)
-
-	roles, err := ParseProviderRolesFromRaw(raw, "roles")
-
-	require.NoError(t, err)
-	assert.Equal(t, []string{"super_admin", "verified_student"}, roles)
-}
-
-func TestParseProviderRolesFromRaw_InvalidJSON(t *testing.T) {
-	_, err := ParseProviderRolesFromRaw([]byte(`{"broken"`), "roles")
-	require.Error(t, err)
-}
-
-func TestParseProviderRolesFromRaw_InvalidRolesClaim(t *testing.T) {
-	_, err := ParseProviderRolesFromRaw([]byte(`{"roles":"bad"}`), "roles")
-	require.Error(t, err)
-}
-
-func TestParseProviderRolesFromRaw_RejectsObjectRolesClaim(t *testing.T) {
-	_, err := ParseProviderRolesFromRaw([]byte(`{"roles":{"school_admin":["4111010001"]}}`), "roles")
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "must be a string array or role object array")
-}
-
-func TestParseProviderRolesFromRaw_RejectsRoleObjectWithoutName(t *testing.T) {
-	_, err := ParseProviderRolesFromRaw([]byte(`{"roles":[{"displayName":"Super Admin"}]}`), "roles")
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "without string name")
-}
-
-func TestParseProviderRolesFromRaw_MissingRolesClaim(t *testing.T) {
-	roles, err := ParseProviderRolesFromRaw([]byte(`{"sub":"user-1"}`), "roles")
-	require.NoError(t, err)
-	assert.Empty(t, roles)
-}
-
-func TestClaimsUnmarshalIgnoresInternalRoleFields(t *testing.T) {
+func TestClaimsUnmarshalIgnoresProviderRoleFields(t *testing.T) {
 	raw := []byte(`{
 		"sub": "user-1",
 		"name": "OIDC User",
@@ -96,8 +23,6 @@ func TestClaimsUnmarshalIgnoresInternalRoleFields(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "user-1", claims.Sub)
 	assert.Equal(t, "OIDC User", claims.Name)
-	assert.Empty(t, claims.Roles)
-	assert.Nil(t, claims.OrgScopedRoles)
 }
 
 func TestClaims_MFAProofVerifiedAtRequiresMFAAMRAndAuthTime(t *testing.T) {

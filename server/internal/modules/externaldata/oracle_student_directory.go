@@ -36,8 +36,22 @@ const oracleStudentDirectoryMetricClient = "oracle_student_directory"
 var oracleIdentifierPattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]{0,127}$`)
 var ErrStudentSourceInvalidRecord = errors.New("student source returned an invalid record")
 var ErrStudentSourceAmbiguousRecord = errors.New("student source returned ambiguous records")
+var ErrStudentSourceRecordIdentityMismatch = errors.New("student source returned a mismatched record identity")
 var ErrStudentSourceInvalidStudentID = errors.New("student source lookup student id is invalid")
 var ErrStudentSourceUnavailable = errors.New("student source is unavailable")
+
+type oracleStudentSourceErrorOutcome uint8
+
+const (
+	oracleStudentSourceErrorFailure oracleStudentSourceErrorOutcome = iota
+	oracleStudentSourceErrorNeutral
+)
+
+const (
+	oracleStudentSourceIntegrityInvalidRecord    = "invalid_record"
+	oracleStudentSourceIntegrityAmbiguousRecord  = "ambiguous_record"
+	oracleStudentSourceIntegrityIdentityMismatch = "identity_mismatch"
+)
 
 type OracleStudentDirectoryConfig struct {
 	SchoolCode              string
@@ -171,8 +185,11 @@ func (d *OracleStudentDirectory) Probe(ctx context.Context) (probe OracleStudent
 	pingCtx, cancelPing := withOptionalTimeout(ctx, d.queryTimeout)
 	if err := d.db.PingContext(pingCtx); err != nil {
 		cancelPing()
-		d.breaker.RecordFailure()
-		return OracleStudentDirectoryProbe{}, wrapOracleStudentSourceFailure("ping oracle student directory", err)
+		return OracleStudentDirectoryProbe{}, d.handleSourceError(
+			ctx,
+			"ping oracle student directory",
+			err,
+		)
 	}
 	cancelPing()
 
@@ -184,8 +201,11 @@ func (d *OracleStudentDirectory) Probe(ctx context.Context) (probe OracleStudent
 			d.breaker.RecordSuccess()
 			return OracleStudentDirectoryProbe{ReadableRecordPresent: false}, nil
 		}
-		d.breaker.RecordFailure()
-		return OracleStudentDirectoryProbe{}, wrapOracleStudentSourceFailure("probe oracle student directory table", err)
+		return OracleStudentDirectoryProbe{}, d.handleSourceError(
+			ctx,
+			"probe oracle student directory table",
+			err,
+		)
 	}
 	d.breaker.RecordSuccess()
 	return OracleStudentDirectoryProbe{ReadableRecordPresent: true}, nil
@@ -217,8 +237,7 @@ func (d *OracleStudentDirectory) LookupStudent(
 
 	rows, err := d.db.QueryContext(queryCtx, d.query, normalizedID)
 	if err != nil {
-		d.breaker.RecordFailure()
-		return nil, wrapOracleStudentSourceFailure("lookup oracle student record", err)
+		return nil, d.handleSourceError(ctx, "lookup oracle student record", err)
 	}
 	rowsClosed := false
 	closeRows := func() error {
@@ -230,22 +249,70 @@ func (d *OracleStudentDirectory) LookupStudent(
 	}
 	defer func() {
 		if closeErr := closeRows(); closeErr != nil && err == nil {
-			d.breaker.RecordFailure()
 			record = nil
-			err = wrapOracleStudentSourceFailure("close oracle student record rows", closeErr)
+			err = d.handleSourceError(ctx, "close oracle student record rows", closeErr)
 		}
 	}()
 	record, err = scanOracleStudentRecords(rows, d.schoolCode, normalizedID)
 	if err != nil {
-		d.breaker.RecordFailure()
-		return nil, wrapOracleStudentSourceFailure("lookup oracle student record", err)
+		return nil, d.handleSourceError(ctx, "lookup oracle student record", err)
 	}
 	if err := closeRows(); err != nil {
-		d.breaker.RecordFailure()
-		return nil, wrapOracleStudentSourceFailure("close oracle student record rows", err)
+		return nil, d.handleSourceError(ctx, "close oracle student record rows", err)
 	}
 	d.breaker.RecordSuccess()
 	return record, nil
+}
+
+func (d *OracleStudentDirectory) handleSourceError(
+	ctx context.Context,
+	operation string,
+	err error,
+) error {
+	outcome, integrityReason := classifyOracleStudentSourceError(ctx, err)
+	if integrityReason != "" {
+		metrics.ObserveExternalDataIntegrityError(
+			oracleStudentDirectoryMetricClient,
+			integrityReason,
+		)
+	}
+	if outcome == oracleStudentSourceErrorNeutral {
+		d.breaker.RecordNeutral()
+		return err
+	}
+	d.breaker.RecordFailure()
+	return wrapOracleStudentSourceFailure(operation, err)
+}
+
+// classifyOracleStudentSourceError deliberately checks the parent context.
+// A caller-owned cancellation or deadline says nothing about Oracle health,
+// while expiry of the directory's derived query timeout leaves ctx.Err() nil
+// and remains a dependency failure. Per-record data defects are also neutral:
+// they must stay visible and fail closed without poisoning the shared breaker.
+func classifyOracleStudentSourceError(
+	ctx context.Context,
+	err error,
+) (oracleStudentSourceErrorOutcome, string) {
+	if callerAbortedOracleStudentSource(ctx, err) {
+		return oracleStudentSourceErrorNeutral, ""
+	}
+	switch {
+	case errors.Is(err, ErrStudentSourceInvalidRecord):
+		return oracleStudentSourceErrorNeutral, oracleStudentSourceIntegrityInvalidRecord
+	case errors.Is(err, ErrStudentSourceAmbiguousRecord):
+		return oracleStudentSourceErrorNeutral, oracleStudentSourceIntegrityAmbiguousRecord
+	case errors.Is(err, ErrStudentSourceRecordIdentityMismatch):
+		return oracleStudentSourceErrorFailure, oracleStudentSourceIntegrityIdentityMismatch
+	default:
+		return oracleStudentSourceErrorFailure, ""
+	}
+}
+
+func callerAbortedOracleStudentSource(ctx context.Context, err error) bool {
+	if ctx == nil || ctx.Err() == nil {
+		return false
+	}
+	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 }
 
 func wrapOracleStudentSourceFailure(operation string, err error) error {
@@ -282,11 +349,17 @@ func normalizeOracleStudentDirectoryConfig(cfg OracleStudentDirectoryConfig) (Or
 	if cfg.Host == "" || cfg.ServiceName == "" || cfg.Username == "" || cfg.Password == "" {
 		return cfg, fmt.Errorf("oracle host, service name, username and password are required")
 	}
+	if isDisallowedOracleRuntimeUsername(cfg.Username) {
+		return cfg, fmt.Errorf("oracle runtime username must be a dedicated non-administrative account")
+	}
 	if cfg.Port <= 0 || cfg.Port > 65535 {
 		return cfg, fmt.Errorf("oracle port must be between 1 and 65535")
 	}
 	if cfg.Schema, err = normalizeOracleIdentifier(cfg.Schema, "schema"); err != nil {
 		return cfg, err
+	}
+	if strings.EqualFold(cfg.Username, cfg.Schema) {
+		return cfg, fmt.Errorf("oracle runtime username must not own the source schema")
 	}
 	if cfg.Table, err = normalizeOracleIdentifier(cfg.Table, "table"); err != nil {
 		return cfg, err
@@ -387,6 +460,15 @@ func normalizeOracleStudentDirectoryConfig(cfg OracleStudentDirectoryConfig) (Or
 	return cfg, nil
 }
 
+func isDisallowedOracleRuntimeUsername(username string) bool {
+	switch strings.ToUpper(strings.TrimSpace(username)) {
+	case "SYS", "SYSBACKUP", "SYSDG", "SYSKM", "SYSRAC", "SYSTEM":
+		return true
+	default:
+		return false
+	}
+}
+
 func buildOracleStudentLookupQuery(cfg OracleStudentDirectoryConfig) string {
 	return fmt.Sprintf(
 		"SELECT %s, %s FROM %s.%s WHERE %s = :1 FETCH FIRST 2 ROWS ONLY",
@@ -444,8 +526,13 @@ func scanOracleStudentRecords(
 		}
 		id = strings.TrimSpace(id)
 		studentName := schoolauth.NormalizeAcademicName(name.String)
-		if id == "" || id != expectedStudentID || !schoolauth.IsValidStudentID(id) ||
-			!name.Valid || !schoolauth.IsValidAcademicName(studentName) {
+		if id == "" || !schoolauth.IsValidStudentID(id) {
+			return nil, ErrStudentSourceInvalidRecord
+		}
+		if id != expectedStudentID {
+			return nil, ErrStudentSourceRecordIdentityMismatch
+		}
+		if !name.Valid || !schoolauth.IsValidAcademicName(studentName) {
 			return nil, ErrStudentSourceInvalidRecord
 		}
 		if record == nil {

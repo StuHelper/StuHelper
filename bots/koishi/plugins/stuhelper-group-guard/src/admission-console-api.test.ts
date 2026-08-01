@@ -18,7 +18,10 @@ import {
   buildAdmissionRuntimePageData,
   handleAdmissionRuntimeAction,
   registerAdmissionConsoleAPI,
+  type AdmissionConsoleGuildScope,
 } from './admission-console-api'
+
+const GLOBAL_CONSOLE_SCOPE = { kind: 'all' } as const satisfies AdmissionConsoleGuildScope
 
 test('admission runtime page data redacts service token and exposes guard state', async () => {
   const data = await buildAdmissionRuntimePageData(fakeContext(), {
@@ -28,18 +31,24 @@ test('admission runtime page data redacts service token and exposes guard state'
     guardStore: fakeGuardStore(),
     policyStore: fakePolicyStore(),
     moderationStore: fakeModerationStore(),
-  })
+  }, GLOBAL_CONSOLE_SCOPE)
 
-  assert.equal(data.platform.baseUrl, 'https://stuhelper.com')
-  assert.equal(data.platform.serviceTokenConfigured, true)
+  assert.equal(data.globalRuntime?.platform.baseUrl, 'https://stuhelper.com')
+  assert.equal(data.globalRuntime?.platform.serviceTokenConfigured, true)
   assert.doesNotMatch(JSON.stringify(data), /secret-token/)
   assert.equal(data.stats.enabledBindingCount, 1)
   assert.equal(data.stats.activeMemberCount, 1)
   assert.equal(data.stats.backendSyncPendingCount, 1)
-  assert.equal(data.moderation.keywordRuleCount, 2)
-  assert.equal(data.bots[0].platform, 'onebot')
+  assert.deepEqual(data.activeMemberWindow, {
+    shown: 1,
+    total: 1,
+    limit: 100,
+    truncated: false,
+  })
+  assert.equal(data.globalRuntime?.moderation.keywordRuleCount, 2)
+  assert.equal(data.globalRuntime?.bots[0].platform, 'onebot')
   assert.equal(data.activeMembers[0].memberId, '2001')
-  assert.equal(data.commands.adminCommandsEnabled, true)
+  assert.equal(data.globalRuntime?.commands.adminCommandsEnabled, true)
   assert.deepEqual(data.activeMembers[0].availableActions, [
     'query',
     'reset-failures',
@@ -47,6 +56,151 @@ test('admission runtime page data redacts service token and exposes guard state'
     'regenerate',
     'skip',
   ])
+})
+
+test('admission runtime page filters guild records before stats and queue truncation', async () => {
+  const allowedGuildId = '178037297'
+  const foreignGuildId = '999999999'
+  const foreignMembers = Array.from({ length: 101 }, (_, index) => createMember({
+    id: `foreign-member-${index}`,
+    guildId: foreignGuildId,
+    channelId: foreignGuildId,
+    memberId: `foreign-${index}`,
+    deadlineAt: new Date(`2026-06-04T08:${String(index % 60).padStart(2, '0')}:00.000Z`),
+  }))
+  const allowedMember = createMember({
+    id: 'allowed-member',
+    guildId: allowedGuildId,
+    channelId: allowedGuildId,
+    memberId: 'allowed-user',
+    deadlineAt: new Date('2026-06-04T10:00:00.000Z'),
+  })
+  let globalRuntimeLoaderCalls = 0
+
+  const data = await buildAdmissionRuntimePageData(fakeContext(), {
+    config: createConfig(),
+    platform: fakePlatform(),
+    runtimeSettings: fakeRuntimeSettings({
+      async getSettings() {
+        globalRuntimeLoaderCalls += 1
+        throw new Error('guild-scoped page must not load global runtime settings')
+      },
+    }),
+    guardStore: fakeGuardStore({
+      listActive: async () => [...foreignMembers, allowedMember],
+    }),
+    policyStore: fakePolicyStore({
+      listTemplates: async () => [
+        createPolicyTemplate('allowed-template'),
+        createPolicyTemplate('foreign-template'),
+      ],
+      listBindings: async () => [
+        createPolicyBinding(allowedGuildId, 'allowed-template'),
+        createPolicyBinding(foreignGuildId, 'foreign-template'),
+      ],
+    }),
+    moderationStore: fakeModerationStore({
+      async listAllKeywordRules() {
+        globalRuntimeLoaderCalls += 1
+        throw new Error('guild-scoped page must not load global keyword rules')
+      },
+    }),
+  }, {
+    kind: 'guilds',
+    guildIds: new Set([allowedGuildId]),
+  })
+
+  assert.deepEqual(data.activeMembers.map((record) => record.id), ['allowed-member'])
+  assert.deepEqual(data.bindings.map((binding) => binding.guildId), [allowedGuildId])
+  assert.deepEqual(data.templates.map((template) => template.id), ['allowed-template'])
+  assert.equal(data.globalRuntime, null)
+  assert.equal(globalRuntimeLoaderCalls, 0)
+  assert.deepEqual(data.activeMemberWindow, {
+    shown: 1,
+    total: 1,
+    limit: 100,
+    truncated: false,
+  })
+  assert.deepEqual(data.stats, {
+    templateCount: 1,
+    bindingCount: 1,
+    enabledBindingCount: 1,
+    activeMemberCount: 1,
+    backendSyncPendingCount: 1,
+    membersWithAdmissionSessionCount: 0,
+    membersWithLastErrorCount: 1,
+  })
+  assert.doesNotMatch(JSON.stringify(data), /foreign-member|foreign-template|999999999/)
+})
+
+test('admission runtime page reports a stable scoped member window when truncated', async () => {
+  const deadlineAt = new Date('2026-06-04T08:00:00.000Z')
+  const members = Array.from({ length: 103 }, (_, index) => createMember({
+    id: `member-${String(102 - index).padStart(3, '0')}`,
+    memberId: `user-${index}`,
+    deadlineAt,
+  }))
+
+  const data = await buildAdmissionRuntimePageData(fakeContext(), {
+    config: createConfig(),
+    platform: fakePlatform(),
+    runtimeSettings: fakeRuntimeSettings(),
+    guardStore: fakeGuardStore({
+      listActive: async () => members,
+    }),
+    policyStore: fakePolicyStore(),
+    moderationStore: fakeModerationStore(),
+  }, GLOBAL_CONSOLE_SCOPE)
+
+  assert.deepEqual(data.activeMemberWindow, {
+    shown: 100,
+    total: 103,
+    limit: 100,
+    truncated: true,
+  })
+  assert.equal(data.stats.activeMemberCount, 103)
+  assert.equal(data.activeMembers.length, 100)
+  assert.equal(data.activeMembers[0].id, 'member-000')
+  assert.equal(data.activeMembers.at(-1)?.id, 'member-099')
+})
+
+test('admission runtime action rejects an out-of-scope member before side effects', async () => {
+  let platformCalls = 0
+  let storeMutationCalls = 0
+  await assert.rejects(
+    () => handleAdmissionRuntimeAction(
+      fakeContext(),
+      {
+        config: createConfig(),
+        platform: fakePlatform({
+          async skipAdmissionSessionForMember() {
+            platformCalls += 1
+            return createAdmissionSession()
+          },
+        }),
+        runtimeSettings: fakeRuntimeSettings(),
+        guardStore: fakeGuardStore({
+          async getActiveByID() {
+            return createMember({
+              guildId: 'foreign-guild',
+              channelId: 'foreign-guild',
+            })
+          },
+          async markReleased() {
+            storeMutationCalls += 1
+          },
+        }),
+        policyStore: fakePolicyStore(),
+        moderationStore: fakeModerationStore(),
+      },
+      { recordId: 'foreign-record', action: 'skip' },
+      { auth: { id: 42 } },
+      { kind: 'guilds', guildIds: new Set(['allowed-guild']) },
+    ),
+    /outside of the current console guild scope/,
+  )
+  assert.equal(platformCalls, 0)
+  assert.equal(storeMutationCalls, 0)
 })
 
 test('admission runtime resend action calls backend, sends reminder, and records bot event', async () => {
@@ -88,6 +242,7 @@ test('admission runtime resend action calls backend, sends reminder, and records
     },
     { recordId: 'qq:2118785781:178037297:2001', action: 'resend' },
     { auth: { id: 42 } },
+    GLOBAL_CONSOLE_SCOPE,
   )
 
   assert.equal(data, '已重发 QQ 2001 的入群认证链接。')
@@ -127,6 +282,7 @@ test('admission runtime resend action respects direct-only reminder delivery', a
     },
     { recordId: 'qq:2118785781:178037297:2001', action: 'resend' },
     { auth: { id: 42 } },
+    GLOBAL_CONSOLE_SCOPE,
   )
 
   assert.equal(data, '已重发 QQ 2001 的入群认证链接。')
@@ -164,6 +320,7 @@ test('admission runtime resend does not record backend event after losing the ac
     },
     { recordId: 'qq:2118785781:178037297:2001', action: 'resend' },
     { auth: { id: 42 } },
+    GLOBAL_CONSOLE_SCOPE,
   )
 
   assert.equal(data, '入群认证记录已被其他任务处理，请刷新页面后确认当前状态。')
@@ -205,6 +362,7 @@ test('admission runtime regenerate does not record verified release after losing
     },
     { recordId: 'qq:2118785781:178037297:2001', action: 'regenerate' },
     { auth: { id: 42 } },
+    GLOBAL_CONSOLE_SCOPE,
   )
 
   assert.equal(data, '入群认证记录已被其他任务处理，请刷新页面后确认当前状态。')
@@ -247,6 +405,7 @@ test('admission runtime skip keeps local release when QQ unmute fails', async ()
     },
     { recordId: 'qq:2118785781:178037297:2001', action: 'skip' },
     { auth: { id: 42 } },
+    GLOBAL_CONSOLE_SCOPE,
   )
 
   assert.match(data, /已跳过 QQ 2001 在本群的入群认证/)
@@ -292,6 +451,7 @@ test('admission runtime skip cleans local record when backend session was alread
     },
     { recordId: 'qq:2118785781:178037297:2001', action: 'skip' },
     { auth: { id: 42 } },
+    GLOBAL_CONSOLE_SCOPE,
   )
 
   assert.equal(data, '已跳过 QQ 2001 在本群的入群认证并解除禁言。')
@@ -322,6 +482,7 @@ test('admission runtime release blacklist reports missing blacklist records sepa
       },
       { recordId: 'qq:2118785781:178037297:2001', action: 'release-blacklist' },
       { auth: { id: 42 } },
+      GLOBAL_CONSOLE_SCOPE,
     ),
     /QQ 2001 在本群没有活动入群拉黑记录/,
   )
@@ -349,6 +510,7 @@ test('admission runtime platform 404 names the missing admission session for ses
       },
       { recordId: 'qq:2118785781:178037297:2001', action: 'query' },
       { auth: { id: 42 } },
+      GLOBAL_CONSOLE_SCOPE,
     ),
     /平台侧未找到 QQ 2001 在本群的入群认证会话/,
   )
@@ -356,14 +518,30 @@ test('admission runtime platform 404 names the missing admission session for ses
 
 test('admission runtime settings action persists WebUI switch changes', async () => {
   const listeners = new Map<string, (input: unknown) => Promise<string>>()
+  const consoleListeners: Record<string, {
+    callback: (input: unknown) => Promise<string>
+    authority?: number
+  }> = Object.create(null)
+  const disposers: Array<() => void> = []
   const savedInputs: unknown[] = []
   let refreshCount = 0
   registerAdmissionConsoleAPI({
     ...fakeContext(),
     console: {
-      addListener(event: string, listener: (input: unknown) => Promise<string>) {
+      listeners: consoleListeners,
+      addListener(
+        event: string,
+        listener: (input: unknown) => Promise<string>,
+        options?: { authority?: number },
+      ) {
+        consoleListeners[event] = { callback: listener, ...options }
         listeners.set(event, listener)
       },
+    },
+    effect(register: () => () => void) {
+      const dispose = register()
+      disposers.push(dispose)
+      return dispose
     },
   } as unknown as Context, {
     config: createConfig(),
@@ -394,6 +572,7 @@ test('admission runtime settings action persists WebUI switch changes', async ()
     onRuntimeSettingsChanged: async () => {
       refreshCount += 1
     },
+    resolveConsoleScope: async () => GLOBAL_CONSOLE_SCOPE,
   })
 
   const listener = listeners.get('stuhelperGroupGuard/action/save-admission-runtime-settings')
@@ -419,6 +598,121 @@ test('admission runtime settings action persists WebUI switch changes', async ()
     reminderDirectEnabled: undefined,
     timeCodeReminderEnabled: false,
   }])
+  assert.equal(Object.keys(consoleListeners).length, 3)
+  assert.ok(Object.values(consoleListeners).every((listener) => listener.authority === 4))
+
+  for (const dispose of disposers) {
+    dispose()
+  }
+  assert.deepEqual(Object.keys(consoleListeners), [])
+})
+
+test('admission runtime settings action requires global console scope', async () => {
+  const consoleListeners: Record<string, {
+    callback: (this: unknown, input: unknown) => Promise<string>
+    authority?: number
+  }> = Object.create(null)
+  let saveCalls = 0
+  registerAdmissionConsoleAPI({
+    ...fakeContext(),
+    console: {
+      listeners: consoleListeners,
+      addListener(
+        event: string,
+        listener: (this: unknown, input: unknown) => Promise<string>,
+        options?: { authority?: number },
+      ) {
+        consoleListeners[event] = { callback: listener, ...options }
+      },
+    },
+    effect(register: () => () => void) {
+      return register()
+    },
+  } as unknown as Context, {
+    config: createConfig(),
+    platform: fakePlatform(),
+    runtimeSettings: fakeRuntimeSettings({
+      async saveSettings() {
+        saveCalls += 1
+        throw new Error('save must not run')
+      },
+    }),
+    guardStore: fakeGuardStore(),
+    policyStore: fakePolicyStore(),
+    moderationStore: fakeModerationStore(),
+    resolveConsoleScope: async () => ({
+      kind: 'guilds',
+      guildIds: new Set(['178037297']),
+    }),
+  })
+
+  const listener = consoleListeners['stuhelperGroupGuard/action/save-admission-runtime-settings']?.callback
+  assert.ok(listener)
+  await assert.rejects(
+    () => listener.call({ auth: { id: 42, authority: 4 } }, { moderationEnabled: false }),
+    /admission runtime settings requires global console scope/,
+  )
+  assert.equal(saveCalls, 0)
+})
+
+test('admission console disposal preserves listeners registered by a newer scope', () => {
+  const consoleListeners: Record<string, {
+    callback: (...args: unknown[]) => unknown
+    authority?: number
+  }> = Object.create(null)
+  const consoleService = {
+    listeners: consoleListeners,
+    addListener(
+      event: string,
+      listener: (...args: unknown[]) => unknown,
+      options?: { authority?: number },
+    ) {
+      consoleListeners[event] = { callback: listener, ...options }
+    },
+  }
+  const createConsoleContext = (disposers: Array<() => void>) => ({
+    ...fakeContext(),
+    console: consoleService,
+    effect(register: () => () => void) {
+      const dispose = register()
+      disposers.push(dispose)
+      return dispose
+    },
+  } as unknown as Context)
+  const deps = {
+    config: createConfig(),
+    platform: fakePlatform(),
+    runtimeSettings: fakeRuntimeSettings(),
+    guardStore: fakeGuardStore(),
+    policyStore: fakePolicyStore(),
+    moderationStore: fakeModerationStore(),
+    resolveConsoleScope: async () => GLOBAL_CONSOLE_SCOPE,
+  }
+
+  const firstDisposers: Array<() => void> = []
+  registerAdmissionConsoleAPI(createConsoleContext(firstDisposers), deps)
+  const firstRegistrations = { ...consoleListeners }
+
+  const secondDisposers: Array<() => void> = []
+  registerAdmissionConsoleAPI(createConsoleContext(secondDisposers), deps)
+  const secondRegistrations = { ...consoleListeners }
+  assert.equal(Object.keys(secondRegistrations).length, 3)
+  assert.notEqual(
+    secondRegistrations['stuhelperGroupGuard/action/admission-member'],
+    firstRegistrations['stuhelperGroupGuard/action/admission-member'],
+  )
+
+  for (const dispose of firstDisposers) {
+    dispose()
+  }
+  for (const [event, registration] of Object.entries(secondRegistrations)) {
+    assert.equal(consoleListeners[event], registration)
+  }
+
+  for (const dispose of secondDisposers) {
+    dispose()
+  }
+  assert.deepEqual(Object.keys(consoleListeners), [])
 })
 
 test('admission runtime console actions use configured message templates', async () => {
@@ -450,6 +744,7 @@ test('admission runtime console actions use configured message templates', async
     },
     { recordId: 'qq:2118785781:178037297:2001', action: 'query' },
     { auth: { id: 42 } },
+    GLOBAL_CONSOLE_SCOPE,
   )
 
   const resendResult = await handleAdmissionRuntimeAction(
@@ -469,6 +764,7 @@ test('admission runtime console actions use configured message templates', async
     },
     { recordId: 'qq:2118785781:178037297:2001', action: 'resend' },
     { auth: { id: 42 } },
+    GLOBAL_CONSOLE_SCOPE,
   )
 
   assert.equal(queryResult, 'Console 查询 2001/自定义已绑定/自定义下一步')
@@ -562,29 +858,11 @@ function fakeGuardStore(overrides: Partial<GuardMemberStore> = {}) {
   } as unknown as GuardMemberStore
 }
 
-function fakePolicyStore() {
+function fakePolicyStore(overrides: Partial<GuardPolicyStore> = {}) {
   return {
-    listTemplates: async () => [{
-      id: 'default',
-      name: '默认模板',
-      enabled: true,
-      muteDurationSeconds: 2592000,
-      kickAfterMinutes: 60,
-      reminderTemplate: '请先认证',
-      exemptUsers: [],
-      createdAt: new Date('2026-06-04T07:00:00.000Z'),
-      updatedAt: new Date('2026-06-04T07:00:00.000Z'),
-    }],
-    listBindings: async () => [{
-      id: 'qq:178037297',
-      platform: 'qq',
-      guildId: '178037297',
-      templateId: 'default',
-      enabled: true,
-      note: null,
-      createdAt: new Date('2026-06-04T07:00:00.000Z'),
-      updatedAt: new Date('2026-06-04T07:00:00.000Z'),
-    }],
+    listTemplates: async () => [createPolicyTemplate('default')],
+    listBindings: async () => [createPolicyBinding('178037297', 'default')],
+    ...overrides,
   } as unknown as GuardPolicyStore
 }
 
@@ -683,6 +961,33 @@ function createMember(overrides: Partial<GuardMemberRecord> = {}): GuardMemberRe
     createdAt: new Date('2026-06-04T08:00:00.000Z'),
     updatedAt: new Date('2026-06-04T08:00:00.000Z'),
     ...overrides,
+  }
+}
+
+function createPolicyTemplate(id: string) {
+  return {
+    id,
+    name: `模板 ${id}`,
+    enabled: true,
+    muteDurationSeconds: 2592000,
+    kickAfterMinutes: 60,
+    reminderTemplate: '请先认证',
+    exemptUsers: [],
+    createdAt: new Date('2026-06-04T07:00:00.000Z'),
+    updatedAt: new Date('2026-06-04T07:00:00.000Z'),
+  }
+}
+
+function createPolicyBinding(guildId: string, templateId: string) {
+  return {
+    id: `qq:${guildId}`,
+    platform: 'qq',
+    guildId,
+    templateId,
+    enabled: true,
+    note: null,
+    createdAt: new Date('2026-06-04T07:00:00.000Z'),
+    updatedAt: new Date('2026-06-04T07:00:00.000Z'),
   }
 }
 

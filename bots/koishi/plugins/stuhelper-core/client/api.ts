@@ -158,6 +158,7 @@ export interface AdminMessageSettings {
   freshmanBlacklistReleaseCommandDescription: string
   commandAccessDenied: string
   adminCommandsDisabled: string
+  guardGuildContextRequired: string
   guardWarningMissingContext: string
   guardBatchMuteGroupOnly: string
   guardBatchMuteInvalidPayload: string

@@ -36,7 +36,12 @@ func (rt *Runtime) initCourseModule(
 ) courseModule {
 	courseCache := cache.NewHelperWithNamespace(rt.redisClient.GetClient(), cache.NamespaceCourse)
 	reviewCache := cache.NewHelperWithNamespace(rt.redisClient.GetClient(), cache.NamespaceReview)
-	reviewRepo := review.NewRepository(rt.database)
+	reviewRepo := review.NewRepository(
+		rt.database,
+		review.WithTeacherStatsRefreshTimeout(
+			time.Duration(rt.cfg.Review.TeacherStatsRefreshTimeoutSeconds)*time.Second,
+		),
+	)
 	reviewService := review.NewService(
 		rt.database,
 		reviewRepo,
@@ -125,11 +130,11 @@ func (m courseModule) runLogCleanup(ctx context.Context) {
 }
 
 func (m courseModule) runTeacherPublicStatsRefresh(ctx context.Context) {
-	if err := m.reviewHandler.RefreshTeacherPublicStats(ctx); err != nil {
-		logger.L().Warn("Failed to refresh teacher public stats materialized view", zap.Error(err))
+	if err := m.reviewHandler.EnqueueTeacherPublicStatsRefresh(ctx); err != nil {
+		logger.L().Warn("Failed to enqueue teacher public stats projection refresh", zap.Error(err))
 		return
 	}
-	logger.L().Debug("Teacher public stats materialized view refreshed")
+	logger.L().Debug("Teacher public stats projection refresh enqueued")
 }
 
 func (rt *Runtime) metricsAllowedOrigins() []string {

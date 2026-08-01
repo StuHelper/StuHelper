@@ -53,6 +53,7 @@ var (
 	ErrAdmissionSchoolNotFound             = errors.New("admission school not found")
 	ErrAdmissionSchoolDisabled             = errors.New("admission school disabled")
 	ErrAdmissionPendingActionFilterInvalid = errors.New("admission pending action filter invalid")
+	ErrAdmissionBotActionLeaseLost         = errors.New("admission bot action dispatch lease lost")
 	ErrMemberBlacklisted                   = errors.New("member is blacklisted")
 	ErrAdmissionBlacklistNotFound          = errors.New("admission blacklist not found")
 	ErrMemberBlacklistInvalidInput         = errors.New("member blacklist invalid input")

@@ -38,7 +38,7 @@ func TestReviewService_StateTransitionsAndNotifications(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	repo := NewRepository(fixture.DB)
 	sender := &recordingNotificationSender{ch: make(chan ReviewNotification, 8)}
-	svc := NewService(fixture.DB, repo, noopNotificationSender{}, noopReviewFGAWriter{}, failClosedReviewAccessReader{})
+	svc := NewService(fixture.DB, repo, sender, noopReviewFGAWriter{}, failClosedReviewAccessReader{})
 	svc.filter = seededFilter([]SensitiveWord{
 		{Word: "reviewword", Level: ContentFlagReview},
 		{Word: "warnword", Level: ContentFlagWarn},
@@ -122,28 +122,15 @@ func TestReviewService_StateTransitionsAndNotifications(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// 直接覆盖通知 helper 分支：他人操作触发，自操作不触发。
-	helperSvc := NewService(fixture.DB, repo, sender, noopReviewFGAWriter{}, failClosedReviewAccessReader{})
-	helperSvc.filter = svc.filter
-	helperSvc.sendVoteNotification(ctx, reviewID, "u-voter-state")
+	require.NoError(t, svc.processReviewNotificationBatch(ctx))
 	likeNotif := waitNotification(t, sender.ch, "like")
 	assert.Equal(t, ownerUserID, likeNotif.UserID)
+	assert.NotEmpty(t, likeNotif.IdempotencyKey)
 
-	helperSvc.sendReplyNotification(ctx, reviewID, "u-replier-state")
 	replyNotif := waitNotification(t, sender.ch, "reply")
 	assert.Equal(t, ownerUserID, replyNotif.UserID)
+	assert.Equal(t, reviewReplyNotificationKey(replyResult.Reply.ID), replyNotif.IdempotencyKey)
 
-drainLoop:
-	for {
-		select {
-		case <-sender.ch:
-		default:
-			break drainLoop
-		}
-	}
-
-	helperSvc.sendVoteNotification(ctx, reviewID, "u-owner-state")
-	helperSvc.sendReplyNotification(ctx, reviewID, "u-owner-state")
 	select {
 	case unexpected := <-sender.ch:
 		t.Fatalf("unexpected self-notification: %+v", unexpected)

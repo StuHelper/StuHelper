@@ -267,7 +267,9 @@ export default {
             photoFront: "证件正面",
             photoBack: "证件背面",
             photoSelfie: "手持证件照",
-            photoRequired: "非大陆证件需上传证件照片",
+            photoRequired: "请上传清晰的认证材料",
+            manualEvidencePrompt:
+                "当前信息无法通过已绑定学籍自动核验，请上传证件正面和本人手持证件照进入人工审核。",
             uploadFailed: "证件照片上传失败，请重试",
             photoTooLarge: "图片大小不能超过 {max}",
             photoInvalidType: "仅支持 JPG、PNG 或 WebP 图片",

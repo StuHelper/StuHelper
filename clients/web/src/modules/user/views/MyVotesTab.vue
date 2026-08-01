@@ -11,6 +11,7 @@
     >
       <template #action>
         <button
+          type="button"
           class="inline-flex items-center justify-center rounded-sm bg-text-primary px-4 py-2 text-sm font-medium text-bg-base transition-colors duration-fast hover:bg-accent hover:text-white"
           @click="loadInitial"
         >
@@ -33,6 +34,7 @@
           {{ loadMoreError }}
         </p>
         <button
+          type="button"
           v-if="total > votes.length"
           class="px-6 py-2 bg-transparent rounded-sm text-text-secondary text-sm cursor-pointer transition-all duration-fast hover:not-disabled:border-text-primary hover:not-disabled:text-text-primary"
           @click="loadMore"

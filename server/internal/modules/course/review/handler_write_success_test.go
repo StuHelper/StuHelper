@@ -71,6 +71,7 @@ func TestReviewHandler_WriteAndStatsSuccessPaths(t *testing.T) {
 	require.Equal(t, http.StatusCreated, w.Code, w.Body.String())
 	assert.Contains(t, w.Body.String(), "新评论标题")
 	coursesVersion, courseVersion = assertCourseCacheBumped(t, coursesVersion, courseVersion)
+	processTeacherPublicStatsProjection(t, ctx, h)
 	teachersVersion, hotTeachersVersion = assertTeacherPublicCachesBumped(t, ctx, h, teachersVersion, hotTeachersVersion)
 
 	var createdReviewID string
@@ -83,6 +84,7 @@ func TestReviewHandler_WriteAndStatsSuccessPaths(t *testing.T) {
 	h.UpdateReview(c)
 	assert.Equal(t, http.StatusOK, w.Code)
 	coursesVersion, courseVersion = assertCourseCacheBumped(t, coursesVersion, courseVersion)
+	processTeacherPublicStatsProjection(t, ctx, h)
 	teachersVersion, hotTeachersVersion = assertTeacherPublicCachesBumped(t, ctx, h, teachersVersion, hotTeachersVersion)
 
 	w, c = withUserContext(http.MethodPut, "/reviews/"+createdReviewID, `{"content":"仅更新内容也足够长用于通过校验"}`, viewerID)
@@ -91,6 +93,7 @@ func TestReviewHandler_WriteAndStatsSuccessPaths(t *testing.T) {
 	h.UpdateReview(c)
 	assert.Equal(t, http.StatusOK, w.Code)
 	coursesVersion, courseVersion = assertCourseCacheBumped(t, coursesVersion, courseVersion)
+	processTeacherPublicStatsProjection(t, ctx, h)
 	teachersVersion, hotTeachersVersion = assertTeacherPublicCachesBumped(t, ctx, h, teachersVersion, hotTeachersVersion)
 
 	var (
@@ -112,6 +115,7 @@ func TestReviewHandler_WriteAndStatsSuccessPaths(t *testing.T) {
 	h.DeleteReview(c)
 	assert.Equal(t, http.StatusOK, w.Code)
 	assertCourseCacheBumped(t, coursesVersion, courseVersion)
+	processTeacherPublicStatsProjection(t, ctx, h)
 	assertTeacherPublicCachesBumped(t, ctx, h, teachersVersion, hotTeachersVersion)
 
 	w, c = withUserContext(http.MethodGet, "/courses/1/rating-stats", "", viewerID)
@@ -172,6 +176,7 @@ func TestReviewHandler_PostReviewRefreshesTeacherPublicStatsBeforeHotTeacherCach
 	})
 	h.PostReview(c)
 	require.Equal(t, http.StatusCreated, w.Code, w.Body.String())
+	processTeacherPublicStatsProjection(t, ctx, h)
 	assertTeacherPublicCachesBumped(t, ctx, h, teachersVersion, hotTeachersVersion)
 
 	w, c = withUserContext(http.MethodGet, "/teachers/hot", "", viewerID)

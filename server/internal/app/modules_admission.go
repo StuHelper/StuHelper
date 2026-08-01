@@ -2,19 +2,46 @@ package app
 
 import (
 	"context"
+	"strconv"
 
 	"github.com/StuHelper/StuHelper/server/internal/modules/admission"
-	"github.com/StuHelper/StuHelper/server/internal/modules/user"
-	platformcasdoor "github.com/StuHelper/StuHelper/server/internal/platform/casdoor"
+	authorizationmodule "github.com/StuHelper/StuHelper/server/internal/modules/authorization"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/capability"
 )
 
-func (rt *Runtime) initAdmissionOperatorAccess(userRepo *user.Repository) admission.OperatorAccessGateway {
-	client, err := rt.newCasdoorRoleSyncClient()
+type admissionAuthorizationGateway struct {
+	authorization admissionAccessSnapshotResolver
+}
+
+type admissionAccessSnapshotResolver interface {
+	ResolveAccessSnapshotByUserID(
+		ctx context.Context,
+		userID int64,
+	) (authorizationmodule.AccessSnapshot, error)
+}
+
+func (g admissionAuthorizationGateway) UserHasCapabilityInSchool(
+	ctx context.Context,
+	userID int64,
+	capabilityName string,
+	schoolID int64,
+) (bool, error) {
+	snapshot, err := g.authorization.ResolveAccessSnapshotByUserID(ctx, userID)
 	if err != nil {
-		return admission.NewRoleOperatorAccessGateway(func(context.Context, int64, string) (bool, error) {
-			return false, err
-		})
+		return false, err
 	}
-	hasRole := platformcasdoor.BuildRoleMembershipFunc(client, userRepo.GetCasdoorSubject)
-	return admission.NewRoleOperatorAccessGateway(hasRole)
+	access := capability.BuildUserAccessSnapshot(
+		capability.ExpandRoleGrants(snapshot.Roles, snapshot.RoleScopes),
+	)
+	return capability.HasGrantInSchool(
+		access.CapabilityGrants,
+		capabilityName,
+		strconv.FormatInt(schoolID, 10),
+	), nil
+}
+
+func (rt *Runtime) initAdmissionOperatorAccess(
+	authorization admissionAccessSnapshotResolver,
+) admission.OperatorAccessGateway {
+	return admissionAuthorizationGateway{authorization: authorization}
 }

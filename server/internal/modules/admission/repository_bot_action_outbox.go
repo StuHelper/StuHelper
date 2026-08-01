@@ -51,15 +51,15 @@ func (r *Repository) QueueBotActionTx(
 			qq_id = EXCLUDED.qq_id,
 			scheduled_at = EXCLUDED.scheduled_at,
 			status = CASE
-				WHEN admission_bot_action_outbox.status IN ('succeeded', 'dead_letter') THEN admission_bot_action_outbox.status
+				WHEN admission_bot_action_outbox.status IN ('dispatched', 'succeeded', 'dead_letter') THEN admission_bot_action_outbox.status
 				ELSE 'pending'
 			END,
 			next_attempt_at = CASE
-				WHEN admission_bot_action_outbox.status IN ('succeeded', 'dead_letter') THEN admission_bot_action_outbox.next_attempt_at
+				WHEN admission_bot_action_outbox.status IN ('dispatched', 'succeeded', 'dead_letter') THEN admission_bot_action_outbox.next_attempt_at
 				ELSE EXCLUDED.next_attempt_at
 			END,
 			last_error = CASE
-				WHEN admission_bot_action_outbox.status IN ('succeeded', 'dead_letter') THEN admission_bot_action_outbox.last_error
+				WHEN admission_bot_action_outbox.status IN ('dispatched', 'succeeded', 'dead_letter') THEN admission_bot_action_outbox.last_error
 				ELSE NULL
 			END,
 			updated_at = EXCLUDED.updated_at
@@ -176,19 +176,25 @@ func (r *Repository) MarkBotActionSucceededTx(
 	ctx context.Context,
 	tx pgx.Tx,
 	actionID int64,
+	dispatchAttempt int,
 	event BotEventInput,
 	now time.Time,
 ) error {
-	_, err := tx.Exec(ctx, `
+	tag, err := tx.Exec(ctx, `
 		UPDATE admission_bot_action_outbox
 		SET status = 'succeeded',
 		    last_error = NULL,
 		    message_id = NULLIF($2, ''),
 		    updated_at = $3
 		WHERE id = $1
-	`, actionID, event.MessageID, now)
+		  AND status = 'dispatched'
+		  AND attempt_count = $4
+	`, actionID, event.MessageID, now, dispatchAttempt)
 	if err != nil {
 		return fmt.Errorf("MarkBotActionSucceededTx: %w", err)
+	}
+	if tag.RowsAffected() != 1 {
+		return ErrAdmissionBotActionLeaseLost
 	}
 	return nil
 }
@@ -197,36 +203,137 @@ func (r *Repository) MarkBotActionFailedTx(
 	ctx context.Context,
 	tx pgx.Tx,
 	actionID int64,
+	dispatchAttempt int,
 	event BotEventInput,
 	now time.Time,
 	attemptCount int,
 ) error {
 	errMsg := normalizeBotEventError(event)
-	_, err := tx.Exec(ctx, `
+	tag, err := tx.Exec(ctx, `
 		UPDATE admission_bot_action_outbox
 		SET status = CASE WHEN attempt_count >= $5 THEN 'dead_letter' ELSE 'failed' END,
 		    last_error = $2,
 		    next_attempt_at = $3,
 		    updated_at = $4
 		WHERE id = $1
-	`, actionID, errMsg, now.Add(botActionRetryBackoff(attemptCount)), now, admissionBotActionMaxAttempts)
+		  AND status = 'dispatched'
+		  AND attempt_count = $6
+	`, actionID, errMsg, now.Add(botActionRetryBackoff(attemptCount)), now, admissionBotActionMaxAttempts, dispatchAttempt)
 	if err != nil {
 		return fmt.Errorf("MarkBotActionFailedTx: %w", err)
+	}
+	if tag.RowsAffected() != 1 {
+		return ErrAdmissionBotActionLeaseLost
 	}
 	return nil
 }
 
-func (r *Repository) MarkBotActionStale(ctx context.Context, actionID int64, now time.Time) error {
+func (r *Repository) MarkBotActionPreparationFailed(
+	ctx context.Context,
+	actionID int64,
+	dispatchAttempt int,
+	lastError string,
+	now time.Time,
+) error {
 	ctx = withDBTable(ctx, admissionBotActionOutboxTable)
-	_, err := r.db.Exec(ctx, `
+	tag, err := r.db.Exec(ctx, `
+		UPDATE admission_bot_action_outbox
+		SET status = CASE WHEN attempt_count >= $5 THEN 'dead_letter' ELSE 'failed' END,
+		    last_error = $2,
+		    next_attempt_at = $3,
+		    updated_at = $4
+		WHERE id = $1
+		  AND status = 'dispatched'
+		  AND attempt_count = $6
+	`, actionID, lastError, now.Add(botActionRetryBackoff(dispatchAttempt)), now,
+		admissionBotActionMaxAttempts, dispatchAttempt)
+	if err != nil {
+		return fmt.Errorf("MarkBotActionPreparationFailed: %w", err)
+	}
+	if tag.RowsAffected() != 1 {
+		return ErrAdmissionBotActionLeaseLost
+	}
+	return nil
+}
+
+func (r *Repository) MarkBotActionStale(
+	ctx context.Context,
+	actionID int64,
+	dispatchAttempt int,
+	now time.Time,
+) error {
+	ctx = withDBTable(ctx, admissionBotActionOutboxTable)
+	tag, err := r.db.Exec(ctx, `
 		UPDATE admission_bot_action_outbox
 		SET status = 'stale', updated_at = $2
-		WHERE id = $1 AND status <> 'succeeded'
-	`, actionID, now)
+		WHERE id = $1
+		  AND status = 'dispatched'
+		  AND attempt_count = $3
+	`, actionID, now, dispatchAttempt)
 	if err != nil {
 		return fmt.Errorf("MarkBotActionStale: %w", err)
 	}
+	if tag.RowsAffected() != 1 {
+		return ErrAdmissionBotActionLeaseLost
+	}
 	return nil
+}
+
+// abandonBotActionClaims is only valid for a synchronous, single-shot cleanup
+// of claims that ClaimQueuedAdmissionActions has not exposed to a bot. Returning
+// the retry budget reuses the numeric attempt on the next claim, so this helper
+// must never be retried asynchronously or used after a response may be visible.
+func (r *Repository) abandonBotActionClaims(
+	ctx context.Context,
+	rows []AdmissionBotActionOutboxRow,
+	now time.Time,
+) (int64, error) {
+	if len(rows) == 0 {
+		return 0, nil
+	}
+	ids := make([]int64, len(rows))
+	attempts := make([]int32, len(rows))
+	for i := range rows {
+		ids[i] = rows[i].ID
+		attempt, err := botActionAttemptForDatabase(rows[i].AttemptCount)
+		if err != nil {
+			return 0, fmt.Errorf("abandonBotActionClaims action %d: %w", rows[i].ID, err)
+		}
+		attempts[i] = attempt
+	}
+	ctx = withDBTable(ctx, admissionBotActionOutboxTable)
+	tag, err := r.db.Exec(ctx, `
+		WITH claims(id, attempt_count) AS (
+			SELECT *
+			FROM unnest($1::bigint[], $2::integer[])
+		)
+		UPDATE admission_bot_action_outbox AS o
+		SET status = CASE WHEN o.attempt_count <= 1 THEN 'pending' ELSE 'failed' END,
+		    attempt_count = o.attempt_count - 1,
+		    next_attempt_at = $4,
+		    updated_at = $3
+		FROM claims
+		WHERE o.id = claims.id
+		  AND o.status = 'dispatched'
+		  AND o.attempt_count = claims.attempt_count
+	`, ids, attempts, now, now.Add(botActionDispatchRetryAfter))
+	if err != nil {
+		return 0, fmt.Errorf("abandonBotActionClaims: %w", err)
+	}
+	return tag.RowsAffected(), nil
+}
+
+func botActionAttemptForDatabase(attempt int) (int32, error) {
+	if attempt < 1 || attempt > admissionBotActionMaxAttempts {
+		return 0, fmt.Errorf(
+			"attempt count %d is outside the claimed-action range [1,%d]: %w",
+			attempt,
+			admissionBotActionMaxAttempts,
+			ErrAdmissionInvalidInput,
+		)
+	}
+	// The domain check above proves the conversion is bounded by 5.
+	return int32(attempt), nil // #nosec G115 -- conversion is bounded by admissionBotActionMaxAttempts
 }
 
 func (r *Repository) MarkBotActionStaleTx(ctx context.Context, tx pgx.Tx, actionID int64, now time.Time) error {

@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -236,14 +237,24 @@ func TestSubmitIdentity_EncryptAndWriteCiphertext(t *testing.T) {
 		},
 	}
 
-	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), enc)
+	store := &fakeIdentityPhotoStore{presignURL: "https://storage.example.test/identity/photo.png"}
+	svc, err := NewService(
+		repo,
+		[]byte("test-hmac-key-at-least-32-chars!"),
+		enc,
+		WithIdentityPhotoStore(store),
+	)
 	require.NoError(t, err)
 
 	docNumber := "110101199001011237"
+	front := "identities/42/2026/04/1777777777777777001-front.png"
+	selfie := "identities/42/2026/04/1777777777777777002-selfie.png"
 	result, err := svc.SubmitIdentity(context.Background(), 42, SubmitIdentityRequest{
-		DocType:   DocTypeMainlandID,
-		DocNumber: docNumber,
-		RealName:  "张三",
+		DocType:        DocTypeMainlandID,
+		DocNumber:      docNumber,
+		RealName:       "张三",
+		DocPhotoFront:  &front,
+		DocPhotoSelfie: &selfie,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -262,6 +273,28 @@ func TestSubmitIdentity_EncryptAndWriteCiphertext(t *testing.T) {
 	// PersonUID 应为 HMAC 结果，非空且非原始值
 	assert.NotEmpty(t, capturedIdentity.PersonUID)
 	assert.NotEqual(t, docNumber, capturedIdentity.PersonUID)
+}
+
+func TestSubmitIdentity_MainlandIDRequiresEvidenceWhenAcademicMatchUnavailable(t *testing.T) {
+	repo := &mockRepo{
+		onCreateIdentity: func(context.Context, *IdentityRecord) error {
+			t.Fatal("identity without automatic proof or manual evidence must not be persisted")
+			return nil
+		},
+	}
+	svc, err := NewService(
+		repo,
+		[]byte("test-hmac-key-at-least-32-chars!"),
+		&fakeEncryptor{},
+	)
+	require.NoError(t, err)
+
+	_, err = svc.SubmitIdentity(context.Background(), 42, SubmitIdentityRequest{
+		DocType:   DocTypeMainlandID,
+		DocNumber: "110101199001011237",
+		RealName:  "张三",
+	})
+	assert.ErrorIs(t, err, ErrPhotoRequired)
 }
 
 func TestSubmitIdentity_RejectsInvalidMainlandIDNumber(t *testing.T) {
@@ -300,6 +333,40 @@ func TestSubmitIdentity_RejectsInvalidRealName(t *testing.T) {
 		RealName:  strings.Repeat("名", maxIdentityRealNameRunes+1),
 	})
 	assert.ErrorIs(t, err, ErrIdentityRealNameInvalid)
+
+	for _, unsafeName := range []string{
+		"张\u200b三",
+		"张\n三",
+		"张" + string(rune(0xE000)) + "三",
+		string([]byte{0xff}),
+	} {
+		_, err = svc.SubmitIdentity(context.Background(), 42, SubmitIdentityRequest{
+			DocType:   DocTypeMainlandID,
+			DocNumber: "11010519491231002X",
+			RealName:  unsafeName,
+		})
+		assert.ErrorIs(t, err, ErrIdentityRealNameInvalid, "%q", unsafeName)
+	}
+}
+
+func TestSubmitIdentity_RejectsUnsafeNonMainlandDocumentNumbers(t *testing.T) {
+	svc, err := NewService(&mockRepo{}, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	require.NoError(t, err)
+
+	for _, unsafeDocNumber := range []string{
+		"P123 456",
+		"P123\n456",
+		"P123\u200b456",
+		"P123" + string(rune(0xE000)) + "456",
+		string([]byte{0xff}),
+	} {
+		_, err = svc.SubmitIdentity(context.Background(), 42, SubmitIdentityRequest{
+			DocType:   DocTypePassport,
+			DocNumber: unsafeDocNumber,
+			RealName:  "张三",
+		})
+		assert.ErrorIs(t, err, ErrIdentityDocNumberInvalid, "%q", unsafeDocNumber)
+	}
 }
 
 func TestSubmitIdentity_NormalizesMainlandIDAndRealName(t *testing.T) {
@@ -325,13 +392,23 @@ func TestSubmitIdentity_NormalizesMainlandIDAndRealName(t *testing.T) {
 			return nil
 		},
 	}
-	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), enc)
+	store := &fakeIdentityPhotoStore{presignURL: "https://storage.example.test/identity/photo.png"}
+	svc, err := NewService(
+		repo,
+		[]byte("test-hmac-key-at-least-32-chars!"),
+		enc,
+		WithIdentityPhotoStore(store),
+	)
 	require.NoError(t, err)
 
+	front := "identities/42/2026/04/1777777777777777001-front.png"
+	selfie := "identities/42/2026/04/1777777777777777002-selfie.png"
 	_, err = svc.SubmitIdentity(context.Background(), 42, SubmitIdentityRequest{
-		DocType:   DocTypeMainlandID,
-		DocNumber: " 11010519491231002x ",
-		RealName:  " 张三 ",
+		DocType:        DocTypeMainlandID,
+		DocNumber:      " 11010519491231002x ",
+		RealName:       " 张三 ",
+		DocPhotoFront:  &front,
+		DocPhotoSelfie: &selfie,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, capturedIdentity)
@@ -357,19 +434,20 @@ func TestSubmitIdentity_AlreadyExists(t *testing.T) {
 func TestSubmitIdentity_RejectedIdentityAllowsResubmission(t *testing.T) {
 	var updated *IdentityRecord
 	callCount := 0
+	now := time.Now().Add(-time.Hour)
+	rejectionReason := "照片不清晰"
+	rejected := &IdentityStatus{
+		UserID:          42,
+		DocType:         DocTypePassport,
+		RealName:        "旧实名",
+		ReviewedAt:      &now,
+		RejectionReason: &rejectionReason,
+	}
 	repo := &mockRepo{
 		onGetIdentityStatusByUserID: func(_ context.Context, _ int64) (*IdentityStatus, error) {
 			callCount++
 			if callCount == 1 {
-				now := time.Now().Add(-time.Hour)
-				rejectionReason := "照片不清晰"
-				return &IdentityStatus{
-					UserID:          42,
-					DocType:         DocTypePassport,
-					RealName:        "旧实名",
-					ReviewedAt:      &now,
-					RejectionReason: &rejectionReason,
-				}, nil
+				return rejected, nil
 			}
 			return &IdentityStatus{
 				UserID:   42,
@@ -377,6 +455,9 @@ func TestSubmitIdentity_RejectedIdentityAllowsResubmission(t *testing.T) {
 				RealName: "新实名",
 				Verified: false,
 			}, nil
+		},
+		onGetIdentityStatusByUserIDTx: func(_ context.Context, _ pgx.Tx, _ int64) (*IdentityStatus, error) {
+			return rejected, nil
 		},
 		onUpdateIdentitySubmission: func(_ context.Context, identity *IdentityRecord) error {
 			copied := *identity
@@ -497,9 +578,20 @@ func TestReviewIdentity_ApproveFlow(t *testing.T) {
 	var updatedReviewedAt *time.Time
 	var updatedVerifiedAt *time.Time
 
+	front := "identities/1/2026/04/1777777777777777001-front.png"
+	selfie := "identities/1/2026/04/1777777777777777002-selfie.png"
 	repo := &mockRepo{
 		onGetIdentityStatusByUserID: func(_ context.Context, _ int64) (*IdentityStatus, error) {
 			return &IdentityStatus{UserID: 1, Verified: false}, nil
+		},
+		onGetIdentityReviewItemByUserID: func(_ context.Context, _ int64) (*IdentityReviewItem, error) {
+			return &IdentityReviewItem{
+				UserID:          1,
+				DocPhotoFront:   &front,
+				DocPhotoSelfie:  &selfie,
+				DocPhotoBack:    nil,
+				RejectionReason: nil,
+			}, nil
 		},
 		onUpdateIdentityReviewStatus: func(_ context.Context, _ int64, approved bool, verifyMethod *string, reviewedAt *time.Time, verifiedAt *time.Time, _ *string) error {
 			updatedApproved = approved
@@ -510,7 +602,14 @@ func TestReviewIdentity_ApproveFlow(t *testing.T) {
 		},
 	}
 
-	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	svc, err := NewService(
+		repo,
+		[]byte("test-hmac-key-at-least-32-chars!"),
+		&fakeEncryptor{},
+		WithIdentityPhotoStore(&fakeIdentityPhotoStore{
+			presignURL: "https://storage.example.test/identity/photo.png",
+		}),
+	)
 	require.NoError(t, err)
 
 	err = svc.ReviewIdentity(context.Background(), 1, true, "")
@@ -520,6 +619,41 @@ func TestReviewIdentity_ApproveFlow(t *testing.T) {
 	assert.Equal(t, VerifyMethodManual, *updatedMethod)
 	assert.NotNil(t, updatedReviewedAt)
 	assert.NotNil(t, updatedVerifiedAt)
+}
+
+func TestReviewIdentity_ApproveRejectsMissingEvidence(t *testing.T) {
+	updateCalled := false
+	repo := &mockRepo{
+		onGetIdentityStatusByUserID: func(_ context.Context, _ int64) (*IdentityStatus, error) {
+			return &IdentityStatus{UserID: 1, Verified: false}, nil
+		},
+		onGetIdentityReviewItemByUserID: func(_ context.Context, _ int64) (*IdentityReviewItem, error) {
+			return &IdentityReviewItem{UserID: 1}, nil
+		},
+		onUpdateIdentityReviewStatus: func(
+			context.Context,
+			int64,
+			bool,
+			*string,
+			*time.Time,
+			*time.Time,
+			*string,
+		) error {
+			updateCalled = true
+			return nil
+		},
+	}
+
+	svc, err := NewService(
+		repo,
+		[]byte("test-hmac-key-at-least-32-chars!"),
+		&fakeEncryptor{},
+	)
+	require.NoError(t, err)
+
+	err = svc.ReviewIdentity(context.Background(), 1, true, "")
+	require.ErrorIs(t, err, ErrPhotoRequired)
+	assert.False(t, updateCalled)
 }
 
 func TestReviewIdentity_RejectFlow(t *testing.T) {

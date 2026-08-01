@@ -42,6 +42,7 @@ async function handleTryDifferentAccount() {
         {{ $t('authentication.accessDeniedDesc') }}
       </p>
       <button
+        type="button"
         class="bg-primary text-primary-foreground rounded-md px-4 py-2 text-sm"
         @click="handleTryDifferentAccount"
       >

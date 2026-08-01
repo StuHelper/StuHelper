@@ -9,10 +9,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
-	"go.uber.org/zap"
 
 	"github.com/StuHelper/StuHelper/server/internal/pkg/httputil"
-	"github.com/StuHelper/StuHelper/server/internal/pkg/logger"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/sanitizer"
 )
 
@@ -359,7 +357,16 @@ func (s *Service) CreateReply(ctx context.Context, params CreateReplyParams) (*C
 		if !isPublicReviewStatus(replyStatus) {
 			return nil
 		}
-		return s.repo.IncrementReplyCount(ctx, tx, params.ReviewID)
+		if err := s.repo.IncrementReplyCount(ctx, tx, params.ReviewID); err != nil {
+			return err
+		}
+		return s.enqueueReplyNotificationTx(
+			ctx,
+			tx,
+			params.ReviewID,
+			replyID,
+			params.UserHash,
+		)
 	}); err != nil {
 		return nil, err
 	}
@@ -367,13 +374,6 @@ func (s *Service) CreateReply(ctx context.Context, params CreateReplyParams) (*C
 	// 防御性 nil 检查，RETURNING 正常情况下不会返回 nil
 	if replyTS == nil {
 		return nil, fmt.Errorf("CreateReply: unexpected nil timestamps from RETURNING clause")
-	}
-
-	// 发送回复通知给评价作者
-	if isPublicReviewStatus(replyStatus) {
-		s.dispatchNotification(ctx, func(notifCtx context.Context) {
-			s.sendReplyNotification(notifCtx, params.ReviewID, params.UserHash)
-		})
 	}
 
 	return &CreateReplyResult{
@@ -483,35 +483,4 @@ func (s *Service) DeleteReply(ctx context.Context, params DeleteReplyParams) err
 		}
 		return nil
 	})
-}
-
-// sendReplyNotification 异步发送回复通知给评价作者
-func (s *Service) sendReplyNotification(ctx context.Context, reviewID, replierHash string) {
-	review, err := s.repo.GetReviewByID(ctx, reviewID)
-	if err != nil || review == nil {
-		return
-	}
-	// 自己回复自己时不发送通知
-	if review.UserHash == replierHash {
-		return
-	}
-	authorID, err := s.repo.GetUserIDByUserHash(ctx, review.UserHash)
-	if err != nil || authorID == 0 {
-		return
-	}
-	if err := s.notifSender.SendReviewNotification(ctx, ReviewNotification{
-		UserID:       authorID,
-		Type:         "reply",
-		Title:        "你的评价收到了新回复",
-		Body:         "有人回复了你对课程的评价",
-		SourceModule: "review",
-		SourceID:     reviewID,
-		CourseID:     review.CourseID,
-	}); err != nil {
-		logger.L().Warn("failed to send reply notification",
-			zap.String("review_id", reviewID),
-			zap.Int64("author_id", authorID),
-			zap.Error(err),
-		)
-	}
 }

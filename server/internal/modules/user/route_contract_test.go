@@ -62,6 +62,7 @@ func TestRegisterAdminRoutes_UsesOpenAPIAdminUserPaths(t *testing.T) {
 
 	routes := r.Routes()
 	routeassert.Exists(t, routes, http.MethodGet, "/api/v1/admin/identities")
+	routeassert.Exists(t, routes, http.MethodGet, "/api/v1/admin/identities/:userID")
 	routeassert.Exists(t, routes, http.MethodPut, "/api/v1/admin/identities/:userID")
 	routeassert.Exists(t, routes, http.MethodGet, "/api/v1/admin/student-verifications")
 	routeassert.Exists(t, routes, http.MethodPut, "/api/v1/admin/student-verifications/:userID")

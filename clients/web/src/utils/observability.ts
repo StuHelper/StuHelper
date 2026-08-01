@@ -7,7 +7,9 @@ import { readCookie } from "@/utils/sessionHint";
 const VITALS_PATH = "/api/v1/metrics/vitals";
 const FRONTEND_ERRORS_PATH = "/api/v1/metrics/frontend-errors";
 
-type FrontendErrorKind = "error" | "unhandledrejection";
+export type FrontendErrorKind = "error" | "unhandledrejection" | "vue-error";
+
+let observabilityInitialized = false;
 
 function sendBeaconJSON(path: string, payload: unknown) {
     if (typeof window === "undefined") return;
@@ -44,12 +46,19 @@ function reportVital(metric: Metric) {
     });
 }
 
-function reportFrontendError(kind: FrontendErrorKind, message?: string, source?: string, lineno?: number) {
-    sendBeaconJSON(FRONTEND_ERRORS_PATH, { kind, message, source, lineno });
+export function reportFrontendError(kind: FrontendErrorKind, message?: string, source?: string, lineno?: number) {
+    if (!observabilityInitialized) return;
+
+    try {
+        sendBeaconJSON(FRONTEND_ERRORS_PATH, { kind, message, source, lineno });
+    } catch {
+        // Error telemetry must never become a second application error.
+    }
 }
 
 export function initObservability() {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || observabilityInitialized) return;
+    observabilityInitialized = true;
 
     onCLS(reportVital);
     onINP(reportVital);

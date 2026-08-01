@@ -29,9 +29,13 @@ func (f *fakeEncryptor) Decrypt(ciphertext []byte) (string, error) {
 
 type mockRepo struct {
 	onGetIdentityStatusByUserID                func(ctx context.Context, userID int64) (*IdentityStatus, error)
+	onGetIdentityStatusByUserIDTx              func(ctx context.Context, tx pgx.Tx, userID int64) (*IdentityStatus, error)
 	onCreateIdentity                           func(ctx context.Context, identity *IdentityRecord) error
+	onCreateIdentityTx                         func(ctx context.Context, tx pgx.Tx, identity *IdentityRecord) error
 	onUpdateIdentitySubmission                 func(ctx context.Context, identity *IdentityRecord) error
+	onUpdateIdentitySubmissionTx               func(ctx context.Context, tx pgx.Tx, identity *IdentityRecord) error
 	onListIdentityReviewItems                  func(ctx context.Context, status string, page, pageSize int) ([]IdentityReviewItem, int, error)
+	onGetIdentityReviewItemByUserID            func(ctx context.Context, userID int64) (*IdentityReviewItem, error)
 	onFindAcademicStudentsByPersonUIDFromTable func(ctx context.Context, sfzjlxdm, sfzjh, tableName string) ([]AcademicStudent, error)
 	onGetAcademicStudentByXHFromTable          func(ctx context.Context, xh, tableName string) (*AcademicStudent, error)
 	onUpdateIdentityReviewStatus               func(ctx context.Context, userID int64, approved bool, verifyMethod *string, reviewedAt *time.Time, verifiedAt *time.Time, rejectionReason *string) error
@@ -44,6 +48,7 @@ type mockRepo struct {
 	onEnsureUserPhoneAvailable                 func(ctx context.Context, userID int64, phoneHash string) error
 	onSetUserPhone                             func(ctx context.Context, userID int64, phoneEnc []byte, phoneHash string) error
 	onGetSchoolConfig                          func(ctx context.Context, schoolID int64) (*SchoolConfig, error)
+	onGetSchoolConfigForUpdateTx               func(ctx context.Context, tx pgx.Tx, schoolID int64) (*SchoolConfig, error)
 	onListSchoolConfigs                        func(ctx context.Context) ([]SchoolConfig, error)
 	onListAllSchoolConfigs                     func(ctx context.Context) ([]SchoolConfig, error)
 	onUpdateSchoolConfig                       func(ctx context.Context, config *SchoolConfig) error
@@ -53,6 +58,7 @@ type mockRepo struct {
 	onGetInternalUserID                        func(ctx context.Context, casdoorSubject string) (int64, error)
 	onWithTx                                   func(ctx context.Context, fn func(ctx context.Context, tx pgx.Tx) error) error
 	onGetProfileByUserIDTx                     func(ctx context.Context, tx pgx.Tx, userID int64) (*Profile, error)
+	onGetProfileByUserIDForUpdateTx            func(ctx context.Context, tx pgx.Tx, userID int64) (*Profile, error)
 	onCreateProfileTx                          func(ctx context.Context, tx pgx.Tx, profile *Profile) error
 	onUpdateProfileTx                          func(ctx context.Context, tx pgx.Tx, profile *Profile) error
 	onEnsureVerificationCredentialTx           func(ctx context.Context, tx pgx.Tx, credential VerificationCredentialProjection) error
@@ -71,6 +77,13 @@ func (m *mockRepo) GetIdentityStatusByUserID(ctx context.Context, userID int64) 
 	return nil, nil
 }
 
+func (m *mockRepo) GetIdentityStatusByUserIDTx(ctx context.Context, tx pgx.Tx, userID int64) (*IdentityStatus, error) {
+	if m.onGetIdentityStatusByUserIDTx != nil {
+		return m.onGetIdentityStatusByUserIDTx(ctx, tx, userID)
+	}
+	return nil, nil
+}
+
 func (m *mockRepo) CreateIdentity(ctx context.Context, identity *IdentityRecord) error {
 	if m.onCreateIdentity != nil {
 		return m.onCreateIdentity(ctx, identity)
@@ -78,11 +91,25 @@ func (m *mockRepo) CreateIdentity(ctx context.Context, identity *IdentityRecord)
 	return nil
 }
 
+func (m *mockRepo) CreateIdentityTx(ctx context.Context, tx pgx.Tx, identity *IdentityRecord) error {
+	if m.onCreateIdentityTx != nil {
+		return m.onCreateIdentityTx(ctx, tx, identity)
+	}
+	return m.CreateIdentity(ctx, identity)
+}
+
 func (m *mockRepo) UpdateIdentitySubmission(ctx context.Context, identity *IdentityRecord) error {
 	if m.onUpdateIdentitySubmission != nil {
 		return m.onUpdateIdentitySubmission(ctx, identity)
 	}
 	return nil
+}
+
+func (m *mockRepo) UpdateIdentitySubmissionTx(ctx context.Context, tx pgx.Tx, identity *IdentityRecord) error {
+	if m.onUpdateIdentitySubmissionTx != nil {
+		return m.onUpdateIdentitySubmissionTx(ctx, tx, identity)
+	}
+	return m.UpdateIdentitySubmission(ctx, identity)
 }
 
 func (m *mockRepo) FindAcademicStudentsByPersonUIDFromTable(ctx context.Context, sfzjlxdm, sfzjh, tableName string) ([]AcademicStudent, error) {
@@ -127,6 +154,13 @@ func (m *mockRepo) ListIdentityReviewItems(ctx context.Context, status string, p
 		return m.onListIdentityReviewItems(ctx, status, page, pageSize)
 	}
 	return nil, 0, nil
+}
+
+func (m *mockRepo) GetIdentityReviewItemByUserID(ctx context.Context, userID int64) (*IdentityReviewItem, error) {
+	if m.onGetIdentityReviewItemByUserID != nil {
+		return m.onGetIdentityReviewItemByUserID(ctx, userID)
+	}
+	return nil, nil
 }
 
 func (m *mockRepo) CreateProfile(ctx context.Context, profile *Profile) error {
@@ -176,6 +210,13 @@ func (m *mockRepo) GetSchoolConfig(ctx context.Context, schoolID int64) (*School
 		return m.onGetSchoolConfig(ctx, schoolID)
 	}
 	return nil, nil
+}
+
+func (m *mockRepo) GetSchoolConfigForUpdateTx(ctx context.Context, tx pgx.Tx, schoolID int64) (*SchoolConfig, error) {
+	if m.onGetSchoolConfigForUpdateTx != nil {
+		return m.onGetSchoolConfigForUpdateTx(ctx, tx, schoolID)
+	}
+	return m.GetSchoolConfig(ctx, schoolID)
 }
 
 func (m *mockRepo) ListSchoolConfigs(ctx context.Context) ([]SchoolConfig, error) {
@@ -239,6 +280,13 @@ func (m *mockRepo) GetProfileByUserIDTx(ctx context.Context, tx pgx.Tx, userID i
 		return m.onGetProfileByUserIDTx(ctx, tx, userID)
 	}
 	return m.GetProfileByUserID(ctx, userID)
+}
+
+func (m *mockRepo) GetProfileByUserIDForUpdateTx(ctx context.Context, tx pgx.Tx, userID int64) (*Profile, error) {
+	if m.onGetProfileByUserIDForUpdateTx != nil {
+		return m.onGetProfileByUserIDForUpdateTx(ctx, tx, userID)
+	}
+	return m.GetProfileByUserIDTx(ctx, tx, userID)
 }
 
 func (m *mockRepo) CreateProfileTx(ctx context.Context, tx pgx.Tx, profile *Profile) error {

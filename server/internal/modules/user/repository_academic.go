@@ -141,7 +141,8 @@ func (r *Repository) GetInternalUserID(ctx context.Context, casdoorSubject strin
 	return id, nil
 }
 
-// GetCasdoorSubject resolves users.id back to the current Casdoor subject for role sync.
+// GetCasdoorSubject resolves users.id back to the current Casdoor subject for
+// identity-profile synchronization.
 func (r *Repository) GetCasdoorSubject(ctx context.Context, userID int64) (string, error) {
 	ctx = withDBTable(ctx, "users")
 	var casdoorSubject string

@@ -14,6 +14,7 @@ import (
 var allowedFrontendErrorKinds = map[string]bool{
 	"error":              true,
 	"unhandledrejection": true,
+	"vue-error":          true,
 }
 
 var (

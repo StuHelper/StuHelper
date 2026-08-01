@@ -32,6 +32,7 @@ func TestRespondAdmissionErrorDistinguishesInvalidInputAndForbiddenSource(t *tes
 	}{
 		{name: "invalid input", err: ErrMemberBlacklistInvalidInput, want: http.StatusBadRequest},
 		{name: "forbidden source", err: ErrMemberBlacklistSourceForbidden, want: http.StatusForbidden},
+		{name: "redis unavailable", err: ErrAdmissionRedisUnavailable, want: http.StatusServiceUnavailable},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

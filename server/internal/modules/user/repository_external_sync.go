@@ -11,7 +11,6 @@ import (
 )
 
 var externalSyncOutboxStreams = []string{
-	outbox.StreamIAMCasdoorRoleSync,
 	outbox.StreamIAMOpenFGATupleSync,
 	externalSyncStreamAdmissionVerificationProjection,
 }
@@ -19,10 +18,6 @@ var externalSyncOutboxStreams = []string{
 const externalSyncStreamAdmissionVerificationProjection = "admission_verification_projection"
 
 var externalSyncJobTypesByStream = map[string][]string{
-	outbox.StreamIAMCasdoorRoleSync: {
-		externalSyncJobTypeVerifiedStudentRole,
-		externalSyncJobTypeFreshmanProvisionalRole,
-	},
 	outbox.StreamIAMOpenFGATupleSync: {
 		externalSyncJobTypeUserProfileProjection,
 	},
@@ -198,8 +193,6 @@ func mapExternalSyncJobs(jobs []outbox.Job) []ExternalSyncJob {
 
 func externalSyncStreamForJobType(jobType string) (string, error) {
 	switch jobType {
-	case externalSyncJobTypeVerifiedStudentRole, externalSyncJobTypeFreshmanProvisionalRole:
-		return outbox.StreamIAMCasdoorRoleSync, nil
 	case externalSyncJobTypeUserProfileProjection:
 		return outbox.StreamIAMOpenFGATupleSync, nil
 	case externalSyncJobTypeAdmissionVerification:

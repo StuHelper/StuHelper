@@ -77,7 +77,7 @@ SSO ───┘      │     └── 对象存储 (MinIO/S3)
 | 课程与评课 | `modules/course` + `course/review` |
 | 用户系统 | `modules/user` + `modules/ldap` |
 | 通知 | `modules/notification` |
-| 授权 | `pkg/capability` + `modules/rbac/middleware.go` + `pkg/fga` |
+| 授权 | `modules/authorization` + `platform/authorization` + `pkg/capability` + `pkg/fga` |
 
 ## 后端分层
 
@@ -91,9 +91,10 @@ SQL 只写在 Repository，业务判断只放在 Service，响应统一通过 `r
 
 ## 授权模型
 
-1. **Casdoor 角色 claim** — Token claims 提供身份侧扁平角色输入
-2. **Capability** — 后端静态展开，零 DB 查询
-3. **OpenFGA** — 资源级关系判断（谁能操作哪条 review/report）
+1. **Casdoor** — 证明身份、会话与登录层 MFA；目标 StuHelper 组织用户对象的 `IsAdmin` 是 `super_admin` 的唯一管理权威，普通 provider `roles` claim 不参与授权
+2. **PostgreSQL 授权账本** — `authorization_grants` 是 `school_admin` / `section_*` 的管理真源，同时保存 Casdoor 组织管理员到 `super_admin` 的可审计 serving projection
+3. **Capability** — 从 DB-derived access snapshot 静态展开功能权限
+4. **OpenFGA** — DB 可重建的资源关系运行时投影（谁能操作哪条 review/report）
 
 ## 共享契约链路
 
@@ -114,7 +115,7 @@ server/api/openapi.yaml
 | 数据 | 存储 |
 |------|------|
 | 身份与登录 | Casdoor |
-| 业务数据 | PostgreSQL |
+| 业务数据 / 授权期望状态 | PostgreSQL |
 | 缓存 / 黑名单 / 限流 | Redis |
 | 资源关系 | OpenFGA |
 | 指标 / 日志 / Trace | Prometheus / Loki / Tempo |
@@ -155,7 +156,7 @@ StuHelper/
 | 文档治理 | [docs/design/documentation-governance.md](docs/design/documentation-governance.md) |
 | 文档维护 | [docs/guides/documentation-maintenance.md](docs/guides/documentation-maintenance.md) |
 | 运维发布 | [docs/guides/production-go-live.md](docs/guides/production-go-live.md) / [docs/guides/](docs/guides/) |
-| GitHub 迁移 | [docs/guides/github-migration.md](docs/guides/github-migration.md) |
+| GitHub 治理 | [docs/guides/github-migration.md](docs/guides/github-migration.md) |
 | API 参考 | [docs/reference/api-overview.md](docs/reference/api-overview.md) |
 | 数据库参考 | [docs/reference/database.md](docs/reference/database.md) |
 | 错误码参考 | [docs/reference/error-codes.md](docs/reference/error-codes.md) |

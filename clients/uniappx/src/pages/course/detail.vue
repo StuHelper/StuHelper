@@ -264,7 +264,7 @@ onShow(() => {
         </view>
         <view class="hero-meta">
           <text>{{ course.departmentName || t('common.unclassifiedDepartment') }}</text>
-          <text>{{ t('common.creditValue', { value: course.credits }) }}</text>
+          <text>{{ course.credits === null ? t('common.unavailableCredits') : t('common.creditValue', { value: course.credits }) }}</text>
           <text>{{ t('common.reviewCount', { count: course.reviewCount }) }}</text>
         </view>
         <A11yButton class="primary-btn" @tap="goPostReview">{{ t('course.detail.writeReview') }}</A11yButton>
@@ -345,6 +345,7 @@ onShow(() => {
                 <input
                   v-model="replyText"
                   class="reply-input"
+                  :aria-label="t('course.detail.replyPlaceholder')"
                   :data-testid="`uni-review-reply-input-${review.id}`"
                   :placeholder="t('course.detail.replyPlaceholder')"
                   :disabled="replySubmitting"

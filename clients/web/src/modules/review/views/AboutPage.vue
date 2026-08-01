@@ -44,6 +44,7 @@
         <!-- FAQ 1 -->
         <div class="bg-bg-elevated/50 rounded-xl overflow-hidden mb-2">
           <button
+            type="button"
             class="w-full flex items-center justify-between px-5 py-4 hover:bg-bg-hover font-semibold text-text-primary cursor-pointer transition-colors"
             @click="toggle(0)"
           >
@@ -81,6 +82,7 @@
         <!-- FAQ 2 -->
         <div class="bg-bg-elevated/50 rounded-xl overflow-hidden mb-2">
           <button
+            type="button"
             class="w-full flex items-center justify-between px-5 py-4 hover:bg-bg-hover font-semibold text-text-primary cursor-pointer transition-colors"
             @click="toggle(1)"
           >
@@ -109,6 +111,7 @@
         <!-- FAQ 3 -->
         <div class="bg-bg-elevated/50 rounded-xl overflow-hidden mb-2">
           <button
+            type="button"
             class="w-full flex items-center justify-between px-5 py-4 hover:bg-bg-hover font-semibold text-text-primary cursor-pointer transition-colors"
             @click="toggle(2)"
           >
@@ -140,6 +143,7 @@
         <!-- FAQ 4 -->
         <div class="bg-bg-elevated/50 rounded-xl overflow-hidden mb-2">
           <button
+            type="button"
             class="w-full flex items-center justify-between px-5 py-4 hover:bg-bg-hover font-semibold text-text-primary cursor-pointer transition-colors"
             @click="toggle(3)"
           >
@@ -168,6 +172,7 @@
         <!-- FAQ 5 -->
         <div class="bg-bg-elevated/50 rounded-xl overflow-hidden mb-2">
           <button
+            type="button"
             class="w-full flex items-center justify-between px-5 py-4 hover:bg-bg-hover font-semibold text-text-primary cursor-pointer transition-colors"
             @click="toggle(4)"
           >
@@ -199,6 +204,7 @@
         <!-- FAQ 6 -->
         <div class="bg-bg-elevated/50 rounded-xl overflow-hidden mb-2">
           <button
+            type="button"
             class="w-full flex items-center justify-between px-5 py-4 hover:bg-bg-hover font-semibold text-text-primary cursor-pointer transition-colors"
             @click="toggle(5)"
           >
@@ -239,6 +245,7 @@
         <!-- FAQ 7 -->
         <div class="bg-bg-elevated/50 rounded-xl overflow-hidden mb-2">
           <button
+            type="button"
             class="w-full flex items-center justify-between px-5 py-4 hover:bg-bg-hover font-semibold text-text-primary cursor-pointer transition-colors"
             @click="toggle(6)"
           >

@@ -230,6 +230,23 @@ func TestCreateResource_AcceptsPlainTextWithoutCharsetParameter(t *testing.T) {
 	assert.Equal(t, "Plain Text", created.Title)
 }
 
+func TestCreateResource_PersistsCompatibleDeclaredContentType(t *testing.T) {
+	ctx, _, _, svc, _ := setupResourceService(t)
+	const docxContentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+	created, err := svc.CreateResource(ctx, "oidc-user-1", CreateRequest{
+		Title:       "Lecture Notes",
+		Visibility:  "public",
+		Filename:    "lecture-notes.docx",
+		ContentType: docxContentType,
+		DataBase64:  base64.StdEncoding.EncodeToString([]byte("PK\x03\x04docx-container")),
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, created)
+	assert.Equal(t, docxContentType, created.LatestVersion.ContentType)
+}
+
 func TestCreateResource_RejectsMissingOwnerBeforeUpload(t *testing.T) {
 	ctx, _, repo, svc, store := setupResourceService(t)
 

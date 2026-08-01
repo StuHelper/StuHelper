@@ -1,6 +1,7 @@
 <template>
   <div ref="rootRef" class="notification-bell relative" :class="{ 'has-new': hasUnread }">
     <button
+      type="button"
       class="bell-btn relative inline-flex size-11 cursor-pointer items-center justify-center rounded-xl border border-transparent bg-transparent text-text-secondary transition-all duration-fast hover:border-white/20 hover:bg-bg-card hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
       :aria-label="t('user.notification.bell')"
       :aria-expanded="showPanel"

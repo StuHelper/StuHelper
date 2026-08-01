@@ -2,15 +2,45 @@ package admission
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/StuHelper/StuHelper/server/internal/testutil/postgresfixture"
 )
+
+func TestBotActionAttemptForDatabaseEnforcesClaimedRange(t *testing.T) {
+	tests := []struct {
+		name    string
+		attempt int
+		want    int32
+		wantErr bool
+	}{
+		{name: "zero is not a claim", attempt: 0, wantErr: true},
+		{name: "first attempt", attempt: 1, want: 1},
+		{name: "last attempt", attempt: admissionBotActionMaxAttempts, want: admissionBotActionMaxAttempts},
+		{name: "above retry budget", attempt: admissionBotActionMaxAttempts + 1, wantErr: true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := botActionAttemptForDatabase(test.attempt)
+			if test.wantErr {
+				require.ErrorIs(t, err, ErrAdmissionInvalidInput)
+				assert.Zero(t, got)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, test.want, got)
+		})
+	}
+}
 
 func TestPendingAdmissionActionBlacklistsOnFinalFailure(t *testing.T) {
 	fixture := postgresfixture.Start(t)
@@ -166,9 +196,10 @@ func TestQueuedAdmissionActionReleaseAckCompletesSession(t *testing.T) {
 	assert.Equal(t, created.Session.ID, actions[0].SessionID)
 
 	err = svc.RecordBotActionEvent(context.Background(), actions[0].ActionID, BotEventInput{
-		Action:    BotAction(" release "),
-		Success:   true,
-		MessageID: " release-msg-1 ",
+		Action:          BotAction(" release "),
+		Success:         true,
+		DispatchAttempt: actions[0].DispatchAttempt,
+		MessageID:       " release-msg-1 ",
 	})
 	require.NoError(t, err)
 
@@ -185,6 +216,104 @@ func TestQueuedAdmissionActionReleaseAckCompletesSession(t *testing.T) {
 	assert.Equal(t, "succeeded", status)
 	assert.True(t, cancelled)
 	assert.Equal(t, "release-msg-1", messageID)
+}
+
+func TestQueuedAdmissionActionUpsertPreservesActiveDispatchLease(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	insertAdmissionPolicy(t, fixture)
+	created := createBotLinkedSessionForPendingActions(t, svc, fixture, "linked-active-dispatch")
+
+	verified, err := svc.MarkVerified(context.Background(), created.Session.ID)
+	require.NoError(t, err)
+	firstClaim, err := svc.ClaimQueuedAdmissionActions(
+		context.Background(),
+		AdmissionPendingActionFilter{Platform: "qq", BotSelfID: "514"},
+	)
+	require.NoError(t, err)
+	require.Len(t, firstClaim, 1)
+	assert.Equal(t, 1, firstClaim[0].DispatchAttempt)
+
+	err = svc.repo.WithTx(context.Background(), func(ctx context.Context, tx pgx.Tx) error {
+		return svc.queueBotActionTx(ctx, tx, verified, BotActionRelease, svc.now(), svc.now())
+	})
+	require.NoError(t, err)
+
+	secondClaim, err := svc.ClaimQueuedAdmissionActions(
+		context.Background(),
+		AdmissionPendingActionFilter{Platform: "qq", BotSelfID: "514"},
+	)
+	require.NoError(t, err)
+	assert.Empty(t, secondClaim)
+
+	var status string
+	var attemptCount int
+	err = fixture.Pool.QueryRow(context.Background(), `
+		SELECT status, attempt_count
+		FROM admission_bot_action_outbox
+		WHERE id = $1::bigint
+	`, firstClaim[0].ActionID).Scan(&status, &attemptCount)
+	require.NoError(t, err)
+	assert.Equal(t, string(AdmissionBotActionDispatched), status)
+	assert.Equal(t, 1, attemptCount)
+}
+
+func TestQueuedAdmissionActionLateAckCannotFinalizeNewDispatchAttempt(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	insertAdmissionPolicy(t, fixture)
+	created := createBotLinkedSessionForPendingActions(t, svc, fixture, "linked-late-dispatch-ack")
+
+	_, err := svc.MarkVerified(context.Background(), created.Session.ID)
+	require.NoError(t, err)
+	firstClaim, err := svc.ClaimQueuedAdmissionActions(
+		context.Background(),
+		AdmissionPendingActionFilter{Platform: "qq", BotSelfID: "514"},
+	)
+	require.NoError(t, err)
+	require.Len(t, firstClaim, 1)
+	assert.Equal(t, 1, firstClaim[0].DispatchAttempt)
+
+	_, err = fixture.Pool.Exec(context.Background(), `
+		UPDATE admission_bot_action_outbox
+		SET next_attempt_at = $2
+		WHERE id = $1::bigint
+	`, firstClaim[0].ActionID, svc.now().Add(-time.Second))
+	require.NoError(t, err)
+	secondClaim, err := svc.ClaimQueuedAdmissionActions(
+		context.Background(),
+		AdmissionPendingActionFilter{Platform: "qq", BotSelfID: "514"},
+	)
+	require.NoError(t, err)
+	require.Len(t, secondClaim, 1)
+	assert.Equal(t, 2, secondClaim[0].DispatchAttempt)
+
+	err = svc.RecordBotActionEvent(context.Background(), firstClaim[0].ActionID, BotEventInput{
+		Action:          BotActionRelease,
+		Success:         true,
+		DispatchAttempt: firstClaim[0].DispatchAttempt,
+	})
+	require.NoError(t, err)
+	assertAdmissionSessionStatus(t, fixture, created.Session.ID, StatusVerified)
+
+	var status string
+	var attemptCount int
+	err = fixture.Pool.QueryRow(context.Background(), `
+		SELECT status, attempt_count
+		FROM admission_bot_action_outbox
+		WHERE id = $1::bigint
+	`, firstClaim[0].ActionID).Scan(&status, &attemptCount)
+	require.NoError(t, err)
+	assert.Equal(t, string(AdmissionBotActionDispatched), status)
+	assert.Equal(t, secondClaim[0].DispatchAttempt, attemptCount)
+
+	err = svc.RecordBotActionEvent(context.Background(), secondClaim[0].ActionID, BotEventInput{
+		Action:          BotActionRelease,
+		Success:         true,
+		DispatchAttempt: secondClaim[0].DispatchAttempt,
+	})
+	require.NoError(t, err)
+	assertAdmissionSessionCancelled(t, fixture, created.Session.ID)
 }
 
 func TestQueuedAdmissionActionDeadLettersTimedOutDispatchAfterMaxAttempts(t *testing.T) {
@@ -317,6 +446,325 @@ func TestQueuedAdmissionActionSkipsStaleReminderAfterBotSkip(t *testing.T) {
 	assert.Equal(t, 1, staleCount)
 }
 
+func TestClaimQueuedAdmissionActionsUsesFixedDatabaseRoundTrips(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+
+	testCases := []struct {
+		name      string
+		botSelfID string
+		rowCount  int
+	}{
+		{name: "one row", botSelfID: "fixed-query-one", rowCount: 1},
+		{name: "eight rows", botSelfID: "fixed-query-many", rowCount: 8},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			for i := 0; i < tc.rowCount; i++ {
+				insertQueuedBotActionForTest(t, fixture, queuedBotActionTestSeed{
+					SessionID:     fmt.Sprintf("fixed-query-%s-%02d", tc.botSelfID, i),
+					BotSelfID:     tc.botSelfID,
+					GuildID:       "fixed-query-guild",
+					QQID:          fmt.Sprintf("%s-%02d", tc.botSelfID, i),
+					SessionStatus: StatusVerified,
+					Action:        BotActionRelease,
+					ScheduledAt:   fixedAdmissionNow().Add(-time.Minute),
+				})
+			}
+
+			before := fixture.Pool.Stat().AcquireCount()
+			actions, err := svc.ClaimQueuedAdmissionActions(
+				context.Background(),
+				AdmissionPendingActionFilter{
+					Platform:  "qq",
+					BotSelfID: tc.botSelfID,
+					Limit:     tc.rowCount,
+				},
+			)
+			acquisitions := fixture.Pool.Stat().AcquireCount() - before
+
+			require.NoError(t, err)
+			require.Len(t, actions, tc.rowCount)
+			assert.Equal(t, int64(3), acquisitions)
+		})
+	}
+}
+
+func TestClaimQueuedAdmissionActionsReleasesBatchWhenContextLookupFails(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	actionIDs := make([]int64, 0, 2)
+	for i := 0; i < 2; i++ {
+		actionIDs = append(actionIDs, insertQueuedBotActionForTest(t, fixture, queuedBotActionTestSeed{
+			SessionID:     fmt.Sprintf("context-failure-%d", i),
+			BotSelfID:     "context-failure",
+			GuildID:       "context-failure-guild",
+			QQID:          fmt.Sprintf("context-failure-%d", i),
+			SessionStatus: StatusVerified,
+			Action:        BotActionRelease,
+			ScheduledAt:   fixedAdmissionNow().Add(-time.Minute),
+		}))
+	}
+
+	_, err := fixture.Pool.Exec(context.Background(), `
+		ALTER TABLE group_admission_policies
+		RENAME TO group_admission_policies_context_failure
+	`)
+	require.NoError(t, err)
+	policyTableRenamed := true
+	t.Cleanup(func() {
+		if policyTableRenamed {
+			_, _ = fixture.Pool.Exec(context.Background(), `
+				ALTER TABLE group_admission_policies_context_failure
+				RENAME TO group_admission_policies
+			`)
+		}
+	})
+
+	actions, err := svc.ClaimQueuedAdmissionActions(
+		context.Background(),
+		AdmissionPendingActionFilter{Platform: "qq", BotSelfID: "context-failure", Limit: 2},
+	)
+	require.Error(t, err)
+	assert.Nil(t, actions)
+
+	_, err = fixture.Pool.Exec(context.Background(), `
+		ALTER TABLE group_admission_policies_context_failure
+		RENAME TO group_admission_policies
+	`)
+	require.NoError(t, err)
+	policyTableRenamed = false
+
+	for _, actionID := range actionIDs {
+		state := readQueuedBotActionState(t, fixture, actionID)
+		assert.Equal(t, AdmissionBotActionPending, state.status)
+		assert.Zero(t, state.attemptCount)
+		assert.WithinDuration(
+			t,
+			fixedAdmissionNow().Add(botActionDispatchRetryAfter),
+			state.nextAttemptAt,
+			time.Millisecond,
+		)
+	}
+
+	retryNow := fixedAdmissionNow().Add(botActionDispatchRetryAfter + time.Second)
+	svc.now = func() time.Time { return retryNow }
+	actions, err = svc.ClaimQueuedAdmissionActions(
+		context.Background(),
+		AdmissionPendingActionFilter{Platform: "qq", BotSelfID: "context-failure", Limit: 2},
+	)
+	require.NoError(t, err)
+	assert.Len(t, actions, 2)
+}
+
+func TestClaimQueuedAdmissionActionsReleasesBatchAfterCallerCancellation(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	actionID := insertQueuedBotActionForTest(t, fixture, queuedBotActionTestSeed{
+		SessionID:     "context-cancelled",
+		BotSelfID:     "context-cancelled",
+		GuildID:       "context-cancelled-guild",
+		QQID:          "context-cancelled",
+		SessionStatus: StatusVerified,
+		Action:        BotActionRelease,
+		ScheduledAt:   fixedAdmissionNow().Add(-time.Minute),
+	})
+
+	lockTx, err := fixture.Pool.Begin(context.Background())
+	require.NoError(t, err)
+	defer func() { _ = lockTx.Rollback(context.Background()) }()
+	_, err = lockTx.Exec(context.Background(), `
+		LOCK TABLE group_admission_policies IN ACCESS EXCLUSIVE MODE
+	`)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	type claimResult struct {
+		actions []AdmissionPendingAction
+		err     error
+	}
+	resultCh := make(chan claimResult, 1)
+	go func() {
+		actions, claimErr := svc.ClaimQueuedAdmissionActions(
+			ctx,
+			AdmissionPendingActionFilter{
+				Platform:  "qq",
+				BotSelfID: "context-cancelled",
+				Limit:     1,
+			},
+		)
+		resultCh <- claimResult{actions: actions, err: claimErr}
+	}()
+
+	require.Eventually(t, func() bool {
+		var status AdmissionBotActionStatus
+		err := fixture.Pool.QueryRow(context.Background(), `
+			SELECT status
+			FROM admission_bot_action_outbox
+			WHERE id = $1
+		`, actionID).Scan(&status)
+		return err == nil && status == AdmissionBotActionDispatched
+	}, 3*time.Second, 10*time.Millisecond)
+	cancel()
+
+	var result claimResult
+	select {
+	case result = <-resultCh:
+	case <-time.After(5 * time.Second):
+		t.Fatal("claim did not return after caller cancellation")
+	}
+	require.ErrorIs(t, result.err, context.Canceled)
+	assert.Nil(t, result.actions)
+	state := readQueuedBotActionState(t, fixture, actionID)
+	assert.Equal(t, AdmissionBotActionPending, state.status)
+	assert.Zero(t, state.attemptCount)
+}
+
+func TestQueuedAdmissionActionFinalizersRespectAttemptFence(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	actionID := insertQueuedBotActionForTest(t, fixture, queuedBotActionTestSeed{
+		SessionID:     "attempt-fence",
+		BotSelfID:     "attempt-fence",
+		GuildID:       "attempt-fence-guild",
+		QQID:          "attempt-fence",
+		SessionStatus: StatusVerified,
+		Action:        BotActionRelease,
+		ScheduledAt:   fixedAdmissionNow().Add(-time.Minute),
+	})
+	filter := AdmissionPendingActionFilter{
+		Platform:  "qq",
+		BotSelfID: "attempt-fence",
+		Limit:     1,
+	}
+
+	firstClaim, err := svc.repo.ClaimDueBotActions(context.Background(), filter, fixedAdmissionNow())
+	require.NoError(t, err)
+	require.Len(t, firstClaim, 1)
+	assert.Equal(t, 1, firstClaim[0].AttemptCount)
+
+	reclaimNow := fixedAdmissionNow().Add(botActionDispatchRetryAfter + time.Second)
+	secondClaim, err := svc.repo.ClaimDueBotActions(context.Background(), filter, reclaimNow)
+	require.NoError(t, err)
+	require.Len(t, secondClaim, 1)
+	assert.Equal(t, 2, secondClaim[0].AttemptCount)
+
+	err = svc.repo.MarkBotActionPreparationFailed(
+		context.Background(),
+		actionID,
+		firstClaim[0].AttemptCount,
+		"old preparation failure",
+		reclaimNow,
+	)
+	require.ErrorIs(t, err, ErrAdmissionBotActionLeaseLost)
+	err = svc.repo.MarkBotActionStale(
+		context.Background(),
+		actionID,
+		firstClaim[0].AttemptCount,
+		reclaimNow,
+	)
+	require.ErrorIs(t, err, ErrAdmissionBotActionLeaseLost)
+	affected, err := svc.repo.abandonBotActionClaims(
+		context.Background(),
+		firstClaim,
+		reclaimNow,
+	)
+	require.NoError(t, err)
+	assert.Zero(t, affected)
+
+	state := readQueuedBotActionState(t, fixture, actionID)
+	assert.Equal(t, AdmissionBotActionDispatched, state.status)
+	assert.Equal(t, secondClaim[0].AttemptCount, state.attemptCount)
+
+	err = svc.repo.MarkBotActionStale(
+		context.Background(),
+		actionID,
+		secondClaim[0].AttemptCount,
+		reclaimNow,
+	)
+	require.NoError(t, err)
+	assert.Equal(t, AdmissionBotActionStale, readQueuedBotActionState(t, fixture, actionID).status)
+}
+
+func TestClaimQueuedAdmissionActionsIsolatesPoisonRow(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	svc := newSessionTestService(t, fixture)
+	badActionID := insertQueuedBotActionForTest(t, fixture, queuedBotActionTestSeed{
+		SessionID:     "poison-kick",
+		BotSelfID:     "poison-row",
+		GuildID:       "missing-policy-guild",
+		QQID:          "poison-kick",
+		SessionStatus: StatusJoinedMuted,
+		Action:        BotActionKick,
+		ScheduledAt:   fixedAdmissionNow().Add(-2 * time.Minute),
+		LinkDeadline:  fixedAdmissionNow().Add(-time.Minute),
+	})
+	goodActionID := insertQueuedBotActionForTest(t, fixture, queuedBotActionTestSeed{
+		SessionID:     "healthy-release",
+		BotSelfID:     "poison-row",
+		GuildID:       "missing-policy-guild",
+		QQID:          "healthy-release",
+		SessionStatus: StatusVerified,
+		Action:        BotActionRelease,
+		ScheduledAt:   fixedAdmissionNow().Add(-time.Minute),
+	})
+
+	actions, err := svc.ClaimQueuedAdmissionActions(
+		context.Background(),
+		AdmissionPendingActionFilter{Platform: "qq", BotSelfID: "poison-row", Limit: 2},
+	)
+	require.NoError(t, err)
+	require.Len(t, actions, 1)
+	assert.Equal(t, BotActionRelease, actions[0].Action)
+	assert.Equal(t, "healthy-release", actions[0].SessionID)
+	assert.Equal(t, AdmissionBotActionDispatched, readQueuedBotActionState(t, fixture, goodActionID).status)
+
+	badState := readQueuedBotActionState(t, fixture, badActionID)
+	assert.Equal(t, AdmissionBotActionFailed, badState.status)
+	assert.Equal(t, 1, badState.attemptCount)
+	assert.Contains(t, badState.lastError, ErrAdmissionPolicyNotFound.Error())
+
+	err = svc.RecordBotActionEvent(context.Background(), actions[0].ActionID, BotEventInput{
+		Action:          BotActionRelease,
+		Success:         true,
+		DispatchAttempt: actions[0].DispatchAttempt,
+	})
+	require.NoError(t, err)
+
+	retryNow := fixedAdmissionNow()
+	for expectedAttempt := 2; expectedAttempt <= admissionBotActionMaxAttempts; expectedAttempt++ {
+		badState = readQueuedBotActionState(t, fixture, badActionID)
+		retryNow = badState.nextAttemptAt.Add(time.Second)
+		svc.now = func() time.Time { return retryNow }
+		actions, err = svc.ClaimQueuedAdmissionActions(
+			context.Background(),
+			AdmissionPendingActionFilter{Platform: "qq", BotSelfID: "poison-row", Limit: 2},
+		)
+		require.NoError(t, err)
+		assert.Empty(t, actions)
+
+		badState = readQueuedBotActionState(t, fixture, badActionID)
+		assert.Equal(t, expectedAttempt, badState.attemptCount)
+		if expectedAttempt < admissionBotActionMaxAttempts {
+			assert.Equal(t, AdmissionBotActionFailed, badState.status)
+		} else {
+			assert.Equal(t, AdmissionBotActionDeadLetter, badState.status)
+		}
+	}
+	assert.Equal(t, AdmissionBotActionSucceeded, readQueuedBotActionState(t, fixture, goodActionID).status)
+}
+
+func TestTruncateBotActionPreparationErrorPreservesUTF8(t *testing.T) {
+	message := strings.Repeat("错误", maxBotActionPreparationErrorBytes)
+
+	truncated := truncateBotActionPreparationError(fmt.Errorf("%s", message))
+
+	assert.LessOrEqual(t, len(truncated), maxBotActionPreparationErrorBytes)
+	assert.True(t, utf8.ValidString(truncated))
+	assert.NotEmpty(t, truncated)
+}
+
 func TestClaimedAdmissionReminderAckAfterBotSkipIsStale(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	svc := newSessionTestService(t, fixture)
@@ -352,9 +800,10 @@ func TestClaimedAdmissionReminderAckAfterBotSkipIsStale(t *testing.T) {
 	})
 	require.NoError(t, err)
 	err = svc.RecordBotActionEvent(context.Background(), actions[0].ActionID, BotEventInput{
-		Action:    BotActionRemind,
-		Success:   true,
-		MessageID: "stale-reminder-message",
+		Action:          BotActionRemind,
+		Success:         true,
+		DispatchAttempt: actions[0].DispatchAttempt,
+		MessageID:       "stale-reminder-message",
 	})
 	require.NoError(t, err)
 
@@ -653,4 +1102,89 @@ func insertAdmissionFailureCount(t *testing.T, fixture *postgresfixture.Fixture,
 		VALUES ('qq', 'guild-1', '10001', $1)
 	`, count)
 	require.NoError(t, err)
+}
+
+type queuedBotActionTestSeed struct {
+	SessionID     string
+	BotSelfID     string
+	GuildID       string
+	QQID          string
+	SessionStatus AdmissionSessionStatus
+	Action        BotAction
+	ScheduledAt   time.Time
+	LinkDeadline  time.Time
+}
+
+func insertQueuedBotActionForTest(
+	t *testing.T,
+	fixture *postgresfixture.Fixture,
+	seed queuedBotActionTestSeed,
+) int64 {
+	t.Helper()
+	linkDeadline := seed.LinkDeadline
+	if linkDeadline.IsZero() {
+		linkDeadline = fixedAdmissionNow().Add(time.Hour)
+	}
+	_, err := fixture.Pool.Exec(context.Background(), `
+		INSERT INTO group_admission_sessions (
+			id, platform, bot_self_id, guild_id, channel_id, qq_id, token_hash,
+			token_expires_at, status, link_wait_deadline_at,
+			submission_wait_deadline_at, initial_mute_until
+		)
+		VALUES (
+			$1, 'qq', $2, $3, 'channel-1', $4, $5,
+			$6, $7, $8, $9, $10
+		)
+	`, seed.SessionID, seed.BotSelfID, seed.GuildID, seed.QQID,
+		"token-hash-"+seed.SessionID, fixedAdmissionNow().Add(24*time.Hour),
+		seed.SessionStatus, linkDeadline, fixedAdmissionNow().Add(2*time.Hour),
+		fixedAdmissionNow().Add(30*time.Minute))
+	require.NoError(t, err)
+
+	var actionID int64
+	err = fixture.Pool.QueryRow(context.Background(), `
+		INSERT INTO admission_bot_action_outbox (
+			action_key, session_id, action, platform, bot_self_id, guild_id,
+			channel_id, qq_id, scheduled_at, status, attempt_count,
+			next_attempt_at, created_at, updated_at
+		)
+		VALUES (
+			$1, $2, $3, 'qq', $4, $5,
+			'channel-1', $6, $7, 'pending', 0,
+			$8, $8, $8
+		)
+		RETURNING id
+	`, "test:"+seed.SessionID+":"+string(seed.Action), seed.SessionID, seed.Action,
+		seed.BotSelfID, seed.GuildID, seed.QQID, seed.ScheduledAt,
+		fixedAdmissionNow().Add(-time.Minute)).Scan(&actionID)
+	require.NoError(t, err)
+	return actionID
+}
+
+type queuedBotActionState struct {
+	status        AdmissionBotActionStatus
+	attemptCount  int
+	nextAttemptAt time.Time
+	lastError     string
+}
+
+func readQueuedBotActionState(
+	t *testing.T,
+	fixture *postgresfixture.Fixture,
+	actionID int64,
+) queuedBotActionState {
+	t.Helper()
+	var state queuedBotActionState
+	err := fixture.Pool.QueryRow(context.Background(), `
+		SELECT status, attempt_count, next_attempt_at, COALESCE(last_error, '')
+		FROM admission_bot_action_outbox
+		WHERE id = $1
+	`, actionID).Scan(
+		&state.status,
+		&state.attemptCount,
+		&state.nextAttemptAt,
+		&state.lastError,
+	)
+	require.NoError(t, err)
+	return state
 }

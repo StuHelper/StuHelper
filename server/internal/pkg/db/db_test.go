@@ -103,6 +103,32 @@ func TestDBWithTimeout_DefaultsNilContext(t *testing.T) {
 	assert.WithinDuration(t, time.Now().Add(time.Second), deadline, 100*time.Millisecond)
 }
 
+func TestDBWithExplicitTimeoutUsesOverrideAndPreservesParentDeadline(t *testing.T) {
+	d := &DB{timeout: 50 * time.Millisecond}
+
+	overrideCtx, cancelOverride := d.withExplicitTimeout(context.Background(), time.Second)
+	defer cancelOverride()
+	overrideDeadline, ok := overrideCtx.Deadline()
+	require.True(t, ok)
+	assert.WithinDuration(t, time.Now().Add(time.Second), overrideDeadline, 100*time.Millisecond)
+
+	fallbackCtx, cancelFallback := d.withExplicitTimeout(context.Background(), 0)
+	defer cancelFallback()
+	fallbackDeadline, ok := fallbackCtx.Deadline()
+	require.True(t, ok)
+	assert.WithinDuration(t, time.Now().Add(50*time.Millisecond), fallbackDeadline, 25*time.Millisecond)
+
+	parentCtx, cancelParent := context.WithTimeout(context.Background(), 25*time.Millisecond)
+	defer cancelParent()
+	parentDeadline, ok := parentCtx.Deadline()
+	require.True(t, ok)
+	childCtx, cancelChild := d.withExplicitTimeout(parentCtx, time.Second)
+	defer cancelChild()
+	childDeadline, ok := childCtx.Deadline()
+	require.True(t, ok)
+	assert.Equal(t, parentDeadline, childDeadline)
+}
+
 func TestDBStartSpan_DefaultsNilContext(t *testing.T) {
 	d := &DB{}
 

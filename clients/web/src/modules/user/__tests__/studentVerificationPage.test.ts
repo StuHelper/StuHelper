@@ -239,9 +239,15 @@ describe("StudentVerificationPage", () => {
             .find("[data-student-email-code-input]")
             .setValue("123456");
         await wrapper.find("[data-student-consent-checkbox]").setValue(true);
-        await wrapper
-            .find("[data-student-verification-submit]")
-            .trigger("click");
+        const verificationForm = wrapper.find<HTMLFormElement>(
+            "[data-student-verification-form]",
+        );
+        const verificationSubmit = wrapper.find<HTMLButtonElement>(
+            "[data-student-verification-submit]",
+        );
+        expect(verificationForm.exists()).toBe(true);
+        expect(verificationSubmit.attributes("type")).toBe("submit");
+        await verificationForm.trigger("submit");
         await flushPromises();
 
         expect(mockIdentityApi.verifyStudentEmailOTP).toHaveBeenCalledWith({
@@ -373,11 +379,12 @@ describe("StudentVerificationPage", () => {
             .setValue("123456");
         await wrapper.find("[data-student-consent-checkbox]").setValue(true);
         await wrapper
-            .find("[data-student-verification-submit]")
-            .trigger("click");
+            .find("[data-student-verification-form]")
+            .trigger("submit");
         await flushPromises();
 
         expect(mockRouterPush).toHaveBeenCalledWith("/courses/reviews/post");
+        expect(mockRouterPush).toHaveBeenCalledTimes(1);
     });
 
     it("prompts before requesting OTP when academic identity is incomplete", async () => {
@@ -457,7 +464,9 @@ describe("StudentVerificationPage", () => {
 
         await wrapper.find("[data-student-consent-checkbox]").setValue(true);
         expect(submitButton.element.disabled).toBe(false);
-        await submitButton.trigger("click");
+        await wrapper
+            .find("[data-student-verification-form]")
+            .trigger("submit");
         await flushPromises();
 
         expect(mockIdentityApi.verifyStudent).toHaveBeenCalledWith({

@@ -1283,7 +1283,7 @@ test('member guard claims pending admission actions and reports results', async 
     action('session-remind', 'remind', {
       authURL: 'https://join.stuhelper.com/verify/remind-token',
     }),
-    action('session-release', 'release', { actionID: 'action-release' }),
+    action('session-release', 'release', { actionID: 'action-release', dispatchAttempt: 2 }),
     action('session-kick', 'kick'),
     action('session-blacklist', 'blacklist'),
   ] as const
@@ -1361,7 +1361,7 @@ test('member guard claims pending admission actions and reports results', async 
     successEvent('session-blacklist', 'blacklist', 'message-1'),
   ])
   assert.deepEqual(actionEvents, [
-    { actionID: 'action-release', input: { action: 'release', success: true } },
+    { actionID: 'action-release', input: { action: 'release', success: true, dispatchAttempt: 2 } },
   ])
 })
 

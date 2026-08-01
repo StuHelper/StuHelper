@@ -14,7 +14,7 @@ var (
 		response.MatchError(ErrUserIDInvalid, 400, "user id is invalid", errs.ErrInvalidParam),
 		response.MatchError(ErrIdentityAlreadyVerified, 409, "identity already verified", errs.ErrIdentityAlreadyVerified),
 		response.MatchError(ErrIdentityAlreadyExists, 409, "identity already submitted", errs.ErrIdentityAlreadyExists),
-		response.MatchError(ErrPhotoRequired, 400, "photo upload required for non-mainland documents", errs.ErrIdentityPhotoRequired),
+		response.MatchError(ErrPhotoRequired, 400, "document and selfie photos are required for manual identity review", errs.ErrIdentityPhotoRequired),
 		response.MatchError(ErrIdentityPhotoInvalidRef, 400, "invalid identity photo reference"),
 		response.MatchError(ErrIdentityPhotoStoreDisabled, 503, "identity photo upload is not available", errs.ErrServiceUnavailable),
 		response.MatchError(ErrIdentityPhotoStorageUnavailable, 503, "identity photo upload is not available", errs.ErrServiceUnavailable),
@@ -77,10 +77,25 @@ var (
 	adminReviewIdentityErrorMappings = []response.ErrorMapping{
 		response.MatchError(ErrUserIDInvalid, 400, "user id is invalid", errs.ErrInvalidParam),
 		response.MatchError(ErrIdentityNotFound, 404, "identity not found", errs.ErrIdentityNotFound),
+		response.MatchError(ErrPhotoRequired, 409, "identity review evidence is incomplete", errs.ErrConflict),
+		response.MatchError(ErrIdentityPhotoInvalidRef, 409, "identity review evidence is invalid", errs.ErrConflict),
+		response.MatchError(ErrIdentityPhotoStoreDisabled, 503, "identity review evidence is unavailable", errs.ErrServiceUnavailable),
+		response.MatchError(ErrIdentityPhotoStorageUnavailable, 503, "identity review evidence is unavailable", errs.ErrServiceUnavailable),
+		response.MatchError(ErrIdentityPhotoStorageTemporaryUnavailable, 503, "identity review evidence is temporarily unavailable", errs.ErrServiceUnavailable),
+		response.MatchError(ErrVerificationReviewStateConflict, 409, "identity is no longer pending review", errs.ErrConflict),
+	}
+	adminGetIdentityReviewErrorMappings = []response.ErrorMapping{
+		response.MatchError(ErrUserIDInvalid, 400, "user id is invalid", errs.ErrInvalidParam),
+		response.MatchError(ErrIdentityNotFound, 404, "identity not found", errs.ErrIdentityNotFound),
+		response.MatchError(ErrIdentityPhotoInvalidRef, 409, "identity review evidence is invalid", errs.ErrConflict),
+		response.MatchError(ErrIdentityPhotoStoreDisabled, 503, "identity review evidence is unavailable", errs.ErrServiceUnavailable),
+		response.MatchError(ErrIdentityPhotoStorageUnavailable, 503, "identity review evidence is unavailable", errs.ErrServiceUnavailable),
+		response.MatchError(ErrIdentityPhotoStorageTemporaryUnavailable, 503, "identity review evidence is temporarily unavailable", errs.ErrServiceUnavailable),
 	}
 	adminReviewStudentVerificationErrorMappings = []response.ErrorMapping{
 		response.MatchError(ErrUserIDInvalid, 400, "user id is invalid", errs.ErrInvalidParam),
 		response.MatchError(ErrProfileNotFound, 404, "student profile not found", errs.ErrProfileNotFound),
+		response.MatchError(ErrVerificationReviewStateConflict, 409, "student verification is no longer pending review", errs.ErrConflict),
 	}
 	adminUpdateSchoolConfigErrorMappings = []response.ErrorMapping{
 		response.MatchError(ErrSchoolNotFound, 404, "school config not found", errs.ErrProfileSchoolNotFound),
@@ -119,6 +134,10 @@ func respondAcademicInfoError(c *gin.Context, err error) bool {
 
 func respondAdminReviewIdentityError(c *gin.Context, err error) bool {
 	return response.RespondMappedError(c, err, adminReviewIdentityErrorMappings...)
+}
+
+func respondAdminGetIdentityReviewError(c *gin.Context, err error) bool {
+	return response.RespondMappedError(c, err, adminGetIdentityReviewErrorMappings...)
 }
 
 func respondAdminReviewStudentVerificationError(c *gin.Context, err error) bool {

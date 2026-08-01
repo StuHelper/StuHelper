@@ -28,6 +28,9 @@ func TestCourseHandlers_ServeFromCache(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	h, ctx := setupCourseCacheHandler(t)
 	require.NoError(t, crypto.InitHMACKey("test-course-cache-hit-secret-32-bytes", false))
+	departmentID := int64(1)
+	departmentName := "理学院"
+	courseCode := "MATH101"
 
 	require.NoError(t, h.cache.Set(ctx, "course:categories", []CourseCategory{{ID: 1, Name: "公共课"}}, time.Minute))
 	require.NoError(t, h.cache.Set(ctx, "course:departments:"+httputil.SanitizeCacheKey("science"), []Department{{ID: 1, Name: "理学院"}}, time.Minute))
@@ -45,10 +48,10 @@ func TestCourseHandlers_ServeFromCache(t *testing.T) {
 		require.NoError(t, h.cache.Set(ctx, cacheKey, value, time.Minute))
 	}
 
-	mustSetCourseCourses("course:courses:grouped", gin.H{"groups": []DepartmentGroup{{DepartmentID: 1, DepartmentName: "理学院"}}})
-	mustSetCourse("course:course:1", Course{ID: 1, Code: "MATH101", Name: "高数"})
-	mustSetCourseCourses("course:courses:q="+httputil.SanitizeCacheKey("math")+":dept=0:cat="+httputil.SanitizeCacheKey("")+":sort=name:page=1:size=20", gin.H{"list": []Course{{ID: 1, Code: "MATH101", Name: "高数"}}, "total": 1})
-	mustSetCourseCourses("course:courses:search:"+httputil.SanitizeCacheKey("math")+":page=1:size=20", gin.H{"list": []Course{{ID: 1, Code: "MATH101", Name: "高数"}}, "total": 1})
+	mustSetCourseCourses("course:courses:grouped", gin.H{"groups": []DepartmentGroup{{DepartmentID: &departmentID, DepartmentName: &departmentName}}})
+	mustSetCourse("course:course:1", Course{ID: 1, Code: &courseCode, Name: "高数"})
+	mustSetCourseCourses("course:courses:q="+httputil.SanitizeCacheKey("math")+":dept=0:cat="+httputil.SanitizeCacheKey("")+":sort=name:page=1:size=20", gin.H{"list": []Course{{ID: 1, Code: &courseCode, Name: "高数"}}, "total": 1})
+	mustSetCourseCourses("course:courses:search:"+httputil.SanitizeCacheKey("math")+":page=1:size=20", gin.H{"list": []Course{{ID: 1, Code: &courseCode, Name: "高数"}}, "total": 1})
 
 	cases := []struct {
 		name string

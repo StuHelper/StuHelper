@@ -8,5 +8,4 @@ type Input struct {
 	Username       string
 	Email          string
 	AvatarURL      *string
-	Roles          []string
 }

@@ -3,12 +3,12 @@ type: reference
 audience: all
 status: current
 authoritative-source: this file (index) + linked docs
-last-verified: 2026-05-09
+last-verified: 2026-08-01
 ---
 
 # StuHelper 文档
 
-`docs/` 只放**长期文档**：反映当前代码库真实状态的规范、设计、规格、参考。临时工件（执行计划、历史设计快照、审计、评估）在 [internal/README.md](internal/README.md)。
+`docs/` 把当前态长期文档与历史工件分开管理：规范、设计、规格和参考反映当前代码库，执行计划、历史设计快照和阶段评估只放在 [internal/README.md](internal/README.md)。
 
 **真源永远是代码**：API → `server/api/openapi.yaml`；Schema → `server/migrations/`；能力常量 → `server/internal/pkg/capability/`。本目录只做解释与导航。
 
@@ -43,13 +43,14 @@ last-verified: 2026-05-09
 2. [design/layered-architecture.md](design/layered-architecture.md) — 后端分层为什么这么切
 3. [design/frontend-architecture.md](design/frontend-architecture.md) — 前端 Monorepo 与共享契约链路
 4. [design/auth-and-session.md](design/auth-and-session.md) — 认证与会话机制
-5. [design/authorization-model.md](design/authorization-model.md) — 三层授权（角色 → 能力 → FGA）
-6. [design/open-platform-v1.md](design/open-platform-v1.md) — 第三方应用接入、用户授权与最小化披露
-7. [design/storage-architecture.md](design/storage-architecture.md) — 存储抽象与驱动
-8. [design/security-model.md](design/security-model.md) — 安全措施
-9. [design/admission-flow-review.md](design/admission-flow-review.md) — 入群认证审查结论、验收分层与后续决策
-10. [guides/koishi-development.md](guides/koishi-development.md) — 机器人子系统边界与开发入口
-11. [adr/](adr/) — 单项架构决策
+5. [design/iam-architecture.md](design/iam-architecture.md) — 身份平台、授权入口与 SMS / Email 通道
+6. [design/authorization-model.md](design/authorization-model.md) — 三层授权（角色 → 能力 → FGA）
+7. [design/open-platform-v1.md](design/open-platform-v1.md) — 第三方应用接入、用户授权与最小化披露
+8. [design/storage-architecture.md](design/storage-architecture.md) — 存储抽象与驱动
+9. [design/security-model.md](design/security-model.md) — 安全措施
+10. [design/admission-flow.md](design/admission-flow.md) — 入群认证流程与验收分层
+11. [guides/koishi-development.md](guides/koishi-development.md) — 机器人子系统边界与开发入口
+12. [adr/](adr/) — 单项架构决策
 
 ### 我要**运维 / 发布 / 排障**
 
@@ -58,8 +59,8 @@ last-verified: 2026-05-09
 3. [guides/database-migrations.md](guides/database-migrations.md) — 迁移、seed、回滚
 4. [guides/observability.md](guides/observability.md) — Grafana LGTM、告警、排障
 5. [guides/backup-and-restore.md](guides/backup-and-restore.md) — PostgreSQL 备份恢复
-6. [guides/automation.md](guides/automation.md) — 一键启动、迁移期 GitLab、Ansible
-7. [guides/github-migration.md](guides/github-migration.md) — GitHub Actions、GHCR、仓库治理与迁移验收
+6. [guides/automation.md](guides/automation.md) — 一键启动、GitHub Actions、Ansible
+7. [guides/github-migration.md](guides/github-migration.md) — GitHub Actions、GHCR 与仓库治理
 8. [guides/production-topology.md](guides/production-topology.md) — 生产拓扑
 
 ### 我想查**事实**

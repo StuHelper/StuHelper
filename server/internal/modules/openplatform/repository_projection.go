@@ -12,10 +12,10 @@ func (r *Repository) GetUserProjection(ctx context.Context, userID int64) (*User
 	ctx = withDBTable(ctx, "users")
 	var item UserProjection
 	err := r.db.QueryRow(ctx, `
-		SELECT u.username,
+		SELECT u.id,
+		       u.username,
 		       COALESCE(u.email, ''),
 		       u.avatar_url,
-		       u.phone_enc,
 		       u.phone_enc IS NOT NULL,
 		       COALESCE(i.verified, false),
 		       p.verification_status,
@@ -28,8 +28,8 @@ func (r *Repository) GetUserProjection(ctx context.Context, userID int64) (*User
 		LEFT JOIN schools s ON s.id = p.school_id
 		LEFT JOIN user_qq_bindings q ON q.user_id = u.id
 		WHERE u.id = $1
-	`, userID).Scan(&item.Username, &item.Email,
-		&item.AvatarURL, &item.PhoneEnc, &item.PhoneVerified, &item.IdentityVerified,
+	`, userID).Scan(&item.UserID, &item.Username, &item.Email,
+		&item.AvatarURL, &item.PhoneVerified, &item.IdentityVerified,
 		&item.ProfileStatus, &item.SchoolID, &item.SchoolName, &item.QQID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrDisclosureUnavailable

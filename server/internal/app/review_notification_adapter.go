@@ -20,12 +20,13 @@ func newReviewNotificationAdapter(sender notification.Sender) reviewNotification
 
 func (a reviewNotificationAdapter) SendReviewNotification(ctx context.Context, params review.ReviewNotification) error {
 	return a.sender.Send(ctx, notification.SendParams{
-		UserID:       params.UserID,
-		Type:         params.Type,
-		Title:        params.Title,
-		Body:         params.Body,
-		SourceModule: params.SourceModule,
-		SourceID:     params.SourceID,
-		CourseID:     params.CourseID,
+		IdempotencyKey: params.IdempotencyKey,
+		UserID:         params.UserID,
+		Type:           params.Type,
+		Title:          params.Title,
+		Body:           params.Body,
+		SourceModule:   params.SourceModule,
+		SourceID:       params.SourceID,
+		CourseID:       params.CourseID,
 	})
 }

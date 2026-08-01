@@ -59,8 +59,10 @@ export function useDialogFocus({
         void nextTick(() => {
           const dialog = dialogRef.value
           if (!dialog) return
-          const autofocusTarget = dialog.querySelector<HTMLElement>('[autofocus]')
-          ;(autofocusTarget ?? dialog).focus({ preventScroll: true })
+          const initialFocusTarget = dialog.querySelector<HTMLElement>(
+            '[data-dialog-initial-focus]',
+          )
+          ;(initialFocusTarget ?? dialog).focus({ preventScroll: true })
         })
         return
       }

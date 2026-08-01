@@ -100,6 +100,16 @@ groups:
           summary: IAM drift reconciliation exceeded automatic repair threshold
           description: '{{ $labels.domain }} drift reconciliation paused automatic repair and needs manual confirmation.'
 
+      - alert: StuHelperInvalidOpenFGARoleScope
+        expr: increase(iam_invalid_role_scope_total[10m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: Invalid OpenFGA role scope needs reconciliation
+          description: An invalid section role scope was ignored; inspect the API warning log and reconcile the stale tuple.
+
       - alert: StuHelperOpenPlatformDisclosureReplayDetected
         expr: increase(open_platform_disclosure_replay_total{outcome="detected"}[5m]) > 0
         for: 1m

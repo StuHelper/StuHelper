@@ -17,7 +17,11 @@
       </div>
 
       <!-- Form container -->
-      <div class="bg-bg-card rounded-2xl shadow-md p-6 md:p-8">
+      <form
+        class="bg-bg-card rounded-2xl shadow-md p-6 md:p-8"
+        :aria-busy="submitting"
+        @submit.prevent="handleSubmit"
+      >
         <DraftIndicator
           v-if="hasMeaningfulDraftInput || draftStore.lastSavedAt"
           class="mb-5 bg-bg-elevated"
@@ -110,6 +114,7 @@
                   :key="item.id"
                   :id="courseResultId(item.id)"
                   role="option"
+                  tabindex="-1"
                   :aria-selected="courseSearch.selectedIndex.value === index"
                   class="px-4 py-2.5 text-sm text-text-primary cursor-pointer transition-colors duration-150 hover:bg-bg-hover"
                   :class="{
@@ -117,6 +122,9 @@
                   }"
                   @click="selectCourse(item)"
                   @mouseenter="courseSearch.selectedIndex.value = index"
+                  @focus="courseSearch.selectedIndex.value = index"
+                  @keydown.enter.prevent="selectCourse(item)"
+                  @keydown.space.prevent="selectCourse(item)"
                 >
                   <div class="font-medium">{{ item.name }}</div>
                   <div class="text-xs text-text-muted mt-0.5">
@@ -212,11 +220,13 @@
         <hr class="border-border my-6" />
 
         <!-- Emoji rating section -->
-        <div class="mb-5">
-          <label class="block text-sm font-medium text-text-secondary mb-2">
+        <fieldset class="mb-5 border-0 p-0">
+          <legend
+            class="block text-sm font-medium text-text-secondary mb-2"
+          >
             {{ t('review.postForm.rating') }}
             <span class="text-danger ml-0.5">*</span>
-          </label>
+          </legend>
           <p class="text-xs text-text-muted mt-0 mb-3">
             {{ t('review.postForm.ratingTip') }}
           </p>
@@ -254,18 +264,22 @@
               </div>
             </template>
           </div>
-        </div>
+        </fieldset>
 
         <!-- Divider -->
         <hr class="border-border my-6" />
 
         <!-- Title input -->
         <div class="mb-5">
-          <label class="block text-sm font-medium text-text-secondary mb-2">
+          <label
+            for="review-title"
+            class="block text-sm font-medium text-text-secondary mb-2"
+          >
             {{ t('review.postForm.reviewTitle') }}
             <span class="text-danger ml-0.5">*</span>
           </label>
           <input
+            id="review-title"
             v-model="title"
             data-testid="review-title"
             type="text"
@@ -273,9 +287,17 @@
             :class="{ 'border-danger focus:border-danger focus:ring-danger/20': showErrors && !title.trim() }"
             :placeholder="t('review.postForm.reviewTitlePlaceholder')"
             :maxlength="TITLE_MAX"
+            :aria-invalid="showErrors && !title.trim()"
+            :aria-describedby="
+              showErrors && !title.trim() ? 'review-title-error' : undefined
+            "
           />
           <div class="flex justify-between items-center mt-1.5">
-            <span v-if="showErrors && !title.trim()" class="text-danger text-xs">
+            <span
+              v-if="showErrors && !title.trim()"
+              id="review-title-error"
+              class="text-danger text-xs"
+            >
               {{ t('review.postForm.errors.title') }}
             </span>
             <span v-else />
@@ -287,14 +309,18 @@
 
         <!-- Content textarea -->
         <div class="mb-5">
-          <label class="block text-sm font-medium text-text-secondary mb-1">
+          <label
+            for="review-content"
+            class="block text-sm font-medium text-text-secondary mb-1"
+          >
             {{ t('review.postForm.detailedReview') }}
             <span class="text-danger ml-0.5">*</span>
           </label>
-          <p class="text-xs text-text-muted mt-0 mb-2">
+          <p id="review-content-hint" class="text-xs text-text-muted mt-0 mb-2">
             {{ t('review.postForm.detailedReviewHint') }}
           </p>
           <textarea
+            id="review-content"
             v-model="content"
             data-testid="review-content"
             class="w-full px-4 py-3 bg-bg-elevated rounded-lg text-text-primary placeholder:text-text-muted focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-colors resize-y min-h-[200px]"
@@ -302,10 +328,17 @@
             :placeholder="t('review.postForm.detailedReviewPlaceholder')"
             :maxlength="CONTENT_MAX"
             rows="8"
+            :aria-invalid="showErrors && Boolean(contentError)"
+            :aria-describedby="
+              showErrors && contentError
+                ? 'review-content-hint review-content-error'
+                : 'review-content-hint'
+            "
           />
           <div class="flex justify-between items-center mt-1.5">
             <span
               v-if="showErrors && contentError"
+              id="review-content-error"
               class="text-danger text-xs"
             >
               {{ contentError }}
@@ -327,17 +360,22 @@
 
         <!-- Grade input (optional) -->
         <div class="mb-6">
-          <label class="block text-sm font-medium text-text-secondary mb-2">
+          <label
+            for="review-grade"
+            class="block text-sm font-medium text-text-secondary mb-2"
+          >
             {{ t('review.postForm.grade') }}
             <span class="text-xs font-normal text-text-muted ml-1.5">
               ({{ t('review.post.gradeOptional') }})
             </span>
           </label>
           <select
+            id="review-grade"
             v-model="grade"
             data-testid="review-grade"
             class="w-full px-4 py-3 bg-bg-elevated rounded-lg text-text-primary focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-colors appearance-none bg-no-repeat"
             :style="selectArrowStyle"
+            aria-describedby="review-grade-hint"
           >
             <option value="">{{ t('review.postForm.gradePlaceholder') }}</option>
             <option
@@ -348,7 +386,10 @@
               {{ gradeOption }}
             </option>
           </select>
-          <p class="text-xs text-text-muted/60 mt-1.5 mb-0">
+          <p
+            id="review-grade-hint"
+            class="text-xs text-text-muted/60 mt-1.5 mb-0"
+          >
             {{ t('review.postForm.gradeHint') }}
           </p>
         </div>
@@ -363,10 +404,10 @@
             {{ submitError }}
           </p>
           <button
+            type="submit"
             data-testid="review-submit"
             class="w-full bg-primary hover:bg-primary-dark text-white rounded-xl py-3 font-semibold text-base cursor-pointer transition-all duration-200 border-none hover:-translate-y-px hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-none"
             :disabled="submitting"
-            @click="handleSubmit"
           >
             {{ submitting ? t('review.postForm.submitting') : t('review.postForm.submitBtn') }}
           </button>
@@ -374,7 +415,7 @@
             {{ t('review.postForm.submitDisclaimer') }}
           </p>
         </div>
-      </div>
+      </form>
     </div>
 
     <DraftPromptDialog

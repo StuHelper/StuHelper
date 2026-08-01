@@ -231,6 +231,7 @@ describe('useAuthStore', () => {
     await store.initSession();
 
     expect(mocks.accessStore.accessCodes).toEqual(['user:school:read']);
+    expect(mocks.showAuthNotification).not.toHaveBeenCalled();
   });
 
   it('uses full capabilities instead of globalCapabilities when refreshing user info', async () => {

@@ -168,8 +168,14 @@ func firstNonEmptyConfig(configs map[string]string, keys ...string) (string, boo
 }
 
 // ResolveAccessFacts 解析当前用户的评课访问事实。
-// 由 Service 统一生产，Handler 不再自行拼装。
-func (s *Service) ResolveAccessFacts(ctx context.Context, externalSubject string, capabilities []string) (ReviewAccessFacts, error) {
+// 由 Service 统一生产，Handler 不再自行拼装。普通用户能力可以从完整集合读取；
+// 平台级管理事实只能从无 scope 的全局集合读取。
+func (s *Service) ResolveAccessFacts(
+	ctx context.Context,
+	externalSubject string,
+	capabilities []string,
+	globalCapabilities []string,
+) (ReviewAccessFacts, error) {
 	policy, err := s.getReviewAccessPolicy(ctx)
 	if err != nil {
 		return ReviewAccessFacts{}, err
@@ -186,8 +192,8 @@ func (s *Service) ResolveAccessFacts(ctx context.Context, externalSubject string
 
 	facts.Authenticated = true
 
-	// 从 Token 角色展开的能力中检查管理权限（零 DB 查询）
-	facts.CanManageReviews = capability.Has(capabilities, capability.AdminReviewsManage)
+	// scoped admin 只能通过带资源边界的后台路由管理内容，不能因此获得公共列表的全局正文访问。
+	facts.CanManageReviews = capability.Has(globalCapabilities, capability.AdminReviewsManage)
 	canViewFull := capability.Has(capabilities, capability.ReviewListFull)
 	canCreate := capability.Has(capabilities, capability.ReviewCreate)
 	canEditOwn := capability.Has(capabilities, capability.ReviewEditOwn)
@@ -218,7 +224,8 @@ func (s *Service) ResolveAccessFacts(ctx context.Context, externalSubject string
 func (h *Handler) resolveReviewAccessFactsForRequest(c *gin.Context) (ReviewAccessFacts, bool) {
 	externalSubject := middleware.GetUserID(c)
 	capabilities := middleware.GetCapabilities(c)
-	facts, err := h.service.ResolveAccessFacts(c.Request.Context(), externalSubject, capabilities)
+	globalCapabilities := middleware.GetGlobalCapabilities(c)
+	facts, err := h.service.ResolveAccessFacts(c.Request.Context(), externalSubject, capabilities, globalCapabilities)
 	if err == nil {
 		return facts, true
 	}

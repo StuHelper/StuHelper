@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   localizeRatingDimension,
+  ratingBarAriaLabel,
   ratingDimensionLabel,
 } from '../ratingHelpers'
 import {
@@ -21,6 +22,23 @@ const zhMessages: Record<string, string> = {
 
 function t(key: string): string {
   return zhMessages[key] ?? key
+}
+
+function interpolatingT(
+  key: string,
+  params?: Record<string, number | string>,
+): string {
+  const messages: Record<string, string> = {
+    ...zhMessages,
+    'review.detail.ratingBarAria': '{dimension}：{level}',
+    'review.rating.face1': '很差',
+    'review.rating.face3': '一般',
+    'review.rating.face5': '超赞',
+  }
+  return (messages[key] ?? key).replace(
+    /\{(\w+)\}/g,
+    (_, name: string) => String(params?.[name] ?? `{${name}}`),
+  )
 }
 
 describe('rating dimension helpers', () => {
@@ -61,6 +79,17 @@ describe('rating dimension helpers', () => {
     expect(localized.name).toBe('课程难度')
     expect(localized.description).toBe('课程内容的难易程度')
     expect(dimension.name).toBe('Difficulty')
+  })
+
+  it('describes visual rating bars with qualitative text only', () => {
+    const label = ratingBarAriaLabel({
+      key: 'teaching',
+      avgRating: 4.6,
+      t: interpolatingT,
+    })
+
+    expect(label).toBe('教学质量：超赞')
+    expect(label).not.toContain('4.6')
   })
 })
 

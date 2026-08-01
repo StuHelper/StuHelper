@@ -34,6 +34,7 @@ type Config struct {
 	Token         TokenConfig
 	Log           LogConfig
 	RateLimit     ReviewRateLimitConfig
+	Review        ReviewConfig
 	Security      SecurityConfig
 	SMS           SMSConfig
 	Email         EmailConfig
@@ -61,6 +62,11 @@ type ReviewRateLimitConfig struct {
 	SearchUserLimit int
 	BatchAnonLimit  int
 	BatchUserLimit  int
+}
+
+// ReviewConfig controls long-running review projection maintenance.
+type ReviewConfig struct {
+	TeacherStatsRefreshTimeoutSeconds int
 }
 
 // OpenPlatformConfig 开放平台配置。
@@ -141,7 +147,6 @@ type LogConfig struct {
 	SamplingAfter   int
 	ServiceName     string
 	Environment     string
-	ServiceVersion  string
 }
 
 // ObservabilityConfig OpenTelemetry / tracing 配置
@@ -219,7 +224,6 @@ type CasdoorConfig struct {
 	IntrospectionClientID       string
 	IntrospectionClientSecret   string
 	Organization                string // Casdoor organization 名称
-	RolesClaim                  string // 角色 claim 名称，默认 roles
 	AppProvisioningClientID     string
 	AppProvisioningClientSecret string
 	AppProvisioningApplication  string
@@ -228,10 +232,6 @@ type CasdoorConfig struct {
 	UserProfileClientSecret     string
 	UserProfileApplication      string
 	UserProfileCertificate      string
-	RoleSyncClientID            string
-	RoleSyncClientSecret        string
-	RoleSyncApplication         string
-	RoleSyncCertificate         string
 	UserLookupClientID          string
 	UserLookupClientSecret      string
 	UserLookupApplication       string
@@ -326,6 +326,7 @@ func Load() (*Config, error) {
 		Token:         loadTokenConfig(&parseErrs),
 		Log:           loadLogConfig(&parseErrs),
 		RateLimit:     loadReviewRateLimitConfig(&parseErrs),
+		Review:        loadReviewConfig(&parseErrs),
 		SMS:           loadSMSConfig(&parseErrs),
 		Email:         loadEmailConfig(&parseErrs),
 		Bot:           loadBotConfig(),
@@ -348,12 +349,14 @@ func Load() (*Config, error) {
 
 func loadAppConfig(parseErrs *[]string) AppConfig {
 	return AppConfig{
-		Env:                getEnv("APP_ENV", "development"),
-		Port:               getEnv("APP_PORT", "8080"),
-		CORSOrigins:        getEnvSlice("CORS_ORIGINS", []string{}),
-		TrustedProxies:     getEnvSlice("TRUSTED_PROXIES", []string{}),
-		HMACSecret:         getEnv("HMAC_SECRET", ""),
-		MaxBodySize:        getEnvInt64("MAX_BODY_SIZE", 10<<20, parseErrs),
+		Env:            getEnv("APP_ENV", "development"),
+		Port:           getEnv("APP_PORT", "8080"),
+		CORSOrigins:    getEnvSlice("CORS_ORIGINS", []string{}),
+		TrustedProxies: getEnvSlice("TRUSTED_PROXIES", []string{}),
+		HMACSecret:     getEnv("HMAC_SECRET", ""),
+		// 资源接口允许 10 MiB 原始文件；Base64 与 JSON envelope 会把请求体
+		// 放大到约 13.4 MiB，因此传输层默认需要保留充足余量。
+		MaxBodySize:        getEnvInt64("MAX_BODY_SIZE", 16<<20, parseErrs),
 		MetricsUser:        getEnv("METRICS_USER", "prometheus"),
 		MetricsPassword:    getEnv("METRICS_PASSWORD", ""),
 		APIIPRateLimit:     getEnvInt("API_IP_RATE_LIMIT", 100, parseErrs),
@@ -399,7 +402,6 @@ func loadCasdoorConfig() CasdoorConfig {
 		IntrospectionClientID:       getEnv("CASDOOR_INTROSPECTION_CLIENT_ID", ""),
 		IntrospectionClientSecret:   getEnv("CASDOOR_INTROSPECTION_CLIENT_SECRET", ""),
 		Organization:                getEnv("CASDOOR_ORGANIZATION", ""),
-		RolesClaim:                  getEnv("CASDOOR_ROLES_CLAIM", "roles"),
 		AppProvisioningClientID:     getEnv("CASDOOR_APP_PROVISIONING_CLIENT_ID", ""),
 		AppProvisioningClientSecret: getEnv("CASDOOR_APP_PROVISIONING_CLIENT_SECRET", ""),
 		AppProvisioningApplication:  getEnv("CASDOOR_APP_PROVISIONING_APPLICATION", ""),
@@ -408,10 +410,6 @@ func loadCasdoorConfig() CasdoorConfig {
 		UserProfileClientSecret:     getEnv("CASDOOR_USER_PROFILE_CLIENT_SECRET", ""),
 		UserProfileApplication:      getEnv("CASDOOR_USER_PROFILE_APPLICATION", ""),
 		UserProfileCertificate:      getEnv("CASDOOR_USER_PROFILE_CERTIFICATE", ""),
-		RoleSyncClientID:            getEnv("CASDOOR_ROLE_SYNC_CLIENT_ID", ""),
-		RoleSyncClientSecret:        getEnv("CASDOOR_ROLE_SYNC_CLIENT_SECRET", ""),
-		RoleSyncApplication:         getEnv("CASDOOR_ROLE_SYNC_APPLICATION", ""),
-		RoleSyncCertificate:         getEnv("CASDOOR_ROLE_SYNC_CERTIFICATE", ""),
 		UserLookupClientID:          getEnv("CASDOOR_USER_LOOKUP_CLIENT_ID", ""),
 		UserLookupClientSecret:      getEnv("CASDOOR_USER_LOOKUP_CLIENT_SECRET", ""),
 		UserLookupApplication:       getEnv("CASDOOR_USER_LOOKUP_APPLICATION", ""),
@@ -480,7 +478,6 @@ func loadLogConfig(parseErrs *[]string) LogConfig {
 		SamplingAfter:   getEnvInt("LOG_SAMPLING_AFTER", 100, parseErrs),
 		ServiceName:     getEnv("LOG_SERVICE_NAME", getEnv("OTEL_SERVICE_NAME", "stuhelper-backend")),
 		Environment:     getEnv("LOG_ENVIRONMENT", getEnv("APP_ENV", "development")),
-		ServiceVersion:  getEnv("LOG_SERVICE_VERSION", ""),
 	}
 }
 
@@ -496,6 +493,16 @@ func loadReviewRateLimitConfig(parseErrs *[]string) ReviewRateLimitConfig {
 		BatchAnonLimit:  getEnvInt("REVIEW_RATE_BATCH_ANON_LIMIT", 5, parseErrs),
 		BatchUserLimit:  getEnvInt("REVIEW_RATE_BATCH_USER_LIMIT", 60, parseErrs),
 	}
+}
+
+func loadReviewConfig(parseErrs *[]string) ReviewConfig {
+	const defaultTeacherStatsRefreshTimeoutSeconds = 60
+	timeout := getEnvInt(
+		"REVIEW_TEACHER_STATS_REFRESH_TIMEOUT_SECONDS",
+		defaultTeacherStatsRefreshTimeoutSeconds,
+		parseErrs,
+	)
+	return ReviewConfig{TeacherStatsRefreshTimeoutSeconds: timeout}
 }
 
 func loadOpenPlatformConfig(parseErrs *[]string) OpenPlatformConfig {

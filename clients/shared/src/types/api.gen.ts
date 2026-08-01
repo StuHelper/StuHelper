@@ -3015,7 +3015,8 @@ export interface paths {
          * 机器人订阅 admission action SSE 下行流
          * @description 该接口返回 `text/event-stream`。服务端会发送 `event: action`，`data` 为
          *     `BotAdmissionPendingAction` JSON；机器人执行后必须调用
-         *     `/api/v1/bot/admission/actions/{id}/events` ACK。`event: keepalive` 用于保活。
+         *     `/api/v1/bot/admission/actions/{id}/events`，并原样提交 `dispatchAttempt`
+         *     完成带 fencing 的 ACK。`event: keepalive` 用于保活。
          */
         get: operations["streamBotAdmissionActions"];
         put?: never;
@@ -3040,7 +3041,8 @@ export interface paths {
          * @description 该接口用于无法保持 SSE 长连接的机器人运行时或兜底扫描。服务端会从
          *     `admission_bot_action_outbox` 领取到期 action，并返回带 `actionID` 的
          *     `BotAdmissionPendingAction`；机器人执行后必须调用
-         *     `/api/v1/bot/admission/actions/{id}/events` ACK。
+         *     `/api/v1/bot/admission/actions/{id}/events`，并原样提交
+         *     `dispatchAttempt` 完成带 fencing 的 ACK。
          */
         post: operations["claimBotAdmissionActions"];
         delete?: never;
@@ -3175,7 +3177,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * 获取实名认证审核材料
+         * @description 返回经过归属校验的短期签名材料 URL；访问需要全局读取权限和 MFA 二次验证，并写入审计日志。
+         */
+        get: operations["getIdentityVerificationReviewDetail"];
         /** 审核实名认证 */
         put: operations["reviewIdentityVerification"];
         post?: never;
@@ -3281,6 +3287,123 @@ export interface paths {
         /** 更新系统配置 */
         put: operations["updateSystemConfig"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/authorization/grants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 查询管理员授权账本
+         * @description 查询 PostgreSQL 授权投影账本。super_admin 的权威来源是 Casdoor StuHelper
+         *     organization user.isAdmin；school/section 角色的管理真源仍是本账本。需要全局
+         *     `iam:grants:manage` capability；返回期望状态与 OpenFGA 投影状态，便于识别
+         *     pending/failed grant。
+         */
+        get: operations["listAuthorizationGrants"];
+        put?: never;
+        /**
+         * 创建或恢复管理员授权
+         * @description 在同一 PostgreSQL 事务中写入 grant desired state、不可变审计和 outbox。
+         *     返回成功只表示期望状态已接受；只有 `projectionStatus=applied` 后授权才会生效。
+         *     只允许人工授予 school_admin 与 section_*；super_admin 必须在 Casdoor StuHelper
+         *     organization 中设置用户的 IsAdmin，登录或 refresh 时由系统自动同步。
+         *     需要全局 `iam:grants:manage` capability 和最近 5 分钟内的 step-up MFA。
+         */
+        post: operations["createAuthorizationGrant"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/authorization/grants/{grantID}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取单条管理员授权 */
+        get: operations["getAuthorizationGrant"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/authorization/grants/{grantID}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 撤销管理员授权
+         * @description 先提交 PostgreSQL `desiredState=revoked`，因此请求成功后撤权围栏立即拒绝，
+         *     不等待 OpenFGA tuple 删除完成。Casdoor 托管的 super_admin 不接受本接口撤销；
+         *     应在 Casdoor StuHelper organization 中取消该用户的 IsAdmin，系统会自动同步撤权。
+         *     需要全局 `iam:grants:manage` capability 和最近 5 分钟内的 step-up MFA。
+         */
+        post: operations["revokeAuthorizationGrant"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/authorization/grants/{grantID}/reconcile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 重新对账并投影管理员授权
+         * @description 针对账本中的当前 desired state 增加 revision、写入审计并重新生成 outbox 投影。
+         *     不接受任意 OpenFGA tuple。尚未首次激活的 grant 继续 fail-closed；已经激活的 grant
+         *     在修复期间仍由 PostgreSQL activation fence 授权，撤销则始终由 desired-state 围栏拒绝。
+         *     需要全局 `iam:grants:manage` capability 和最近 5 分钟内的 step-up MFA。
+         */
+        post: operations["reconcileAuthorizationGrant"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/authorization/projections/reconcile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 从授权账本重建全部 OpenFGA 投影
+         * @description 对授权账本中的每一条当前 desired state 增加 revision、写入逐条不可变审计并重新投递
+         *     精确 OpenFGA tuple。接口不接受任意 relation/object，因此不能绕过固定角色和 scope 白名单。
+         *     已激活授权在修复期间继续由 PostgreSQL activation fence 生效；撤销记录继续立即拒绝。
+         *     需要全局 `iam:grants:manage` capability 和最近 5 分钟内的 step-up MFA。
+         */
+        post: operations["reconcileAllAuthorizationProjections"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3593,13 +3716,19 @@ export interface components {
             id: number;
             /** Format: int64 */
             schoolID?: number;
-            /** Format: int64 */
-            departmentID: number;
+            /**
+             * Format: int64
+             * @description 课程尚未归类到院系时为 null。
+             */
+            departmentID: number | null;
             departmentName?: string;
             code?: string;
             name: string;
-            /** Format: double */
-            credits: number;
+            /**
+             * Format: double
+             * @description 数据源未提供学分时为 null，不得以 0 代替未知值。
+             */
+            credits: number | null;
             category?: string;
             reviewCount: number;
             /** @description 当前登录用户是否已收藏（未登录时不返回此字段） */
@@ -3639,9 +3768,13 @@ export interface components {
             departmentCount: number;
         };
         DepartmentGroup: {
-            /** Format: int64 */
-            departmentID: number;
-            departmentName: string;
+            /**
+             * Format: int64
+             * @description 未分类课程分组为 null。
+             */
+            departmentID: number | null;
+            /** @description 未分类课程分组为 null。 */
+            departmentName: string | null;
             courses: components["schemas"]["Course"][];
         };
         Review: {
@@ -4059,6 +4192,40 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
         };
+        AdminIdentityReviewDetail: {
+            /** Format: int64 */
+            userID: number;
+            /** @enum {string} */
+            docType: "MAINLAND_ID" | "HK_MACAU" | "TW" | "PASSPORT";
+            realName: string;
+            verified: boolean;
+            /** @enum {string|null} */
+            verifyMethod?: "academic_db_match" | "tencent_cloud" | "manual" | null;
+            /** Format: date-time */
+            reviewedAt?: string | null;
+            /** Format: date-time */
+            verifiedAt?: string | null;
+            rejectionReason?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            /**
+             * Format: uri
+             * @description 证件正面材料的短期签名 URL；仅管理员详情接口返回。
+             */
+            docPhotoFrontURL: string | null;
+            /**
+             * Format: uri
+             * @description 证件背面材料的短期签名 URL；可能为空。
+             */
+            docPhotoBackURL: string | null;
+            /**
+             * Format: uri
+             * @description 本人手持证件材料的短期签名 URL；仅管理员详情接口返回。
+             */
+            docPhotoSelfieURL: string | null;
+        };
         SubmitIdentityRequest: {
             /** @enum {string} */
             docType: "MAINLAND_ID" | "HK_MACAU" | "TW" | "PASSPORT";
@@ -4285,6 +4452,89 @@ export interface components {
             /** @enum {string} */
             profileVerificationStatus: "unverified" | "pending" | "verified" | "rejected";
             studentVerified: boolean;
+        };
+        /**
+         * @description StuHelper 固定管理员角色；super_admin 由 Casdoor 组织管理员投影，其他角色与 scope 由服务端白名单校验。
+         * @enum {string}
+         */
+        AuthorizationRole: "super_admin" | "school_admin" | "section_admin" | "section_moderator" | "section_reviewer";
+        /**
+         * @description PostgreSQL 授权账本中的期望状态。
+         * @enum {string}
+         */
+        AuthorizationDesiredState: "granted" | "revoked";
+        /**
+         * @description 授权期望状态向 OpenFGA 运行时关系面的投影状态。
+         * @enum {string}
+         */
+        AuthorizationProjectionStatus: "pending" | "applied" | "failed";
+        AuthorizationGrant: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            subjectUserID: number;
+            subjectUsername: string;
+            subjectDisplayName: string;
+            role: components["schemas"]["AuthorizationRole"];
+            source: components["schemas"]["AuthorizationGrantSource"];
+            /**
+             * Format: int64
+             * @description school_admin 与 section_* 角色必填；super_admin 不得提供。
+             */
+            schoolID?: number;
+            /** @description section_* 角色必填；当前只接受受支持的 review-moderation section ID。 */
+            sectionID?: string;
+            desiredState: components["schemas"]["AuthorizationDesiredState"];
+            projectionStatus: components["schemas"]["AuthorizationProjectionStatus"];
+            /**
+             * Format: int64
+             * @description grant/revoke/reconcile 每次变更时单调递增，用于隔离陈旧 outbox 投影。
+             */
+            revision: number;
+            reason: string;
+            /** Format: date-time */
+            activatedAt?: string;
+            /** Format: date-time */
+            revokedAt?: string;
+            /** Format: date-time */
+            projectedAt?: string;
+            /** @description 最近一次终态投影失败的脱敏错误摘要。 */
+            lastError?: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        AuthorizationGrantList: {
+            list: components["schemas"]["AuthorizationGrant"][];
+            total: number;
+        };
+        CreateAuthorizationGrantRequest: {
+            /** Format: int64 */
+            subjectUserID: number;
+            role: components["schemas"]["AssignableAuthorizationRole"];
+            /**
+             * Format: int64
+             * @description 所有可人工授予的角色均必填。
+             */
+            schoolID?: number;
+            /** @description section_* 角色必填；其他角色不得提供。 */
+            sectionID?: string;
+            /** @description 必填的授权业务理由，会写入不可变审计。 */
+            reason: string;
+        };
+        AuthorizationGrantMutationRequest: {
+            /** @description 必填的撤销或对账理由，会写入不可变审计。 */
+            reason: string;
+        };
+        AuthorizationGrantMutationResult: {
+            grant: components["schemas"]["AuthorizationGrant"];
+            /** @description false 表示相同目标状态已生效，本次请求按幂等成功处理。 */
+            changed: boolean;
+        };
+        AuthorizationProjectionReconcileResult: {
+            /** @description 本次原子写入 outbox 的授权记录数量。 */
+            queued: number;
         };
         OpenPlatformScopeDefinition: {
             scope: components["schemas"]["OpenPlatformScope"];
@@ -5259,6 +5509,7 @@ export interface components {
             mountID: number;
             objectKey: string;
             filename: string;
+            /** @description 服务端校验后的有效 MIME 类型；声明与内容嗅探相同时使用嗅探值，受支持的容器或文本细分类型使用其规范化声明值。 */
             contentType: string;
             /** Format: int64 */
             sizeBytes: number;
@@ -5291,6 +5542,7 @@ export interface components {
             tags: string[];
             bindings: components["schemas"]["ResourceBinding"][];
             filename: string;
+            /** @description 浏览器声明的 MIME 类型；必须与服务端内容嗅探结果相同，或属于服务端明确支持且可验证的容器或文本细分类型。 */
             contentType: string;
             /** @description 文件 base64 内容，支持标准 Base64 或 data URL 形式 */
             dataBase64: string;
@@ -5449,6 +5701,8 @@ export interface components {
         BotAdmissionPendingAction: {
             /** @description 持久化 bot action outbox ID。SSE 下行动作会携带，ACK 时应提交到 actions/{id}/events。 */
             actionID?: string;
+            /** @description actionID 对应的派发代次；ACK 时必须原样提交。 */
+            dispatchAttempt?: number;
             sessionID: string;
             /** @enum {string} */
             action: "remind" | "release" | "kick" | "blacklist";
@@ -5465,6 +5719,10 @@ export interface components {
             failureCount?: number;
             remainingRetryCount?: number;
             willBlacklistOnTimeout?: boolean;
+        };
+        BotAdmissionActionEventRequest: components["schemas"]["BotAdmissionEventRequest"] & {
+            /** @description 领取 action 时返回的派发代次。服务端仅接受当前代次的 ACK。 */
+            dispatchAttempt: number;
         };
         BotFreshmanCommandContext: {
             operatorQQID: string;
@@ -5524,6 +5782,16 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
         };
+        /**
+         * @description 授权权威来源；super_admin 来自 Casdoor organization user.isAdmin，其余角色由 StuHelper 人工管理。
+         * @enum {string}
+         */
+        AuthorizationGrantSource: "casdoor_org_admin" | "manual";
+        /**
+         * @description 可由 StuHelper 管理 API 人工授予的 scoped 业务管理员角色；不包含 Casdoor 托管的 super_admin。
+         * @enum {string}
+         */
+        AssignableAuthorizationRole: "school_admin" | "section_admin" | "section_moderator" | "section_reviewer";
     };
     responses: {
         /** @description 统一错误响应 */
@@ -5601,6 +5869,8 @@ export interface components {
         ResourceIDPath: number;
         /** @description 存储挂载点 ID */
         MountIDPath: number;
+        /** @description 授权账本 ID */
+        GrantID: number;
     };
     requestBodies: never;
     headers: never;
@@ -7521,6 +7791,7 @@ export interface operations {
             };
             401: components["responses"]["ErrorResponse"];
             403: components["responses"]["ErrorResponse"];
+            412: components["responses"]["ErrorResponse"];
         };
     };
     listAcademicImportJobs: {
@@ -7555,6 +7826,7 @@ export interface operations {
             };
             401: components["responses"]["ErrorResponse"];
             403: components["responses"]["ErrorResponse"];
+            412: components["responses"]["ErrorResponse"];
         };
     };
     triggerAcademicImport: {
@@ -7584,6 +7856,7 @@ export interface operations {
             401: components["responses"]["ErrorResponse"];
             403: components["responses"]["ErrorResponse"];
             404: components["responses"]["ErrorResponse"];
+            412: components["responses"]["ErrorResponse"];
         };
     };
     listResources: {
@@ -8577,6 +8850,7 @@ export interface operations {
             };
             400: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     createReply: {
@@ -10577,6 +10851,8 @@ export interface operations {
             400: components["responses"]["ErrorResponse"];
             401: components["responses"]["ErrorResponse"];
             409: components["responses"]["ErrorResponse"];
+            429: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     requestAdmissionSchoolEmailOTP: {
@@ -10606,6 +10882,7 @@ export interface operations {
             400: components["responses"]["ErrorResponse"];
             401: components["responses"]["ErrorResponse"];
             429: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     verifyAdmissionSchoolEmailOTP: {
@@ -11254,7 +11531,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["BotAdmissionEventRequest"];
+                "application/json": components["schemas"]["BotAdmissionActionEventRequest"];
             };
         };
         responses: {
@@ -11452,6 +11729,38 @@ export interface operations {
             500: components["responses"]["ErrorResponse"];
         };
     };
+    getIdentityVerificationReviewDetail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 用户 ID */
+                userID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 实名认证审核详情 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["AdminIdentityReviewDetail"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
+        };
+    };
     reviewIdentityVerification: {
         parameters: {
             query?: never;
@@ -11483,7 +11792,9 @@ export interface operations {
             401: components["responses"]["ErrorResponse"];
             403: components["responses"]["ErrorResponse"];
             404: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     listStudentVerifications: {
@@ -11553,6 +11864,7 @@ export interface operations {
             401: components["responses"]["ErrorResponse"];
             403: components["responses"]["ErrorResponse"];
             404: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
         };
     };
@@ -11671,6 +11983,207 @@ export interface operations {
             401: components["responses"]["ErrorResponse"];
             403: components["responses"]["ErrorResponse"];
             404: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    listAuthorizationGrants: {
+        parameters: {
+            query?: {
+                subjectUserID?: number;
+                role?: components["schemas"]["AuthorizationRole"];
+                desiredState?: components["schemas"]["AuthorizationDesiredState"];
+                projectionStatus?: components["schemas"]["AuthorizationProjectionStatus"];
+                /** @description 页码 */
+                page?: components["parameters"]["PageParam"];
+                /** @description 每页数量 */
+                pageSize?: components["parameters"]["PageSizeParam"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 授权账本分页列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["AuthorizationGrantList"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    createAuthorizationGrant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateAuthorizationGrantRequest"];
+            };
+        };
+        responses: {
+            /** @description 授权期望状态已创建或恢复 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["AuthorizationGrantMutationResult"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+            412: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    getAuthorizationGrant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 授权账本 ID */
+                grantID: components["parameters"]["GrantID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 授权详情 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["AuthorizationGrant"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    revokeAuthorizationGrant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 授权账本 ID */
+                grantID: components["parameters"]["GrantID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuthorizationGrantMutationRequest"];
+            };
+        };
+        responses: {
+            /** @description 撤权期望状态已提交 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["AuthorizationGrantMutationResult"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+            412: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    reconcileAuthorizationGrant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 授权账本 ID */
+                grantID: components["parameters"]["GrantID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuthorizationGrantMutationRequest"];
+            };
+        };
+        responses: {
+            /** @description 对账投影已重新入队 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["AuthorizationGrantMutationResult"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+            412: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    reconcileAllAuthorizationProjections: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuthorizationGrantMutationRequest"];
+            };
+        };
+        responses: {
+            /** @description 全量投影已原子重新入队 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["AuthorizationProjectionReconcileResult"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            412: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
         };
     };
@@ -12148,7 +12661,7 @@ export interface operations {
             content: {
                 "application/json": {
                     /** @enum {string} */
-                    kind: "error" | "unhandledrejection";
+                    kind: "error" | "unhandledrejection" | "vue-error";
                 };
             };
         };

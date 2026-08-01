@@ -11,18 +11,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestReviewStudentVerification_RejectClearsVerifiedAtAndStoresReviewMeta(t *testing.T) {
-	previousVerifiedAt := time.Date(2026, 3, 1, 10, 0, 0, 0, time.UTC)
+func TestReviewStudentVerification_RejectStoresReviewMeta(t *testing.T) {
 	var capturedProfile *Profile
+	const schoolID = int64(4111010006)
 
 	repo := &mockRepo{
 		onGetProfileByUserID: func(_ context.Context, _ int64) (*Profile, error) {
 			method := VerifyMethodManual
 			return &Profile{
 				UserID:             1001,
-				VerificationStatus: StatusVerified,
+				SchoolID:           int64Ptr(schoolID),
+				VerificationStatus: StatusPending,
 				VerificationMethod: &method,
-				VerifiedAt:         &previousVerifiedAt,
 			}, nil
 		},
 		onUpdateProfile: func(_ context.Context, profile *Profile) error {
@@ -35,7 +35,7 @@ func TestReviewStudentVerification_RejectClearsVerifiedAtAndStoresReviewMeta(t *
 	service, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
-	err = service.ReviewStudentVerification(context.Background(), 1001, false, "  材料信息不一致  ")
+	err = service.ReviewStudentVerification(context.Background(), 1001, schoolID, false, "  材料信息不一致  ")
 	require.NoError(t, err)
 	require.NotNil(t, capturedProfile)
 
@@ -48,6 +48,7 @@ func TestReviewStudentVerification_RejectClearsVerifiedAtAndStoresReviewMeta(t *
 
 func TestReviewStudentVerification_ApproveClearsRejectionReasonAndSetsReviewMeta(t *testing.T) {
 	var capturedProfile *Profile
+	const schoolID = int64(4111010006)
 
 	repo := &mockRepo{
 		onGetProfileByUserID: func(_ context.Context, _ int64) (*Profile, error) {
@@ -55,7 +56,8 @@ func TestReviewStudentVerification_ApproveClearsRejectionReasonAndSetsReviewMeta
 			rejectionReason := "证件不清晰"
 			return &Profile{
 				UserID:             1002,
-				VerificationStatus: StatusRejected,
+				SchoolID:           int64Ptr(schoolID),
+				VerificationStatus: StatusPending,
 				VerificationMethod: &method,
 				RejectionReason:    &rejectionReason,
 			}, nil
@@ -70,7 +72,7 @@ func TestReviewStudentVerification_ApproveClearsRejectionReasonAndSetsReviewMeta
 	service, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
-	err = service.ReviewStudentVerification(context.Background(), 1002, true, "")
+	err = service.ReviewStudentVerification(context.Background(), 1002, schoolID, true, "")
 	require.NoError(t, err)
 	require.NotNil(t, capturedProfile)
 
@@ -105,7 +107,7 @@ func TestReviewStudentVerification_ApproveSchoolEmailOTPEnsuresCredential(t *tes
 	service, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
-	err = service.ReviewStudentVerification(context.Background(), 1003, true, "")
+	err = service.ReviewStudentVerification(context.Background(), 1003, schoolID, true, "")
 	require.NoError(t, err)
 	require.NotNil(t, capturedCredential)
 	assert.Equal(t, int64(1003), capturedCredential.UserID)
@@ -141,4 +143,90 @@ func TestReviewIdentity_RejectSetsReviewedAtEvenWithoutReason(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, capturedReviewedAt)
 	assert.Nil(t, capturedVerifiedAt)
+}
+
+func TestReviewIdentity_RejectsStaleOrRepeatedReview(t *testing.T) {
+	reviewedAt := time.Now().Add(-time.Minute)
+	repo := &mockRepo{
+		onGetIdentityStatusByUserID: func(_ context.Context, _ int64) (*IdentityStatus, error) {
+			return &IdentityStatus{
+				UserID:     88,
+				Verified:   false,
+				ReviewedAt: &reviewedAt,
+			}, nil
+		},
+		onUpdateIdentityReviewStatus: func(
+			context.Context,
+			int64,
+			bool,
+			*string,
+			*time.Time,
+			*time.Time,
+			*string,
+		) error {
+			t.Fatal("non-pending identity must not be reviewed")
+			return nil
+		},
+	}
+
+	service, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	require.NoError(t, err)
+
+	err = service.ReviewIdentity(context.Background(), 88, true, "")
+	require.ErrorIs(t, err, ErrVerificationReviewStateConflict)
+}
+
+func TestReviewStudentVerification_RevalidatesPendingStateAndSchoolInsideTransaction(t *testing.T) {
+	const (
+		userID           = int64(1004)
+		authorizedSchool = int64(4111010006)
+		changedSchool    = int64(4111010007)
+	)
+
+	tests := []struct {
+		name    string
+		profile *Profile
+	}{
+		{
+			name: "profile is no longer pending",
+			profile: &Profile{
+				UserID:             userID,
+				SchoolID:           int64Ptr(authorizedSchool),
+				VerificationStatus: StatusVerified,
+			},
+		},
+		{
+			name: "profile school changed after authorization",
+			profile: &Profile{
+				UserID:             userID,
+				SchoolID:           int64Ptr(changedSchool),
+				VerificationStatus: StatusPending,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &mockRepo{
+				onGetProfileByUserIDForUpdateTx: func(_ context.Context, _ pgx.Tx, _ int64) (*Profile, error) {
+					return tt.profile, nil
+				},
+				onUpdateProfileTx: func(context.Context, pgx.Tx, *Profile) error {
+					t.Fatal("stale or cross-school review must not update the profile")
+					return nil
+				},
+			}
+			service, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+			require.NoError(t, err)
+
+			err = service.ReviewStudentVerification(
+				context.Background(),
+				userID,
+				authorizedSchool,
+				true,
+				"",
+			)
+			require.ErrorIs(t, err, ErrVerificationReviewStateConflict)
+		})
+	}
 }

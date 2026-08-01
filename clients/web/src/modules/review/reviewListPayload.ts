@@ -20,6 +20,7 @@ const REVIEW_GRADE_VALUES = new Set([
   'F',
 ])
 const CONTENT_FLAG_VALUES = new Set(['warn', 'review', 'cleared'])
+const REVIEW_VOTE_VALUES = new Set(['like', 'dislike'])
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
@@ -162,6 +163,12 @@ export function readReviewPayload(
     ratings: readReviewRatings(payload.ratings, message),
     likeCount: readInteger(payload, 'likeCount', message),
     dislikeCount: readInteger(payload, 'dislikeCount', message),
+    userVote: readOptionalEnum<NonNullable<Review['userVote']>>(
+      payload,
+      'userVote',
+      REVIEW_VOTE_VALUES,
+      message,
+    ),
     replyCount: readInteger(payload, 'replyCount', message),
     status: readEnum<Review['status']>(payload, 'status', REVIEW_STATUS_VALUES, message),
     contentFlag: readOptionalEnum<NonNullable<Review['contentFlag']>>(

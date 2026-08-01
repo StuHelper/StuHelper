@@ -10,12 +10,9 @@ import (
 	"github.com/StuHelper/StuHelper/server/internal/pkg/audit"
 )
 
-const privilegedMFAReviewerRole = "super_admin"
-
 var (
 	ErrMFATargetRoleInvalid    = errors.New("mfa target role kind is invalid")
 	ErrMFASelfDisableForbidden = errors.New("super admin cannot disable own mfa")
-	ErrMFAResetReviewRequired  = errors.New("super admin mfa reset requires another super admin reviewer")
 )
 
 type MFATargetRoleKind string
@@ -29,8 +26,6 @@ type MFAEnrollmentAdminAction struct {
 	ActorUserID    int64
 	TargetUserID   int64
 	TargetRoleKind MFATargetRoleKind
-	ReviewerUserID int64
-	ReviewerRoles  []string
 }
 
 func (m *MFARecoveryManager) DisableEnrollment(ctx context.Context, params MFAEnrollmentAdminAction) error {
@@ -58,9 +53,6 @@ func (m *MFARecoveryManager) ResetEnrollment(ctx context.Context, params MFAEnro
 	if err := validateMFAEnrollmentAdminAction(params); err != nil {
 		return m.rejectEnrollmentMutation(ctx, mutation, err)
 	}
-	if err := validateMFAResetReview(params); err != nil {
-		return m.rejectEnrollmentMutation(ctx, mutation, err)
-	}
 	return m.mutateEnrollment(ctx, mutation)
 }
 
@@ -77,7 +69,6 @@ func mfaEnrollmentMutationFromAction(input mfaEnrollmentMutationBuild) mfaEnroll
 		ActorUserID:    params.ActorUserID,
 		TargetUserID:   params.TargetUserID,
 		TargetRoleKind: params.TargetRoleKind,
-		ReviewerUserID: params.ReviewerUserID,
 		Action:         input.Action,
 		ResetRequired:  input.ResetRequired,
 		AuditAction:    input.AuditAction,
@@ -94,40 +85,14 @@ func validateMFAEnrollmentAdminAction(params MFAEnrollmentAdminAction) error {
 	return nil
 }
 
-func validateMFAResetReview(params MFAEnrollmentAdminAction) error {
-	if params.TargetRoleKind != MFATargetRoleSuperAdmin {
-		return nil
-	}
-	if params.ReviewerUserID <= 0 || params.ReviewerUserID == params.ActorUserID {
-		return ErrMFAResetReviewRequired
-	}
-	if params.ReviewerUserID == params.TargetUserID {
-		return ErrMFAResetReviewRequired
-	}
-	if !hasMFARole(params.ReviewerRoles, privilegedMFAReviewerRole) {
-		return ErrMFAResetReviewRequired
-	}
-	return nil
-}
-
 func validMFATargetRoleKind(kind MFATargetRoleKind) bool {
 	return kind == MFATargetRoleStandard || kind == MFATargetRoleSuperAdmin
-}
-
-func hasMFARole(roles []string, expected string) bool {
-	for _, role := range roles {
-		if role == expected {
-			return true
-		}
-	}
-	return false
 }
 
 type mfaEnrollmentMutation struct {
 	ActorUserID    int64
 	TargetUserID   int64
 	TargetRoleKind MFATargetRoleKind
-	ReviewerUserID int64
 	Action         MFAEnrollmentChangeAction
 	ResetRequired  bool
 	AuditAction    string
@@ -190,9 +155,5 @@ func mfaEnrollmentMutationAuditEvent(params mfaEnrollmentMutation, outcome mfaEn
 }
 
 func mfaEnrollmentMutationDetails(params mfaEnrollmentMutation) map[string]any {
-	details := map[string]any{"target_role_kind": string(params.TargetRoleKind)}
-	if params.ReviewerUserID > 0 {
-		details["reviewer_user_id"] = fmt.Sprintf("%d", params.ReviewerUserID)
-	}
-	return details
+	return map[string]any{"target_role_kind": string(params.TargetRoleKind)}
 }

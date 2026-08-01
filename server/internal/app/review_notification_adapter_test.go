@@ -28,24 +28,26 @@ func TestReviewNotificationAdapterMapsReviewNotification(t *testing.T) {
 	adapter := newReviewNotificationAdapter(sender)
 
 	err := adapter.SendReviewNotification(context.Background(), review.ReviewNotification{
-		UserID:       42,
-		Type:         "reply",
-		Title:        "title",
-		Body:         "body",
-		SourceModule: "review",
-		SourceID:     "review-1",
-		CourseID:     7,
+		IdempotencyKey: "review-reply:review-1",
+		UserID:         42,
+		Type:           "reply",
+		Title:          "title",
+		Body:           "body",
+		SourceModule:   "review",
+		SourceID:       "review-1",
+		CourseID:       7,
 	})
 
 	require.NoError(t, err)
 	require.Equal(t, notification.SendParams{
-		UserID:       42,
-		Type:         "reply",
-		Title:        "title",
-		Body:         "body",
-		SourceModule: "review",
-		SourceID:     "review-1",
-		CourseID:     7,
+		IdempotencyKey: "review-reply:review-1",
+		UserID:         42,
+		Type:           "reply",
+		Title:          "title",
+		Body:           "body",
+		SourceModule:   "review",
+		SourceID:       "review-1",
+		CourseID:       7,
 	}, sender.params)
 }
 

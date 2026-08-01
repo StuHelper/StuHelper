@@ -9,6 +9,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -24,9 +25,10 @@ import (
 )
 
 type fakeOIDCProvider struct {
-	server   *httptest.Server
-	client   *oidcpkg.Client
-	clientID string
+	server        *httptest.Server
+	client        *oidcpkg.Client
+	clientID      string
+	tokenRequests *atomic.Int64
 }
 
 func newFakeOIDCProvider(t *testing.T) *fakeOIDCProvider {
@@ -69,6 +71,7 @@ func newFakeOIDCProviderWithTokenPayloadForClaims(
 	const clientID = "test-client-id"
 	const clientSecret = "test-client-secret"
 	jwk := jose.JSONWebKey{Key: &privateKey.PublicKey, KeyID: "test-key", Algorithm: string(jose.RS256), Use: "sig"}
+	providerTokenRequests := &atomic.Int64{}
 
 	var issuer string
 	issueIDTokenWithClaims := func(overrides map[string]any) string {
@@ -112,6 +115,7 @@ func newFakeOIDCProviderWithTokenPayloadForClaims(
 		http.Redirect(w, r, issuer+"/callback?code=code-1&state=state-1", http.StatusFound)
 	})
 	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
+		providerTokenRequests.Add(1)
 		_ = r.ParseForm()
 		issueForRequestClient := func() string {
 			return issueIDTokenWithClaims(map[string]any{"aud": requestOIDCClientID(r, clientID)})
@@ -149,7 +153,12 @@ func newFakeOIDCProviderWithTokenPayloadForClaims(
 	})
 	require.NoError(t, err)
 
-	return &fakeOIDCProvider{server: srv, client: client, clientID: clientID}
+	return &fakeOIDCProvider{
+		server:        srv,
+		client:        client,
+		clientID:      clientID,
+		tokenRequests: providerTokenRequests,
+	}
 }
 
 func requestOIDCClientID(r *http.Request, fallback string) string {
@@ -181,20 +190,20 @@ func newOIDCTestHandlerWithProvider(t *testing.T, repo UserSyncRepo, provider *f
 	h.oidcClient = provider.client
 	h.defaultRedirectURL = "https://web.example.com"
 	h.allowedRedirectHosts = map[string]struct{}{"web.example.com": {}}
-	h.tokenConfig = config.TokenConfig{AccessTokenTTL: 300, RefreshTokenTTL: 600}
+	h.tokenConfig = config.TokenConfig{AccessTokenTTL: 300, RefreshTokenTTL: 7200}
 	return h, recordingRepo
 }
 
-func enableProviderRefreshRevocationForOIDCTest(
+func enableProviderTokenFamilyRevocationForOIDCTest(
 	t *testing.T,
 	h *Handler,
 	repo UserSyncRepo,
-	revoker ProviderRefreshTokenRevoker,
+	revoker ProviderTokenFamilyRevoker,
 ) {
 	t.Helper()
 	cipher, err := pii.NewCipher(1, map[uint8][]byte{1: []byte("0123456789abcdef0123456789abcdef")})
 	require.NoError(t, err)
-	h.svc = NewService(h.tokenConfig, h.tokenService, repo, WithProviderRefreshTokenRevocation(revoker, cipher))
+	h.svc = NewService(h.tokenConfig, h.tokenService, repo, WithProviderTokenFamilyRevocation(revoker, cipher))
 }
 
 type failingOIDCUserSyncRepo struct{}
@@ -207,13 +216,30 @@ func (failingOIDCUserSyncRepo) ExistsByCasdoorSubject(context.Context, string) (
 }
 
 type fakeOIDCSubjectValidator struct {
-	gotSubject string
-	err        error
+	gotSubject        string
+	organizationAdmin bool
+	err               error
 }
 
-func (v *fakeOIDCSubjectValidator) ValidateOIDCSubject(_ context.Context, subject string) error {
+func (v *fakeOIDCSubjectValidator) ValidateOIDCSubject(_ context.Context, subject string) (bool, error) {
 	v.gotSubject = subject
-	return v.err
+	return v.organizationAdmin, v.err
+}
+
+type recordingOrganizationAdminSynchronizer struct {
+	gotSubject        string
+	organizationAdmin bool
+	err               error
+}
+
+func (s *recordingOrganizationAdminSynchronizer) SyncCasdoorOrganizationAdmin(
+	_ context.Context,
+	providerSubject string,
+	organizationAdmin bool,
+) error {
+	s.gotSubject = providerSubject
+	s.organizationAdmin = organizationAdmin
+	return s.err
 }
 
 func TestHandleWebCallback_Success(t *testing.T) {
@@ -242,6 +268,7 @@ func TestHandleWebCallback_Success(t *testing.T) {
 
 	cookies := w.Result().Cookies()
 	var hasAccess, hasRefresh, hasSession bool
+	var issuedSessionID string
 	for _, cookie := range cookies {
 		switch cookie.Name {
 		case "access_token":
@@ -250,11 +277,97 @@ func TestHandleWebCallback_Success(t *testing.T) {
 			hasRefresh = true
 		case sessionCookieName:
 			hasSession = true
+			issuedSessionID = cookie.Value
 		}
 	}
 	assert.True(t, hasAccess)
 	assert.True(t, hasRefresh)
 	assert.True(t, hasSession)
+	session, err := h.tokenService.GetSessionStore().Get(t.Context(), issuedSessionID)
+	require.NoError(t, err)
+	require.NotNil(t, session)
+	assert.Greater(t, session.AccessTokenExpiresAt, time.Now().Add(59*time.Minute).Unix())
+	assert.LessOrEqual(t, session.AccessTokenExpiresAt, time.Now().Add(time.Hour).Unix())
+}
+
+func TestHandleWebCallbackProjectsCasdoorOrganizationAdmin(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h, _ := newOIDCTestHandler(t, &recordingUserSyncRepo{})
+	h.oidcSubjectValidator = &fakeOIDCSubjectValidator{organizationAdmin: true}
+	syncer := &recordingOrganizationAdminSynchronizer{}
+	h.organizationAdminSync = syncer
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/auth/callback", nil)
+
+	h.handleWebCallback(c, c.Request.Context(), webCallbackInput{
+		code:         "code-1",
+		redirect:     "/dashboard",
+		codeVerifier: "verifier-1",
+		application:  oidcpkg.ApplicationWeb,
+		requestID:    "request-1",
+	})
+
+	require.Equal(t, http.StatusFound, w.Code, w.Body.String())
+	assert.Equal(t, "oidc-user-1", syncer.gotSubject)
+	assert.True(t, syncer.organizationAdmin)
+}
+
+func TestHandleWebCallbackFailsClosedWhenOrganizationAdminProjectionFails(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h, _ := newOIDCTestHandler(t, &recordingUserSyncRepo{})
+	h.oidcSubjectValidator = &fakeOIDCSubjectValidator{organizationAdmin: true}
+	h.organizationAdminSync = &recordingOrganizationAdminSynchronizer{
+		err: errors.New("authorization projection unavailable"),
+	}
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/auth/callback", nil)
+
+	h.handleWebCallback(c, c.Request.Context(), webCallbackInput{
+		code:         "code-1",
+		redirect:     "/dashboard",
+		codeVerifier: "verifier-1",
+		application:  oidcpkg.ApplicationWeb,
+		requestID:    "request-1",
+	})
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Empty(t, w.Header().Get("Location"))
+}
+
+func TestHandleWebCallbackInvalidRolesClaimDoesNotAffectIdentitySync(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	provider := newFakeOIDCProviderWithTokenPayloadForClaims(t,
+		func(issueIDTokenWithClaims func(map[string]any) string, _ func() string) map[string]any {
+			return map[string]any{
+				"access_token":  "provider-access-token",
+				"token_type":    "Bearer",
+				"refresh_token": "provider-refresh-token",
+				"expires_in":    3600,
+				"id_token":      issueIDTokenWithClaims(map[string]any{"roles": nil}),
+			}
+		},
+	)
+	h, repo := newOIDCTestHandlerWithProvider(t, &recordingUserSyncRepo{}, provider)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/auth/callback", nil)
+
+	h.handleWebCallback(c, c.Request.Context(), webCallbackInput{
+		code:         "code-1",
+		redirect:     "/dashboard",
+		codeVerifier: "verifier-1",
+		application:  oidcpkg.ApplicationWeb,
+		requestID:    "request-1",
+	})
+
+	require.Equal(t, http.StatusFound, w.Code)
+	assert.Equal(t, "oidc-user-1", repo.upsertInput.CasdoorSubject)
+	assert.Equal(t, "oidc-tester", repo.upsertInput.Username)
 }
 
 func TestHandleWebCallback_RejectsSubjectValidationFailure(t *testing.T) {
@@ -277,6 +390,29 @@ func TestHandleWebCallback_RejectsSubjectValidationFailure(t *testing.T) {
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 	assert.Equal(t, "oidc-user-1", validator.gotSubject)
+	assert.Empty(t, repo.upsertInput.CasdoorSubject)
+	assert.Empty(t, w.Header().Get("Location"))
+	assertNoIssuedTokenCookies(t, w)
+}
+
+func TestHandleWebCallback_SubjectLookupUnavailableReturns503(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h, repo := newOIDCTestHandler(t, &recordingUserSyncRepo{})
+	h.oidcSubjectValidator = &fakeOIDCSubjectValidator{err: oidcpkg.ErrProviderUnavailable}
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/auth/callback", nil)
+
+	h.handleWebCallback(c, c.Request.Context(), webCallbackInput{
+		code:         "code-1",
+		redirect:     "/dashboard",
+		codeVerifier: "verifier-1",
+		application:  oidcpkg.ApplicationWeb,
+		requestID:    "request-1",
+	})
+
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
 	assert.Empty(t, repo.upsertInput.CasdoorSubject)
 	assert.Empty(t, w.Header().Get("Location"))
 	assertNoIssuedTokenCookies(t, w)
@@ -321,6 +457,9 @@ func TestHandleWebCallback_RejectsTokenForDifferentAuthorizedParty(t *testing.T)
 func TestRefreshOIDCToken_Success(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	h, repo := newOIDCTestHandler(t, &recordingUserSyncRepo{})
+	h.oidcSubjectValidator = &fakeOIDCSubjectValidator{organizationAdmin: true}
+	syncer := &recordingOrganizationAdminSynchronizer{}
+	h.organizationAdminSync = syncer
 	ctx := context.Background()
 
 	_, err := h.svc.CreateSession(ctx, "sid-oidc-refresh", "oidc-user-1", "old-access-token", "old-refresh-token", "oidc", "browser")
@@ -361,14 +500,93 @@ func TestRefreshOIDCToken_Success(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "sid-oidc-refresh", session.SessionID)
 	assert.NotEmpty(t, session.RefreshTokenHash)
+	assert.Greater(t, session.AccessTokenExpiresAt, time.Now().Add(59*time.Minute).Unix())
+	assert.LessOrEqual(t, session.AccessTokenExpiresAt, time.Now().Add(time.Hour).Unix())
 	avatarURL := "https://cdn.example.com/oidc.png"
 	assert.Equal(t, UserSyncInput{
 		CasdoorSubject: "oidc-user-1",
 		Username:       "oidc-tester",
 		Email:          "oidc@example.com",
 		AvatarURL:      &avatarURL,
-		Roles:          []string{"school_admin"},
 	}, repo.upsertInput)
+	assert.Equal(t, "oidc-user-1", syncer.gotSubject)
+	assert.True(t, syncer.organizationAdmin)
+}
+
+func TestRefreshOIDCToken_OrganizationAdminSyncFailureDoesNotRotateSession(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h, _ := newOIDCTestHandler(t, &recordingUserSyncRepo{})
+	h.oidcSubjectValidator = &fakeOIDCSubjectValidator{organizationAdmin: true}
+	h.organizationAdminSync = &recordingOrganizationAdminSynchronizer{
+		err: errors.New("authorization projection unavailable"),
+	}
+	ctx := context.Background()
+
+	_, err := h.svc.CreateSession(
+		ctx,
+		"sid-oidc-admin-sync-fail",
+		"oidc-user-1",
+		"old-access-token",
+		"old-refresh-token",
+		"oidc",
+		"browser",
+	)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/refresh", nil)
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "sid-oidc-admin-sync-fail"})
+	c.Request = req
+
+	ok := h.refreshOIDCToken(c, "old-refresh-token", false)
+
+	require.False(t, ok)
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assertNoIssuedTokenCookies(t, w)
+	session, err := h.tokenService.GetSessionStore().Get(ctx, "sid-oidc-admin-sync-fail")
+	require.NoError(t, err)
+	oldRefreshHash, err := hashTokenForSession("old-refresh-token")
+	require.NoError(t, err)
+	assert.Equal(t, oldRefreshHash, session.RefreshTokenHash)
+}
+
+func TestRefreshOIDCToken_SubjectLookupUnavailableReturns503WithoutClearingSessionCookies(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	provider := newFakeOIDCProvider(t)
+	h, _ := newOIDCTestHandlerWithProvider(t, &recordingUserSyncRepo{}, provider)
+	h.oidcSubjectValidator = &fakeOIDCSubjectValidator{err: oidcpkg.ErrProviderUnavailable}
+	ctx := context.Background()
+
+	_, err := h.svc.CreateSession(
+		ctx,
+		"sid-oidc-subject-lookup-unavailable",
+		"oidc-user-1",
+		"old-access-token",
+		"old-refresh-token",
+		"oidc",
+		"browser",
+	)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/refresh", nil)
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "sid-oidc-subject-lookup-unavailable"})
+	c.Request = req
+
+	ok := h.refreshOIDCToken(c, "old-refresh-token", false)
+
+	require.False(t, ok)
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+	assert.Zero(t, provider.tokenRequests.Load(), "provider refresh token must not be consumed before authoritative subject lookup")
+	assertNoIssuedTokenCookies(t, w)
+	assertNoClearedTokenCookies(t, w)
+	session, err := h.tokenService.GetSessionStore().Get(ctx, "sid-oidc-subject-lookup-unavailable")
+	require.NoError(t, err)
+	oldRefreshHash, err := hashTokenForSession("old-refresh-token")
+	require.NoError(t, err)
+	assert.Equal(t, oldRefreshHash, session.RefreshTokenHash)
 }
 
 func TestRefreshOIDCToken_UserSyncFailureDoesNotRotateSession(t *testing.T) {
@@ -429,13 +647,13 @@ func TestRefreshOIDCToken_RotationFailureDoesNotIssueCookies(t *testing.T) {
 	assertNoIssuedTokenCookies(t, w)
 }
 
-func TestRefreshOIDCToken_PostCommitProviderRevokeFailureKeepsNewProviderRefresh(t *testing.T) {
+func TestRefreshOIDCToken_DoesNotLogoutAlreadyRotatedProviderFamily(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	repo := &recordingUserSyncRepo{}
 	provider := newFakeOIDCProvider(t)
 	h, _ := newOIDCTestHandlerWithProvider(t, repo, provider)
-	revoker := &fakeApplicationProviderRefreshRevoker{err: errors.New("provider revoke failed")}
-	enableProviderRefreshRevocationForOIDCTest(t, h, repo, revoker)
+	revoker := &fakeProviderTokenFamilyRevoker{err: errors.New("provider revoke should not be called")}
+	enableProviderTokenFamilyRevocationForOIDCTest(t, h, repo, revoker)
 
 	_, err := h.svc.CreateSession(
 		t.Context(),
@@ -458,9 +676,7 @@ func TestRefreshOIDCToken_PostCommitProviderRevokeFailureKeepsNewProviderRefresh
 
 	require.True(t, ok)
 	assert.Equal(t, http.StatusOK, w.Code, w.Body.String())
-	assert.Equal(t, []providerRefreshTokenRevokeCall{
-		{appKey: oidcpkg.ApplicationWeb, refreshToken: "old-refresh-token"},
-	}, revoker.calls)
+	assert.Empty(t, revoker.calls)
 	session, err := h.tokenService.GetSessionStore().Get(t.Context(), "sid-oidc-provider-revoke-fails")
 	require.NoError(t, err)
 	require.NotNil(t, session)
@@ -471,54 +687,6 @@ func TestRefreshOIDCToken_PostCommitProviderRevokeFailureKeepsNewProviderRefresh
 	blacklisted, err := h.tokenService.GetBlacklist().IsBlacklisted(t.Context(), "old-refresh-token")
 	require.NoError(t, err)
 	assert.True(t, blacklisted)
-}
-
-func TestRefreshOIDCToken_PostCommitBlacklistFailureKeepsNewProviderRefresh(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	repo := &recordingUserSyncRepo{}
-	provider := newFakeOIDCProvider(t)
-	h, _ := newOIDCTestHandlerWithProvider(t, repo, provider)
-	requestCtx, cancelRequest := context.WithCancel(context.Background())
-	defer cancelRequest()
-	revoker := &fakeApplicationProviderRefreshRevoker{
-		onRevoke: func(_ context.Context, _ string, refreshToken string) {
-			if refreshToken == "old-refresh-token" {
-				cancelRequest()
-			}
-		},
-	}
-	enableProviderRefreshRevocationForOIDCTest(t, h, repo, revoker)
-
-	_, err := h.svc.CreateSession(
-		t.Context(),
-		"sid-oidc-blacklist-fails",
-		"oidc-user-1",
-		"old-access-token",
-		"old-refresh-token",
-		"oidc",
-		"browser",
-	)
-	require.NoError(t, err)
-
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/refresh", nil).WithContext(requestCtx)
-	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "sid-oidc-blacklist-fails"})
-	c.Request = req
-
-	ok := h.refreshOIDCToken(c, "old-refresh-token", false)
-
-	require.True(t, ok)
-	assert.Equal(t, http.StatusOK, w.Code, w.Body.String())
-	assert.Equal(t, []providerRefreshTokenRevokeCall{
-		{appKey: oidcpkg.ApplicationWeb, refreshToken: "old-refresh-token"},
-	}, revoker.calls)
-	session, err := h.tokenService.GetSessionStore().Get(t.Context(), "sid-oidc-blacklist-fails")
-	require.NoError(t, err)
-	require.NotNil(t, session)
-	newRefreshHash, err := hashTokenForSession("provider-refresh-token")
-	require.NoError(t, err)
-	assert.Equal(t, newRefreshHash, session.RefreshTokenHash)
 }
 
 func TestRefreshOIDCToken_RejectsMissingProviderRefreshRotation(t *testing.T) {
@@ -619,6 +787,9 @@ func TestRefreshToken_NativeOIDCRequiresTrackedSession(t *testing.T) {
 func TestExchangeNative_Success(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	h, repo := newOIDCTestHandler(t, &recordingUserSyncRepo{})
+	h.oidcSubjectValidator = &fakeOIDCSubjectValidator{organizationAdmin: true}
+	syncer := &recordingOrganizationAdminSynchronizer{}
+	h.organizationAdminSync = syncer
 	require.NoError(t, h.storeNativeCodeVerifier(context.Background(), "native-state-1", nativeCodeVerifierPayload{
 		CodeVerifier: "native-verifier",
 		Application:  oidcpkg.ApplicationUniapp,
@@ -637,6 +808,9 @@ func TestExchangeNative_Success(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "refreshToken")
 	assert.Contains(t, w.Body.String(), "sessionID")
 	assert.Equal(t, "oidc-user-1", repo.upsertInput.CasdoorSubject)
+	assert.Equal(t, "oidc-tester", repo.upsertInput.Username)
+	assert.Equal(t, "oidc-user-1", syncer.gotSubject)
+	assert.True(t, syncer.organizationAdmin)
 }
 
 func TestExchangeNative_RejectsSubjectValidationFailure(t *testing.T) {
@@ -659,6 +833,27 @@ func TestExchangeNative_RejectsSubjectValidationFailure(t *testing.T) {
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 	assert.Equal(t, "oidc-user-1", validator.gotSubject)
+	assert.Empty(t, repo.upsertInput.CasdoorSubject)
+}
+
+func TestExchangeNative_SubjectLookupUnavailableReturns503(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h, repo := newOIDCTestHandler(t, &recordingUserSyncRepo{})
+	h.oidcSubjectValidator = &fakeOIDCSubjectValidator{err: oidcpkg.ErrProviderUnavailable}
+	require.NoError(t, h.storeNativeCodeVerifier(context.Background(), "native-state-1", nativeCodeVerifierPayload{
+		CodeVerifier: "native-verifier",
+		Application:  oidcpkg.ApplicationUniapp,
+	}))
+
+	body := bytes.NewBufferString(`{"code":"code-1","state":"native-state-1"}`)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/auth/exchange-native", body)
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	h.ExchangeNative(c)
+
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
 	assert.Empty(t, repo.upsertInput.CasdoorSubject)
 }
 
@@ -724,8 +919,8 @@ func TestRefreshOIDCToken_MissingIDToken(t *testing.T) {
 	})
 	repo := &recordingUserSyncRepo{}
 	h, _ := newOIDCTestHandlerWithProvider(t, repo, provider)
-	revoker := &fakeApplicationProviderRefreshRevoker{}
-	enableProviderRefreshRevocationForOIDCTest(t, h, repo, revoker)
+	revoker := &fakeProviderTokenFamilyRevoker{}
+	enableProviderTokenFamilyRevocationForOIDCTest(t, h, repo, revoker)
 	_, err := h.svc.CreateSession(
 		t.Context(),
 		"sid-oidc-missing-id-token",
@@ -747,8 +942,12 @@ func TestRefreshOIDCToken_MissingIDToken(t *testing.T) {
 	assert.False(t, ok)
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 	assert.Contains(t, w.Body.String(), "failed to refresh token")
-	assert.Equal(t, []providerRefreshTokenRevokeCall{
-		{appKey: oidcpkg.ApplicationWeb, refreshToken: "provider-refresh-token"},
+	assert.Equal(t, []providerTokenFamilyRevokeCall{
+		{
+			appKey:       oidcpkg.ApplicationWeb,
+			accessToken:  "provider-access-token",
+			refreshToken: "provider-refresh-token",
+		},
 	}, revoker.calls)
 }
 
@@ -848,8 +1047,8 @@ func assertOIDCRefreshRotationUnavailable(
 	provider := newFakeOIDCProviderWithTokenPayload(t, payloadFn)
 	repo := &recordingUserSyncRepo{}
 	h, _ := newOIDCTestHandlerWithProvider(t, repo, provider)
-	revoker := &fakeApplicationProviderRefreshRevoker{}
-	enableProviderRefreshRevocationForOIDCTest(t, h, repo, revoker)
+	revoker := &fakeProviderTokenFamilyRevoker{}
+	enableProviderTokenFamilyRevocationForOIDCTest(t, h, repo, revoker)
 
 	_, err := h.svc.CreateSession(
 		t.Context(),
@@ -888,8 +1087,8 @@ func TestRefreshOIDCToken_InvalidIDToken(t *testing.T) {
 	})
 	repo := &recordingUserSyncRepo{}
 	h, _ := newOIDCTestHandlerWithProvider(t, repo, provider)
-	revoker := &fakeApplicationProviderRefreshRevoker{}
-	enableProviderRefreshRevocationForOIDCTest(t, h, repo, revoker)
+	revoker := &fakeProviderTokenFamilyRevoker{}
+	enableProviderTokenFamilyRevocationForOIDCTest(t, h, repo, revoker)
 	_, err := h.svc.CreateSession(
 		t.Context(),
 		"sid-oidc-invalid-id-token",
@@ -911,12 +1110,16 @@ func TestRefreshOIDCToken_InvalidIDToken(t *testing.T) {
 	assert.False(t, ok)
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 	assert.Contains(t, w.Body.String(), "failed to refresh token")
-	assert.Equal(t, []providerRefreshTokenRevokeCall{
-		{appKey: oidcpkg.ApplicationWeb, refreshToken: "provider-refresh-token"},
+	assert.Equal(t, []providerTokenFamilyRevokeCall{
+		{
+			appKey:       oidcpkg.ApplicationWeb,
+			accessToken:  "provider-access-token",
+			refreshToken: "provider-refresh-token",
+		},
 	}, revoker.calls)
 }
 
-func TestRefreshOIDCToken_ApplicationVerificationFailureRevokesNewProviderRefresh(t *testing.T) {
+func TestRefreshOIDCToken_ApplicationVerificationFailureRevokesNewProviderTokenFamily(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	provider := newFakeOIDCProviderWithTokenPayloadForClaims(t,
 		func(issueIDTokenWithClaims func(map[string]any) string, _ func() string) map[string]any {
@@ -933,8 +1136,8 @@ func TestRefreshOIDCToken_ApplicationVerificationFailureRevokesNewProviderRefres
 	)
 	repo := &recordingUserSyncRepo{}
 	h, _ := newOIDCTestHandlerWithProvider(t, repo, provider)
-	revoker := &fakeApplicationProviderRefreshRevoker{}
-	enableProviderRefreshRevocationForOIDCTest(t, h, repo, revoker)
+	revoker := &fakeProviderTokenFamilyRevoker{}
+	enableProviderTokenFamilyRevocationForOIDCTest(t, h, repo, revoker)
 	_, err := h.svc.CreateSession(
 		t.Context(),
 		"sid-oidc-wrong-application",
@@ -956,8 +1159,12 @@ func TestRefreshOIDCToken_ApplicationVerificationFailureRevokesNewProviderRefres
 	assert.False(t, ok)
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 	assert.Contains(t, w.Body.String(), "failed to refresh token")
-	assert.Equal(t, []providerRefreshTokenRevokeCall{
-		{appKey: oidcpkg.ApplicationWeb, refreshToken: "provider-refresh-token"},
+	assert.Equal(t, []providerTokenFamilyRevokeCall{
+		{
+			appKey:       oidcpkg.ApplicationWeb,
+			accessToken:  "provider-access-token",
+			refreshToken: "provider-refresh-token",
+		},
 	}, revoker.calls)
 }
 

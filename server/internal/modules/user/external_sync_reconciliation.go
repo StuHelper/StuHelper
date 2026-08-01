@@ -118,10 +118,6 @@ func (s *Service) requeueUserProfileProjectionStates(ctx context.Context, states
 				}
 				requeued++
 			}
-			if err := s.enqueueVerifiedStudentRoleSyncTx(ctx, tx, state.UserID, state.Approved); err != nil {
-				return err
-			}
-			requeued++
 		}
 		return nil
 	})

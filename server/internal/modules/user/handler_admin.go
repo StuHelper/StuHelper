@@ -40,6 +40,46 @@ func (h *Handler) handleAdminListIdentities(c *gin.Context) {
 	response.Success(c, pagedListResponse[identityReviewItemResponse]{List: items, Total: total})
 }
 
+func (h *Handler) handleAdminGetIdentity(c *gin.Context) {
+	userID, err := strconv.ParseInt(c.Param("userID"), 10, 64)
+	if err != nil || userID <= 0 {
+		response.BadRequest(c, "invalid user ID")
+		return
+	}
+
+	item, err := h.service.GetIdentityReviewItem(c.Request.Context(), userID)
+	if err != nil {
+		if respondAdminGetIdentityReviewError(c, err) {
+			return
+		}
+		logger.FromGin(c).Error(
+			"failed to load identity review evidence",
+			zap.Int64("target_user_id", userID),
+			zap.Error(err),
+		)
+		response.InternalError(c, "failed to load identity review evidence")
+		return
+	}
+
+	audit.LogFromGin(c, audit.Event{
+		Type:         audit.EventDataAccess,
+		Category:     "admin_operation",
+		Resource:     "identity_review_material",
+		ResourceType: "identity_review_material",
+		ResourceID:   strconv.FormatInt(userID, 10),
+		Action:       "view",
+		Result:       "success",
+		Details: map[string]any{
+			"target_user_id": userID,
+			"front_present":  item.DocPhotoFront != nil,
+			"back_present":   item.DocPhotoBack != nil,
+			"selfie_present": item.DocPhotoSelfie != nil,
+		},
+	})
+
+	response.Success(c, identityReviewDetailToJSON(item))
+}
+
 type reviewIdentityHTTPRequest struct {
 	Approved        *bool   `json:"approved" binding:"required"`
 	RejectionReason *string `json:"rejectionReason"`
@@ -80,9 +120,9 @@ func (h *Handler) handleAdminReviewIdentity(c *gin.Context) {
 		Action:       map[bool]string{true: "approve", false: "reject"}[*req.Approved],
 		Result:       "success",
 		Details: map[string]any{
-			"target_user_id":   userID,
-			"approved":         *req.Approved,
-			"rejection_reason": derefOptionalString(req.RejectionReason),
+			"target_user_id":            userID,
+			"approved":                  *req.Approved,
+			"rejection_reason_provided": strings.TrimSpace(derefOptionalString(req.RejectionReason)) != "",
 		},
 	})
 
@@ -166,8 +206,18 @@ func (h *Handler) handleAdminReviewStudentVerification(c *gin.Context) {
 	if !ensureAdminSchoolAccess(c, capability.UserStudentReview, profileSchoolID) {
 		return
 	}
+	if profileSchoolID == nil {
+		response.Conflict(c, "student verification school changed; reload and retry")
+		return
+	}
 
-	err = h.service.ReviewStudentVerification(c.Request.Context(), userID, *req.Approved, derefOptionalString(req.RejectionReason))
+	err = h.service.ReviewStudentVerification(
+		c.Request.Context(),
+		userID,
+		*profileSchoolID,
+		*req.Approved,
+		derefOptionalString(req.RejectionReason),
+	)
 	if err != nil {
 		if respondAdminReviewStudentVerificationError(c, err) {
 			return
@@ -189,9 +239,9 @@ func (h *Handler) handleAdminReviewStudentVerification(c *gin.Context) {
 		Action:       map[bool]string{true: "approve", false: "reject"}[*req.Approved],
 		Result:       "success",
 		Details: map[string]any{
-			"target_user_id":   userID,
-			"approved":         *req.Approved,
-			"rejection_reason": derefOptionalString(req.RejectionReason),
+			"target_user_id":            userID,
+			"approved":                  *req.Approved,
+			"rejection_reason_provided": strings.TrimSpace(derefOptionalString(req.RejectionReason)) != "",
 		},
 	})
 

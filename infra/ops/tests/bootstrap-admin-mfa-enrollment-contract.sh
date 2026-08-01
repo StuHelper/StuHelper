@@ -44,8 +44,12 @@ assert_contains "${BOOTSTRAP_SCRIPT}" 'STUHELPER_APP_CONTAINER'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'STUHELPER_DB_CONTAINER'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'CASDOOR_DB_CONTAINER'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'public\."user"'
-assert_literal "${BOOTSTRAP_SCRIPT}" "name IN ('super_admin', 'school_admin')"
-assert_literal "${BOOTSTRAP_SCRIPT}" "member = :'organization' || '/' || :'target_user'"
+assert_contains "${BOOTSTRAP_SCRIPT}" 'public\.authorization_grants'
+assert_literal "${BOOTSTRAP_SCRIPT}" "grants.role IN ('super_admin', 'school_admin')"
+assert_literal "${BOOTSTRAP_SCRIPT}" "grants.desired_state = 'granted'"
+if grep -Fq 'FROM public.role' "${BOOTSTRAP_SCRIPT}"; then
+  fail "MFA bootstrap must not authorize from Casdoor role membership"
+fi
 assert_contains "${BOOTSTRAP_SCRIPT}" 'COALESCE\("webauthnCredentials"'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'mfa_phone_enabled'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'totp_secret'

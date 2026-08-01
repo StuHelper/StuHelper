@@ -1,5 +1,5 @@
 <template>
-  <main class="mx-auto max-w-[960px] p-6 animate-fade-in max-sm:p-4">
+  <section class="mx-auto max-w-[960px] p-6 animate-fade-in max-sm:p-4">
     <header class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div class="min-w-0">
         <p class="m-0 text-xs font-semibold uppercase text-primary">
@@ -32,7 +32,7 @@
     </header>
 
     <ConnectEndpointsPanel />
-  </main>
+  </section>
 </template>
 
 <script setup lang="ts">

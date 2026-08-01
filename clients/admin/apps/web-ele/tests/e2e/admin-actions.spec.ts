@@ -89,6 +89,8 @@ const identityReviews = [
 let nextIdentityReviewListErrorMessage: null | string = null;
 let nextIdentityReviewActionErrorMessage: null | string = null;
 let nextIdentityReviewActionDelay: null | Promise<void> = null;
+let nextIdentityReviewDetailErrorMessage: null | string = null;
+let identityReviewDetailMissingSelfie = false;
 let nextReportListErrorMessage: null | string = null;
 let nextReportActionErrorMessage: null | string = null;
 let nextReviewListErrorMessage: null | string = null;
@@ -126,6 +128,20 @@ async function confirmPopconfirm(page: Page) {
     .getByRole('button', { name: /确定|Confirm/ })
     .last()
     .click();
+}
+
+async function openIdentityEvidence(page: Page, rowName: RegExp) {
+  const row = page.getByRole('row', { name: rowName });
+  await expect(row).toBeVisible();
+  await row.getByRole('button', { name: /查看材料|Review Evidence/ }).click();
+  const dialog = page.getByRole('dialog', {
+    name: /核验实名认证材料|Review Identity Evidence/,
+  });
+  await expect(dialog).toBeVisible();
+  await expect(
+    dialog.getByRole('img', { name: /证件正面|Document Front/ }),
+  ).toBeVisible();
+  return dialog;
 }
 
 async function mockAdminApi(page: Page, capturedMutations: CapturedMutation[]) {
@@ -243,6 +259,38 @@ async function mockAdminApi(page: Page, capturedMutations: CapturedMutation[]) {
       return;
     }
     if (path.startsWith('/api/v1/admin/identities/')) {
+      if (method === 'GET') {
+        if (nextIdentityReviewDetailErrorMessage) {
+          const message = nextIdentityReviewDetailErrorMessage;
+          nextIdentityReviewDetailErrorMessage = null;
+          await route.fulfill(
+            json({
+              success: false,
+              error: {
+                code: 'E2E_IDENTITY_REVIEW_DETAIL_UNAVAILABLE',
+                message,
+              },
+            }),
+          );
+          return;
+        }
+        const userID = Number(path.split('/').at(-1));
+        const item =
+          identityReviews.find((identity) => identity.userID === userID) ??
+          identityReviews[0];
+        await route.fulfill(
+          ok({
+            ...item,
+            docPhotoFrontURL:
+              'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=',
+            docPhotoBackURL: null,
+            docPhotoSelfieURL: identityReviewDetailMissingSelfie
+              ? null
+              : 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=',
+          }),
+        );
+        return;
+      }
       capturedMutations.push({
         path,
         method,
@@ -293,6 +341,8 @@ test.describe('Admin management actions', () => {
     nextIdentityReviewListErrorMessage = null;
     nextIdentityReviewActionErrorMessage = null;
     nextIdentityReviewActionDelay = null;
+    nextIdentityReviewDetailErrorMessage = null;
+    identityReviewDetailMissingSelfie = false;
     nextReportListErrorMessage = null;
     nextReportActionErrorMessage = null;
     nextReviewListErrorMessage = null;
@@ -450,19 +500,56 @@ test.describe('Admin management actions', () => {
     await expect(loadError).toHaveCount(0);
   });
 
+  test('identity review detail failures keep a retry path inside the evidence dialog', async ({
+    page,
+  }) => {
+    nextIdentityReviewDetailErrorMessage = '实名认证材料暂不可用';
+
+    await page.goto('/users/identity-review');
+    const row = page.getByRole('row', { name: /张三/ });
+    await row.getByRole('button', { name: /查看材料|Review Evidence/ }).click();
+
+    const dialog = page.getByRole('dialog', {
+      name: /核验实名认证材料|Review Identity Evidence/,
+    });
+    await expect(dialog.getByText('实名认证材料暂不可用')).toBeVisible();
+    await dialog.getByRole('button', { name: /重试|Retry/ }).click();
+    await expect(
+      dialog.getByRole('img', { name: /证件正面|Document Front/ }),
+    ).toBeVisible();
+  });
+
+  test('identity review cannot approve incomplete evidence', async ({
+    page,
+  }) => {
+    identityReviewDetailMissingSelfie = true;
+
+    await page.goto('/users/identity-review');
+    const dialog = await openIdentityEvidence(page, /张三/);
+
+    await expect(
+      dialog.getByText(
+        /必需材料不完整，无法通过审核|Required evidence is incomplete/,
+      ),
+    ).toBeVisible();
+    await expect(dialog.locator('[data-action="approve"]')).toBeDisabled();
+    await expect(dialog.locator('[data-action="reject"]')).toBeEnabled();
+  });
+
   test('identity review buttons submit approve and reject decisions', async ({
     page,
   }) => {
     await page.goto('/users/identity-review');
 
-    const approveRow = page.getByRole('row', { name: /张三/ });
-    await expect(approveRow).toBeVisible();
-    await approveRow.getByRole('button', { name: /通过|Approve/ }).click();
+    const approveDialog = await openIdentityEvidence(page, /张三/);
+    await approveDialog.getByRole('button', { name: /通过|Approve/ }).click();
     await confirmPopconfirm(page);
     await expect(page.getByText('实名认证已通过')).toBeVisible();
 
-    const rejectRow = page.getByRole('row', { name: /李四/ });
-    await rejectRow.getByRole('button', { name: /驳回|Reject/ }).click();
+    const rejectEvidenceDialog = await openIdentityEvidence(page, /李四/);
+    await rejectEvidenceDialog
+      .getByRole('button', { name: /驳回|Reject/ })
+      .click();
     const rejectDialog = page.getByRole('dialog', {
       name: /驳回实名认证|Reject Identity Verification/,
     });
@@ -506,14 +593,16 @@ test.describe('Admin management actions', () => {
     await expect(activeRow).toBeVisible();
     await expect(otherRow).toBeVisible();
 
-    const activeApprove = activeRow.locator('[data-action="approve"]');
+    const activeDialog = await openIdentityEvidence(page, /张三/);
+    const activeApprove = activeDialog.locator('[data-action="approve"]');
     await activeApprove.click();
     await confirmPopconfirm(page);
 
     await expect(activeApprove).toBeDisabled();
-    await expect(activeRow.locator('[data-action="reject"]')).toBeDisabled();
-    await expect(otherRow.locator('[data-action="approve"]')).toBeEnabled();
-    await expect(otherRow.locator('[data-action="reject"]')).toBeEnabled();
+    await expect(activeDialog.locator('[data-action="reject"]')).toBeDisabled();
+    await expect(
+      otherRow.locator('[data-action="review-evidence"]'),
+    ).toBeEnabled();
 
     releaseReview();
     await expect(page.getByText('实名认证已通过')).toBeVisible();
@@ -526,9 +615,8 @@ test.describe('Admin management actions', () => {
 
     await page.goto('/users/identity-review');
 
-    const approveRow = page.getByRole('row', { name: /张三/ });
-    await expect(approveRow).toBeVisible();
-    await approveRow.getByRole('button', { name: /通过|Approve/ }).click();
+    const approveDialog = await openIdentityEvidence(page, /张三/);
+    await approveDialog.getByRole('button', { name: /通过|Approve/ }).click();
     await confirmPopconfirm(page);
 
     const actionError = page.locator('.admin-load-error', {
@@ -552,9 +640,8 @@ test.describe('Admin management actions', () => {
 
     await page.goto('/users/identity-review');
 
-    const rejectRow = page.getByRole('row', { name: /李四/ });
-    await expect(rejectRow).toBeVisible();
-    await rejectRow.getByRole('button', { name: /驳回|Reject/ }).click();
+    const evidenceDialog = await openIdentityEvidence(page, /李四/);
+    await evidenceDialog.getByRole('button', { name: /驳回|Reject/ }).click();
     const rejectDialog = page.getByRole('dialog', {
       name: /驳回实名认证|Reject Identity Verification/,
     });

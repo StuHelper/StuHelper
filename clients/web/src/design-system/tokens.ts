@@ -2,7 +2,7 @@
 // Single source of truth — mirrors CSS custom properties in tailwind.css
 
 export const colors = {
-  primary: '#5b7cf7',
+  primary: '#3f5ccb',
   primaryLight: '#7e9aff',
   accent: '#e87aac',
   accentLight: '#f09ec5',

@@ -6,6 +6,7 @@ import (
 	"github.com/StuHelper/StuHelper/server/internal/modules/academics"
 	"github.com/StuHelper/StuHelper/server/internal/modules/admission"
 	"github.com/StuHelper/StuHelper/server/internal/modules/auth"
+	authorizationmodule "github.com/StuHelper/StuHelper/server/internal/modules/authorization"
 	"github.com/StuHelper/StuHelper/server/internal/modules/course/review"
 	"github.com/StuHelper/StuHelper/server/internal/modules/openplatform"
 	"github.com/StuHelper/StuHelper/server/internal/modules/rbac"
@@ -22,6 +23,13 @@ func authAdminAuthorizers() auth.AdminAuthorizers {
 	return auth.AdminAuthorizers{
 		AccountLockUpdate: rbac.RequireGlobalCapability(capability.UserSystemUpdate),
 		StepUpMFA:         rbac.RequireStepUpMFA(),
+	}
+}
+
+func authorizationAdminAuthorizers() authorizationmodule.AdminAuthorizers {
+	return authorizationmodule.AdminAuthorizers{
+		Manage:    rbac.RequireGlobalCapability(capability.IAMGrantsManage),
+		StepUpMFA: rbac.RequireStepUpMFA(),
 	}
 }
 

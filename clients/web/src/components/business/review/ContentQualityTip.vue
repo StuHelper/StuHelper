@@ -21,6 +21,7 @@
       </li>
     </ul>
     <button
+      type="button"
       v-if="dismissible"
       class="mt-2 px-2 py-1 text-xs bg-transparent rounded-sm text-text-muted cursor-pointer hover:border-text-muted"
       @click="$emit('dismiss')"

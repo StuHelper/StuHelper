@@ -17,8 +17,7 @@ import {
   type PageApiOptions,
   type PageApiRuntime,
 } from './page-api-runtime'
-
-const CONSOLE_AUTHORITY = 4
+import { createAuthority4ListenerRegistrar } from './authority-listener'
 
 export function registerPageAPI(ctx: Context, options: PageApiOptions) {
   if (!ctx.console) {
@@ -27,21 +26,22 @@ export function registerPageAPI(ctx: Context, options: PageApiOptions) {
   }
 
   const runtime = createPageApiRuntime(ctx, options)
-  ctx.console.addListener('stuhelperGroupCenter/page/dashboard', function () {
+  const addAuthorityListener = createAuthority4ListenerRegistrar(ctx)
+  addAuthorityListener('stuhelperGroupCenter/page/dashboard', function () {
     return handleDashboardPage(runtime, this)
-  }, { authority: CONSOLE_AUTHORITY })
-  ctx.console.addListener('stuhelperGroupCenter/page/identity', function () {
+  })
+  addAuthorityListener('stuhelperGroupCenter/page/identity', function () {
     return handleIdentityPage(runtime, this)
-  }, { authority: CONSOLE_AUTHORITY })
-  ctx.console.addListener('stuhelperGroupCenter/page/review', function () {
+  })
+  addAuthorityListener('stuhelperGroupCenter/page/review', function () {
     return handleReviewPage(runtime, this)
-  }, { authority: CONSOLE_AUTHORITY })
-  ctx.console.addListener('stuhelperGroupCenter/page/config-governance', function () {
+  })
+  addAuthorityListener('stuhelperGroupCenter/page/config-governance', function () {
     return handleConfigGovernancePage(runtime, this)
-  }, { authority: CONSOLE_AUTHORITY })
-  ctx.console.addListener('stuhelperGroupCenter/page/entity-profile', function (query: EntityProfileQuery) {
+  })
+  addAuthorityListener('stuhelperGroupCenter/page/entity-profile', function (query: EntityProfileQuery) {
     return handleEntityProfilePage(runtime, this, query)
-  }, { authority: CONSOLE_AUTHORITY })
+  })
 }
 
 async function handleDashboardPage(runtime: PageApiRuntime, client: ScopedConsoleClient) {

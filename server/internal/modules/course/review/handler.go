@@ -2,8 +2,8 @@ package review
 
 import (
 	"context"
+	"errors"
 	"strconv"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -19,11 +19,9 @@ import (
 type StepUpVerifier func(*gin.Context) bool
 
 const (
-	teacherPublicStatsRefreshTimeout      = 10 * time.Second
-	teacherPublicCacheInvalidationTimeout = 2 * time.Second
-	teacherPublicListCacheKey             = "review:teachers"
-	teacherPublicHotCacheKey              = "review:hot_teachers"
-	courseRatingStatsCacheKey             = "review:rating_stats:v2"
+	teacherPublicListCacheKey = "review:teachers"
+	teacherPublicHotCacheKey  = "review:hot_teachers"
+	courseRatingStatsCacheKey = "review:rating_stats:v2"
 )
 
 type AdminAuthorizers struct {
@@ -58,6 +56,7 @@ type Handler struct {
 // StartBackgroundJobs 启动评课后台任务（如 FGA 同步队列）。
 func (h *Handler) StartBackgroundJobs(ctx context.Context, start func(string, func(context.Context))) {
 	h.service.StartBackgroundJobs(ctx, start)
+	start("review teacher public stats projection", h.runTeacherPublicStatsRefreshWorker)
 }
 
 // RefreshTeacherPublicStats 刷新公开教师统计物化视图，并失效依赖该视图的公开教师缓存。
@@ -65,8 +64,14 @@ func (h *Handler) RefreshTeacherPublicStats(ctx context.Context) error {
 	if err := h.service.RefreshTeacherPublicStats(ctx); err != nil {
 		return err
 	}
-	h.invalidateTeacherPublicCachesDetached(ctx, logger.FromContext(ctx))
-	return nil
+	return h.invalidateTeacherPublicCaches(ctx, logger.FromContext(ctx))
+}
+
+// EnqueueTeacherPublicStatsRefresh requests a durable, coalesced projection
+// refresh. Database triggers enqueue the same deduplicated job on source-table
+// mutations; this explicit entrypoint is the periodic reconciliation path.
+func (h *Handler) EnqueueTeacherPublicStatsRefresh(ctx context.Context) error {
+	return h.service.repo.EnqueueTeacherPublicStatsRefresh(ctx)
 }
 
 // RegisterRoutes 注册评课社区路由
@@ -108,7 +113,7 @@ func (h *Handler) RegisterRoutes(
 	r.POST("/reviews/:reviewID/reports", authMiddleware, middleware.EndpointRateLimitMiddleware(h.reportLimiter, "report"), h.ReportReview)
 
 	// 回复
-	r.GET("/reviews/:reviewID/replies", h.GetReplies)
+	r.GET("/reviews/:reviewID/replies", optionalAuthMiddleware, middleware.RequireHealthyOptionalAuth(), h.GetReplies)
 	r.POST("/reviews/:reviewID/replies", authMiddleware, middleware.EndpointRateLimitMiddleware(h.replyLimiter, "reply"), h.CreateReply)
 	r.DELETE("/replies/:replyID", authMiddleware, middleware.EndpointRateLimitMiddleware(h.writeLimiter, "delete-reply"), h.DeleteReply)
 
@@ -283,31 +288,18 @@ func (h *Handler) invalidateReviewAggregateCaches(c *gin.Context) {
 	)
 }
 
-func (h *Handler) refreshTeacherPublicStatsAndInvalidateCaches(c *gin.Context) {
-	ctx, cancel := detachedRefreshContext(c.Request.Context(), teacherPublicStatsRefreshTimeout)
-	defer cancel()
-
-	l := logger.FromGin(c)
-	if err := h.RefreshTeacherPublicStats(ctx); err != nil {
-		l.Warn("failed to refresh teacher public stats", zap.Error(err))
-	}
-}
-
-func (h *Handler) invalidateTeacherPublicCaches(ctx context.Context, l *zap.Logger) {
+func (h *Handler) invalidateTeacherPublicCaches(ctx context.Context, l *zap.Logger) error {
+	var invalidateErr error
 	for _, key := range []string{teacherPublicListCacheKey, teacherPublicHotCacheKey} {
 		if err := h.cache.InvalidateByVersion(ctx, key); err != nil {
 			metrics.ObserveCacheInvalidationFailure(cache.NamespaceReview)
+			invalidateErr = errors.Join(invalidateErr, err)
 			l.Warn("failed to invalidate teacher public cache",
 				zap.String("cache_key", key),
 				zap.Error(err))
 		}
 	}
-}
-
-func (h *Handler) invalidateTeacherPublicCachesDetached(parent context.Context, l *zap.Logger) {
-	ctx, cancel := detachedRefreshContext(parent, teacherPublicCacheInvalidationTimeout)
-	defer cancel()
-	h.invalidateTeacherPublicCaches(ctx, l)
+	return invalidateErr
 }
 
 func (h *Handler) invalidateCourseReviewCountCaches(c *gin.Context) {

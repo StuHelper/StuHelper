@@ -224,6 +224,12 @@ func TestObserveIAMDriftReconciliationThresholdExceeded_Counter(t *testing.T) {
 	assert.Equal(t, before+1, testutil.ToFloat64(IAMDriftReconciliationThresholdExceededTotal.WithLabelValues("openfga_relation")))
 }
 
+func TestObserveIAMInvalidRoleScope_Counter(t *testing.T) {
+	before := testutil.ToFloat64(IAMInvalidRoleScopeTotal)
+	ObserveIAMInvalidRoleScope()
+	assert.Equal(t, before+1, testutil.ToFloat64(IAMInvalidRoleScopeTotal))
+}
+
 // ---------------------------------------------------------------------------
 // Redis metrics (redis.go)
 // ---------------------------------------------------------------------------
@@ -269,6 +275,17 @@ func TestObserveExternalRequest_Error(t *testing.T) {
 	before := testutil.ToFloat64(ExternalRequestsTotal.WithLabelValues("ldap", "lookup", "error"))
 	ObserveExternalRequest("ldap", "lookup", time.Now().Add(-100*time.Millisecond), assert.AnError)
 	after := testutil.ToFloat64(ExternalRequestsTotal.WithLabelValues("ldap", "lookup", "error"))
+	assert.Equal(t, before+1, after)
+}
+
+func TestObserveExternalDataIntegrityError(t *testing.T) {
+	counter := ExternalDataIntegrityErrorsTotal.WithLabelValues(
+		"oracle_student_directory",
+		"invalid_record",
+	)
+	before := testutil.ToFloat64(counter)
+	ObserveExternalDataIntegrityError("oracle_student_directory", "invalid_record")
+	after := testutil.ToFloat64(counter)
 	assert.Equal(t, before+1, after)
 }
 
@@ -321,6 +338,21 @@ func TestFrontendErrorHandler_UnhandledRejection(t *testing.T) {
 
 	assert.Equal(t, http.StatusNoContent, w.Code)
 	assert.Equal(t, before+1, testutil.ToFloat64(FrontendErrorsTotal.WithLabelValues("unhandledrejection")))
+}
+
+func TestFrontendErrorHandler_VueError(t *testing.T) {
+	router := gin.New()
+	router.POST(frontendErrorsRoute, FrontendErrorHandler())
+
+	before := testutil.ToFloat64(FrontendErrorsTotal.WithLabelValues("vue-error"))
+
+	body := `{"kind":"vue-error"}`
+	req := httptest.NewRequest(http.MethodPost, frontendErrorsRoute, strings.NewReader(body))
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNoContent, w.Code)
+	assert.Equal(t, before+1, testutil.ToFloat64(FrontendErrorsTotal.WithLabelValues("vue-error")))
 }
 
 func TestFrontendErrorHandler_InvalidKind(t *testing.T) {
@@ -498,12 +530,13 @@ func TestLabelCardinality_HTTPPath(t *testing.T) {
 }
 
 func TestLabelCardinality_FrontendErrors(t *testing.T) {
-	// Only "error" and "unhandledrejection" are allowed.
+	// Only the three enumerated browser and Vue runtime kinds are allowed.
 	// Other kinds are silently dropped, preventing label explosion.
 	assert.True(t, allowedFrontendErrorKinds["error"])
 	assert.True(t, allowedFrontendErrorKinds["unhandledrejection"])
+	assert.True(t, allowedFrontendErrorKinds["vue-error"])
 	assert.False(t, allowedFrontendErrorKinds["custom"])
-	assert.Len(t, allowedFrontendErrorKinds, 2)
+	assert.Len(t, allowedFrontendErrorKinds, 3)
 }
 
 func TestLabelCardinality_Vitals(t *testing.T) {

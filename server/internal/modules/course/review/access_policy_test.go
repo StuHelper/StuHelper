@@ -135,7 +135,7 @@ func TestResolveAccessFacts_RequiresCapabilityAndVerificationFacts(t *testing.T)
 		capability.ReviewCreate,
 		capability.ReviewEditOwn,
 		capability.ReviewDeleteOwn,
-	})
+	}, nil)
 	require.NoError(t, err)
 	assert.True(t, facts.CanViewFull)
 	assert.True(t, facts.CanPostReview)
@@ -144,7 +144,7 @@ func TestResolveAccessFacts_RequiresCapabilityAndVerificationFacts(t *testing.T)
 
 	facts, err = service.ResolveAccessFacts(context.Background(), "user-1", []string{
 		capability.ReviewListFull,
-	})
+	}, nil)
 	require.NoError(t, err)
 	assert.True(t, facts.CanViewFull)
 	assert.False(t, facts.CanPostReview)

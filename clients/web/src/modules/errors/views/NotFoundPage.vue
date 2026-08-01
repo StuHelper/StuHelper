@@ -22,6 +22,7 @@
           {{ pageCopy.backHome }}
         </a>
         <button
+          type="button"
           class="inline-flex items-center gap-2 py-2 px-5 text-sm font-medium rounded-full bg-transparent text-text-secondary transition-all duration-fast hover:border-text-primary hover:text-text-primary max-sm:w-full max-sm:justify-center"
           @click="goBack"
         >

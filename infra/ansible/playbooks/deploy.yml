@@ -1,6 +1,7 @@
 ---
 - name: Deploy StuHelper release
   hosts: stuhelper
+  gather_facts: false
   vars:
     deploy_app_dir: "{{ deploy_app_dir | default('/opt/stuhelper') }}"
     deploy_tag: "{{ lookup('env', 'DEPLOY_TAG') | default(lookup('pipe', 'git -C ../.. rev-parse --short HEAD'), true) }}"
@@ -19,7 +20,10 @@
     - name: Build deploy bundle on control node
       delegate_to: localhost
       ansible.builtin.command:
-        cmd: ../../ops/build-deploy-bundle.sh ../../generated/deploy/stuhelper-deploy-bundle.tar.gz
+        argv:
+          - "{{ playbook_dir }}/../../ops/build-deploy-bundle.sh"
+      tags:
+        - deploy-bundle
 
     - name: Ensure deploy directory exists
       ansible.builtin.file:
@@ -29,7 +33,7 @@
 
     - name: Upload deploy bundle
       ansible.builtin.copy:
-        src: ../../generated/deploy/stuhelper-deploy-bundle.tar.gz
+        src: "{{ playbook_dir }}/../../generated/deploy/stuhelper-deploy-bundle.tar.gz"
         dest: "{{ deploy_app_dir }}/deploy-bundle.tgz"
         mode: "0644"
 

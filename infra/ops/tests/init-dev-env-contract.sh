@@ -118,6 +118,11 @@ assert_file_contains "${env_file}" '^REDIS_EXPORTER_PASSWORD=dev-redis-metrics-[
 assert_env_values_differ "${env_file}" "REDIS_EXPORTER_PASSWORD" "REDIS_PASSWORD"
 assert_env_value "${env_file}" "REDIS_EXPORTER_USERNAME" "stuhelper_metrics"
 assert_env_value "${env_file}" "REDIS_EXTERNAL_PORT" "6379"
+assert_env_value "${env_file}" "REDIS_TLS_ENABLED" "true"
+[[ -f "${tmpdir}/generated/redis/ca.crt" ]] ||
+  fail "development initialization must generate the Redis CA"
+[[ -f "${tmpdir}/generated/redis-client-ca/ca.crt" ]] ||
+  fail "development initialization must prepare the Redis client CA"
 assert_env_value "${env_file}" "OPENFGA_HTTP_EXTERNAL_PORT" "8081"
 assert_env_value "${env_file}" "OPENFGA_GRPC_EXTERNAL_PORT" "8082"
 assert_env_value "${env_file}" "OPENFGA_PLAYGROUND_EXTERNAL_PORT" "3002"
@@ -230,6 +235,7 @@ assert_env_value "${legacy_env}" "WEB_EXTERNAL_PORT" "3000"
 assert_env_value "${legacy_env}" "ADMIN_EXTERNAL_PORT" "3001"
 assert_env_value "${legacy_env}" "POSTGRES_EXTERNAL_PORT" "5432"
 assert_env_value "${legacy_env}" "REDIS_EXTERNAL_PORT" "6379"
+assert_env_value "${legacy_env}" "REDIS_TLS_ENABLED" "true"
 assert_env_value "${legacy_env}" "OPENFGA_HTTP_EXTERNAL_PORT" "8081"
 assert_env_value "${legacy_env}" "OPENFGA_GRPC_EXTERNAL_PORT" "8082"
 assert_env_value "${legacy_env}" "OPENFGA_PLAYGROUND_EXTERNAL_PORT" "3002"
@@ -304,6 +310,7 @@ overrides = {
     "POSTGRES_EXTERNAL_PORT": "15432",
     "REDIS_HOST": "redis",
     "REDIS_EXTERNAL_PORT": "26379",
+    "REDIS_TLS_ENABLED": "false",
     "REDIS_TLS_CA": "/redis-tls/ca.crt",
     "CORS_ORIGINS": "http://stuhelper.com,http://join.stuhelper.com,http://sso.stuhelper.com",
     "CASDOOR_EXTERNALPORT": "28085",
@@ -405,6 +412,7 @@ assert_env_value "${polluted_env}" "POSTGRES_HOST" "localhost"
 assert_env_value "${polluted_env}" "POSTGRES_EXTERNAL_PORT" "5432"
 assert_env_value "${polluted_env}" "REDIS_HOST" "localhost"
 assert_env_value "${polluted_env}" "REDIS_EXTERNAL_PORT" "6379"
+assert_env_value "${polluted_env}" "REDIS_TLS_ENABLED" "true"
 assert_env_value "${polluted_env}" "REDIS_TLS_CA" "/tls/ca.crt"
 assert_env_value "${polluted_env}" "CORS_ORIGINS" "http://localhost:3000,http://127.0.0.1:3000,http://join.localhost:3000,http://localhost:3001,http://127.0.0.1:3001"
 assert_env_value "${polluted_env}" "CASDOOR_EXTERNALPORT" "8085"
@@ -457,5 +465,51 @@ assert_env_value "${polluted_env}" "ALERTMANAGER_WEBHOOK_URL" ""
 assert_env_value "${polluted_env}" "BACKEND_IMAGE_REF" "stuhelper/backend:dev-placeholder"
 assert_env_value "${polluted_env}" "FRONTEND_IMAGE_REF" "stuhelper/frontend:dev-placeholder"
 assert_env_value "${polluted_env}" "ADMIN_IMAGE_REF" "stuhelper/admin:dev-placeholder"
+
+crypto_state_dir="$(mktemp -d)"
+cleanup_dirs+=("${crypto_state_dir}")
+crypto_state_file="${crypto_state_dir}/state/crypto.env"
+crypto_first_env="${crypto_state_dir}/first.env"
+crypto_second_env="${crypto_state_dir}/second.env"
+crypto_generated_dir="${crypto_state_dir}/generated"
+cp "${REPO_ROOT}/.env.example" "${crypto_first_env}"
+
+ENV_FILE="${crypto_first_env}" \
+DEV_CRYPTO_STATE_FILE="${crypto_state_file}" \
+GENERATED_ENV_FILE="${crypto_state_dir}/first.generated.env" \
+GENERATED_SECRET_ENV_FILE="${crypto_state_dir}/first.generated.secrets" \
+GENERATED_OBS_DIR="${crypto_generated_dir}/observability" \
+REDIS_TLS_DIR="${crypto_generated_dir}/redis" \
+REDIS_ACL_DIR="${crypto_generated_dir}/redis" \
+POSTGRES_CLIENT_CA_DIR="${crypto_generated_dir}/postgres-client-ca" \
+REDIS_CLIENT_CA_DIR="${crypto_generated_dir}/redis-client-ca" \
+EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_DIR="${crypto_generated_dir}/external-student-source-client-ca" \
+LOCAL_OBJECT_STORAGE_CONFIG_DIR="${crypto_generated_dir}/object-storage" \
+OBJECT_STORAGE_TLS_DIR="${crypto_generated_dir}/object-storage" \
+bash "${INIT_SCRIPT}" >"${crypto_state_dir}/first.stdout.log" 2>"${crypto_state_dir}/first.stderr.log"
+
+[[ -f "${crypto_state_file}" ]] || fail "development crypto state was not persisted"
+[[ "$(stat -c '%a' "${crypto_state_file}")" == "600" ]] ||
+  fail "development crypto state must be mode 600"
+
+ENV_FILE="${crypto_second_env}" \
+DEV_CRYPTO_STATE_FILE="${crypto_state_file}" \
+GENERATED_ENV_FILE="${crypto_state_dir}/second.generated.env" \
+GENERATED_SECRET_ENV_FILE="${crypto_state_dir}/second.generated.secrets" \
+GENERATED_OBS_DIR="${crypto_generated_dir}/observability" \
+REDIS_TLS_DIR="${crypto_generated_dir}/redis" \
+REDIS_ACL_DIR="${crypto_generated_dir}/redis" \
+POSTGRES_CLIENT_CA_DIR="${crypto_generated_dir}/postgres-client-ca" \
+REDIS_CLIENT_CA_DIR="${crypto_generated_dir}/redis-client-ca" \
+EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_DIR="${crypto_generated_dir}/external-student-source-client-ca" \
+LOCAL_OBJECT_STORAGE_CONFIG_DIR="${crypto_generated_dir}/object-storage" \
+OBJECT_STORAGE_TLS_DIR="${crypto_generated_dir}/object-storage" \
+bash "${INIT_SCRIPT}" >"${crypto_state_dir}/second.stdout.log" 2>"${crypto_state_dir}/second.stderr.log"
+
+for crypto_key in HMAC_SECRET DOC_AES_ACTIVE_KEY_ID DOC_AES_KEYS; do
+  [[ "$(env_value "${crypto_first_env}" "${crypto_key}")" == "$(env_value "${crypto_second_env}" "${crypto_key}")" ]] ||
+    fail "${crypto_key} must survive recreation of the development env file"
+done
+assert_file_contains "${crypto_state_dir}/second.stdout.log" 'restored stable development crypto keys'
 
 echo "[init-dev-env-contract] ok"

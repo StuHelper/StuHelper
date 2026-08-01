@@ -1,0 +1,193 @@
+---
+type: adr
+audience: maintainers, backend-dev, ops
+status: current
+authoritative-source: server/migrations/ + server/internal/modules/authorization/ + server/internal/platform/authorization/
+last-verified: 2026-07-31
+---
+
+# ADR-0008: PostgreSQL 授权控制面与 OpenFGA 运行时判定面
+
+**Date**: 2026-07-31
+**Status**: accepted; amended by [ADR-0009](0009-casdoor-organization-admin-super-admin-authority.md)
+**Deciders**: 项目 owner
+
+> **仓库实施状态（2026-08-01）**：已完成代码、迁移、OpenAPI、管理后台、一次性存量授权
+> 切换门禁、Casdoor 业务角色运行时链路退役和本地自动化验证；真实生产发布、切换 evidence
+> 与受控账号验收仍属于发布步骤，不能由本地绿灯替代。
+
+> **2026-08-01 修订**：ADR-0009 将 `super_admin` 的管理权威改为 Casdoor 目标
+> organization 用户对象的 `IsAdmin`。PostgreSQL 仍保存其可审计 serving projection；本 ADR
+> 对 `school_admin` / `section_*`、事务 outbox、撤权围栏与 OpenFGA 投影的其余决定保持有效。
+> 下文与“双管理员 bootstrap”“最后一名 super_admin 保护”冲突的历史表述由 ADR-0009 取代。
+
+## Context
+
+StuHelper 已使用 Casdoor OIDC 认证用户、Capability 表达功能入口，并使用 OpenFGA 判断资源关系。
+此前管理员角色来自 Casdoor JWT 的扁平 `roles` claim，school / section 范围再从 OpenFGA
+反查。这个模型能在缺少 scope 时安全拒绝，但没有受支持、可审计、可撤销、可重建的授权
+生命周期，并形成了 Casdoor role、OpenFGA tuple 与业务数据库三方协同的问题。
+
+本决策只选择长期逻辑架构；不以重构成本、实施时间或短期兼容性为决策依据。
+
+## Decision
+
+采用 StuHelper Authorization Control Plane：
+
+1. PostgreSQL 的授权授予账本是 `school_admin` / `section_*` 和 scope 的唯一管理真源；
+   `super_admin` 的唯一管理权威由 ADR-0009 定义，账本保存其 serving projection。
+2. OpenFGA 是运行时关系判定面和可重建 serving projection，不是人员授权的管理真源。
+3. Casdoor 负责认证、会话、token 签发和登录层 MFA；此外目标 organization 用户对象的
+   `IsAdmin` 是 `super_admin` 权威。Casdoor JWT 中的业务 role claim 不参与任何 StuHelper
+   授权决策，Casdoor 也不维护 `school_admin`、`section_*`、`verified_student` 等业务角色
+   目录或 membership。
+4. StuHelper Authorization Service 是业务模块唯一 PDP 入口。业务 handler 不解析 provider
+   role，不直接构造 OpenFGA client；Capability、DB 事实、撤权栅栏与 OpenFGA 关系由该服务
+   组合并统一 fail-closed。
+5. 后台入口和 `/auth/me` 中的角色、Capability、scope 均从 DB 授权快照及 DB 业务事实派生，
+   不从 IdP claim 派生。
+
+## 授予与撤销状态机
+
+授权变更必须在 PostgreSQL 事务中同时写入：
+
+- `authorization_grants` 期望状态与单调递增 revision；
+- `audit_events` 中的不可变安全审计；
+- `domain_event_outbox` 中的 OpenFGA 精确 tuple 投影任务。
+
+授予顺序：
+
+```text
+DB desired=granted, projection=pending + audit + outbox
+  -> OpenFGA write / higher-consistency verify
+  -> DB projection=applied, activated_at=<首次验证时间>
+  -> 授权快照开始包含该 grant
+```
+
+撤销顺序：
+
+```text
+DB desired=revoked, projection=pending
+  -> 撤权栅栏立即从授权快照排除该 grant
+  -> OpenFGA delete with on_missing=ignore / verify absent
+  -> DB projection=applied, revoked_at set
+```
+
+因此：
+
+- 授予不会在 OpenFGA 投影成功前提前生效；
+- 撤销在 DB 事务提交后立即拒绝，即使 OpenFGA 暂时不可用或仍有陈旧 tuple；
+- outbox 重试、重复投递、并发 grant/revoke 由 grant revision 和 outbox revision fencing
+  保证只有最新 desired state 可以完成；
+- dead-letter 必须可显式重放，并由 reconciliation 从 DB 重建 OpenFGA。
+- `activated_at` 是稳定的授予围栏：新建或恢复的 grant 在首次验证前为空；已激活 grant
+  做 reconcile 时保留该值，所以临时 `projection=pending/failed` 不会把所有管理员锁在
+  DB 控制面之外。`projection_status` 表示投影健康，不替代撤权围栏。
+
+## 固定授权类型
+
+管理 API 只接受代码内固定的 role / scope 组合：
+
+| Role | Scope type | OpenFGA direct tuple |
+|------|------------|----------------------|
+| `super_admin` | `ecosystem:stuhelper` | `user:<users.id>#super_admin@ecosystem:stuhelper` |
+| `school_admin` | `school:<school_id>` | `user:<users.id>#admin@school:<school_id>` |
+| `section_admin` | `section:<section_id>` | `user:<users.id>#section_admin@section:<section_id>` |
+| `section_moderator` | `section:<section_id>` | `user:<users.id>#section_moderator@section:<section_id>` |
+| `section_reviewer` | `section:<section_id>` | `user:<users.id>#section_reviewer@section:<section_id>` |
+
+不提供任意 user / relation / object tuple 写 API。OpenFGA user 必须使用内部 `users.id`。
+首版 section scope 只接受既有 review-moderation section codec。
+
+## 管理面安全
+
+- grant/list/revoke 需要全局 `iam:grants:manage` Capability；
+- mutation 需要现有管理员 MFA enrollment 与 5 分钟 step-up proof；
+- 原因必填，审计记录 actor、target、role、scope、revision、before/after 与 outcome；
+- StuHelper 管理 API 不得创建或撤销 `super_admin`；该角色随 Casdoor `IsAdmin` 同步，允许
+  Casdoor owner 撤销最后一个组织管理员；
+- 重复 grant/revoke 是幂等成功，不产生扩大权限的旁路；
+- 并发重复 grant 由数据库唯一约束与 `ON CONFLICT` 收敛为一个 revision、一个审计和一个
+  outbox 任务；pending grant 的重复创建不会偷偷变成 reconcile；
+- DB、审计或 outbox 任一步失败，事务整体回滚；OpenFGA 故障不返回“授权已生效”。
+
+## 实施落点
+
+| 能力 | 仓库落点 |
+|------|----------|
+| 授权账本 | `server/migrations/000020_authorization_grants.*.sql` |
+| 旧 Casdoor role job 退役 | `server/migrations/000021_retire_casdoor_role_projection.*.sql` |
+| 稳定激活围栏索引 | `server/migrations/000022_authorization_activation_fence.*.sql` |
+| 一次性权威切换 marker | `server/migrations/000024_authorization_authority_cutover.*.sql` |
+| 管理 Service / Repository / worker | `server/internal/modules/authorization/` |
+| 受限 OpenAPI | `/api/v1/admin/authorization/grants*` 与 `/api/v1/admin/authorization/projections/reconcile` |
+| 管理后台 | `/authorization/grants`，需要全局 `iam:grants:manage` |
+| Casdoor 组织管理员同步 | 登录、native callback、refresh 与受保护请求实时复核 |
+
+首次生产管理员不再由 StuHelper bootstrap 工具写入。把预期账号设置为 Casdoor StuHelper
+organization administrator 后，让该账号完成正常登录或 refresh；系统会以 system actor 在
+单个事务内写 `super_admin` grant、审计与 outbox。项目允许仅有一个组织管理员。
+
+投影恢复提供两层入口：
+
+- 每个 grant 的显式 reconcile，以及需要 step-up MFA 的全量 rebuild API；
+- 每日 03:20 的受控 drift reconciliation：逐个以 higher-consistency 精确读取 DB 管理的
+  direct tuple，只重排 failed、超时 pending 或实际不一致的 grant；漂移超过阈值时停止
+  自动修复并触发现有 IAM drift 告警。未知、无 DB grant 的 tuple 不会被反向导入或自动删除。
+
+## 一致性与缓存
+
+授权快照可以在进程内或 Redis 做短 TTL 缓存，但缓存不是事实源。任何 grant/revoke 提交都必须
+按 subject + revision 主动失效；撤权检查不得只依赖 TTL。资源 mutation 的 OpenFGA allow
+还必须受 DB desired-state 撤权栅栏约束。
+
+## 迁移与回滚
+
+生产发布在 migration 和 Casdoor/OpenFGA bootstrap 后、启动新应用前运行
+`infra/ops/authorization-ledger-cutover.sh prod`。切换命令把旧状态视为迁移输入，不恢复其长期
+权威地位：
+
+- 当前有效 Casdoor organization `IsAdmin` 与本地 shadow user 对应后导入 `super_admin`；
+- scoped role 只有同时存在遗留 Casdoor membership 与对应 OpenFGA direct tuple 时导入，避免
+  单一陈旧来源扩大权限；
+- OpenFGA 读取使用 higher-consistency 并遍历全部分页；未知主体、嵌套 membership、既有账本
+  或来源冲突均 fail-closed；
+- grant、system audit、projection outbox 和 singleton completed marker 在单个 PostgreSQL
+  事务提交。应用在 production-like 环境看到 pending/missing marker 时拒绝启动；
+- marker 完成后重复执行只返回已存 digest/count，不重复读取或导入旧来源。fresh install 可用
+  空集合完成 marker。
+
+不得把未知 tuple 自动反向导入，也不得手工更新 marker 绕过冲突。切换后：
+
+- provider `roles` 不再解析或进入 access snapshot，不能参与 allow/deny；
+- Casdoor 中遗留业务 role/membership 先冻结写入，再清理；organization `IsAdmin` 保留为
+  `super_admin` 的唯一显式例外；
+- 旧 Casdoor role-sync credential、worker、配置和 bootstrap catalog 在代码切换完成后移除。
+
+若发布回滚，只回滚应用读取路径；DB 授权账本、审计与已完成 marker 不得删除或反向覆盖。
+回滚窗口内旧版本
+若仍信任 Casdoor role，会违反本 ADR，因此生产切换必须使用兼容发布序列或维护窗口，不能把
+重新启用 Casdoor role authority 当作正常回滚方案。
+
+## Consequences
+
+### Positive
+
+- 授权所有权、审计、恢复和灾备都以 PostgreSQL 为中心，OpenFGA 可从 DB 重建。
+- IdP compromise 或陈旧 role claim 不能直接产生 StuHelper 管理权限。
+- 授予和撤销有明确的部分失败语义，撤权时效不依赖 token 到期或投影重试完成。
+- 后台入口、Capability 与资源授权来自同一授权快照，不再形成 claim/tuple 双重权威。
+
+### Negative
+
+- 授权 mutation 需要事务、outbox worker、reconciliation、迁移工具和更严格的运维顺序。
+- OpenFGA serving projection 与 DB desired state 之间存在可观测、可修复的最终一致窗口。
+- 授权快照读取增加一次 DB/缓存依赖；依赖失败时受保护请求必须 fail-closed。
+
+## Rejected Alternatives
+
+- **OpenFGA tuple 作为唯一管理真源**：缺少与业务事务一致的审批、审计和灾后重建中心。
+- **Casdoor role 或 metadata 承载 scope**：把业务授权事实放回 IdP，并重新引入陈旧 token
+  与 membership 的双重权威。
+- **受保护的运维清单作为长期真源**：适合 bootstrap，不适合多操作员、在线撤权和审计查询。
+- **DB 与 Casdoor 双写业务角色**：Casdoor projection 对运行时决策没有必要，只增加故障域。

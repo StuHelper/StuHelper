@@ -3,7 +3,7 @@ type: guide
 audience: frontend-dev
 status: current
 authoritative-source: clients/shared/
-last-verified: 2026-05-24
+last-verified: 2026-07-31
 ---
 
 # 前端开发规范
@@ -91,6 +91,20 @@ web / admin / uniappx 封装
 
 跨路由共享状态优先放 Pinia；局部表单、弹窗与一次性页面交互留在组件内部。
 当前主站共享状态以 `clients/web/src/stores/` 为准，本页不再重复列出具体 store 清单。
+
+全局 Toast 由 `useToast` 的模块级状态统一渲染，生命周期跨越创建它的页面组件。页面卸载
+不得取消 Toast 的自动关闭计时器；需要提前关闭时应显式调用 `remove`，全局清理则调用
+`clearAll`。相关回归测试必须覆盖“创建作用域销毁后仍按原定时长关闭”的跨路由语义。
+
+## 可访问性基线
+
+- `AppShell` 的第一个键盘停靠点必须是可见于焦点状态的“跳到主要内容”链接，目标固定为
+  `main#main-content[tabindex="-1"]`；不得在各业务页重复创建同名锚点。
+- 新增图标按钮、表单、异步状态和路由级页面时，分别检查可访问名称、关联 label、
+  `aria-live` 和语义化 landmark；不能只依赖颜色或位置表达状态。
+- 保留 `:focus-visible` 的清晰焦点样式，并尊重 `prefers-reduced-motion`。
+- 浏览器回归以 `clients/web/tests/e2e/accessibility.spec.ts` 为入口；自动扫描不能替代
+  Tab 顺序、skip link 聚焦和真实键盘操作测试。
 
 ## 开发命令
 

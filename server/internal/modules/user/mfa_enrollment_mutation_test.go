@@ -9,58 +9,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMFAResetSuperAdminRequiresSecondSuperAdminReviewer(t *testing.T) {
-	cases := map[string]MFAEnrollmentAdminAction{
-		"missing reviewer": {
-			ActorUserID:    1,
-			TargetUserID:   2,
-			TargetRoleKind: MFATargetRoleSuperAdmin,
-		},
-		"actor reviewer": {
-			ActorUserID:    1,
-			TargetUserID:   2,
-			TargetRoleKind: MFATargetRoleSuperAdmin,
-			ReviewerUserID: 1,
-			ReviewerRoles:  []string{privilegedMFAReviewerRole},
-		},
-		"target reviewer": {
-			ActorUserID:    1,
-			TargetUserID:   2,
-			TargetRoleKind: MFATargetRoleSuperAdmin,
-			ReviewerUserID: 2,
-			ReviewerRoles:  []string{privilegedMFAReviewerRole},
-		},
-		"non super reviewer": {
-			ActorUserID:    1,
-			TargetUserID:   2,
-			TargetRoleKind: MFATargetRoleSuperAdmin,
-			ReviewerUserID: 3,
-			ReviewerRoles:  []string{"school_admin"},
-		},
-	}
-	for name, params := range cases {
-		t.Run(name, func(t *testing.T) {
-			repo := &mfaMutationFakeRepo{}
-			manager := newTestMFARecoveryManager(t, repo)
-
-			err := manager.ResetEnrollment(context.Background(), params)
-
-			require.ErrorIs(t, err, ErrMFAResetReviewRequired)
-			assert.Zero(t, repo.txCalls)
-		})
-	}
-}
-
-func TestMFAResetSuperAdminAcceptsSecondSuperAdminReviewer(t *testing.T) {
+func TestMFAResetSuperAdminAllowsSingleAdministratorSelfReset(t *testing.T) {
 	repo := &mfaMutationFakeRepo{}
 	manager := newTestMFARecoveryManager(t, repo)
 
 	err := manager.ResetEnrollment(context.Background(), MFAEnrollmentAdminAction{
-		ActorUserID:    1,
+		ActorUserID:    2,
 		TargetUserID:   2,
 		TargetRoleKind: MFATargetRoleSuperAdmin,
-		ReviewerUserID: 3,
-		ReviewerRoles:  []string{privilegedMFAReviewerRole},
 	})
 
 	require.NoError(t, err)
@@ -96,16 +52,14 @@ func TestMFAMutationRequiresExplicitTargetRoleKind(t *testing.T) {
 	assert.Zero(t, repo.txCalls)
 }
 
-func TestMFAEnrollmentMutationAuditIncludesReviewer(t *testing.T) {
+func TestMFAEnrollmentMutationAuditIncludesTargetRole(t *testing.T) {
 	event := mfaEnrollmentMutationAuditEvent(mfaEnrollmentMutation{
 		ActorUserID:    1,
 		TargetUserID:   2,
 		TargetRoleKind: MFATargetRoleSuperAdmin,
-		ReviewerUserID: 3,
 		AuditAction:    "reset",
 	}, mfaEnrollmentAuditOutcome{Result: "success"})
 
-	assert.Equal(t, "3", event.Details["reviewer_user_id"])
 	assert.Equal(t, string(MFATargetRoleSuperAdmin), event.Details["target_role_kind"])
 }
 

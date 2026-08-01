@@ -36,10 +36,11 @@ type botSessionOperatorHTTPRequest struct {
 }
 
 type botAdmissionEventHTTPRequest struct {
-	Action    BotAction `json:"action" binding:"required"`
-	Success   bool      `json:"success"`
-	MessageID string    `json:"messageID"`
-	Error     string    `json:"error"`
+	Action          BotAction `json:"action" binding:"required"`
+	Success         bool      `json:"success"`
+	DispatchAttempt int       `json:"dispatchAttempt"`
+	MessageID       string    `json:"messageID"`
+	Error           string    `json:"error"`
 }
 
 type botFreshmanReviewHTTPRequest struct {
@@ -152,6 +153,10 @@ func (h *Handler) handleRecordBotActionEvent(c *gin.Context) {
 	var req botAdmissionEventHTTPRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "invalid request parameters")
+		return
+	}
+	if req.DispatchAttempt <= 0 {
+		response.BadRequest(c, "dispatchAttempt is required")
 		return
 	}
 	if err := h.service.RecordBotActionEvent(c.Request.Context(), c.Param("id"), botEventInput(req)); err != nil {

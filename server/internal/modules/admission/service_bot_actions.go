@@ -2,12 +2,24 @@ package admission
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
+
+	"go.uber.org/zap"
+
+	"github.com/StuHelper/StuHelper/server/internal/pkg/ctxutil"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/logger"
 )
 
-const maxAdmissionPendingActionFilterRunes = 64
+const (
+	maxAdmissionPendingActionFilterRunes = 64
+	botActionClaimFinalizeTimeout        = 5 * time.Second
+	maxBotActionPreparationErrorBytes    = 1000
+)
 
 func (s *Service) ListPendingAdmissionActions(
 	ctx context.Context,
@@ -34,6 +46,7 @@ func (s *Service) ClaimQueuedAdmissionActions(
 	ctx context.Context,
 	filter AdmissionPendingActionFilter,
 ) ([]AdmissionPendingAction, error) {
+	ctx = ctxutil.Normalize(ctx)
 	normalized, err := normalizePendingActionFilter(filter)
 	if err != nil {
 		return nil, err
@@ -46,21 +59,180 @@ func (s *Service) ClaimQueuedAdmissionActions(
 	if len(rows) == 0 {
 		return []AdmissionPendingAction{}, nil
 	}
+
+	activeClaims := make([]bool, len(rows))
+	sessions := make([]AdmissionSession, len(rows))
+	for i := range rows {
+		activeClaims[i] = true
+		sessions[i] = rows[i].Session
+	}
+	seeds := pendingActionSeeds(sessions, now)
+	contexts, err := s.pendingActionContexts(ctx, sessions)
+	if err != nil {
+		return nil, errors.Join(err, s.abandonClaimedBotActions(ctx, rows))
+	}
+
 	actions := make([]AdmissionPendingAction, 0, len(rows))
 	for i := range rows {
-		action, stale, err := s.pendingActionFromQueuedRow(ctx, &rows[i], now)
-		if err != nil {
-			return nil, err
+		if err := ctx.Err(); err != nil {
+			return nil, errors.Join(
+				err,
+				s.abandonClaimedBotActions(ctx, activeBotActionClaims(rows, activeClaims)),
+			)
 		}
+
+		action, stale, preparationErr := s.pendingActionFromQueuedRow(
+			&rows[i],
+			seeds[i],
+			contexts,
+		)
+		if preparationErr != nil {
+			activeClaims[i] = false
+			finalizeErr := s.markBotActionPreparationFailed(ctx, &rows[i], preparationErr)
+			if finalizeErr != nil && !errors.Is(finalizeErr, ErrAdmissionBotActionLeaseLost) {
+				abandonErr := s.abandonClaimedBotActions(ctx, rows[i:i+1])
+				if abandonErr != nil && !errors.Is(abandonErr, ErrAdmissionBotActionLeaseLost) {
+					return nil, errors.Join(
+						preparationErr,
+						finalizeErr,
+						abandonErr,
+						s.abandonClaimedBotActions(ctx, activeBotActionClaims(rows, activeClaims)),
+					)
+				}
+			}
+			logger.L().Warn(
+				"admission bot action preparation failed",
+				zap.Int64("action_id", rows[i].ID),
+				zap.String("session_id", rows[i].SessionID),
+				zap.Int("dispatch_attempt", rows[i].AttemptCount),
+				zap.Error(preparationErr),
+				zap.NamedError("finalize_error", finalizeErr),
+			)
+			continue
+		}
+
 		if stale {
-			if err := s.repo.MarkBotActionStale(ctx, rows[i].ID, now); err != nil {
-				return nil, err
+			activeClaims[i] = false
+			finalizeErr := s.markBotActionStale(ctx, &rows[i])
+			if finalizeErr != nil && !errors.Is(finalizeErr, ErrAdmissionBotActionLeaseLost) {
+				abandonErr := s.abandonClaimedBotActions(ctx, rows[i:i+1])
+				if abandonErr != nil && !errors.Is(abandonErr, ErrAdmissionBotActionLeaseLost) {
+					return nil, errors.Join(
+						finalizeErr,
+						abandonErr,
+						s.abandonClaimedBotActions(ctx, activeBotActionClaims(rows, activeClaims)),
+					)
+				}
+			}
+			if finalizeErr != nil {
+				logger.L().Warn(
+					"admission bot action stale finalization failed",
+					zap.Int64("action_id", rows[i].ID),
+					zap.String("session_id", rows[i].SessionID),
+					zap.Int("dispatch_attempt", rows[i].AttemptCount),
+					zap.Bool("lease_lost", errors.Is(finalizeErr, ErrAdmissionBotActionLeaseLost)),
+					zap.Error(finalizeErr),
+				)
 			}
 			continue
 		}
 		actions = append(actions, action)
 	}
+	if err := ctx.Err(); err != nil {
+		return nil, errors.Join(
+			err,
+			s.abandonClaimedBotActions(ctx, activeBotActionClaims(rows, activeClaims)),
+		)
+	}
 	return actions, nil
+}
+
+func activeBotActionClaims(
+	rows []AdmissionBotActionOutboxRow,
+	active []bool,
+) []AdmissionBotActionOutboxRow {
+	claimed := make([]AdmissionBotActionOutboxRow, 0, len(rows))
+	for i := range rows {
+		if i < len(active) && active[i] {
+			claimed = append(claimed, rows[i])
+		}
+	}
+	return claimed
+}
+
+// abandonClaimedBotActions is deliberately synchronous and single-shot. The
+// repository returns the retry budget, so retrying an ambiguous cleanup later
+// could reuse a DispatchAttempt and break the lease fence.
+func (s *Service) abandonClaimedBotActions(
+	parent context.Context,
+	rows []AdmissionBotActionOutboxRow,
+) error {
+	if len(rows) == 0 {
+		return nil
+	}
+	finalizeCtx, cancel := ctxutil.DetachedTimeout(parent, botActionClaimFinalizeTimeout)
+	defer cancel()
+	affected, err := s.repo.abandonBotActionClaims(finalizeCtx, rows, s.now())
+	if err != nil {
+		return err
+	}
+	if affected != int64(len(rows)) {
+		return fmt.Errorf(
+			"abandon admission bot action claims: released %d of %d: %w",
+			affected,
+			len(rows),
+			ErrAdmissionBotActionLeaseLost,
+		)
+	}
+	return nil
+}
+
+func (s *Service) markBotActionPreparationFailed(
+	parent context.Context,
+	row *AdmissionBotActionOutboxRow,
+	preparationErr error,
+) error {
+	finalizeCtx, cancel := ctxutil.DetachedTimeout(parent, botActionClaimFinalizeTimeout)
+	defer cancel()
+	return s.repo.MarkBotActionPreparationFailed(
+		finalizeCtx,
+		row.ID,
+		row.AttemptCount,
+		truncateBotActionPreparationError(preparationErr),
+		s.now(),
+	)
+}
+
+func (s *Service) markBotActionStale(
+	parent context.Context,
+	row *AdmissionBotActionOutboxRow,
+) error {
+	finalizeCtx, cancel := ctxutil.DetachedTimeout(parent, botActionClaimFinalizeTimeout)
+	defer cancel()
+	return s.repo.MarkBotActionStale(
+		finalizeCtx,
+		row.ID,
+		row.AttemptCount,
+		s.now(),
+	)
+}
+
+func truncateBotActionPreparationError(err error) string {
+	if err == nil {
+		return "bot action preparation failed"
+	}
+	message := strings.ToValidUTF8(strings.TrimSpace(err.Error()), "\uFFFD")
+	if message == "" {
+		return "bot action preparation failed"
+	}
+	if len(message) <= maxBotActionPreparationErrorBytes {
+		return message
+	}
+	end := maxBotActionPreparationErrorBytes
+	for end > 0 && !utf8.RuneStart(message[end]) {
+		end--
+	}
+	return message[:end]
 }
 
 func (s *Service) ListPendingFreshmanForwards(ctx context.Context) ([]FreshmanForwardItem, error) {
@@ -122,9 +294,9 @@ func (s *Service) pendingActionFromSession(
 }
 
 func (s *Service) pendingActionFromQueuedRow(
-	ctx context.Context,
 	row *AdmissionBotActionOutboxRow,
-	now time.Time,
+	seed pendingActionSeed,
+	contexts pendingActionContexts,
 ) (AdmissionPendingAction, bool, error) {
 	if row == nil {
 		return AdmissionPendingAction{}, true, nil
@@ -133,12 +305,7 @@ func (s *Service) pendingActionFromQueuedRow(
 	if !sessionCanDispatchQueuedBotAction(&session) {
 		return AdmissionPendingAction{}, true, nil
 	}
-	seeds := pendingActionSeeds([]AdmissionSession{session}, now)
-	contexts, err := s.pendingActionContexts(ctx, []AdmissionSession{session})
-	if err != nil {
-		return AdmissionPendingAction{}, false, err
-	}
-	action, err := s.pendingActionFromSession(&session, seeds[0], contexts)
+	action, err := s.pendingActionFromSession(&session, seed, contexts)
 	if err != nil {
 		return AdmissionPendingAction{}, false, err
 	}
@@ -146,6 +313,7 @@ func (s *Service) pendingActionFromQueuedRow(
 		return AdmissionPendingAction{}, true, nil
 	}
 	action.ActionID = strconv.FormatInt(row.ID, 10)
+	action.DispatchAttempt = row.AttemptCount
 	return action, false, nil
 }
 

@@ -7,7 +7,7 @@
   "files": [
     "lib"
   ],
-  "license": "AGPL-3.0",
+  "license": "AGPL-3.0-only",
   "dependencies": {
     "@stuhelper/koishi-moderation-core": "workspace:*",
     "@stuhelper/koishi-shared": "workspace:*",

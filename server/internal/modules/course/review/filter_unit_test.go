@@ -22,6 +22,46 @@ func TestNewFilterRequiresRepo(t *testing.T) {
 	})
 }
 
+func TestReviewFilterInvalidateMarksWarmSnapshotStale(t *testing.T) {
+	f := seededFilter([]SensitiveWord{{Word: "danger", Level: "block"}})
+	require.False(t, f.lastRefresh.IsZero())
+
+	f.Invalidate()
+
+	assert.True(t, f.lastRefresh.IsZero())
+	assert.Len(t, f.blockMatchers, 1, "invalidation should not erase the last known snapshot before reload")
+}
+
+func TestReviewFilterInvalidateSerializesWithRefresh(t *testing.T) {
+	f := seededFilter([]SensitiveWord{{Word: "danger", Level: "block"}})
+	started := make(chan struct{})
+	done := make(chan struct{})
+
+	f.refreshMu.Lock()
+	go func() {
+		close(started)
+		f.Invalidate()
+		close(done)
+	}()
+	<-started
+
+	completedWhileRefreshLocked := false
+	select {
+	case <-done:
+		completedWhileRefreshLocked = true
+	case <-time.After(50 * time.Millisecond):
+	}
+	f.refreshMu.Unlock()
+
+	assert.False(t, completedWhileRefreshLocked, "invalidation must wait for an in-progress refresh")
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("invalidation did not complete after refresh released its critical section")
+	}
+	assert.True(t, f.lastRefresh.IsZero())
+}
+
 func TestReviewFilterHelpers(t *testing.T) {
 	assert.True(t, isASCIIWord("hello"))
 	assert.True(t, isASCIIWord("Hello"))

@@ -45,10 +45,13 @@
         </div>
 
         <!-- Right content area -->
-        <main class="min-w-0 max-tablet:px-4">
+        <section class="min-w-0 max-tablet:px-4" aria-labelledby="review-page-title">
+          <h1 id="review-page-title" class="sr-only">
+            {{ t('routes.review') }}
+          </h1>
           <router-view v-if="hasChildRoute" />
           <ReviewFeed v-else />
-        </main>
+        </section>
       </div>
     </div>
   </CourseThemeProvider>

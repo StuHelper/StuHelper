@@ -1,8 +1,20 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-async function loadObservability() {
+vi.mock('web-vitals', () => ({
+  onCLS: vi.fn(),
+  onFCP: vi.fn(),
+  onINP: vi.fn(),
+  onLCP: vi.fn(),
+  onTTFB: vi.fn(),
+}))
+
+async function loadObservabilityModule() {
   vi.resetModules()
-  const { observabilityTestInternals } = await import('../observability')
+  return import('../observability')
+}
+
+async function loadObservability() {
+  const { observabilityTestInternals } = await loadObservabilityModule()
   const sendBeaconJSON = observabilityTestInternals?.sendBeaconJSON
   expect(sendBeaconJSON).toBeTypeOf('function')
   return sendBeaconJSON as NonNullable<typeof sendBeaconJSON>
@@ -32,6 +44,7 @@ function stubBrowserGlobals(options: {
   const windowStub = {
     document: documentStub,
     location: { origin: options.origin ?? 'http://localhost:3000' },
+    addEventListener: vi.fn(),
     clearTimeout,
     setTimeout,
   }
@@ -143,5 +156,42 @@ describe('observability transport', () => {
         method: 'POST',
       }),
     )
+  })
+
+  it('reports kind-only Vue errors only after observability is initialized', async () => {
+    const fetchMock = vi.fn()
+    const sendBeaconMock = vi.fn().mockReturnValue(true)
+    stubBrowserGlobals({ fetch: fetchMock, sendBeacon: sendBeaconMock })
+    const { initObservability, reportFrontendError } =
+      await loadObservabilityModule()
+
+    reportFrontendError('vue-error')
+    expect(sendBeaconMock).not.toHaveBeenCalled()
+
+    initObservability()
+    reportFrontendError('vue-error')
+
+    expect(sendBeaconMock).toHaveBeenCalledTimes(1)
+    const [url, body] = sendBeaconMock.mock.calls[0] as [string, Blob]
+    expect(url).toBe(
+      'http://localhost:3000/api/v1/metrics/frontend-errors',
+    )
+    await expect(body.text()).resolves.toBe(
+      JSON.stringify({ kind: 'vue-error' }),
+    )
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('contains frontend error transport failures', async () => {
+    const sendBeaconMock = vi.fn(() => {
+      throw new Error('browser telemetry transport failed')
+    })
+    stubBrowserGlobals({ sendBeacon: sendBeaconMock })
+    const { initObservability, reportFrontendError } =
+      await loadObservabilityModule()
+
+    initObservability()
+
+    expect(() => reportFrontendError('vue-error')).not.toThrow()
   })
 })

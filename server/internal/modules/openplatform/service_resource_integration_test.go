@@ -179,6 +179,42 @@ func TestResourceAccessGrantRollsBackFGAWhenAuditFails(t *testing.T) {
 	assertOpenPlatformAuditCount(t, postgres, app.ID, 999_999_999, "open_platform.resource_access.granted", 0)
 }
 
+func TestResourceAccessGrantRollbackPreservesPreexistingTuples(t *testing.T) {
+	ctx := context.Background()
+	postgres := postgresfixture.Start(t)
+	redis := redisfixture.Start(t)
+	repo := NewRepository(postgres.DB)
+	resourceFGA := newFakeResourceFGA()
+	service, err := NewService(repo, redis.Client, WithResourceFGAClient(resourceFGA))
+	require.NoError(t, err)
+
+	ownerID := seedOpenPlatformUser(t, postgres, "resource-grant-existing-rollback-owner")
+	app := seedApprovedOpenPlatformApp(t, ctx, repo, ownerID, []string{
+		ScopeResourceRead,
+		ScopeResourceWrite,
+	})
+	existing := fga.Tuple{
+		User:     openPlatformAppFGAUser(app.ID),
+		Relation: ResourceRelationReadByApp,
+		Object:   "resource_item:existing-rollback",
+	}
+	require.NoError(t, resourceFGA.WriteMissingTuples(ctx, []fga.Tuple{existing}))
+
+	_, err = service.GrantResourceAccess(ctx, ResourceGrantInput{
+		AppID:          app.ID,
+		ReviewerUserID: 999_999_999,
+		ResourceType:   ResourceTypeResourceItem,
+		ResourceID:     "existing-rollback",
+		Actions:        []string{ResourceAccessActionRead, ResourceAccessActionWrite},
+		Reason:         "audit failure must preserve preexisting grant",
+		RequestID:      "grant-resource-access-existing-audit-fail",
+	})
+
+	require.ErrorIs(t, err, ErrResourceAccessUnavailable)
+	assert.Equal(t, []fga.Tuple{existing}, resourceFGA.sortedTuples())
+	assertOpenPlatformAuditCount(t, postgres, app.ID, 999_999_999, "open_platform.resource_access.granted", 0)
+}
+
 func TestResourceAccessGrantRollbackSurvivesRequestCancellationAfterFGAWrite(t *testing.T) {
 	ctx := context.Background()
 	postgres := postgresfixture.Start(t)

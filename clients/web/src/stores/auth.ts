@@ -18,6 +18,7 @@ import {
 } from "@/utils/redirect";
 import {
     classifyApiError,
+    getErrorStatus,
     isApiError,
     isAuthError,
     isCsrfError,
@@ -525,8 +526,9 @@ export const useAuthStore = defineStore("auth", () => {
             bootstrapCompleted.value = true;
             return normalizedUser;
         } catch (err) {
-            // 区分网络错误和认证错误
-            if (isApiError(err) && !isNetworkError(err.code)) {
+            // 只有 /auth/me 明确返回 401 才能证明本地会话已失效。
+            // 403、5xx、网络和超时均保留现有身份，由调用方决定如何重试。
+            if (getErrorStatus(err) === 401) {
                 clearAuth();
                 user.value = null;
             }

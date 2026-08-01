@@ -115,6 +115,18 @@ describe('AdmissionPage edge states', () => {
     vi.useRealTimers()
   })
 
+  it('renders a single element root compatible with route transitions', async () => {
+    mockAdmissionApi.getAdmissionSession.mockRejectedValueOnce(
+      new ApiError({ code: 'admission.qq_mismatch', message: 'mismatch' }),
+    )
+
+    const wrapper = await mountAdmissionPage()
+    await settleAdmissionPage(wrapper)
+
+    expect(wrapper.attributes('data-admission-page-root')).toBeDefined()
+    expect(wrapper.element.nodeType).toBe(Node.ELEMENT_NODE)
+  })
+
   it('blocks login and link actions when the token belongs to another account', async () => {
     mockAdmissionApi.getAdmissionSession.mockRejectedValueOnce(
       new ApiError({ code: 'admission.qq_mismatch', message: 'mismatch' }),
@@ -122,7 +134,9 @@ describe('AdmissionPage edge states', () => {
 
     const wrapper = await mountAdmissionPage()
     await settleAdmissionPage(wrapper)
-    expect(wrapper.find('[data-state="qqMismatch"]').exists()).toBe(true)
+    const mismatchPanel = wrapper.get('[data-state="qqMismatch"]')
+    expect(mismatchPanel.attributes('role')).toBe('alert')
+    expect(mismatchPanel.attributes('aria-live')).toBe('assertive')
     expect(wrapper.text()).toContain('QQ 账号不匹配')
     expect(wrapper.text()).toContain('当前登录的 StuHelper 账号已绑定其他 QQ')
     expect(wrapper.text()).not.toContain('开始认证')
@@ -139,7 +153,9 @@ describe('AdmissionPage edge states', () => {
     const wrapper = await mountAdmissionPage()
     await settleAdmissionPage(wrapper)
 
-    expect(wrapper.find('[data-state="expired"]').exists()).toBe(true)
+    const expiredPanel = wrapper.get('[data-state="expired"]')
+    expect(expiredPanel.attributes('role')).toBe('status')
+    expect(expiredPanel.attributes('aria-live')).toBe('polite')
     expect(wrapper.find('[data-admission-freshman-flow]').exists()).toBe(false)
     expect(wrapper.find('[data-school-email-otp-form]').exists()).toBe(false)
   })
@@ -325,6 +341,10 @@ describe('AdmissionPage edge states', () => {
     expect(mockAdmissionApi.getAdmissionMe).toHaveBeenCalledTimes(1)
     expect(mockAdmissionApi.getAdmissionMe).toHaveBeenCalledWith('session-linked')
     expect(mockVerificationStore.fetchSchools).toHaveBeenCalledTimes(1)
+    expect(wrapper.find('#admission-old-student-tab').exists()).toBe(false)
+    expect(wrapper.get('#admission-freshman-tab').attributes('aria-selected')).toBe(
+      'true',
+    )
   })
 
   it('uses the remembered linked session before reloading a consumed admission token', async () => {
@@ -377,14 +397,64 @@ describe('AdmissionPage edge states', () => {
     expect(wrapper.find('[data-school-email-otp-form]').exists()).toBe(true)
     expect(wrapper.find('[data-admission-freshman-flow]').exists()).toBe(false)
 
-    const freshmanTab = wrapper.findAll('.flow-tab').find((button) => (
-      button.text() === '新生认证'
-    ))
-    expect(freshmanTab).toBeTruthy()
-    await freshmanTab!.trigger('click')
+    const tabList = wrapper.get('[role="tablist"]')
+    const oldStudentTab = wrapper.get('#admission-old-student-tab')
+    const freshmanTab = wrapper.get('#admission-freshman-tab')
+    expect(tabList.attributes('aria-label')).toBe('学生认证方式')
+    expect(oldStudentTab.attributes('aria-selected')).toBe('true')
+    expect(oldStudentTab.attributes('tabindex')).toBe('0')
+    expect(freshmanTab.attributes('aria-selected')).toBe('false')
+    expect(freshmanTab.attributes('tabindex')).toBe('-1')
+    expect(wrapper.get('#admission-old-student-panel').attributes('role')).toBe(
+      'tabpanel',
+    )
+
+    oldStudentTab.element.focus()
+    await oldStudentTab.trigger('keydown', { key: 'ArrowRight' })
     await settleAdmissionPage(wrapper)
 
+    expect(freshmanTab.attributes('aria-selected')).toBe('true')
+    expect(freshmanTab.attributes('tabindex')).toBe('0')
+    expect(document.activeElement).toBe(freshmanTab.element)
+    expect(wrapper.get('#admission-freshman-panel').attributes('role')).toBe(
+      'tabpanel',
+    )
     expect(wrapper.find('[data-admission-freshman-flow]').exists()).toBe(true)
+
+    await freshmanTab.trigger('keydown', { key: 'Home' })
+    await settleAdmissionPage(wrapper)
+
+    expect(oldStudentTab.attributes('aria-selected')).toBe('true')
+    expect(document.activeElement).toBe(oldStudentTab.element)
+  })
+
+  it('does not offer freshman material submission after a formal credential exists', async () => {
+    mockVerificationStore.schools = [{
+      schoolID: 4111010006,
+      schoolCode: '4111010006',
+      schoolName: '北京航空航天大学',
+      verificationMethod: 'manual',
+      enabled: true,
+      schoolEmailOtpEnabled: true,
+    }]
+    mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce(
+      sessionWithStatus('linked'),
+    )
+    mockAdmissionApi.getAdmissionMe.mockResolvedValueOnce({
+      credentialKind: 'school_email_otp',
+      projectionPending: false,
+      session: sessionWithStatus('linked'),
+      status: 'linked',
+    })
+
+    const wrapper = await mountAdmissionPage()
+    await settleAdmissionPage(wrapper)
+
+    expect(wrapper.find('#admission-freshman-tab').exists()).toBe(false)
+    expect(wrapper.get('#admission-old-student-tab').attributes('aria-selected')).toBe(
+      'true',
+    )
+    expect(wrapper.find('[data-admission-old-student-flow]').exists()).toBe(true)
   })
 
   it('asks for login without offering signup when a consumed token is reopened logged out', async () => {
@@ -461,6 +531,48 @@ describe('AdmissionPage edge states', () => {
     expect(mockWaitForAdmissionProjection).toHaveBeenCalledTimes(2)
     expect(wrapper.find('[data-state="approved"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('认证已通过')
+  })
+
+  it('keeps projection refresh recoverable after a transient polling failure', async () => {
+    mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce({
+      ...sessionWithStatus('verified'),
+      projectionPending: true,
+    })
+    mockWaitForAdmissionProjection.mockRejectedValueOnce(
+      new ApiError({
+        code: 'B0000001',
+        message: 'temporarily unavailable',
+        status: 503,
+      }),
+    )
+
+    const wrapper = await mountAdmissionPage()
+    await settleAdmissionPage(wrapper)
+
+    expect(wrapper.find('[data-state="projectionPending"]').exists()).toBe(true)
+    expect(wrapper.find('[data-projection-timeout]').exists()).toBe(true)
+    expect(wrapper.find('[data-projection-retry]').exists()).toBe(true)
+    expect(wrapper.find('[data-state="error"]').exists()).toBe(false)
+  })
+
+  it('asks the user to log in when projection refresh gets an explicit 401', async () => {
+    mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce({
+      ...sessionWithStatus('verified'),
+      projectionPending: true,
+    })
+    mockWaitForAdmissionProjection.mockRejectedValueOnce(
+      new ApiError({
+        code: 'A0010001',
+        message: 'unauthorized',
+        status: 401,
+      }),
+    )
+
+    const wrapper = await mountAdmissionPage()
+    await settleAdmissionPage(wrapper)
+
+    expect(wrapper.find('[data-state="needsLogin"]').exists()).toBe(true)
+    expect(wrapper.find('[data-state="error"]').exists()).toBe(false)
   })
 
   it('uses admission me projection state after refreshing linked resources', async () => {

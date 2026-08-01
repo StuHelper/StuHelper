@@ -50,6 +50,12 @@ func (c *Config) validate(parseErrs []string) error {
 	if c.Database.QueryTimeout < 1 || c.Database.QueryTimeout > 60 {
 		errs = append(errs, fmt.Sprintf("DB_QUERY_TIMEOUT must be between 1 and 60 seconds (got %d)", c.Database.QueryTimeout))
 	}
+	if timeout := c.Review.TeacherStatsRefreshTimeoutSeconds; timeout < 5 || timeout > 90 {
+		errs = append(errs, fmt.Sprintf(
+			"REVIEW_TEACHER_STATS_REFRESH_TIMEOUT_SECONDS must be between 5 and 90 seconds (got %d)",
+			timeout,
+		))
+	}
 	if c.Database.MaxConns <= 0 {
 		errs = append(errs, fmt.Sprintf("DB_MAX_CONNS must be greater than 0 (got %d)", c.Database.MaxConns))
 	} else if c.Database.MaxConns > 10000 {
@@ -242,7 +248,12 @@ func (c *Config) validate(parseErrs []string) error {
 			errs = append(errs, "OTEL_EXPORTER_OTLP_ENDPOINT is required in production")
 		}
 
-		plaintextPostgresAllowed := c.Database.AllowPlaintext && c.Database.SSLMode == "disable"
+		plaintextPostgresAllowed := c.App.Env == EnvProdParity &&
+			c.Database.AllowPlaintext &&
+			c.Database.SSLMode == "disable"
+		if c.App.Env == EnvProduction && c.Database.AllowPlaintext {
+			errs = append(errs, "EXTERNAL_POSTGRES_ALLOW_PLAINTEXT is only allowed in prod-parity")
+		}
 		if c.Database.SSLMode != "verify-full" && !plaintextPostgresAllowed {
 			errs = append(errs, "DB_SSL_MODE must be 'verify-full' in production")
 		}
@@ -827,6 +838,12 @@ func validateExternalOracleStudentSource(cfg ExternalOracleStudentSourceConfig, 
 			errs = append(errs, key+" is required when EXTERNAL_STUDENT_SOURCE_PROVIDER=oracle")
 		}
 	}
+	if isDisallowedExternalOracleRuntimeUsername(cfg.Username) {
+		errs = append(errs, "EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME must be a dedicated non-administrative account")
+	}
+	if strings.EqualFold(strings.TrimSpace(cfg.Username), strings.TrimSpace(cfg.Schema)) {
+		errs = append(errs, "EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME must not own the source schema")
+	}
 	if cfg.Port <= 0 || cfg.Port > 65535 {
 		errs = append(errs, fmt.Sprintf("EXTERNAL_STUDENT_SOURCE_ORACLE_PORT must be between 1 and 65535 (got %d)", cfg.Port))
 	}
@@ -871,6 +888,15 @@ func validateExternalOracleStudentSource(cfg ExternalOracleStudentSourceConfig, 
 		errs = append(errs, "EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_MODE must be verify-full or disable")
 	}
 	return errs
+}
+
+func isDisallowedExternalOracleRuntimeUsername(username string) bool {
+	switch strings.ToUpper(strings.TrimSpace(username)) {
+	case "SYS", "SYSBACKUP", "SYSDG", "SYSKM", "SYSRAC", "SYSTEM":
+		return true
+	default:
+		return false
+	}
 }
 
 func isTenDigitCode(value string) bool {
@@ -976,8 +1002,6 @@ func validateCasdoorAdminCredentials(cfg CasdoorConfig, required bool) []string 
 		"APP_PROVISIONING", cfg.AppProvisioningClientID, cfg.AppProvisioningClientSecret, cfg.AppProvisioningApplication)...)
 	errs = append(errs, validateCasdoorCredentialSet(required || userProfileCredentialConfigured(cfg),
 		"USER_PROFILE", cfg.UserProfileClientID, cfg.UserProfileClientSecret, cfg.UserProfileApplication)...)
-	errs = append(errs, validateCasdoorCredentialSet(required || roleSyncCredentialConfigured(cfg),
-		"ROLE_SYNC", cfg.RoleSyncClientID, cfg.RoleSyncClientSecret, cfg.RoleSyncApplication)...)
 	errs = append(errs, validateCasdoorCredentialSet(required || userLookupCredentialConfigured(cfg),
 		"USER_LOOKUP", cfg.UserLookupClientID, cfg.UserLookupClientSecret, cfg.UserLookupApplication)...)
 	return errs
@@ -993,12 +1017,6 @@ func userProfileCredentialConfigured(cfg CasdoorConfig) bool {
 	return !configStringMissing(cfg.UserProfileClientID) ||
 		!configStringMissing(cfg.UserProfileClientSecret) ||
 		!configStringMissing(cfg.UserProfileApplication)
-}
-
-func roleSyncCredentialConfigured(cfg CasdoorConfig) bool {
-	return !configStringMissing(cfg.RoleSyncClientID) ||
-		!configStringMissing(cfg.RoleSyncClientSecret) ||
-		!configStringMissing(cfg.RoleSyncApplication)
 }
 
 func userLookupCredentialConfigured(cfg CasdoorConfig) bool {

@@ -10,7 +10,6 @@ import (
 
 	"github.com/StuHelper/StuHelper/server/internal/modules/openplatform"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/config"
-	"github.com/StuHelper/StuHelper/server/internal/pkg/crypto/pii"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/middleware"
 	platformcasdoor "github.com/StuHelper/StuHelper/server/internal/platform/casdoor"
 )
@@ -18,7 +17,7 @@ import (
 func (rt *Runtime) initOpenPlatformModule(
 	api *gin.RouterGroup,
 	authMW gin.HandlerFunc,
-	piiCipher *pii.Cipher,
+	userProfileGateway *casdoorUserProfileGateway,
 	userIDResolver middleware.InternalUserIDResolver,
 ) (*openplatform.Handler, *openplatform.Service, error) {
 	provisionerClient, err := rt.newCasdoorAppProvisioningClient()
@@ -36,7 +35,7 @@ func (rt *Runtime) initOpenPlatformModule(
 		rt.redisClient.GetClient(),
 		openplatform.WithAppProvisioner(newCasdoorOpenPlatformProvisioner(provisionerClient)),
 		openplatform.WithOIDCAuthURLBuilder(rt.oidcClient),
-		openplatform.WithPhoneDecryptor(piiCipher),
+		openplatform.WithAuthoritativePhoneReader(userProfileGateway),
 		openplatform.WithResourceFGAClient(rt.fgaClient),
 		openplatform.WithConsentBaseURL(consentBaseURL),
 		openplatform.WithAccountBaseURL(accountBaseURL),
@@ -267,12 +266,25 @@ func cloneExplicitStringSlice(values []string) []string {
 	return append([]string{}, values...)
 }
 
-type casdoorUserProfileGateway struct {
-	client *platformcasdoor.UserProfileClient
+type casdoorUserProfileClient interface {
+	GetPhone(context.Context, string) (string, error)
+	UpdatePhone(context.Context, platformcasdoor.UserPhoneUpdate) error
+	Send(context.Context, string, string) error
 }
 
-func newCasdoorUserProfileGateway(client *platformcasdoor.UserProfileClient) *casdoorUserProfileGateway {
-	return &casdoorUserProfileGateway{client: client}
+type casdoorUserProfileGateway struct {
+	client                 casdoorUserProfileClient
+	casdoorSubjectByUserID func(context.Context, int64) (string, error)
+}
+
+func newCasdoorUserProfileGateway(
+	client casdoorUserProfileClient,
+	casdoorSubjectByUserID func(context.Context, int64) (string, error),
+) *casdoorUserProfileGateway {
+	return &casdoorUserProfileGateway{
+		client:                 client,
+		casdoorSubjectByUserID: casdoorSubjectByUserID,
+	}
 }
 
 func (g *casdoorUserProfileGateway) UpdatePhone(ctx context.Context, subject, phone string) error {
@@ -280,6 +292,27 @@ func (g *casdoorUserProfileGateway) UpdatePhone(ctx context.Context, subject, ph
 		Subject: subject,
 		Phone:   phone,
 	})
+}
+
+func (g *casdoorUserProfileGateway) GetPhone(ctx context.Context, userID int64) (string, error) {
+	if g == nil || g.client == nil {
+		return "", fmt.Errorf("casdoor user profile reader is not configured")
+	}
+	if userID <= 0 {
+		return "", fmt.Errorf("internal user ID is required for Casdoor phone lookup")
+	}
+	if g.casdoorSubjectByUserID == nil {
+		return "", fmt.Errorf("casdoor user subject resolver is not configured")
+	}
+	subject, err := g.casdoorSubjectByUserID(ctx, userID)
+	if err != nil {
+		return "", fmt.Errorf("resolve Casdoor user for phone lookup: %w", err)
+	}
+	subject = strings.TrimSpace(subject)
+	if subject == "" {
+		return "", fmt.Errorf("resolved Casdoor user subject is empty")
+	}
+	return g.client.GetPhone(ctx, subject)
 }
 
 func (g *casdoorUserProfileGateway) Send(ctx context.Context, phone, content string) error {

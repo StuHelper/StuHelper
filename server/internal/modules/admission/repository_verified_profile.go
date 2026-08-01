@@ -12,16 +12,8 @@ import (
 )
 
 const (
-	admissionProfileProjectionJobType   = "user_profile_projection"
-	admissionVerifiedStudentRoleJobType = "verified_student_role"
-	admissionVerifiedStudentRoleName    = "verified_student"
+	admissionProfileProjectionJobType = "user_profile_projection"
 )
-
-type verifiedRoleSyncPayload struct {
-	UserID   int64  `json:"userID"`
-	Role     string `json:"role"`
-	Approved bool   `json:"approved"`
-}
 
 type profileProjectionPayload struct {
 	UserID   int64 `json:"userID"`
@@ -134,25 +126,6 @@ func (r *Repository) upsertVerifiedUserProfileProjectionJobsTx(ctx context.Conte
 		profilePayload,
 	); err != nil {
 		return fmt.Errorf("upsert profile projection job: %w", err)
-	}
-
-	rolePayload, err := json.Marshal(verifiedRoleSyncPayload{
-		UserID:   userID,
-		Role:     admissionVerifiedStudentRoleName,
-		Approved: true,
-	})
-	if err != nil {
-		return fmt.Errorf("marshal verified student role payload: %w", err)
-	}
-	if err := outbox.UpsertJobTx(
-		ctx,
-		tx,
-		outbox.StreamIAMCasdoorRoleSync,
-		admissionVerifiedStudentRoleJobType,
-		admissionVerifiedStudentRoleDedupeKey(userID),
-		rolePayload,
-	); err != nil {
-		return fmt.Errorf("upsert verified student role job: %w", err)
 	}
 	return nil
 }

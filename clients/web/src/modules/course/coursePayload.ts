@@ -49,6 +49,21 @@ function readInteger(record: Record<string, unknown>, key: string, message: stri
   return value
 }
 
+function readNullableInteger(
+  record: Record<string, unknown>,
+  key: string,
+  message: string,
+): number | null {
+  const value = record[key]
+  if (value === null) {
+    return null
+  }
+  if (typeof value !== 'number' || !Number.isInteger(value)) {
+    throw new Error(message)
+  }
+  return value
+}
+
 function readOptionalInteger(
   record: Record<string, unknown>,
   key: string,
@@ -64,9 +79,31 @@ function readOptionalInteger(
   return value
 }
 
-function readNumber(record: Record<string, unknown>, key: string, message: string): number {
+function readNullableNumber(
+  record: Record<string, unknown>,
+  key: string,
+  message: string,
+): number | null {
   const value = record[key]
+  if (value === null) {
+    return null
+  }
   if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new Error(message)
+  }
+  return value
+}
+
+function readOptionalNullableString(
+  record: Record<string, unknown>,
+  key: string,
+  message: string,
+): string | undefined {
+  const value = record[key]
+  if (value === undefined || value === null) {
+    return undefined
+  }
+  if (typeof value !== 'string') {
     throw new Error(message)
   }
   return value
@@ -173,10 +210,15 @@ export function readCoursePayload(payload: unknown, message = 'Invalid course re
   }
 
   const id = readInteger(payload, 'id', message)
-  const departmentID = readInteger(payload, 'departmentID', message)
-  const credits = readNumber(payload, 'credits', message)
+  const departmentID = readNullableInteger(payload, 'departmentID', message)
+  const credits = readNullableNumber(payload, 'credits', message)
   const reviewCount = readInteger(payload, 'reviewCount', message)
-  if (id <= 0 || departmentID <= 0 || credits < 0 || reviewCount < 0) {
+  if (
+    id <= 0 ||
+    (departmentID !== null && departmentID <= 0) ||
+    (credits !== null && credits < 0) ||
+    reviewCount < 0
+  ) {
     throw new Error(message)
   }
 
@@ -222,7 +264,7 @@ export function readGroupedCourseListPayload(
     }
 
     return {
-      departmentName: readOptionalString(group, 'departmentName', message),
+      departmentName: readOptionalNullableString(group, 'departmentName', message),
       courses: group.courses.map(course => readCoursePayload(course, message)),
     }
   })

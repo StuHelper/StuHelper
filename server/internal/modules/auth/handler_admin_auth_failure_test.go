@@ -59,7 +59,7 @@ func TestUnlockAuthAccountRequiresStepUpMFA(t *testing.T) {
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 
-	require.Equal(t, http.StatusPreconditionRequired, rec.Code)
+	require.Equal(t, http.StatusPreconditionFailed, rec.Code)
 }
 
 func authAdminAuthorizers() AdminAuthorizers {

@@ -1,5 +1,5 @@
 <template>
-    <main class="login-page flex items-center justify-center px-4 py-10">
+    <section class="login-page flex items-center justify-center px-4 py-10">
         <section
             class="w-full max-w-[380px] rounded-xl border border-border bg-bg-card px-4 py-12 text-center shadow-sm sm:px-10"
         >
@@ -19,6 +19,7 @@
 
             <div class="flex flex-col gap-3">
                 <button
+                    type="button"
                     v-ripple
                     class="rounded-full border-0 bg-gradient-to-br from-primary to-accent px-6 py-3 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
                     :disabled="loading"
@@ -32,6 +33,7 @@
                 </button>
 
                 <button
+                    type="button"
                     v-ripple
                     class="rounded-full border border-border bg-transparent px-6 py-3 text-sm font-medium text-text-secondary disabled:cursor-not-allowed disabled:opacity-50"
                     :disabled="loading"
@@ -55,7 +57,7 @@
                 {{ t("common.actions.retry") }}
             </button>
         </section>
-    </main>
+    </section>
 </template>
 
 <script setup lang="ts">

@@ -398,7 +398,7 @@ test("post review content check fails closed when response is malformed", async 
         .getByTestId("review-content")
         .fill("这是一条用于验证内容审核异常时不会提交的评课正文，长度足够通过前端校验。");
 
-    await page.getByTestId("review-submit").click();
+    await page.getByTestId("review-title").press("Enter");
 
     await expect(
         page.locator('p[role="alert"]').filter({ hasText: /Load failed|加载失败/i }),

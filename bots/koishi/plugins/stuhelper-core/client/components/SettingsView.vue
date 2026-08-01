@@ -5,6 +5,7 @@
       <h2 class="view-title">全局设置</h2>
       <div class="header-actions">
         <button
+          type="button"
           class="action-btn danger-outline"
           :disabled="!settingsLoaded || saving"
           @click="resetToDefault"
@@ -26,7 +27,7 @@
         <strong>加载全局设置失败</strong>
         <span>{{ loadError }}</span>
       </div>
-      <button class="action-btn" @click="loadSettings">
+      <button type="button" class="action-btn" @click="loadSettings">
         <k-icon name="refresh-cw" class="btn-icon" />
         <span>重试</span>
       </button>
@@ -103,10 +104,36 @@
           <div class="settings-action-error__body">
             <strong>{{ actionErrorTitle }}</strong>
             <span>{{ actionError }}</span>
+            <ul
+              v-if="saveStepResults.length"
+              class="settings-save-results"
+              aria-label="本次保存结果"
+            >
+              <li v-for="result in saveStepResults" :key="result.key">
+                <span>{{ result.label }}</span>
+                <span
+                  class="settings-save-results__status"
+                  :class="`is-${result.status}`"
+                >
+                  {{ settingsSaveStepStatusLabel(result.status) }}
+                </span>
+              </li>
+            </ul>
           </div>
-          <button class="action-btn" type="button" @click="clearActionError">
-            关闭
-          </button>
+          <div class="settings-action-error__actions">
+            <button
+              v-if="hasIncompleteSave"
+              class="action-btn"
+              type="button"
+              :disabled="saving || loading"
+              @click="reloadSettingsAfterSaveFailure"
+            >
+              重新加载服务器设置
+            </button>
+            <button class="action-btn" type="button" @click="clearSaveError">
+              关闭
+            </button>
+          </div>
         </div>
 
         <!-- Warn Settings -->
@@ -195,6 +222,7 @@
               <div class="form-control">
                 <textarea
                   v-model="forbiddenKeywordsText"
+                  aria-label="禁言关键词"
                   rows="4"
                   placeholder="每行一个关键词"
                   class="form-textarea"
@@ -255,6 +283,7 @@
                 <div class="form-control">
                   <textarea
                     v-model="keywordRuleDraft.pattern"
+                    aria-label="匹配内容"
                     rows="3"
                     maxlength="256"
                     class="form-textarea"
@@ -302,6 +331,7 @@
                 <div class="form-control">
                   <textarea
                     v-model="keywordRuleNoteText"
+                    aria-label="规则备注"
                     rows="2"
                     maxlength="512"
                     class="form-textarea"
@@ -342,6 +372,7 @@
               <div class="form-control">
                 <textarea
                   v-model="keywordsText"
+                  aria-label="审核关键词"
                   rows="6"
                   placeholder="每行一个关键词"
                   class="form-textarea"
@@ -374,6 +405,7 @@
               <div class="form-control">
                 <textarea
                   v-model="settings.binding.messages[field.key]"
+                  :aria-label="field.label"
                   rows="3"
                   class="form-textarea"
                 ></textarea>
@@ -398,6 +430,7 @@
               <div class="form-control">
                 <textarea
                   v-model="settings.admin.messages[field.key]"
+                  :aria-label="field.label"
                   rows="3"
                   class="form-textarea"
                 ></textarea>
@@ -425,6 +458,7 @@
               <div class="form-control">
                 <textarea
                   v-model="settings.groupGuardMessages.messages[field.key]"
+                  :aria-label="field.label"
                   rows="3"
                   class="form-textarea"
                   @input="groupGuardMessageResetPending = false"
@@ -612,6 +646,7 @@
               <div class="form-control">
                 <textarea
                   v-model="friendKeywordsText"
+                  aria-label="通过关键词"
                   rows="4"
                   placeholder="每行一个关键词"
                   class="form-textarea"
@@ -852,6 +887,7 @@
               <div class="form-control">
                 <textarea
                   v-model="settings.openai.systemPrompt"
+                  aria-label="系统提示词"
                   rows="4"
                   class="form-textarea"
                   placeholder="你是一个有帮助的AI助手..."
@@ -863,6 +899,7 @@
               <div class="form-control">
                 <textarea
                   v-model="settings.openai.translatePrompt"
+                  aria-label="翻译提示词"
                   rows="4"
                   class="form-textarea"
                   placeholder="翻译提示词..."
@@ -969,6 +1006,7 @@
               <div class="form-control">
                 <textarea
                   v-model="settings.report.defaultPrompt"
+                  aria-label="默认审核提示词"
                   rows="6"
                   class="form-textarea"
                   placeholder="AI 审核提示词..."
@@ -980,6 +1018,7 @@
               <div class="form-control">
                 <textarea
                   v-model="settings.report.contextPrompt"
+                  aria-label="带上下文审核提示词"
                   rows="6"
                   class="form-textarea"
                   placeholder="带上下文的 AI 审核提示词..."
@@ -997,8 +1036,8 @@
       <div class="save-bar" v-if="settingsLoaded && hasChanges">
         <span class="save-bar-text">检测到未保存的修改</span>
         <div class="save-actions">
-          <button class="save-bar-btn secondary" :disabled="saving" @click="resetChanges">放弃更改</button>
-          <button class="save-bar-btn primary" :disabled="saving" @click="saveSettings">
+          <button type="button" class="save-bar-btn secondary" :disabled="saving" @click="resetChanges">放弃更改</button>
+          <button type="button" class="save-bar-btn primary" :disabled="saving" @click="saveSettings">
             {{ saving ? '保存中...' : '保存更改' }}
           </button>
         </div>
@@ -1021,6 +1060,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, toRaw, watch } from 'vue'
 import { message } from '@koishijs/client'
+import { assertSafeKeywordRegex } from '../../../../packages/shared/src/keyword-pattern'
 import {
   adminSettingsApi,
   bindingSettingsApi,
@@ -1043,6 +1083,13 @@ import {
 import { useActionError } from '../composables/use-action-error'
 import { useConfirm } from '../composables/use-confirm'
 import { deepMerge, isPlainRecord, type PlainRecord } from '../models/plain-record'
+import {
+  runSettingsSaveSteps,
+  saveKeywordRuleChanges,
+  SettingsSaveStepFailure,
+  type SettingsSaveStepResult,
+  type SettingsSaveStepStatus,
+} from '../models/settings-save'
 import ConfirmDialog from './primitives/ConfirmDialog.vue'
 
 interface SettingsModel extends PlainRecord {
@@ -1230,6 +1277,7 @@ const defaultSettings: SettingsModel = {
       freshmanBlacklistReleaseCommandDescription: '解除新生入群认证黑名单',
       commandAccessDenied: '命令权限不足。',
       adminCommandsDisabled: '管理员命令已由 StuHelper WebUI 关闭。',
+      guardGuildContextRequired: '请在群聊中执行，或显式传入群号。',
       guardWarningMissingContext: '请在群聊中执行，或显式传入群号和成员 ID。',
       guardBatchMuteGroupOnly: '请在目标群聊中执行批量禁言。',
       guardBatchMuteInvalidPayload: '请提供禁言秒数和成员 ID 列表，例如：群审批量禁言 120 10001,10002',
@@ -1323,6 +1371,7 @@ const {
 })
 const settings = ref<SettingsModel>(cloneDefaultSettings())
 const originalSettings = ref<string>('') // 原始设置的 JSON 字符串用于比较
+const saveStepResults = ref<SettingsSaveStepResult[]>([])
 const openAIApiKeyDraft = ref('')
 const openAIApiKeyConfigured = ref(false)
 const openAIApiKeyMasked = ref('')
@@ -1337,6 +1386,9 @@ const keywordRuleValidationError = ref('')
 const activeSection = ref('warn')
 const sectionDropdownOpen = ref(false)
 const settingsLoaded = computed(() => Boolean(originalSettings.value) && !loadError.value)
+const hasIncompleteSave = computed(() =>
+  saveStepResults.value.some((result) => result.status !== 'confirmed'),
+)
 const groupGuardMessageResetPending = ref(false)
 let loadRequestSeq = 0
 
@@ -1471,6 +1523,7 @@ const adminMessageFields = [
   { key: 'freshmanBlacklistReleaseCommandDescription', label: '新生黑名单解除命令说明' },
   { key: 'commandAccessDenied', label: '命令权限不足提示' },
   { key: 'adminCommandsDisabled', label: '管理员命令关闭提示' },
+  { key: 'guardGuildContextRequired', label: '群管理命令缺少群上下文' },
   { key: 'guardWarningMissingContext', label: '警告命令缺少上下文' },
   { key: 'guardBatchMuteGroupOnly', label: '批量禁言群聊限制' },
   { key: 'guardBatchMuteInvalidPayload', label: '批量禁言格式错误' },
@@ -1771,12 +1824,14 @@ function applyOpenAIApiKeyMetadata(data: unknown) {
   clearOpenAIApiKey.value = false
 }
 
-function applyGroupGuardAIApiKeyMetadata(data: unknown) {
+function applyGroupGuardAIApiKeyMetadata(data: unknown, clearIntent = true) {
   const ai = isPlainRecord(data) ? data : {}
   groupGuardAIApiKeyConfigured.value = ai.apiKeyConfigured === true
   groupGuardAIApiKeyMasked.value = typeof ai.apiKeyMasked === 'string' ? ai.apiKeyMasked : ''
-  groupGuardAIApiKeyDraft.value = ''
-  clearGroupGuardAIApiKey.value = false
+  if (clearIntent) {
+    groupGuardAIApiKeyDraft.value = ''
+    clearGroupGuardAIApiKey.value = false
+  }
 }
 
 function stripOpenAIApiKeyMetadata(model: SettingsModel) {
@@ -1789,7 +1844,11 @@ function stripOpenAIApiKeyMetadata(model: SettingsModel) {
 }
 
 function stripGroupGuardAIApiKeyMetadata(model: SettingsModel) {
-  const ai = model.groupGuardAI as unknown as PlainRecord
+  stripGroupGuardAISettingsMetadata(model.groupGuardAI)
+}
+
+function stripGroupGuardAISettingsMetadata(settings: GroupGuardAISettings) {
+  const ai = settings as unknown as PlainRecord
   delete ai.id
   delete ai.createdAt
   delete ai.updatedAt
@@ -1800,10 +1859,46 @@ function stripGroupGuardAIApiKeyMetadata(model: SettingsModel) {
   delete ai.apiKeyMasked
 }
 
-function buildSettingsUpdatePayload(): PlainRecord {
-  const payload = structuredClone(toRaw(settings.value)) as unknown as PlainRecord
+interface APIKeySaveIntent {
+  newApiKey: string
+  clear: boolean
+}
+
+interface SettingsSavePlan {
+  model: SettingsModel
+  openAIKey: APIKeySaveIntent
+  groupGuardAIKey: APIKeySaveIntent
+  resetGroupGuardMessages: boolean
+}
+
+type DedicatedSettingsKey =
+  | 'binding'
+  | 'admin'
+  | 'groupGuardAI'
+  | 'groupGuard'
+  | 'groupGuardMessages'
+
+function captureSettingsSavePlan(): SettingsSavePlan {
+  return {
+    model: structuredClone(toRaw(settings.value)),
+    openAIKey: {
+      newApiKey: openAIApiKeyDraft.value.trim(),
+      clear: clearOpenAIApiKey.value,
+    },
+    groupGuardAIKey: {
+      newApiKey: groupGuardAIApiKeyDraft.value.trim(),
+      clear: clearGroupGuardAIApiKey.value,
+    },
+    resetGroupGuardMessages: groupGuardMessageResetPending.value,
+  }
+}
+
+function buildSettingsUpdatePayload(
+  model: SettingsModel,
+  keyIntent: APIKeySaveIntent,
+): PlainRecord {
+  const payload = structuredClone(model) as unknown as PlainRecord
   const openai = isPlainRecord(payload.openai) ? { ...payload.openai } : {}
-  const newApiKey = openAIApiKeyDraft.value.trim()
 
   delete payload.binding
   delete payload.admin
@@ -1814,57 +1909,59 @@ function buildSettingsUpdatePayload(): PlainRecord {
   delete openai.apiKey
   delete openai.apiKeyConfigured
   delete openai.apiKeyMasked
-  if (clearOpenAIApiKey.value) {
+  if (keyIntent.clear) {
     openai.clearApiKey = true
-  } else if (newApiKey) {
-    openai.newApiKey = newApiKey
+  } else if (keyIntent.newApiKey) {
+    openai.newApiKey = keyIntent.newApiKey
   }
 
   payload.openai = openai
   return payload
 }
 
-function buildBindingSettingsPayload(): BindingRuntimeSettings {
-  const binding = toRaw(settings.value.binding)
+function buildBindingSettingsPayload(model: SettingsModel): BindingRuntimeSettings {
+  const binding = model.binding
   return {
     command: binding.command,
     messages: structuredClone(binding.messages),
   }
 }
 
-function buildAdminSettingsPayload(): AdminRuntimeSettings {
+function buildAdminSettingsPayload(model: SettingsModel): AdminRuntimeSettings {
   return {
-    messages: structuredClone(toRaw(settings.value.admin.messages)),
+    messages: structuredClone(model.admin.messages),
   }
 }
 
-function buildGroupGuardAISettingsPayload(): GroupGuardAISettingsUpdate {
-  const ai = toRaw(settings.value.groupGuardAI)
+function buildGroupGuardAISettingsPayload(
+  model: SettingsModel,
+  keyIntent: APIKeySaveIntent,
+): GroupGuardAISettingsUpdate {
+  const ai = model.groupGuardAI
   const payload: GroupGuardAISettingsUpdate = {
     enabled: ai.enabled,
     endpoint: ai.endpoint,
     model: ai.model,
   }
-  const newApiKey = groupGuardAIApiKeyDraft.value.trim()
-  if (clearGroupGuardAIApiKey.value) {
+  if (keyIntent.clear) {
     payload.clearApiKey = true
-  } else if (newApiKey) {
-    payload.newApiKey = newApiKey
+  } else if (keyIntent.newApiKey) {
+    payload.newApiKey = keyIntent.newApiKey
   }
   return payload
 }
 
-function buildGroupGuardBehaviorSettingsPayload(): GroupGuardBehaviorSettings {
-  const groupGuard = toRaw(settings.value.groupGuard)
+function buildGroupGuardBehaviorSettingsPayload(model: SettingsModel): GroupGuardBehaviorSettings {
+  const groupGuard = model.groupGuard
   return {
     fun: structuredClone(groupGuard.fun),
     moderation: structuredClone(groupGuard.moderation),
   }
 }
 
-function buildGroupGuardMessageSettingsPayload(): GroupGuardMessageSettings {
+function buildGroupGuardMessageSettingsPayload(model: SettingsModel): GroupGuardMessageSettings {
   return {
-    messages: structuredClone(toRaw(settings.value.groupGuardMessages.messages)),
+    messages: structuredClone(model.groupGuardMessages.messages),
   }
 }
 
@@ -1881,19 +1978,104 @@ function buildKeywordRulePayload(rule: KeywordRule): KeywordRuleInput {
   }
 }
 
-async function saveKeywordRules() {
+async function saveKeywordRules(submitted: readonly KeywordRule[]) {
   const original = parseSettingsSnapshot(originalSettings.value).keywordRules
-  const next = settings.value.keywordRules
-  const nextIds = new Set(next.map((rule) => rule.id))
+  await saveKeywordRuleChanges({
+    original,
+    next: submitted,
+    compareRules: sortKeywordRules,
+    deleteRule: async (id) => {
+      await keywordRulesApi.delete(id)
+    },
+    upsertRule: async (rule) => {
+      await keywordRulesApi.upsert(buildKeywordRulePayload(rule))
+    },
+    onBaselineChange: (rules) => {
+      updateOriginalSettings((baseline) => {
+        baseline.keywordRules = structuredClone(rules) as KeywordRule[]
+      })
+    },
+  })
+}
 
-  for (const rule of original) {
-    if (!nextIds.has(rule.id)) {
-      await keywordRulesApi.delete(rule.id)
-    }
+function updateOriginalSettings(mutator: (baseline: SettingsModel) => void) {
+  const baseline = parseSettingsSnapshot(originalSettings.value)
+  mutator(baseline)
+  originalSettings.value = JSON.stringify(baseline)
+}
+
+function commitCoreSettingsBaseline(submitted: SettingsModel) {
+  const baseline = parseSettingsSnapshot(originalSettings.value)
+  const next = structuredClone(submitted)
+  next.binding = baseline.binding
+  next.admin = baseline.admin
+  next.groupGuardAI = baseline.groupGuardAI
+  next.groupGuard = baseline.groupGuard
+  next.groupGuardMessages = baseline.groupGuardMessages
+  next.keywordRules = baseline.keywordRules
+  originalSettings.value = JSON.stringify(next)
+}
+
+function commitConfirmedSettingsSlice<K extends DedicatedSettingsKey>(
+  key: K,
+  submitted: SettingsModel[K],
+  persisted: SettingsModel[K],
+) {
+  updateOriginalSettings((baseline) => {
+    baseline[key] = structuredClone(persisted)
+  })
+  if (JSON.stringify(settings.value[key]) === JSON.stringify(submitted)) {
+    settings.value[key] = structuredClone(persisted)
   }
-  for (const rule of next) {
-    await keywordRulesApi.upsert(buildKeywordRulePayload(rule))
+}
+
+function confirmOpenAIKeyIntent(intent: APIKeySaveIntent) {
+  if (
+    openAIApiKeyDraft.value.trim() !== intent.newApiKey ||
+    clearOpenAIApiKey.value !== intent.clear
+  ) {
+    return
   }
+  if (intent.clear) {
+    openAIApiKeyConfigured.value = false
+    openAIApiKeyMasked.value = ''
+  } else if (intent.newApiKey) {
+    openAIApiKeyConfigured.value = true
+    openAIApiKeyMasked.value = ''
+  } else {
+    return
+  }
+  openAIApiKeyDraft.value = ''
+  clearOpenAIApiKey.value = false
+}
+
+function confirmGroupGuardAIKeyIntent(
+  intent: APIKeySaveIntent,
+  persisted: GroupGuardAISettings,
+) {
+  applyGroupGuardAIApiKeyMetadata(persisted, false)
+  if (
+    groupGuardAIApiKeyDraft.value.trim() !== intent.newApiKey ||
+    clearGroupGuardAIApiKey.value !== intent.clear
+  ) {
+    return
+  }
+  groupGuardAIApiKeyDraft.value = ''
+  clearGroupGuardAIApiKey.value = false
+}
+
+function settingsSaveStepStatusLabel(status: SettingsSaveStepStatus) {
+  const labels: Record<SettingsSaveStepStatus, string> = {
+    confirmed: '已确认',
+    unconfirmed: '结果未确认',
+    'not-run': '未执行',
+  }
+  return labels[status]
+}
+
+function clearSaveError() {
+  clearActionError()
+  saveStepResults.value = []
 }
 
 const loadSettings = async (): Promise<boolean> => {
@@ -1928,6 +2110,7 @@ const loadSettings = async (): Promise<boolean> => {
     resetKeywordRuleEditor()
     // 保存原始设置用于比较
     originalSettings.value = JSON.stringify(settings.value)
+    saveStepResults.value = []
     return true
   } catch (cause) {
     if (requestSeq !== loadRequestSeq) return false
@@ -1951,25 +2134,110 @@ const saveSettings = async () => {
   }
 
   saving.value = true
-  clearActionError()
+  clearSaveError()
   try {
-    await settingsApi.update(buildSettingsUpdatePayload())
-    await bindingSettingsApi.update(buildBindingSettingsPayload())
-    await adminSettingsApi.update(buildAdminSettingsPayload())
-    await groupGuardAISettingsApi.update(buildGroupGuardAISettingsPayload())
-    await groupGuardBehaviorSettingsApi.update(buildGroupGuardBehaviorSettingsPayload())
-    if (groupGuardMessageResetPending.value) {
-      await groupGuardMessageSettingsApi.reset()
-    } else {
-      await groupGuardMessageSettingsApi.update(buildGroupGuardMessageSettingsPayload())
-    }
-    await saveKeywordRules()
+    const plan = captureSettingsSavePlan()
+    await runSettingsSaveSteps([
+      {
+        key: 'core',
+        label: '群管中心设置',
+        run: async () => {
+          await settingsApi.update(buildSettingsUpdatePayload(plan.model, plan.openAIKey))
+          commitCoreSettingsBaseline(plan.model)
+          confirmOpenAIKeyIntent(plan.openAIKey)
+        },
+      },
+      {
+        key: 'binding',
+        label: 'QQ 绑定提示',
+        run: async () => {
+          const persisted = await bindingSettingsApi.update(buildBindingSettingsPayload(plan.model))
+          commitConfirmedSettingsSlice('binding', plan.model.binding, persisted)
+        },
+      },
+      {
+        key: 'admin',
+        label: '管理员命令提示',
+        run: async () => {
+          const persisted = await adminSettingsApi.update(buildAdminSettingsPayload(plan.model))
+          commitConfirmedSettingsSlice('admin', plan.model.admin, persisted)
+        },
+      },
+      {
+        key: 'group-guard-ai',
+        label: '群管 AI 设置',
+        run: async () => {
+          const response = await groupGuardAISettingsApi.update(
+            buildGroupGuardAISettingsPayload(plan.model, plan.groupGuardAIKey),
+          )
+          const persisted = normalizeGroupGuardAISettings(response)
+          confirmGroupGuardAIKeyIntent(plan.groupGuardAIKey, persisted)
+          stripGroupGuardAISettingsMetadata(persisted)
+          commitConfirmedSettingsSlice('groupGuardAI', plan.model.groupGuardAI, persisted)
+        },
+      },
+      {
+        key: 'group-guard-behavior',
+        label: '群管行为设置',
+        run: async () => {
+          const persisted = await groupGuardBehaviorSettingsApi.update(
+            buildGroupGuardBehaviorSettingsPayload(plan.model),
+          )
+          commitConfirmedSettingsSlice('groupGuard', plan.model.groupGuard, persisted)
+        },
+      },
+      {
+        key: 'group-guard-messages',
+        label: '群管提示设置',
+        run: async () => {
+          const persisted = plan.resetGroupGuardMessages
+            ? await groupGuardMessageSettingsApi.reset()
+            : await groupGuardMessageSettingsApi.update(
+              buildGroupGuardMessageSettingsPayload(plan.model),
+            )
+          commitConfirmedSettingsSlice(
+            'groupGuardMessages',
+            plan.model.groupGuardMessages,
+            persisted,
+          )
+          if (
+            plan.resetGroupGuardMessages &&
+            groupGuardMessageResetPending.value
+          ) {
+            groupGuardMessageResetPending.value = false
+          }
+        },
+      },
+      {
+        key: 'keyword-rules',
+        label: '关键词规则',
+        run: async () => {
+          await saveKeywordRules(plan.model.keywordRules)
+        },
+      },
+    ], (results) => {
+      saveStepResults.value = results.map((result) => ({ ...result }))
+    })
     message.success('设置已保存')
     await loadSettings()
   } catch (cause) {
-    setActionError('保存失败', cause, '保存设置失败')
+    const title = cause instanceof SettingsSaveStepFailure
+      ? '设置未完全保存'
+      : '保存失败'
+    setActionError(title, cause, '保存设置失败')
   } finally {
     saving.value = false
+  }
+}
+
+const reloadSettingsAfterSaveFailure = async () => {
+  const confirmed = await confirm({
+    title: '重新加载服务器设置',
+    message: '重新加载会放弃当前表单中尚未确认保存的内容，并以服务器实际状态为准。确定继续吗？',
+    tone: 'normal',
+  })
+  if (confirmed) {
+    await loadSettings()
   }
 }
 
@@ -1983,7 +2251,7 @@ const resetChanges = async () => {
   })
   
   if (confirmed) {
-    clearActionError()
+    clearSaveError()
     // 从原始设置恢复
     settings.value = parseSettingsSnapshot(originalSettings.value)
     openAIApiKeyDraft.value = ''
@@ -2006,7 +2274,7 @@ const resetToDefault = async () => {
   })
   
   if (confirmed) {
-    clearActionError()
+    clearSaveError()
     const currentGroupGuardMessages = settings.value.groupGuardMessages
     // 恢复为默认设置
     settings.value = cloneDefaultSettings()
@@ -2107,9 +2375,9 @@ function validateKeywordRuleDraft(input: KeywordRuleInput): KeywordRuleInput {
   if (note && note.length > 512) throw new Error('规则备注最多 512 字符')
   if (input.matchMode === 'regex') {
     try {
-      new RegExp(pattern, 'i')
+      assertSafeKeywordRegex(pattern, 256)
     } catch {
-      throw new Error('正则表达式无效')
+      throw new Error('正则表达式无效或存在高风险回溯')
     }
   }
   return {
@@ -2354,6 +2622,47 @@ onMounted(() => {
 .settings-load-error__body span,
 .settings-action-error__body span {
   overflow-wrap: anywhere;
+}
+
+.settings-action-error__actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 8px;
+  align-items: center;
+}
+
+.settings-save-results {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 12px;
+  padding: 8px 0 0;
+  margin: 0;
+  list-style: none;
+}
+
+.settings-save-results li {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--fg2);
+}
+
+.settings-save-results__status {
+  flex-shrink: 0;
+  font-weight: 600;
+}
+
+.settings-save-results__status.is-confirmed {
+  color: var(--k-color-success);
+}
+
+.settings-save-results__status.is-unconfirmed {
+  color: var(--k-color-danger);
+}
+
+.settings-save-results__status.is-not-run {
+  color: var(--fg3);
 }
 
 /* Settings Content */
@@ -2879,6 +3188,23 @@ onMounted(() => {
     width: 100%;
     justify-content: center;
     padding: 0.625rem 1rem;
+  }
+
+  .settings-action-error {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .settings-action-error__actions {
+    width: 100%;
+  }
+
+  .settings-action-error__actions .action-btn {
+    flex: 1;
+  }
+
+  .settings-save-results {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   /* 设置内容布局 */

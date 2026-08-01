@@ -3,7 +3,7 @@ type: guide
 audience: backend-dev, ops
 status: current
 authoritative-source: bots/koishi/ + server/api/openapi.yaml
-last-verified: 2026-06-18
+last-verified: 2026-07-31
 ---
 
 # Koishi 机器人开发
@@ -85,6 +85,57 @@ YARN_NPM_REGISTRY_SERVER=https://registry.npmjs.org corepack yarn npm audit --al
 
 - `bots/koishi/packages/shared/src/types/index.ts`
 - `bots/koishi/packages/shared/src/config/index.ts`
+
+### 全局设置的保存一致性
+
+“全局设置”页面实际保存 7 个逻辑域：群管中心设置、QQ 绑定提示、管理员命令提示、
+群管 AI、群管行为、群管提示和关键词规则。它们由不同的 Console API 持久化，关键词规则
+还会展开为删除和逐条 upsert，因此这不是单个数据库事务。
+
+- 页面按固定顺序执行有界请求，不使用 `Promise.all` 并发冲击运行时配置。
+- 每个逻辑域显示 `已确认`、`结果未确认` 或 `未执行`；失败后不会把整个旧表单误称为服务端
+  当前状态。
+- 只有收到成功响应的设置切片才推进本地 baseline。关键词规则每完成一次删除或 upsert
+  就推进对应 baseline，重试时不会再次删除已经确认落地的规则。
+- 关键词删除是幂等的；如果前一次请求已删除规则但响应丢失，重试仍返回成功。已存在规则的
+  guild scope 校验保持不变。
+- 失败后管理员可以继续按剩余差异重试，也可以在二次确认后重新加载服务端实际状态；重新加载
+  会放弃当前表单中尚未确认保存的内容。
+- WebUI 与机器人运行时复用同一份安全正则校验，避免浏览器接受而服务端拒绝高风险回溯表达式。
+
+这里不承诺跨多个 HTTP 请求的原子提交，也不应在前端模拟 rollback、2PC 或 saga。若未来确实
+需要全域原子配置，应由服务端提供单一事务 API，并先明确各运行时设置表的事务边界。
+
+### 入群认证队列窗口
+
+入群认证页的“受限成员队列”是一个有界的操作窗口，不是全量分页列表：
+
+- 服务端先按当前 Console 操作员的 guild scope 过滤，再以
+  `(deadlineAt, record id)` 稳定排序并返回最早到期的 100 条。
+- 页面同时显示 `shown / total`、窗口上限和是否截断；总数与窗口都来自同一次、同一 scope
+  的页面快照，不能把“显示 100 条”误解为“系统只有 100 条”。
+- 窗口截断时，页面明确引导管理员前往“处置中心”，按“准入”类型、成员或群号检索同一权限
+  范围内的其他 active guard records；已授权的群内认证命令也是独立处置入口。
+- 处置中心和后台 admission 扫描不受这个 100 条展示窗口限制。
+
+只有在真实队列规模、持续截断频率或页面加载延迟达到既定 SLO 风险时，才考虑给
+`GuardMemberStore` 增加 scoped cursor pagination/search。本窗口提示本身不需要先建设新的
+Repository 查询或前端分页框架。
+
+### 消息账本的查询与保留边界
+
+`stuhelper-group-guard` 会为群消息写入
+`stuhelper_moderation_message_ledger`。复读检测是逐消息热路径，只允许按 `guildId` 查询并在
+数据库中以 `createdAt DESC` 排序、按当前 `repeatWindowSize` 截断；表模型必须保留
+`(guildId ASC, createdAt DESC)` 复合索引。调用方会从结果中排除刚写入的当前消息，因此查询
+上限必须保持与 `repeatWindowSize` 相同，不能擅自加一改变既有检测窗口。
+
+该账本同时用于按 `messageId` 处理后续撤回事件。当前没有经产品确认的最长撤回取证期、审计
+留存期或生产表规模证据，因此不自动删除历史行，也不为此新增 WebUI 配置。运维侧应观测表行数、
+数据库文件大小和复读查询延迟；只有确认保留期限后才能引入清理任务。清理必须采用有界批次，
+明确对迟到撤回事件的影响，并按
+[`iam-implementation-guardrails.md`](../design/iam-implementation-guardrails.md)
+的后台任务与 retention 约束完成恢复、并发和发布验收。
 
 ## 平台依赖接口
 

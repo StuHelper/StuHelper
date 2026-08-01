@@ -10,7 +10,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 
 	"github.com/StuHelper/StuHelper/server/internal/pkg/cache"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/config"
@@ -86,7 +85,7 @@ func TestReviewFilterRefreshAndBackgroundJobs(t *testing.T) {
 
 	jobCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	launches := make(chan string, 4)
+	launches := make(chan string, 8)
 	start := func(name string, run func(context.Context)) {
 		launches <- name
 		go run(jobCtx)
@@ -96,8 +95,11 @@ func TestReviewFilterRefreshAndBackgroundJobs(t *testing.T) {
 	requireReviewBackgroundLaunches(t, launches,
 		"review fga sync worker",
 		"review fga sync reconciliation",
+		"review notification worker",
+		"review teacher public stats projection",
 		"review fga sync worker",
 		"review fga sync reconciliation",
+		"review notification worker",
 	)
 }
 
@@ -134,20 +136,6 @@ func TestStartBackgroundJobsRequiresStarter(t *testing.T) {
 	})
 }
 
-func TestInvalidateTeacherPublicCachesDetachedIgnoresParentCancellation(t *testing.T) {
-	redisFixture := redisfixture.Start(t)
-	h := &Handler{cache: cache.NewHelper(redisFixture.Client)}
-	ctx := context.Background()
-	teachersVersion, hotTeachersVersion := teacherPublicCacheVersions(ctx, h)
-
-	canceledCtx, cancel := context.WithCancel(ctx)
-	cancel()
-
-	h.invalidateTeacherPublicCachesDetached(canceledCtx, zap.NewNop())
-
-	assertTeacherPublicCachesBumped(t, ctx, h, teachersVersion, hotTeachersVersion)
-}
-
 func requireReviewBackgroundLaunches(t *testing.T, launches <-chan string, want ...string) {
 	t.Helper()
 	for _, expected := range want {
@@ -160,127 +148,22 @@ func requireReviewBackgroundLaunches(t *testing.T, launches <-chan string, want 
 	}
 }
 
-func TestReviewDispatchNotificationUsesManagedLauncher(t *testing.T) {
+func TestReviewServiceStartsDurableNotificationWorker(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	repo := NewRepository(fixture.DB)
 	svc := NewService(fixture.DB, repo, noopReviewSender2{}, &recordingReviewFGAWriter{}, fakeAccessReader{})
 
-	jobCtx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	launches := make(chan string, 3)
-	start := func(name string, run func(context.Context)) {
+	start := func(name string, _ func(context.Context)) {
 		launches <- name
-		go run(jobCtx)
 	}
-	svc.StartBackgroundJobs(jobCtx, start)
+	svc.StartBackgroundJobs(context.Background(), start)
 
-	select {
-	case name := <-launches:
-		assert.Equal(t, "review fga sync worker", name)
-	case <-time.After(time.Second):
-		t.Fatal("expected review FGA sync worker to launch")
-	}
-	select {
-	case name := <-launches:
-		assert.Equal(t, "review fga sync reconciliation", name)
-	case <-time.After(time.Second):
-		t.Fatal("expected review FGA reconciliation to launch")
-	}
-
-	done := make(chan struct{})
-	svc.dispatchNotification(context.Background(), func(context.Context) {
-		close(done)
-	})
-
-	select {
-	case name := <-launches:
-		assert.Equal(t, "", name)
-	case <-time.After(time.Second):
-		t.Fatal("expected notification dispatch to use managed launcher")
-	}
-
-	select {
-	case <-done:
-	case <-time.After(time.Second):
-		t.Fatal("expected notification task to run")
-	}
-}
-
-func TestDispatchNotificationIgnoresParentCancellation(t *testing.T) {
-	type contextKey string
-	const key contextKey = "request-id"
-	parent, cancel := context.WithCancel(context.WithValue(context.Background(), key, "req-1"))
-	cancel()
-	svc := &Service{}
-	done := make(chan error, 1)
-
-	svc.dispatchNotification(parent, func(ctx context.Context) {
-		if err := ctx.Err(); err != nil {
-			done <- err
-			return
-		}
-		if got := ctx.Value(key); got != "req-1" {
-			done <- fmt.Errorf("missing context value: %v", got)
-			return
-		}
-		done <- nil
-	})
-
-	select {
-	case err := <-done:
-		require.NoError(t, err)
-	case <-time.After(time.Second):
-		t.Fatal("expected notification task to run")
-	}
-}
-
-func TestDispatchNotificationDefaultsNilParentContext(t *testing.T) {
-	svc := &Service{}
-	done := make(chan error, 1)
-	var parent context.Context
-
-	svc.dispatchNotification(parent, func(ctx context.Context) {
-		done <- ctx.Err()
-	})
-
-	select {
-	case err := <-done:
-		require.NoError(t, err)
-	case <-time.After(time.Second):
-		t.Fatal("expected notification task to run")
-	}
-}
-
-func TestDispatchNotificationRecoversPanic(t *testing.T) {
-	t.Run("managed launcher", func(t *testing.T) {
-		svc := &Service{
-			asyncCtx: context.Background(),
-			asyncLaunch: func(_ string, run func(context.Context)) {
-				run(context.Background())
-			},
-		}
-
-		require.NotPanics(t, func() {
-			svc.dispatchNotification(context.Background(), func(context.Context) {
-				panic("notification panic")
-			})
-		})
-	})
-
-	t.Run("fallback goroutine", func(t *testing.T) {
-		svc := &Service{}
-		done := make(chan struct{})
-
-		svc.dispatchNotification(context.Background(), func(context.Context) {
-			close(done)
-			panic("notification panic")
-		})
-
-		select {
-		case <-done:
-		case <-time.After(time.Second):
-			t.Fatal("expected notification task to run")
-		}
-	})
+	requireReviewBackgroundLaunches(
+		t,
+		launches,
+		"review fga sync worker",
+		"review fga sync reconciliation",
+		"review notification worker",
+	)
 }

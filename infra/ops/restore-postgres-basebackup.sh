@@ -21,12 +21,29 @@ if [[ ! -f "${backup_file}" ]]; then
 fi
 
 if [[ -f "${backup_file}.sha256" ]]; then
-  sha256sum -c "${backup_file}.sha256"
+  expected_sha256="$(awk 'NR == 1 { print $1 }' "${backup_file}.sha256")"
+  actual_sha256="$(sha256sum "${backup_file}" | awk '{ print $1 }')"
+  if [[ ! "${expected_sha256}" =~ ^[0-9a-fA-F]{64}$ ||
+        "${actual_sha256}" != "${expected_sha256,,}" ]]; then
+    echo "ERROR: base backup SHA256 verification failed: ${backup_file}" >&2
+    exit 1
+  fi
 fi
 
+tar -tzf "${backup_file}" >/dev/null
+
+if [[ -L "${pgdata_dir}" ]]; then
+  echo "ERROR: refusing to restore through a symlinked PGDATA directory: ${pgdata_dir}" >&2
+  exit 1
+fi
 mkdir -p "${pgdata_dir}"
 rm -rf "${pgdata_dir:?}/"*
 tar -xzf "${backup_file}" -C "${pgdata_dir}"
+
+if [[ ! -s "${pgdata_dir}/PG_VERSION" || ! -s "${pgdata_dir}/backup_manifest" ]]; then
+  echo "ERROR: extracted archive is not a verified pg_basebackup layout" >&2
+  exit 1
+fi
 
 if [[ -n "${wal_archive_dir}" ]]; then
   cat >>"${pgdata_dir}/postgresql.auto.conf" <<EOF

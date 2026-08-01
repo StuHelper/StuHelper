@@ -390,7 +390,14 @@ export class MemberGuardService {
 
   private async recordAdmissionActionResult(action: AdmissionPendingAction, event: Parameters<PlatformClient['recordAdmissionEvent']>[1]) {
     if (action.actionID) {
-      await this.deps.platform.recordAdmissionActionEvent(action.actionID, event)
+      const dispatchAttempt = action.dispatchAttempt
+      if (!Number.isInteger(dispatchAttempt) || dispatchAttempt! <= 0) {
+        throw new Error(`admission action ${action.sessionID} missing valid dispatchAttempt`)
+      }
+      await this.deps.platform.recordAdmissionActionEvent(action.actionID, {
+        ...event,
+        dispatchAttempt: dispatchAttempt!,
+      })
       return
     }
     await this.deps.platform.recordAdmissionEvent(action.sessionID, event)
@@ -461,10 +468,42 @@ export class MemberGuardService {
 
     const items = await this.deps.platform.listPendingFreshmanForwards()
     const messages = await this.getMessages()
+    const failures: unknown[] = []
     for (const item of items) {
-      const bot = resolveFreshmanForwardBot(forwardBots, item)
-      await forwardFreshmanMaterial(bot, item, messages)
-      await this.deps.platform.markFreshmanForwarded(item.application.id)
+      try {
+        const bot = resolveFreshmanForwardBot(forwardBots, item)
+        await forwardFreshmanMaterial(bot, item, messages)
+      } catch (error) {
+        failures.push(error)
+        this.deps.logger.warn('group guard freshman forward failed', {
+          applicationID: item.application.id,
+          phase: 'delivery',
+          error: formatAdmissionActionError(error),
+        })
+        continue
+      }
+      try {
+        await this.deps.platform.markFreshmanForwarded(item.application.id)
+      } catch (error) {
+        this.deps.logger.warn('group guard freshman forward failed', {
+          applicationID: item.application.id,
+          phase: 'ack',
+          error: formatAdmissionActionError(error),
+        })
+        if (failures.length) {
+          throw new AggregateError(
+            [...failures, error],
+            'freshman forward batch failed during acknowledgement',
+          )
+        }
+        throw error
+      }
+    }
+    if (failures.length === 1) {
+      throw failures[0]
+    }
+    if (failures.length > 1) {
+      throw new AggregateError(failures, 'freshman forward batch failed')
     }
   }
 

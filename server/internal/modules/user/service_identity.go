@@ -12,9 +12,13 @@ import (
 	"path"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
+	"github.com/jackc/pgx/v5"
 	_ "golang.org/x/image/webp"
+
+	"github.com/StuHelper/StuHelper/server/internal/pkg/schoolauth"
 )
 
 const (
@@ -50,7 +54,7 @@ func (s *Service) SubmitIdentity(ctx context.Context, userID int64, req SubmitId
 
 	req.RealName = strings.TrimSpace(req.RealName)
 	req.DocNumber = normalizeIdentityDocNumber(req.DocType, req.DocNumber)
-	if req.RealName == "" || utf8.RuneCountInString(req.RealName) > maxIdentityRealNameRunes {
+	if !isValidIdentityRealName(req.RealName) {
 		return nil, ErrIdentityRealNameInvalid
 	}
 	if !isValidIdentityDocNumber(req.DocType, req.DocNumber) {
@@ -83,27 +87,65 @@ func (s *Service) SubmitIdentity(ctx context.Context, userID int64, req SubmitId
 		DocPhotoSelfie: req.DocPhotoSelfie,
 	}
 
+	var academicMatch *academicIdentityMatch
 	if req.DocType == DocTypeMainlandID {
-		matched, err := s.tryAcademicDBMatch(ctx, req.DocNumber, req.RealName)
+		academicMatch, err = s.tryAcademicDBMatch(ctx, userID, req.DocNumber, req.RealName)
 		if err != nil {
 			return nil, fmt.Errorf("SubmitIdentity academic match: %w", err)
 		}
-		if matched {
-			method := VerifyMethodAcademicDB
-			now := time.Now()
-			identity.Verified = true
-			identity.VerifyMethod = &method
-			identity.ReviewedAt = &now
-			identity.VerifiedAt = &now
-		}
+	}
+	// 大陆身份证先尝试使用当前账号已绑定的学籍凭据自动核验；无法形成
+	// 自动核验凭据时，必须补齐证件正面和本人手持证件照后才能进入人工审核。
+	if academicMatch == nil && !photos.hasManualEvidence() {
+		return nil, ErrPhotoRequired
 	}
 
-	if existing != nil {
-		if err := s.repo.UpdateIdentitySubmission(ctx, identity); err != nil {
-			return nil, fmt.Errorf("SubmitIdentity resubmit: %w", err)
+	if err := s.repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		txExisting, err := s.repo.GetIdentityStatusByUserIDTx(ctx, tx, userID)
+		if err != nil {
+			return fmt.Errorf("SubmitIdentity check existing tx: %w", err)
 		}
-	} else if err := s.repo.CreateIdentity(ctx, identity); err != nil {
-		return nil, fmt.Errorf("SubmitIdentity create: %w", err)
+		if txExisting != nil {
+			if txExisting.Verified {
+				return ErrIdentityAlreadyVerified
+			}
+			if !canResubmitIdentity(txExisting) {
+				return ErrIdentityAlreadyExists
+			}
+		}
+
+		autoVerified := false
+		if academicMatch != nil {
+			stillValid, err := s.academicDBMatchStillValidTx(ctx, tx, userID, *academicMatch)
+			if err != nil {
+				return fmt.Errorf("SubmitIdentity revalidate academic match: %w", err)
+			}
+			if stillValid {
+				method := VerifyMethodAcademicDB
+				now := time.Now()
+				identity.Verified = true
+				identity.VerifyMethod = &method
+				identity.ReviewedAt = &now
+				identity.VerifiedAt = &now
+				autoVerified = true
+			}
+		}
+		// 学籍绑定可能在事务开始前发生变化。自动核验凭据失效时不能静默
+		// 创建一条没有审核材料的 pending 记录。
+		if !autoVerified && !photos.hasManualEvidence() {
+			return ErrPhotoRequired
+		}
+
+		if txExisting != nil {
+			if err := s.repo.UpdateIdentitySubmissionTx(ctx, tx, identity); err != nil {
+				return fmt.Errorf("SubmitIdentity resubmit tx: %w", err)
+			}
+		} else if err := s.repo.CreateIdentityTx(ctx, tx, identity); err != nil {
+			return fmt.Errorf("SubmitIdentity create tx: %w", err)
+		}
+		return nil
+	}); err != nil {
+		return nil, err
 	}
 
 	result, err := s.repo.GetIdentityStatusByUserID(ctx, userID)
@@ -111,6 +153,15 @@ func (s *Service) SubmitIdentity(ctx context.Context, userID int64, req SubmitId
 		return nil, fmt.Errorf("SubmitIdentity reload: %w", err)
 	}
 	return result, nil
+}
+
+func isValidIdentityRealName(realName string) bool {
+	return realName != "" &&
+		utf8.ValidString(realName) &&
+		utf8.RuneCountInString(realName) <= maxIdentityRealNameRunes &&
+		!strings.ContainsFunc(realName, func(r rune) bool {
+			return unicode.IsControl(r) || unicode.In(r, unicode.Cf, unicode.Co, unicode.Cs)
+		})
 }
 
 // UploadIdentityPhoto 上传实名认证照片到对象存储。
@@ -137,64 +188,160 @@ func (s *Service) UploadIdentityPhoto(ctx context.Context, userID int64, req Upl
 	return key, nil
 }
 
-// ResolveIdentityReviewItemAssets 将对象存储 key 解析为签名 URL，兼容历史 data URL / 外链。
+// ResolveIdentityReviewItemAssets 将属于当前用户和照片槽位的对象存储 key
+// 解析为短期签名 URL。历史 data URL、外链及跨用户/跨槽位 key 均拒绝返回。
 func (s *Service) ResolveIdentityReviewItemAssets(ctx context.Context, item *IdentityReviewItem) (*IdentityReviewItem, error) {
 	if item == nil {
 		return nil, nil
 	}
 	resolved := *item
 	var err error
-	resolved.DocPhotoFront, err = s.resolveIdentityPhotoValue(ctx, item.DocPhotoFront)
+	resolved.DocPhotoFront, err = s.resolveIdentityReviewPhoto(
+		ctx,
+		item.UserID,
+		IdentityPhotoSlotFront,
+		item.DocPhotoFront,
+	)
 	if err != nil {
 		return nil, err
 	}
-	resolved.DocPhotoBack, err = s.resolveIdentityPhotoValue(ctx, item.DocPhotoBack)
+	resolved.DocPhotoBack, err = s.resolveIdentityReviewPhoto(
+		ctx,
+		item.UserID,
+		IdentityPhotoSlotBack,
+		item.DocPhotoBack,
+	)
 	if err != nil {
 		return nil, err
 	}
-	resolved.DocPhotoSelfie, err = s.resolveIdentityPhotoValue(ctx, item.DocPhotoSelfie)
+	resolved.DocPhotoSelfie, err = s.resolveIdentityReviewPhoto(
+		ctx,
+		item.UserID,
+		IdentityPhotoSlotSelfie,
+		item.DocPhotoSelfie,
+	)
 	if err != nil {
 		return nil, err
 	}
 	return &resolved, nil
 }
 
-// tryAcademicDBMatch 尝试通过学籍数据库匹配进行自动实名验证
-func (s *Service) tryAcademicDBMatch(ctx context.Context, docNumber, realName string) (bool, error) {
-	schools, err := s.repo.ListSchoolConfigs(ctx)
+type academicIdentityMatch struct {
+	schoolID  int64
+	studentID string
+	tableName string
+}
+
+// tryAcademicDBMatch 仅在当前账号已经完成学生认证，且证件记录、姓名、
+// 学校和账号绑定学号全部一致时，生成可供事务内二次校验的自动实名凭据。
+func (s *Service) tryAcademicDBMatch(
+	ctx context.Context,
+	userID int64,
+	docNumber string,
+	realName string,
+) (*academicIdentityMatch, error) {
+	profile, err := s.repo.GetProfileByUserID(ctx, userID)
 	if err != nil {
-		return false, err
+		return nil, fmt.Errorf("load verified profile: %w", err)
 	}
-	if len(schools) == 0 {
+	if profile == nil || profile.VerificationStatus != StatusVerified || profile.SchoolID == nil {
+		return nil, nil
+	}
+
+	school, err := s.repo.GetSchoolConfig(ctx, *profile.SchoolID)
+	if err != nil {
+		return nil, fmt.Errorf("load school %d: %w", *profile.SchoolID, err)
+	}
+	if school == nil || !school.Enabled {
+		return nil, nil
+	}
+	tableName, err := s.ensureAcademicTableConfigured(school)
+	if err != nil {
+		return nil, fmt.Errorf("school %d academic table config: %w", school.SchoolID, err)
+	}
+
+	boundStudentIDs := profileStudentIDSet(profile)
+	if len(boundStudentIDs) == 0 {
+		return nil, nil
+	}
+	students, err := s.findAcademicStudentsByPersonUID(ctx, DocTypeMainlandID, docNumber, tableName)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"academic DB auto-match query failed for school %d table %s: %w",
+			school.SchoolID,
+			tableName,
+			err,
+		)
+	}
+
+	normalizedRealName := schoolauth.NormalizeAcademicName(realName)
+	for _, student := range students {
+		studentID := schoolauth.NormalizeStudentID(student.XH)
+		if _, ok := boundStudentIDs[studentID]; !ok || student.XM == nil {
+			continue
+		}
+		academicName := schoolauth.NormalizeAcademicName(*student.XM)
+		if academicName != "" && strings.EqualFold(academicName, normalizedRealName) {
+			return &academicIdentityMatch{
+				schoolID:  school.SchoolID,
+				studentID: studentID,
+				tableName: tableName,
+			}, nil
+		}
+	}
+	return nil, nil
+}
+
+func (s *Service) academicDBMatchStillValidTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	userID int64,
+	match academicIdentityMatch,
+) (bool, error) {
+	profile, err := s.repo.GetProfileByUserIDForUpdateTx(ctx, tx, userID)
+	if err != nil {
+		return false, fmt.Errorf("lock verified profile: %w", err)
+	}
+	if profile == nil || profile.VerificationStatus != StatusVerified || profile.SchoolID == nil ||
+		*profile.SchoolID != match.schoolID {
+		return false, nil
+	}
+	if _, ok := profileStudentIDSet(profile)[match.studentID]; !ok {
 		return false, nil
 	}
 
-	trimmedRealName := strings.TrimSpace(realName)
-	visitedTables := make(map[string]struct{}, len(schools))
+	school, err := s.repo.GetSchoolConfigForUpdateTx(ctx, tx, match.schoolID)
+	if err != nil {
+		return false, fmt.Errorf("lock school %d: %w", match.schoolID, err)
+	}
+	if school == nil || !school.Enabled {
+		return false, nil
+	}
+	tableName, err := s.ensureAcademicTableConfigured(school)
+	if err != nil || tableName != match.tableName {
+		return false, nil
+	}
+	return true, nil
+}
 
-	for i := range schools {
-		school := &schools[i]
-		tableName, err := s.ensureAcademicTableConfigured(school)
-		if err != nil {
-			return false, fmt.Errorf("school %d academic table config: %w", school.SchoolID, err)
-		}
-		if _, ok := visitedTables[tableName]; ok {
-			continue
-		}
-		visitedTables[tableName] = struct{}{}
-
-		students, err := s.findAcademicStudentsByPersonUID(ctx, DocTypeMainlandID, docNumber, tableName)
-		if err != nil {
-			return false, fmt.Errorf("academic DB auto-match query failed for school %d table %s: %w", school.SchoolID, tableName, err)
-		}
-
-		for _, stu := range students {
-			if stu.XM != nil && strings.EqualFold(strings.TrimSpace(*stu.XM), trimmedRealName) {
-				return true, nil
-			}
+func profileStudentIDSet(profile *Profile) map[string]struct{} {
+	if profile == nil {
+		return nil
+	}
+	studentIDs := make(map[string]struct{}, len(profile.StudentIDs)+1)
+	for _, rawID := range profile.StudentIDs {
+		studentID := schoolauth.NormalizeStudentID(rawID)
+		if schoolauth.IsValidStudentID(studentID) {
+			studentIDs[studentID] = struct{}{}
 		}
 	}
-	return false, nil
+	if profile.ActiveStudentID != nil {
+		studentID := schoolauth.NormalizeStudentID(*profile.ActiveStudentID)
+		if schoolauth.IsValidStudentID(studentID) {
+			studentIDs[studentID] = struct{}{}
+		}
+	}
+	return studentIDs
 }
 
 func decodeAndValidateIdentityPhoto(contentType, dataBase64 string) ([]byte, string, error) {
@@ -254,7 +401,7 @@ func (s *Service) validateSubmittedIdentityPhotos(
 	if err != nil {
 		return submittedIdentityPhotos{}, err
 	}
-	if req.DocType != DocTypeMainlandID && front == nil {
+	if req.DocType != DocTypeMainlandID && (front == nil || selfie == nil) {
 		return submittedIdentityPhotos{}, ErrPhotoRequired
 	}
 
@@ -275,6 +422,10 @@ func (s *Service) validateSubmittedIdentityPhotos(
 
 func (p submittedIdentityPhotos) hasAny() bool {
 	return p.front != nil || p.back != nil || p.selfie != nil
+}
+
+func (p submittedIdentityPhotos) hasManualEvidence() bool {
+	return p.front != nil && p.selfie != nil
 }
 
 func (p submittedIdentityPhotos) keys() []string {
@@ -396,24 +547,28 @@ func isAllowedIdentityPhotoType(contentType string) bool {
 	}
 }
 
-func looksLikeLegacyPhotoValue(value string) bool {
-	raw := strings.TrimSpace(value)
-	return strings.HasPrefix(raw, "data:") ||
-		strings.HasPrefix(raw, "http://") ||
-		strings.HasPrefix(raw, "https://")
-}
-
-func (s *Service) resolveIdentityPhotoValue(ctx context.Context, value *string) (*string, error) {
-	if value == nil || strings.TrimSpace(*value) == "" {
+func (s *Service) resolveIdentityReviewPhoto(
+	ctx context.Context,
+	userID int64,
+	slot string,
+	value *string,
+) (*string, error) {
+	key, err := normalizeSubmittedIdentityPhotoRef(userID, slot, value)
+	if err != nil {
+		return nil, err
+	}
+	if key == nil {
 		return nil, nil
 	}
-	raw := strings.TrimSpace(*value)
-	if s.photoStore == nil || looksLikeLegacyPhotoValue(raw) {
-		return &raw, nil
+	if s.photoStore == nil {
+		return nil, ErrIdentityPhotoStoreDisabled
 	}
-	url, err := s.photoStore.PresignGetURL(ctx, raw)
+	url, err := s.photoStore.PresignGetURL(ctx, *key)
 	if err != nil {
 		return nil, fmt.Errorf("presign identity photo: %w", err)
+	}
+	if strings.TrimSpace(url) == "" {
+		return nil, ErrIdentityPhotoStorageUnavailable
 	}
 	return &url, nil
 }

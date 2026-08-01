@@ -13,6 +13,7 @@ import (
 	"github.com/StuHelper/StuHelper/server/internal/modules/academics"
 	"github.com/StuHelper/StuHelper/server/internal/modules/admission"
 	"github.com/StuHelper/StuHelper/server/internal/modules/auth"
+	authorizationmodule "github.com/StuHelper/StuHelper/server/internal/modules/authorization"
 	"github.com/StuHelper/StuHelper/server/internal/modules/notification"
 	"github.com/StuHelper/StuHelper/server/internal/modules/resource"
 	"github.com/StuHelper/StuHelper/server/internal/modules/storage"
@@ -25,7 +26,6 @@ import (
 	"github.com/StuHelper/StuHelper/server/internal/pkg/logger"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/middleware"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/sms"
-	platformauth "github.com/StuHelper/StuHelper/server/internal/platform/authorization"
 	platformcasdoor "github.com/StuHelper/StuHelper/server/internal/platform/casdoor"
 	"github.com/StuHelper/StuHelper/server/internal/platform/serviceaccount"
 )
@@ -57,12 +57,42 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 	rt.fgaClient = fgaClient
 
 	userRepo := user.NewRepository(rt.database, crypto.GetHMACKey())
-	roleScopeResolver, err := platformauth.NewRoleScopeResolver(fgaClient, userRepo.GetInternalUserID)
+	authorizationRepo := authorizationmodule.NewRepository(rt.database)
+	authorizationService := authorizationmodule.NewService(
+		authorizationRepo,
+		authorizationmodule.WithProjectionClient(fgaClient),
+	)
+	if rt.isProduction {
+		cutoverCtx, cancel := context.WithTimeout(bgCtx, 15*time.Second)
+		cutoverErr := authorizationService.RequireAuthorityCutoverComplete(cutoverCtx)
+		cancel()
+		if cutoverErr != nil {
+			return fmt.Errorf("authorization authority cutover gate: %w", cutoverErr)
+		}
+	}
+	authorizationService.StartBackgroundJobs(bgCtx, startBackgroundTask)
+	oidcSubjectValidator, err := rt.initOIDCSubjectValidator()
 	if err != nil {
 		return err
 	}
-
-	authHandler, authMW, optionalAuthMW, err := rt.initAuthModule(api, bgCtx, piiCipher, roleScopeResolver)
+	authorizationIdentity := newAuthorizationIdentityAdapter(
+		userRepo,
+		authorizationService,
+		oidcSubjectValidator,
+	)
+	authorizationHandler := authorizationmodule.NewHandler(
+		authorizationService,
+		authorizationAdminAuthorizers(),
+		authorizationIdentity.ResolveInternalUserID,
+	)
+	authHandler, authMW, optionalAuthMW, err := rt.initAuthModule(
+		api,
+		bgCtx,
+		piiCipher,
+		authorizationIdentity,
+		oidcSubjectValidator,
+		authorizationIdentity,
+	)
 	if err != nil {
 		return err
 	}
@@ -75,6 +105,7 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 	notifHandler := notification.NewHandler(notifService, notifHub, userRepo.GetInternalUserID)
 	notifHandler.RegisterRoutes(api, authMW)
 	notifRealtime.StartSubscriber(bgCtx, startBackgroundTask)
+	rt.addShutdownHook(notifHub.Stop)
 	rt.addCleanup(notifRealtime.Stop)
 
 	courseModule := rt.initCourseModule(bgCtx, fgaClient, notifService, userRepo)
@@ -116,7 +147,7 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 	if err != nil {
 		return err
 	}
-	userProfileGateway, err := rt.initCasdoorUserProfileGateway()
+	userProfileGateway, err := rt.initCasdoorUserProfileGateway(userRepo.GetCasdoorSubject)
 	if err != nil {
 		return err
 	}
@@ -128,7 +159,7 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 		),
 		academics.WithAdminAuthorizers(academicsAdminAuthorizers()),
 	)
-	academicsHandler.RegisterRoutes(api, authMW)
+	academicsHandler.RegisterRoutes(api, authMW, adminMFA...)
 
 	storage.NewHandler(
 		storageService,
@@ -167,7 +198,12 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 		bindPhoneSMS,
 		user.WithAdminAuthorizers(userAdminAuthorizers()),
 	)
-	openPlatformHandler, _, err := rt.initOpenPlatformModule(api, authMW, piiCipher, userRepo.GetInternalUserID)
+	openPlatformHandler, _, err := rt.initOpenPlatformModule(
+		api,
+		authMW,
+		userProfileGateway,
+		userRepo.GetInternalUserID,
+	)
 	if err != nil {
 		return err
 	}
@@ -186,8 +222,7 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 		admission.WithAdmissionMaterialStore(
 			newAdmissionMaterialStorageAdapter(storageService, storage.DefaultMountKey),
 		),
-		admission.WithOperatorAccessGateway(rt.initAdmissionOperatorAccess(userRepo)),
-		admission.WithFreshmanProjectionGateway(admissionUserGateway),
+		admission.WithOperatorAccessGateway(rt.initAdmissionOperatorAccess(authorizationIdentity)),
 		admission.WithSchoolSSOExchanger(admission.NewOIDCSchoolSSOExchanger(rt.oidcClient)),
 		admission.WithAdmissionPublicBaseURL(rt.cfg.Admission.PublicBaseURL),
 	)
@@ -200,6 +235,8 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 		userRepo.GetInternalUserID,
 		botCredentialVerifier,
 		admission.WithAdminAuthorizers(admissionAdminAuthorizers()),
+		admission.WithSchoolEmailRateLimiter(rt.redisClient.GetClient()),
+		admission.WithStreamShutdown(bgCtx),
 	)
 	admissionHandler.RegisterRoutes(api, authMW)
 	admissionHandler.RegisterBotRoutes(api)
@@ -209,7 +246,16 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 	userService.StartBackgroundJobs(bgCtx, startBackgroundTask)
 	rt.registerUserRoutes(api, userHandler, authMW)
 	botHandler.RegisterRoutes(api)
-	rt.registerAdminRoutes(api, userRepo, userHandler, authHandler, admissionHandler, openPlatformHandler, authMW)
+	rt.registerAdminRoutes(
+		api,
+		userRepo,
+		userHandler,
+		authHandler,
+		authorizationHandler,
+		admissionHandler,
+		openPlatformHandler,
+		authMW,
+	)
 
 	courseModule.StartBackgroundJobs(bgCtx, startBackgroundTask)
 
@@ -291,13 +337,8 @@ func (rt *Runtime) initUserService(
 		photoStore = user.WithIdentityPhotoStore(newIdentityPhotoStorageAdapter(storageService, storage.DefaultMountKey))
 	}
 
-	roleSyncFn, err := rt.initCasdoorRoleSync(userRepo)
-	if err != nil {
-		return nil, err
-	}
 	options := []user.ServiceOption{
 		user.WithProfileFGAClient(fgaClient),
-		user.WithRoleSyncFunc(roleSyncFn),
 		user.WithStudentEmailOTP(rt.redisClient.GetClient(), schoolEmailSender),
 		user.WithLDAPClientFactory(newLDAPAuthClient),
 		photoStore,
@@ -313,20 +354,14 @@ func (rt *Runtime) initUserService(
 	return userService, nil
 }
 
-func (rt *Runtime) initCasdoorUserProfileGateway() (*casdoorUserProfileGateway, error) {
+func (rt *Runtime) initCasdoorUserProfileGateway(
+	casdoorSubjectByUserID func(context.Context, int64) (string, error),
+) (*casdoorUserProfileGateway, error) {
 	client, err := rt.newCasdoorUserProfileClient()
 	if err != nil {
 		return nil, err
 	}
-	return newCasdoorUserProfileGateway(client), nil
-}
-
-func (rt *Runtime) initCasdoorRoleSync(userRepo *user.Repository) (user.RoleSyncFunc, error) {
-	client, err := rt.newCasdoorRoleSyncClient()
-	if err != nil {
-		return nil, err
-	}
-	return platformcasdoor.BuildRoleSyncFunc(client, userRepo.GetCasdoorSubject), nil
+	return newCasdoorUserProfileGateway(client, casdoorSubjectByUserID), nil
 }
 
 func (rt *Runtime) initBotCredentialVerifier(ctx context.Context) (*serviceaccount.Verifier, error) {
@@ -349,45 +384,12 @@ func (rt *Runtime) initBotCredentialVerifier(ctx context.Context) (*serviceaccou
 	return verifier, nil
 }
 
-func (rt *Runtime) newCasdoorRoleSyncClient() (*platformcasdoor.RoleSyncClient, error) {
-	cfg := rt.cfg.Casdoor
-	if !casdoorRoleSyncConfigured(cfg) {
-		return nil, nil
-	}
-	client, err := platformcasdoor.NewRoleSyncClient(casdoorRoleSyncCredential(cfg), casdoorUserLookupCredential(cfg))
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize Casdoor role sync client: %w", err)
-	}
-	return client, nil
-}
-
-func casdoorRoleSyncConfigured(cfg config.CasdoorConfig) bool {
-	return !configStringMissing(cfg.RoleSyncClientID) ||
-		!configStringMissing(cfg.RoleSyncClientSecret) ||
-		!configStringMissing(cfg.RoleSyncApplication) ||
-		!configStringMissing(cfg.UserLookupClientID) ||
-		!configStringMissing(cfg.UserLookupClientSecret) ||
-		!configStringMissing(cfg.UserLookupApplication)
-}
-
 func configStringMissing(value string) bool {
 	return strings.TrimSpace(value) == ""
 }
 
 func objectStorageConfigured(cfg config.ObjectStorageConfig) bool {
 	return !configStringMissing(cfg.Endpoint)
-}
-
-func casdoorRoleSyncCredential(cfg config.CasdoorConfig) platformcasdoor.Credential {
-	return platformcasdoor.Credential{
-		Purpose:      platformcasdoor.PurposeRoleSync,
-		Endpoint:     cfg.Issuer,
-		ClientID:     cfg.RoleSyncClientID,
-		ClientSecret: cfg.RoleSyncClientSecret,
-		Certificate:  cfg.RoleSyncCertificate,
-		Organization: cfg.Organization,
-		Application:  cfg.RoleSyncApplication,
-	}
 }
 
 func casdoorUserLookupCredential(cfg config.CasdoorConfig) platformcasdoor.Credential {

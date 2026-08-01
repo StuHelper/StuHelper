@@ -53,7 +53,14 @@ func TestClientInputValidation(t *testing.T) {
 	err = c.DeleteTuples(ctx, nil)
 	require.NoError(t, err)
 
+	err = c.DeleteTuplesIgnoringMissing(ctx, nil)
+	require.NoError(t, err)
+
 	err = c.DeleteTuples(ctx, []Tuple{{User: "user-1", Relation: "author", Object: "review:1"}})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "type:id")
+
+	_, err = c.TupleExists(ctx, Tuple{User: "user-1", Relation: "author", Object: "review:1"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "type:id")
 

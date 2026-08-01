@@ -14,6 +14,7 @@ import (
 	"github.com/StuHelper/StuHelper/server/internal/modules/academics"
 	"github.com/StuHelper/StuHelper/server/internal/modules/admission"
 	"github.com/StuHelper/StuHelper/server/internal/modules/auth"
+	authorizationmodule "github.com/StuHelper/StuHelper/server/internal/modules/authorization"
 	"github.com/StuHelper/StuHelper/server/internal/modules/course"
 	reviewmodule "github.com/StuHelper/StuHelper/server/internal/modules/course/review"
 	"github.com/StuHelper/StuHelper/server/internal/modules/notification"
@@ -69,6 +70,7 @@ func TestOpenAPIRoutes_AreFullyRegistered(t *testing.T) {
 	adminGroup := api.Group("/admin")
 	adminGroup.Use(noOp)
 	authHandler.RegisterAdminRoutes(adminGroup)
+	(&authorizationmodule.Handler{}).RegisterAdminRoutes(adminGroup)
 	userHandler.RegisterAdminRoutes(adminGroup)
 	admissionHandler.RegisterAdminRoutes(adminGroup)
 	openPlatformHandler.RegisterAdminRoutes(adminGroup)

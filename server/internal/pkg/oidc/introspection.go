@@ -2,6 +2,7 @@ package oidc
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,27 +13,24 @@ import (
 	"time"
 
 	gooidc "github.com/coreos/go-oidc/v3/oidc"
-	"go.uber.org/zap"
 	"golang.org/x/oauth2"
 
 	"github.com/StuHelper/StuHelper/server/internal/pkg/config"
-	"github.com/StuHelper/StuHelper/server/internal/pkg/logger"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/metrics"
 )
 
 // IntrospectionResult Token 内省结果
 type IntrospectionResult struct {
-	Active         bool                `json:"active"`
-	Sub            string              `json:"sub"`
-	Username       string              `json:"username"`
-	Email          string              `json:"email"`
-	Name           string              `json:"name"`
-	Scope          string              `json:"scope"`
-	AMR            []string            `json:"amr,omitempty"`
-	AuthTime       int64               `json:"auth_time,omitempty"`
-	AppID          string              `json:"-"`
-	Roles          []string            `json:"-"` // 从原始 JSON 解析
-	OrgScopedRoles map[string][]string `json:"-"`
+	Active    bool     `json:"active"`
+	Sub       string   `json:"sub"`
+	Username  string   `json:"username"`
+	Email     string   `json:"email"`
+	Name      string   `json:"name"`
+	Scope     string   `json:"scope"`
+	AMR       []string `json:"amr,omitempty"`
+	AuthTime  int64    `json:"auth_time,omitempty"`
+	ExpiresAt int64    `json:"exp,omitempty"`
+	AppID     string   `json:"-"`
 }
 
 func (r *IntrospectionResult) GetAppID() string {
@@ -92,13 +90,19 @@ func (c *Client) IntrospectToken(ctx context.Context, accessToken string) (_ *In
 		return nil, err
 	}
 	if result.Active {
+		if err := validateProviderAccessTokenPurpose(accessToken); err != nil {
+			return nil, err
+		}
 		c.decorateIntrospectionResult(&result, rawJSON)
 	}
 	return &result, nil
 }
 
 func (c *Client) sendIntrospectionRequest(ctx context.Context, accessToken string) (*http.Response, error) {
-	body := url.Values{"token": []string{accessToken}}.Encode()
+	body := url.Values{
+		"token":           []string{accessToken},
+		"token_type_hint": []string{"access_token"},
+	}.Encode()
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.introspectionURL, strings.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("oidc: introspect request build failed: %w", err)
@@ -131,6 +135,28 @@ func decodeIntrospectionBody(body io.Reader) (json.RawMessage, error) {
 	return rawJSON, nil
 }
 
+func validateProviderAccessTokenPurpose(rawToken string) error {
+	segments := strings.Split(rawToken, ".")
+	if len(segments) != 3 || segments[0] == "" || segments[1] == "" || segments[2] == "" {
+		return fmt.Errorf("%w: provider token must be a signed JWT", ErrInvalidAccessToken)
+	}
+
+	payload, err := base64.RawURLEncoding.DecodeString(segments[1])
+	if err != nil {
+		return fmt.Errorf("%w: decode provider token claims: %v", ErrInvalidAccessToken, err)
+	}
+	var claims struct {
+		TokenType string `json:"tokenType"`
+	}
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return fmt.Errorf("%w: decode provider token claims: %v", ErrInvalidAccessToken, err)
+	}
+	if claims.TokenType != "access-token" {
+		return fmt.Errorf("%w: provider token is not an access token", ErrInvalidAccessToken)
+	}
+	return nil
+}
+
 func parseIntrospectionResult(rawJSON json.RawMessage) (IntrospectionResult, error) {
 	var result IntrospectionResult
 	if err := json.Unmarshal(rawJSON, &result); err != nil {
@@ -141,12 +167,6 @@ func parseIntrospectionResult(rawJSON json.RawMessage) (IntrospectionResult, err
 
 func (c *Client) decorateIntrospectionResult(result *IntrospectionResult, rawJSON json.RawMessage) {
 	result.AppID = appIDFromRawClaims(rawJSON)
-	roles, parseErr := ParseProviderRolesFromRaw(rawJSON, c.rolesClaim)
-	if parseErr != nil {
-		logger.L().Warn("oidc: failed to parse roles from introspection response", zap.Error(parseErr))
-		return
-	}
-	result.Roles = roles
 }
 
 func discoveredIntrospectionEndpoint(provider *gooidc.Provider, configured string) (string, error) {

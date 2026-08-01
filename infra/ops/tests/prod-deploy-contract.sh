@@ -4,11 +4,22 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 PROD_DEPLOY_FILE="${REPO_ROOT}/infra/ops/prod-deploy.sh"
+PROD_ENV_EXAMPLE_FILE="${REPO_ROOT}/.env.prod.example"
 ADMISSION_READINESS_FILE="${REPO_ROOT}/infra/ops/admission-production-readiness.sh"
+AUTHORIZATION_CUTOVER_FILE="${REPO_ROOT}/infra/ops/authorization-ledger-cutover.sh"
+LEGACY_SUPER_ADMIN_BOOTSTRAP_FILE="${REPO_ROOT}/infra/ops/authorization-bootstrap-super-admin.sh"
 
 fail() {
   echo "[prod-deploy-contract][error] $*" >&2
   exit 1
+}
+
+assert_file_not_contains() {
+  local file="$1"
+  local pattern="$2"
+  if grep -qF -- "${pattern}" "${file}"; then
+    fail "legacy provider-managed super-admin bootstrap must stay removed from ${file}: ${pattern}"
+  fi
 }
 
 line_number() {
@@ -39,6 +50,7 @@ migrate_line="$(line_number 'compose --profile prod up --no-deps migrate')"
 admission_readiness_line="$(line_number '"${SCRIPT_DIR}/admission-production-readiness.sh"')"
 start_authz_line="$(line_number 'compose --profile prod up -d --wait "${authz_services[@]}"')"
 bootstrap_platform_line="$(line_number '"${SCRIPT_DIR}/bootstrap-platform.sh" prod')"
+authorization_cutover_line="$(line_number '"${SCRIPT_DIR}/authorization-ledger-cutover.sh" prod')"
 open_platform_evidence_line="$(line_number '"${SCRIPT_DIR}/open-platform-production-evidence.sh"')"
 start_app_line="$(line_number 'compose --profile prod up -d --wait app frontend admin')"
 sso_public_smoke_line="$(line_number '"${SCRIPT_DIR}/sso-public-smoke.sh"')"
@@ -64,7 +76,6 @@ object_storage_secret_reject_line="$(line_number 'reject_placeholder OBJECT_STOR
 object_storage_local_reject_line="$(line_number 'reject_local_value OBJECT_STORAGE_ENDPOINT')"
 user_profile_require_line="$(line_number 'require_nonempty CASDOOR_USER_PROFILE_CLIENT_SECRET')"
 introspection_require_line="$(line_number 'require_nonempty CASDOOR_INTROSPECTION_CLIENT_SECRET')"
-role_sync_require_line="$(line_number 'require_nonempty CASDOOR_ROLE_SYNC_CLIENT_SECRET')"
 user_lookup_require_line="$(line_number 'require_nonempty CASDOOR_USER_LOOKUP_CLIENT_SECRET')"
 token_probe_smoke_client_require_line="$(line_number 'require_nonempty CASDOOR_TOKEN_PROBE_SMOKE_CLIENT_ID')"
 token_probe_smoke_secret_require_line="$(line_number 'require_nonempty CASDOOR_TOKEN_PROBE_SMOKE_CLIENT_SECRET')"
@@ -100,6 +111,18 @@ bash -n "${ADMISSION_READINESS_FILE}"
 if [[ ! -x "${ADMISSION_READINESS_FILE}" ]]; then
   fail "admission production readiness script must be executable"
 fi
+[[ -f "${AUTHORIZATION_CUTOVER_FILE}" ]] || fail "missing authorization ledger cutover script"
+bash -n "${AUTHORIZATION_CUTOVER_FILE}"
+if [[ ! -x "${AUTHORIZATION_CUTOVER_FILE}" ]]; then
+  fail "authorization ledger cutover script must be executable"
+fi
+
+[[ -f "${PROD_ENV_EXAMPLE_FILE}" ]] || fail "missing production environment example"
+[[ ! -e "${LEGACY_SUPER_ADMIN_BOOTSTRAP_FILE}" ]] ||
+  fail "legacy manual super-admin bootstrap script must stay removed"
+assert_file_not_contains "${PROD_DEPLOY_FILE}" 'STUHELPER_INITIAL_SUPER_ADMINS'
+assert_file_not_contains "${PROD_DEPLOY_FILE}" 'authorization-bootstrap-super-admin.sh'
+assert_file_not_contains "${PROD_ENV_EXAMPLE_FILE}" 'STUHELPER_INITIAL_SUPER_ADMINS'
 
 if (( source_bootstrap_line <= load_env_line )); then
   fail "Casdoor bootstrap env must be sourced after load_env"
@@ -162,11 +185,8 @@ fi
 if (( introspection_require_line <= user_profile_require_line )); then
   fail "Casdoor introspection validation should be grouped after user-profile validation"
 fi
-if (( role_sync_require_line <= introspection_require_line )); then
-  fail "Casdoor role-sync validation should be grouped after introspection validation"
-fi
-if (( user_lookup_require_line <= role_sync_require_line )); then
-  fail "Casdoor user-lookup validation should be grouped after role-sync validation"
+if (( user_lookup_require_line <= introspection_require_line )); then
+  fail "Casdoor user-lookup validation should be grouped after introspection validation"
 fi
 if (( token_probe_smoke_client_require_line <= user_lookup_require_line )); then
   fail "Casdoor token probe smoke app validation should be grouped after user-lookup validation"
@@ -304,8 +324,8 @@ fi
 if ! grep -qF 'require_production_postgres_ssl' "${PROD_DEPLOY_FILE}"; then
   fail "production deploy must fail fast on insecure internal PostgreSQL SSL settings"
 fi
-if ! grep -qF 'EXTERNAL_POSTGRES_ALLOW_PLAINTEXT' "${PROD_DEPLOY_FILE}"; then
-  fail "production deploy must require explicit opt-in before using plaintext external PostgreSQL"
+if grep -qF 'external PostgreSQL plaintext transport is explicitly enabled' "${PROD_DEPLOY_FILE}"; then
+  fail "production deploy must not retain a plaintext PostgreSQL bypass"
 fi
 if ! grep -qF 'EXTERNAL_POSTGRES_ENABLED' "${PROD_DEPLOY_FILE}"; then
   fail "production deploy must support skipping the internal PostgreSQL service"
@@ -380,6 +400,12 @@ if (( start_authz_line <= admission_readiness_line )); then
 fi
 if (( open_platform_evidence_line <= bootstrap_platform_line )); then
   fail "Open Platform production evidence smokes must run after bootstrap-platform creates Casdoor smoke app and writes OpenFGA IDs"
+fi
+if (( authorization_cutover_line <= bootstrap_platform_line )); then
+  fail "authorization ledger cutover must run after Casdoor/OpenFGA bootstrap"
+fi
+if (( open_platform_evidence_line <= authorization_cutover_line )); then
+  fail "Open Platform production evidence must wait until the authorization ledger cutover is sealed"
 fi
 if (( start_app_line <= open_platform_evidence_line )); then
   fail "application services must start after Open Platform production evidence smokes pass"

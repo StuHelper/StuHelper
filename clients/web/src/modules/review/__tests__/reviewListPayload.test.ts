@@ -66,4 +66,29 @@ describe('review list payload readers', () => {
       }),
     ).toThrow('Invalid review response')
   })
+
+  it.each(['like', 'dislike'] as const)(
+    'preserves the current user %s vote',
+    userVote => {
+      expect(
+        readReviewPayload({
+          ...review,
+          userVote,
+        }).userVote,
+      ).toBe(userVote)
+    },
+  )
+
+  it('keeps an omitted userVote unset', () => {
+    expect(readReviewPayload(review).userVote).toBeUndefined()
+  })
+
+  it('fails closed when userVote is outside the contract', () => {
+    expect(() =>
+      readReviewPayload({
+        ...review,
+        userVote: 'upvote',
+      }),
+    ).toThrow('Invalid review response')
+  })
 })

@@ -36,7 +36,7 @@ export function registerWebSocketAPI(
     return
   }
 
-  const addAuthorityListener = createAuthority4ListenerRegistrar(ctx.console)
+  const addAuthorityListener = createAuthority4ListenerRegistrar(ctx)
   const platform = createPlatformClient(platformConfig)
   const apiContext: WebSocketAPIContext = {
     ctx,

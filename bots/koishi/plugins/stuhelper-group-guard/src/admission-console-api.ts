@@ -1,4 +1,4 @@
-import type {} from '@koishijs/plugin-console'
+import type { Events as ConsoleEvents } from '@koishijs/plugin-console'
 import type { Context, Universal } from 'koishi'
 
 import type {
@@ -62,6 +62,10 @@ interface ConsoleActionClient {
   }
 }
 
+export type AdmissionConsoleGuildScope =
+  | { kind: 'all' }
+  | { kind: 'guilds'; guildIds: Set<string> }
+
 interface AdmissionConsoleAPIDeps {
   readonly config: StuhelperGroupGuardPluginConfig
   readonly platform: PlatformClient
@@ -73,6 +77,7 @@ interface AdmissionConsoleAPIDeps {
   readonly onRuntimeSettingsChanged?: () => void | Promise<void>
   readonly messageProvider?: GroupGuardMessageProvider
   readonly admissionSubjectCoordinator?: AdmissionSubjectCoordinator
+  readonly resolveConsoleScope?: (client: unknown) => Promise<AdmissionConsoleGuildScope>
 }
 
 declare module '@koishijs/console' {
@@ -84,40 +89,126 @@ declare module '@koishijs/console' {
 }
 
 export function registerAdmissionConsoleAPI(ctx: Context, deps: AdmissionConsoleAPIDeps) {
-  if (!ctx.console) {
-    return
-  }
+  const addConsoleListener = createAdmissionConsoleListenerRegistrar(ctx)
 
-  ctx.console.addListener(ADMISSION_RUNTIME_PAGE_EVENT, async () => {
-    return buildAdmissionRuntimePageData(ctx, deps)
-  }, { authority: CONSOLE_AUTHORITY })
+  addConsoleListener(ADMISSION_RUNTIME_PAGE_EVENT, async function () {
+    const scope = await resolveRequiredAdmissionConsoleScope(deps, this)
+    return buildAdmissionRuntimePageData(ctx, deps, scope)
+  })
 
-  ctx.console.addListener(ADMISSION_RUNTIME_ACTION_EVENT, async function (input) {
-    return handleAdmissionRuntimeAction(ctx, deps, input, this as ConsoleActionClient)
-  }, { authority: CONSOLE_AUTHORITY })
+  addConsoleListener(ADMISSION_RUNTIME_ACTION_EVENT, async function (input) {
+    const client = this as ConsoleActionClient
+    const scope = await resolveRequiredAdmissionConsoleScope(deps, client)
+    return handleAdmissionRuntimeAction(ctx, deps, input, client, scope)
+  })
 
-  ctx.console.addListener(ADMISSION_RUNTIME_SETTINGS_EVENT, async (input) => {
+  addConsoleListener(ADMISSION_RUNTIME_SETTINGS_EVENT, async function (input) {
+    const scope = await resolveRequiredAdmissionConsoleScope(deps, this)
+    assertGlobalAdmissionConsoleScope(scope, 'admission runtime settings')
     await deps.runtimeSettings.saveSettings(parseRuntimeSettingsInput(input))
     await deps.onRuntimeSettingsChanged?.()
     return groupGuardMessage(await getGroupGuardMessages(deps.messageProvider), 'admissionConsoleSettingsSaved')
-  }, { authority: CONSOLE_AUTHORITY })
+  })
 }
 
-export async function buildAdmissionRuntimePageData(ctx: Context, deps: AdmissionConsoleAPIDeps) {
-  const [activeMembers, templates, bindings, settings, behaviorSettings, keywordRules] = await Promise.all([
+function createAdmissionConsoleListenerRegistrar(ctx: Context) {
+  const console = ctx.console
+  return function addConsoleListener<K extends keyof ConsoleEvents>(
+    event: K,
+    callback: ConsoleEvents[K],
+  ) {
+    return ctx.effect(() => {
+      console.addListener(event, callback, { authority: CONSOLE_AUTHORITY })
+      const registration = console.listeners[event]
+      return () => {
+        if (console.listeners[event] === registration) {
+          delete console.listeners[event]
+        }
+      }
+    })
+  }
+}
+
+export async function buildAdmissionRuntimePageData(
+  ctx: Context,
+  deps: AdmissionConsoleAPIDeps,
+  scope: AdmissionConsoleGuildScope,
+) {
+  const [activeMembers, templates, bindings] = await Promise.all([
     deps.guardStore.listActive(),
     deps.policyStore.listTemplates(),
     deps.policyStore.listBindings(),
-    deps.runtimeSettings.getSettings(),
-    deps.behaviorSettings?.getSettings() ?? DEFAULT_GROUP_GUARD_BEHAVIOR_SETTINGS,
-    deps.moderationStore.listAllKeywordRules(),
   ])
-  const sortedMembers = [...activeMembers]
-    .sort((left, right) => left.deadlineAt.getTime() - right.deadlineAt.getTime())
+  const visibleMembers = filterAdmissionConsoleGuildRecords(activeMembers, scope)
+  const visibleBindings = filterAdmissionConsoleGuildRecords(bindings, scope)
+  const visibleTemplateIds = new Set(visibleBindings.map((binding) => binding.templateId))
+  const visibleTemplates = scope.kind === 'all'
+    ? templates
+    : templates.filter((template) => visibleTemplateIds.has(template.id))
+  const sortedMembers = [...visibleMembers]
+    .sort(compareActiveMembers)
     .slice(0, ACTIVE_MEMBER_LIMIT)
 
   return {
     generatedAt: new Date().toISOString(),
+    globalRuntime: scope.kind === 'all'
+      ? await buildAdmissionGlobalRuntimeData(ctx, deps)
+      : null,
+    stats: {
+      templateCount: visibleTemplates.length,
+      bindingCount: visibleBindings.length,
+      enabledBindingCount: visibleBindings.filter((binding) => binding.enabled).length,
+      activeMemberCount: visibleMembers.length,
+      backendSyncPendingCount: visibleMembers.filter((record) => record.backendSyncPending).length,
+      membersWithAdmissionSessionCount: visibleMembers.filter((record) => Boolean(record.admissionSessionID)).length,
+      membersWithLastErrorCount: visibleMembers.filter((record) => Boolean(record.lastError)).length,
+    },
+    activeMemberWindow: {
+      shown: sortedMembers.length,
+      total: visibleMembers.length,
+      limit: ACTIVE_MEMBER_LIMIT,
+      truncated: sortedMembers.length < visibleMembers.length,
+    },
+    templates: visibleTemplates.map((template) => ({
+      id: template.id,
+      name: template.name,
+      enabled: template.enabled,
+      muteDurationSeconds: template.muteDurationSeconds,
+      kickAfterMinutes: template.kickAfterMinutes,
+      exemptUserCount: template.exemptUsers.length,
+      updatedAt: template.updatedAt.toISOString(),
+    })),
+    bindings: visibleBindings.map((binding) => ({
+      id: binding.id,
+      platform: binding.platform,
+      guildId: binding.guildId,
+      templateId: binding.templateId,
+      kickAfterMinutes: binding.kickAfterMinutesOverride ?? templateKickAfterMinutes(templates, binding.templateId),
+      kickAfterMinutesOverride: binding.kickAfterMinutesOverride ?? null,
+      enabled: binding.enabled,
+      note: binding.note,
+      updatedAt: binding.updatedAt.toISOString(),
+    })),
+    activeMembers: sortedMembers.map(serializeGuardMember),
+  }
+}
+
+function compareActiveMembers(left: GuardMemberRecord, right: GuardMemberRecord) {
+  const deadlineOrder = left.deadlineAt.getTime() - right.deadlineAt.getTime()
+  if (deadlineOrder !== 0) return deadlineOrder
+  return left.id.localeCompare(right.id)
+}
+
+async function buildAdmissionGlobalRuntimeData(
+  ctx: Context,
+  deps: AdmissionConsoleAPIDeps,
+) {
+  const [settings, behaviorSettings, keywordRules] = await Promise.all([
+    deps.runtimeSettings.getSettings(),
+    deps.behaviorSettings?.getSettings() ?? DEFAULT_GROUP_GUARD_BEHAVIOR_SETTINGS,
+    deps.moderationStore.listAllKeywordRules(),
+  ])
+  return {
     platform: {
       baseUrl: redactURL(deps.config.platform.baseUrl),
       serviceTokenConfigured: Boolean(deps.config.platform.serviceToken),
@@ -160,36 +251,6 @@ export async function buildAdmissionRuntimePageData(ctx: Context, deps: Admissio
       selfId: bot.selfId,
       status: String((bot as { status?: unknown }).status ?? 'unknown'),
     })),
-    stats: {
-      templateCount: templates.length,
-      bindingCount: bindings.length,
-      enabledBindingCount: bindings.filter((binding) => binding.enabled).length,
-      activeMemberCount: activeMembers.length,
-      backendSyncPendingCount: activeMembers.filter((record) => record.backendSyncPending).length,
-      membersWithAdmissionSessionCount: activeMembers.filter((record) => Boolean(record.admissionSessionID)).length,
-      membersWithLastErrorCount: activeMembers.filter((record) => Boolean(record.lastError)).length,
-    },
-    templates: templates.map((template) => ({
-      id: template.id,
-      name: template.name,
-      enabled: template.enabled,
-      muteDurationSeconds: template.muteDurationSeconds,
-      kickAfterMinutes: template.kickAfterMinutes,
-      exemptUserCount: template.exemptUsers.length,
-      updatedAt: template.updatedAt.toISOString(),
-    })),
-    bindings: bindings.map((binding) => ({
-      id: binding.id,
-      platform: binding.platform,
-      guildId: binding.guildId,
-      templateId: binding.templateId,
-      kickAfterMinutes: binding.kickAfterMinutesOverride ?? templateKickAfterMinutes(templates, binding.templateId),
-      kickAfterMinutesOverride: binding.kickAfterMinutesOverride ?? null,
-      enabled: binding.enabled,
-      note: binding.note,
-      updatedAt: binding.updatedAt.toISOString(),
-    })),
-    activeMembers: sortedMembers.map(serializeGuardMember),
   }
 }
 
@@ -227,7 +288,8 @@ export async function handleAdmissionRuntimeAction(
   ctx: Context,
   deps: AdmissionConsoleAPIDeps,
   input: unknown,
-  client?: ConsoleActionClient,
+  client: ConsoleActionClient | undefined,
+  scope: AdmissionConsoleGuildScope,
 ) {
   const parsed = parseAdmissionRuntimeActionInput(input)
   const messages = await getGroupGuardMessages(deps.messageProvider)
@@ -235,6 +297,7 @@ export async function handleAdmissionRuntimeAction(
   if (!record) {
     throw new Error(groupGuardMessage(messages, 'admissionConsoleRecordNotFound'))
   }
+  assertAdmissionConsoleGuildAccess(scope, record.guildId, 'admission runtime member')
 
   try {
     switch (parsed.action) {
@@ -790,4 +853,45 @@ function redactURL(value: string) {
   } catch {
     return value
   }
+}
+
+function filterAdmissionConsoleGuildRecords<T extends { guildId?: string | null }>(
+  records: readonly T[],
+  scope: AdmissionConsoleGuildScope,
+) {
+  if (scope.kind === 'all') {
+    return [...records]
+  }
+  return records.filter((record) => Boolean(record.guildId && scope.guildIds.has(record.guildId)))
+}
+
+function assertAdmissionConsoleGuildAccess(
+  scope: AdmissionConsoleGuildScope,
+  guildId: string | undefined,
+  resource: string,
+) {
+  if (scope.kind === 'all' || (guildId && scope.guildIds.has(guildId))) {
+    return
+  }
+  throw new Error(`${resource} is outside of the current console guild scope`)
+}
+
+function assertGlobalAdmissionConsoleScope(
+  scope: AdmissionConsoleGuildScope,
+  resource: string,
+) {
+  if (scope.kind === 'all') {
+    return
+  }
+  throw new Error(`${resource} requires global console scope`)
+}
+
+function resolveRequiredAdmissionConsoleScope(
+  deps: Pick<AdmissionConsoleAPIDeps, 'resolveConsoleScope'>,
+  client: unknown,
+) {
+  if (!deps.resolveConsoleScope) {
+    throw new Error('admission runtime console scope resolver is unavailable')
+  }
+  return deps.resolveConsoleScope(client)
 }

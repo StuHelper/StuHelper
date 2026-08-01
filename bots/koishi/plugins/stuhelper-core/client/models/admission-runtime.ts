@@ -1,5 +1,27 @@
 export interface AdmissionRuntimePageData {
   generatedAt: string
+  globalRuntime: AdmissionGlobalRuntime | null
+  stats: {
+    templateCount: number
+    bindingCount: number
+    enabledBindingCount: number
+    activeMemberCount: number
+    backendSyncPendingCount: number
+    membersWithAdmissionSessionCount: number
+    membersWithLastErrorCount: number
+  }
+  activeMemberWindow: {
+    shown: number
+    total: number
+    limit: number
+    truncated: boolean
+  }
+  templates: AdmissionRuntimeTemplate[]
+  bindings: AdmissionRuntimeBinding[]
+  activeMembers: AdmissionRuntimeMember[]
+}
+
+export interface AdmissionGlobalRuntime {
   platform: {
     baseUrl: string
     serviceTokenConfigured: boolean
@@ -38,18 +60,6 @@ export interface AdmissionRuntimePageData {
     reminderEnabled: boolean
   }
   bots: AdmissionRuntimeBot[]
-  stats: {
-    templateCount: number
-    bindingCount: number
-    enabledBindingCount: number
-    activeMemberCount: number
-    backendSyncPendingCount: number
-    membersWithAdmissionSessionCount: number
-    membersWithLastErrorCount: number
-  }
-  templates: AdmissionRuntimeTemplate[]
-  bindings: AdmissionRuntimeBinding[]
-  activeMembers: AdmissionRuntimeMember[]
 }
 
 export interface AdmissionRuntimeBot {
@@ -143,11 +153,13 @@ export type AdmissionRuntimeSettingsPatch = Partial<Record<AdmissionRuntimeSetti
 export function buildAdmissionRuntimeModel(data: AdmissionRuntimePageData) {
   return {
     metrics: buildMetrics(data),
-    switchRows: buildSwitchRows(data),
+    switchRows: data.globalRuntime ? buildSwitchRows(data.globalRuntime) : [],
     enabledBindings: data.bindings.filter((binding) => binding.enabled),
     disabledBindings: data.bindings.filter((binding) => !binding.enabled),
+    activeMemberWindow: { ...data.activeMemberWindow },
     activeMembers: [...data.activeMembers].sort((left, right) => (
       Date.parse(left.deadlineAt) - Date.parse(right.deadlineAt)
+      || left.id.localeCompare(right.id)
     )),
   }
 }
@@ -192,7 +204,7 @@ function countActiveTargetGuilds(data: AdmissionRuntimePageData): number {
   return guildIds.size
 }
 
-function buildSwitchRows(data: AdmissionRuntimePageData): AdmissionSwitchRow[] {
+function buildSwitchRows(data: AdmissionGlobalRuntime): AdmissionSwitchRow[] {
   return [
     {
       id: 'service-token',

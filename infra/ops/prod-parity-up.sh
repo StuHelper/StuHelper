@@ -153,7 +153,6 @@ ensure_file_value "${ENV_FILE}" "CASDOOR_INTERNAL_ADDRESS" "host.docker.internal
 ensure_file_value "${ENV_FILE}" "CASDOOR_REDIRECT_URI" "https://stuhelper.com/api/v1/auth/callback"
 ensure_file_value "${ENV_FILE}" "CASDOOR_CLIENT_ID" "stuhelper-web"
 ensure_file_value "${ENV_FILE}" "CASDOOR_ORGANIZATION" "stuhelper"
-ensure_file_value "${ENV_FILE}" "CASDOOR_ROLES_CLAIM" "roles"
 ensure_file_value "${ENV_FILE}" "CASDOOR_BOOTSTRAP_ENABLED" "true"
 ensure_file_value "${ENV_FILE}" "CASDOOR_BOOTSTRAP_ENV_FILE" "${CASDOOR_BOOTSTRAP_ENV_FILE}"
 ensure_file_value "${ENV_FILE}" "CASDOOR_ADMIN_CLIENT_ID" "stuhelper-admin"
@@ -166,8 +165,6 @@ ensure_file_value "${ENV_FILE}" "CASDOOR_USER_PROFILE_CLIENT_ID" "casdoor-admin-
 ensure_file_value "${ENV_FILE}" "CASDOOR_USER_PROFILE_APPLICATION" "casdoor-admin-user-profile"
 ensure_file_value "${ENV_FILE}" "CASDOOR_INTROSPECTION_CLIENT_ID" "casdoor-token-introspection"
 ensure_file_value "${ENV_FILE}" "CASDOOR_INTROSPECTION_APPLICATION" "casdoor-token-introspection"
-ensure_file_value "${ENV_FILE}" "CASDOOR_ROLE_SYNC_CLIENT_ID" "casdoor-admin-role-sync"
-ensure_file_value "${ENV_FILE}" "CASDOOR_ROLE_SYNC_APPLICATION" "casdoor-admin-role-sync"
 ensure_file_value "${ENV_FILE}" "CASDOOR_USER_LOOKUP_CLIENT_ID" "casdoor-admin-user-lookup"
 ensure_file_value "${ENV_FILE}" "CASDOOR_USER_LOOKUP_APPLICATION" "casdoor-admin-user-lookup"
 ensure_file_value "${ENV_FILE}" "CASDOOR_TOKEN_PROBE_SMOKE_CLIENT_ID" "casdoor-token-probe-smoke"
@@ -273,7 +270,6 @@ ensure_file_secret "${SECRETS_ENV_FILE}" "CASDOOR_UNIAPP_CLIENT_SECRET" "prod-pa
 ensure_file_secret "${SECRETS_ENV_FILE}" "CASDOOR_APP_PROVISIONING_CLIENT_SECRET" "prod-parity-casdoor-app-provisioning"
 ensure_file_secret "${SECRETS_ENV_FILE}" "CASDOOR_USER_PROFILE_CLIENT_SECRET" "prod-parity-casdoor-user-profile"
 ensure_file_secret "${SECRETS_ENV_FILE}" "CASDOOR_INTROSPECTION_CLIENT_SECRET" "prod-parity-casdoor-introspection"
-ensure_file_secret "${SECRETS_ENV_FILE}" "CASDOOR_ROLE_SYNC_CLIENT_SECRET" "prod-parity-casdoor-role-sync"
 ensure_file_secret "${SECRETS_ENV_FILE}" "CASDOOR_USER_LOOKUP_CLIENT_SECRET" "prod-parity-casdoor-user-lookup"
 ensure_file_secret "${SECRETS_ENV_FILE}" "CASDOOR_TOKEN_PROBE_SMOKE_CLIENT_SECRET" "prod-parity-casdoor-token-probe-smoke"
 ensure_file_secret "${SECRETS_ENV_FILE}" "SMS_SECRET_ID" "prod-parity-sms-secret-id"
@@ -381,6 +377,12 @@ CASDOOR_BOOTSTRAP_ENABLED=true \
   OPENFGA_BOOTSTRAP_DATABASE_URL="postgres://stuhelper_app:${STUHELPER_APP_DB_PASSWORD}@127.0.0.1:${PROD_PARITY_POSTGRES_PORT:-15432}/stuhelper?sslmode=disable" \
   "${SCRIPT_DIR}/bootstrap-platform.sh" dev
 load_env
+
+log "importing and sealing the local production-parity authorization ledger"
+CASDOOR_CUTOVER_ENDPOINT="http://sso.stuhelper.com" \
+  OPENFGA_CUTOVER_API_URL="http://127.0.0.1:8081" \
+  AUTHORIZATION_CUTOVER_DATABASE_URL="postgres://stuhelper_app:${STUHELPER_APP_DB_PASSWORD}@127.0.0.1:${PROD_PARITY_POSTGRES_PORT:-15432}/stuhelper?sslmode=disable" \
+  "${SCRIPT_DIR}/authorization-ledger-cutover.sh" dev
 
 log "starting local production-parity application services"
 compose --profile prod up -d --wait app frontend admin

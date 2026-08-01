@@ -102,6 +102,16 @@ func (d *DB) withTimeout(ctx context.Context) (context.Context, context.CancelFu
 	return context.WithTimeout(ctxutil.Normalize(ctx), d.timeout)
 }
 
+// withExplicitTimeout creates a caller-cancellable context for a database
+// operation whose expected duration differs from the ordinary query budget.
+// Non-positive values deliberately fall back to the DB-wide timeout.
+func (d *DB) withExplicitTimeout(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+	if timeout <= 0 {
+		timeout = d.timeout
+	}
+	return context.WithTimeout(ctxutil.Normalize(ctx), timeout)
+}
+
 // Query 执行带超时的查询
 // 返回 RowsWithCancel 包装类型，确保 rows 消费完毕后才取消 context
 // 对瞬时连接错误自动重试一次
@@ -265,8 +275,29 @@ func (r *RowsWithCancel) Close() {
 // Exec 执行带超时的命令。
 // 与 Query 不同，Exec 可能承载非幂等写操作，因此禁止自动重试，避免重复写入。
 func (d *DB) Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+	return d.exec(ctx, d.timeout, sql, args...)
+}
+
+// ExecWithTimeout executes a command with an operation-specific timeout.
+// The context remains derived from the caller, so shutdown and caller
+// cancellation always win over the explicit budget.
+func (d *DB) ExecWithTimeout(
+	ctx context.Context,
+	timeout time.Duration,
+	sql string,
+	args ...any,
+) (pgconn.CommandTag, error) {
+	return d.exec(ctx, timeout, sql, args...)
+}
+
+func (d *DB) exec(
+	ctx context.Context,
+	timeout time.Duration,
+	sql string,
+	args ...any,
+) (pgconn.CommandTag, error) {
 	table := TableHint(ctx)
-	ctx, cancel := d.withTimeout(ctx)
+	ctx, cancel := d.withExplicitTimeout(ctx, timeout)
 	defer cancel()
 	ctx, span := d.startSpan(ctx, "exec", sql, table)
 	defer span.End()
@@ -423,6 +454,19 @@ func (d *DB) WithTx(ctx context.Context, fn func(ctx context.Context, tx pgx.Tx)
 				zap.Error(rbErr))
 		}
 		return err
+	}
+
+	// 回调可能忽略了 context 并在事务期限到达后返回 nil。此时继续使用独立
+	// context 提交会把已经超时或被调用方取消的请求写入数据库，违背调用方对
+	// 事务边界的预期。提交前显式检查，并用独立短 context 完成回滚。
+	if err := ctx.Err(); err != nil {
+		rbCtx, rbCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer rbCancel()
+		if rbErr := tx.Rollback(rbCtx); rbErr != nil {
+			logger.L().Warn("tx rollback failed after context ended",
+				zap.Error(rbErr))
+		}
+		return fmt.Errorf("transaction context ended before commit: %w", err)
 	}
 
 	commitCtx, commitCancel := context.WithTimeout(context.Background(), 5*time.Second)

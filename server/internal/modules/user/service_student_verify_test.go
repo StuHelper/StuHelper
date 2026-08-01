@@ -526,10 +526,11 @@ func TestVerifyStudent_LDAPPhoneSyncSkippedWhenProfileTransactionFails(t *testin
 
 func TestReviewStudentVerification_RejectionReasonIsOptional(t *testing.T) {
 	var captured *Profile
+	const schoolID = int64(4111010006)
 
 	repo := &mockRepo{
 		onGetProfileByUserID: func(_ context.Context, _ int64) (*Profile, error) {
-			return &Profile{UserID: 1, VerificationStatus: StatusPending}, nil
+			return &Profile{UserID: 1, SchoolID: int64Ptr(schoolID), VerificationStatus: StatusPending}, nil
 		},
 		onUpdateProfile: func(_ context.Context, profile *Profile) error {
 			captured = profile
@@ -540,19 +541,19 @@ func TestReviewStudentVerification_RejectionReasonIsOptional(t *testing.T) {
 	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
-	err = svc.ReviewStudentVerification(context.Background(), 1, false, "")
+	err = svc.ReviewStudentVerification(context.Background(), 1, schoolID, false, "")
 	require.NoError(t, err)
 	require.NotNil(t, captured)
 	assert.Equal(t, StatusRejected, captured.VerificationStatus)
 	assert.Nil(t, captured.RejectionReason)
 
-	err = svc.ReviewStudentVerification(context.Background(), 1, false, " ")
+	err = svc.ReviewStudentVerification(context.Background(), 1, schoolID, false, " ")
 	require.NoError(t, err)
 	require.NotNil(t, captured)
 	assert.Nil(t, captured.RejectionReason)
 
 	reason := "材料不全"
-	err = svc.ReviewStudentVerification(context.Background(), 1, false, reason)
+	err = svc.ReviewStudentVerification(context.Background(), 1, schoolID, false, reason)
 	require.NoError(t, err)
 	require.NotNil(t, captured)
 	assert.NotNil(t, captured.RejectionReason)
@@ -561,10 +562,11 @@ func TestReviewStudentVerification_RejectionReasonIsOptional(t *testing.T) {
 
 func TestReviewStudentVerification_ApproveFlow(t *testing.T) {
 	var capturedProfile *Profile
+	const schoolID = int64(4111010006)
 
 	repo := &mockRepo{
 		onGetProfileByUserID: func(_ context.Context, _ int64) (*Profile, error) {
-			return &Profile{UserID: 1, VerificationStatus: StatusPending}, nil
+			return &Profile{UserID: 1, SchoolID: int64Ptr(schoolID), VerificationStatus: StatusPending}, nil
 		},
 		onUpdateProfile: func(_ context.Context, profile *Profile) error {
 			capturedProfile = profile
@@ -575,7 +577,7 @@ func TestReviewStudentVerification_ApproveFlow(t *testing.T) {
 	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
-	err = svc.ReviewStudentVerification(context.Background(), 1, true, "")
+	err = svc.ReviewStudentVerification(context.Background(), 1, schoolID, true, "")
 	require.NoError(t, err)
 	require.NotNil(t, capturedProfile)
 	assert.Equal(t, StatusVerified, capturedProfile.VerificationStatus)

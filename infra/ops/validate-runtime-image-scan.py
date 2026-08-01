@@ -9,7 +9,7 @@ import os
 import re
 import sys
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -17,7 +17,13 @@ from typing import Any
 DIGEST_REF_RE = re.compile(
     r"^[^\s@]+:[^\s/@]+@sha256:[0-9a-f]{64}$",
 )
+APPLICATION_DIGEST_REF_RE = re.compile(r"^[^\s@]+@sha256:[0-9a-f]{64}$")
 MOVING_TAG_RE = re.compile(r":(?:latest|latest-dev|beta|master|nightly(?:-slim)?)@sha256:")
+ROLLBACK_TAG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+ROLLBACK_ACTOR_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.@-]{0,127}$")
+AUDIT_ID_RE = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+)
 ALLOWED_SCAN_SEVERITIES = {"HIGH", "CRITICAL", "UNKNOWN"}
 ALLOWED_EXCEPTION_SEVERITIES = {"HIGH", "UNKNOWN"}
 ALLOWED_VEX_JUSTIFICATIONS = {
@@ -47,6 +53,13 @@ class Finding:
     fixed_version: str
 
 
+@dataclass(frozen=True)
+class RollbackReleaseEvidence:
+    tag: str
+    deployed_at: str
+    review_date: date
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -57,8 +70,22 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--scan-dir", type=Path)
     parser.add_argument("--repo-root", type=Path, default=Path("."))
     parser.add_argument("--today", type=date.fromisoformat, default=date.today())
+    parser.add_argument(
+        "--minimum-review-days-remaining",
+        type=int,
+        default=0,
+        help="fail when a review window has fewer than this many full days remaining",
+    )
     parser.add_argument("--policy-only", action="store_true")
     parser.add_argument("--print-plan", action="store_true")
+    parser.add_argument(
+        "--rollback-release-record",
+        type=Path,
+        help=(
+            "validate review windows at a previously successful deployment date; "
+            "reserved for the audited production rollback path"
+        ),
+    )
     parser.add_argument(
         "--effective-environment",
         choices=("production",),
@@ -103,11 +130,17 @@ def validate_review_window(
     end_field: str,
     today: date,
     maximum_days: int,
+    minimum_days_remaining: int,
 ) -> None:
     start = parse_iso_date(start_value, start_field)
     end = parse_iso_date(end_value, end_field)
     require(start <= today, f"{start_field} cannot be in the future")
     require(end >= today, f"{end_field} expired on {end.isoformat()}")
+    require(
+        (end - today).days >= minimum_days_remaining,
+        f"{end_field} has fewer than {minimum_days_remaining} days remaining "
+        f"(expires on {end.isoformat()})",
+    )
     require(end >= start, f"{end_field} cannot precede {start_field}")
     require(
         (end - start).days <= maximum_days,
@@ -130,11 +163,143 @@ def parse_env_file(path: Path) -> dict[str, list[str]]:
     return values
 
 
+def parse_release_record(path: Path) -> dict[str, str]:
+    values: dict[str, str] = {}
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError as exc:
+        raise PolicyError(f"cannot read rollback release record {path}: {exc}") from exc
+    for line_number, raw_line in enumerate(lines, start=1):
+        if not raw_line:
+            continue
+        require(
+            "=" in raw_line,
+            f"rollback release record {path}:{line_number} must use KEY=value",
+        )
+        key, value = raw_line.split("=", 1)
+        require(
+            re.fullmatch(r"[A-Z][A-Z0-9_]*", key) is not None,
+            f"rollback release record {path}:{line_number} has an invalid key",
+        )
+        require(
+            key not in values,
+            f"rollback release record {path} contains duplicate key {key}",
+        )
+        require(
+            "\x00" not in value and "\r" not in value and "\n" not in value,
+            f"rollback release record {path}:{line_number} has an invalid value",
+        )
+        values[key] = value
+    return values
+
+
+def validate_rollback_release_evidence(
+    *,
+    path: Path,
+    repo_root: Path,
+    today: date,
+    policy_only: bool,
+    effective_environment: str | None,
+    minimum_days_remaining: int,
+) -> RollbackReleaseEvidence:
+    require(policy_only, "--rollback-release-record requires --policy-only")
+    require(
+        effective_environment == "production",
+        "--rollback-release-record requires --effective-environment production",
+    )
+    require(
+        minimum_days_remaining == 0,
+        "--rollback-release-record cannot be combined with a future review-window horizon",
+    )
+
+    tag = os.environ.get("TAG", "").strip()
+    rollback_tag = os.environ.get("ROLLBACK_TAG", "").strip()
+    require(ROLLBACK_TAG_RE.fullmatch(tag) is not None, "TAG is invalid for audited rollback")
+    require(rollback_tag == tag, "ROLLBACK_TAG must exactly match TAG for audited rollback")
+
+    state_dir_value = os.environ.get("DEPLOY_STATE_DIR", "").strip()
+    require(state_dir_value, "DEPLOY_STATE_DIR is required for audited rollback")
+    state_dir = Path(state_dir_value)
+    if not state_dir.is_absolute():
+        state_dir = repo_root / state_dir
+    expected_record = (state_dir / "releases" / f"{tag}.env").resolve()
+    record_path = path if path.is_absolute() else repo_root / path
+    record_path = record_path.resolve()
+    require(
+        record_path == expected_record,
+        "rollback release record must be the target environment's exact successful-release record",
+    )
+    require(record_path.is_file(), f"rollback release record does not exist: {record_path}")
+
+    values = parse_release_record(record_path)
+    required_fields = {
+        "TAG",
+        "DEPLOYED_AT",
+        "BACKEND_IMAGE_REF",
+        "FRONTEND_IMAGE_REF",
+        "ADMIN_IMAGE_REF",
+    }
+    missing_fields = sorted(required_fields - values.keys())
+    require(
+        not missing_fields,
+        f"rollback release record is missing fields: {missing_fields}",
+    )
+    require(values["TAG"] == tag, "rollback release record TAG does not match target")
+
+    deployed_at = values["DEPLOYED_AT"]
+    try:
+        deployed_time = datetime.strptime(deployed_at, "%Y-%m-%dT%H:%M:%SZ")
+    except ValueError as exc:
+        raise PolicyError(
+            "rollback release record DEPLOYED_AT must use UTC YYYY-MM-DDTHH:MM:SSZ",
+        ) from exc
+    review_date = deployed_time.date()
+    require(
+        review_date <= today,
+        "rollback release record DEPLOYED_AT cannot be in the future",
+    )
+
+    for field in ("BACKEND_IMAGE_REF", "FRONTEND_IMAGE_REF", "ADMIN_IMAGE_REF"):
+        recorded_ref = values[field].strip()
+        effective_ref = os.environ.get(field, "").strip()
+        require(
+            APPLICATION_DIGEST_REF_RE.fullmatch(recorded_ref) is not None,
+            f"rollback release record {field} must be an immutable digest reference",
+        )
+        require(
+            effective_ref == recorded_ref,
+            f"{field} does not exactly match the successful rollback release record",
+        )
+
+    actor = os.environ.get("ROLLBACK_REVIEW_ACTOR", "").strip()
+    reason = os.environ.get("ROLLBACK_REVIEW_REASON", "").strip()
+    audit_id = os.environ.get("ROLLBACK_REVIEW_AUDIT_ID", "").strip()
+    require(
+        ROLLBACK_ACTOR_RE.fullmatch(actor) is not None,
+        "ROLLBACK_REVIEW_ACTOR is required and invalid",
+    )
+    require(
+        12 <= len(reason) <= 500 and not any(ord(char) < 32 for char in reason),
+        "ROLLBACK_REVIEW_REASON must be 12-500 printable characters",
+    )
+    require(
+        AUDIT_ID_RE.fullmatch(audit_id) is not None,
+        "ROLLBACK_REVIEW_AUDIT_ID must be a UUID generated by the rollback controller",
+    )
+
+    return RollbackReleaseEvidence(
+        tag=tag,
+        deployed_at=deployed_at,
+        review_date=review_date,
+    )
+
+
 def validate_policy(
     policy: Any,
     *,
     repo_root: Path,
     today: date,
+    minimum_days_remaining: int,
 ) -> tuple[
     dict[str, dict[str, Any]],
     dict[FindingKey, Finding],
@@ -243,6 +408,7 @@ def validate_policy(
                     end_field=f"{prefix}.pin_review.review_by",
                     today=today,
                     maximum_days=max_pin_review_days,
+                    minimum_days_remaining=minimum_days_remaining,
                 )
                 require_text(
                     review.get("upstream_evidence"),
@@ -314,6 +480,7 @@ def validate_policy(
             end_field=f"{prefix}.expires_on",
             today=today,
             maximum_days=max_exception_days,
+            minimum_days_remaining=minimum_days_remaining,
         )
         findings = group.get("findings")
         require(isinstance(findings, list) and findings, f"{prefix}.findings cannot be empty")
@@ -358,6 +525,7 @@ def validate_policy(
             end_field=f"{prefix}.review_by",
             today=today,
             maximum_days=max_exception_days,
+            minimum_days_remaining=minimum_days_remaining,
         )
         finding = parse_policy_finding(record.get("finding"), image_id, f"{prefix}.finding")
         require(finding.key not in vex, f"duplicate VEX finding: {finding.key}")
@@ -534,6 +702,29 @@ def validate_scan(
 def main() -> int:
     args = parse_args()
     repo_root = args.repo_root.resolve()
+    require(
+        0 <= args.minimum_review_days_remaining <= 30,
+        "--minimum-review-days-remaining must be between 0 and 30",
+    )
+    rollback_release_record = args.rollback_release_record
+    if rollback_release_record is None:
+        env_record = os.environ.get("RUNTIME_IMAGE_ROLLBACK_RELEASE_RECORD", "").strip()
+        if env_record:
+            rollback_release_record = Path(env_record)
+
+    policy_date = args.today
+    rollback_evidence: RollbackReleaseEvidence | None = None
+    if rollback_release_record is not None:
+        rollback_evidence = validate_rollback_release_evidence(
+            path=rollback_release_record,
+            repo_root=repo_root,
+            today=args.today,
+            policy_only=args.policy_only,
+            effective_environment=args.effective_environment,
+            minimum_days_remaining=args.minimum_review_days_remaining,
+        )
+        policy_date = rollback_evidence.review_date
+
     policy_path = args.policy
     if not policy_path.is_absolute():
         policy_path = repo_root / policy_path
@@ -541,7 +732,8 @@ def main() -> int:
     images, approved, vex = validate_policy(
         policy,
         repo_root=repo_root,
-        today=args.today,
+        today=policy_date,
+        minimum_days_remaining=args.minimum_review_days_remaining,
     )
     if args.effective_environment:
         validate_effective_environment(
@@ -552,6 +744,13 @@ def main() -> int:
         print_plan(images)
         return 0
     if args.policy_only:
+        if rollback_evidence is not None:
+            print(
+                "[runtime-image-policy][warn] audited rollback is reusing review "
+                f"windows valid at {rollback_evidence.deployed_at} for "
+                f"release {rollback_evidence.tag}",
+                file=sys.stderr,
+            )
         print(
             f"[runtime-image-policy] valid: {len(images)} images, "
             f"{len(approved)} exceptions, {len(vex)} VEX records",

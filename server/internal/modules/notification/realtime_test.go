@@ -131,6 +131,28 @@ func TestHubStopIsNilAndZeroValueSafe(t *testing.T) {
 	})
 }
 
+func TestHubStopClosesSubscribersAndRejectsNewSubscriptions(t *testing.T) {
+	hub := NewHub()
+	first := hub.Subscribe(42)
+	second := hub.Subscribe(42)
+
+	hub.Stop()
+	hub.Stop()
+
+	for _, ch := range []chan SSEEvent{first, second} {
+		_, ok := <-ch
+		assert.False(t, ok, "existing subscriber must be closed during shutdown")
+	}
+
+	afterStop := hub.Subscribe(42)
+	_, ok := <-afterStop
+	assert.False(t, ok, "subscriptions opened after shutdown must be closed")
+	assert.NotPanics(t, func() {
+		hub.Unsubscribe(42, first)
+		hub.Broadcast(42, SSEEvent{Event: "ignored"})
+	})
+}
+
 func TestRealtimeStartSubscriberSkipsMissingRedis(t *testing.T) {
 	called := false
 	start := func(string, func(context.Context)) {

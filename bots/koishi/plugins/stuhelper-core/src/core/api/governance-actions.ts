@@ -8,6 +8,7 @@ import {
   assertGlobalConsoleScope,
   resolveRequiredConsoleGuildScope,
 } from './console-guild-scope'
+import { createAuthority4ListenerRegistrar } from './authority-listener'
 
 const MAX_COMMAND_ID_LENGTH = 128
 const MAX_ROLE_ID_LENGTH = 64
@@ -58,19 +59,20 @@ export function registerGovernanceActionAPI(ctx: Context) {
 
   const moderationStore = new ModerationStore(ctx)
   const guardPolicyStore = new GuardPolicyStore(ctx)
+  const addAuthorityListener = createAuthority4ListenerRegistrar(ctx)
 
-  ctx.console.addListener('stuhelperGroupCenter/action/save-command-policy', async function (input) {
+  addAuthorityListener('stuhelperGroupCenter/action/save-command-policy', async function (input) {
     const scope = await resolveRequiredConsoleGuildScope(this, createScopeDeps(ctx))
     assertCommandPolicyWriteAccess(scope)
     await saveCommandPolicy(moderationStore, parseCommandPolicyInput(input))
     return '已保存命令策略。'
-  }, { authority: 4 })
+  })
 
-  ctx.console.addListener('stuhelperGroupCenter/action/save-guard-template', async function (input) {
+  addAuthorityListener('stuhelperGroupCenter/action/save-guard-template', async function (input) {
     const scope = await resolveRequiredConsoleGuildScope(this, createScopeDeps(ctx))
     assertGuardTemplateWriteAccess(scope)
     return saveGuardTemplate(guardPolicyStore, parseGuardTemplateInput(input))
-  }, { authority: 4 })
+  })
 }
 
 async function saveCommandPolicy(

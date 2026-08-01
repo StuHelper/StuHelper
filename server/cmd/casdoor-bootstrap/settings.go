@@ -132,7 +132,6 @@ func buildPlan(getenv envReader, orgName string) (casdoor.BootstrapPlan, error) 
 			DefaultApplication: "stuhelper-web",
 		},
 		Applications: apps,
-		Roles:        flatRoleCatalog(),
 		Providers:    providers,
 	}, nil
 }
@@ -168,7 +167,6 @@ func buildAdminServiceApplications(getenv envReader) ([]casdoor.ApplicationSpec,
 		{prefix: "CASDOOR_APP_PROVISIONING", displayName: "StuHelper App Provisioning"},
 		{prefix: "CASDOOR_INTROSPECTION", displayName: "StuHelper Token Introspection"},
 		{prefix: "CASDOOR_USER_PROFILE", displayName: "StuHelper User Profile"},
-		{prefix: "CASDOOR_ROLE_SYNC", displayName: "StuHelper Role Sync"},
 		{prefix: "CASDOOR_USER_LOOKUP", displayName: "StuHelper User Lookup"},
 	}
 	apps := make([]casdoor.ApplicationSpec, 0, len(defs))
@@ -199,19 +197,6 @@ func buildProviders(getenv envReader) ([]casdoor.ProviderSpec, error) {
 		providers = append(providers, email)
 	}
 	return providers, nil
-}
-
-func flatRoleCatalog() []casdoor.RoleSpec {
-	return []casdoor.RoleSpec{
-		{Name: "super_admin", DisplayName: "Super Admin", Description: "Global StuHelper administrator"},
-		{Name: "school_admin", DisplayName: "School Admin", Description: "School-scoped administrator projection"},
-		{Name: "section_admin", DisplayName: "Section Admin", Description: "Section administrator projection"},
-		{Name: "section_moderator", DisplayName: "Section Moderator", Description: "Section moderation projection"},
-		{Name: "section_reviewer", DisplayName: "Section Reviewer", Description: "Section review projection"},
-		{Name: "verified_student", DisplayName: "Verified Student", Description: "Verified student projection"},
-		{Name: "freshman_provisional", DisplayName: "Freshman Provisional", Description: "Freshman admission provisional projection"},
-		{Name: "user", DisplayName: "User", Description: "Default authenticated user projection"},
-	}
 }
 
 type appEnv struct {

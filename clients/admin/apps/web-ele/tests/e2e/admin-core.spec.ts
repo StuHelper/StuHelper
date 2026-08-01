@@ -417,7 +417,7 @@ test.describe('Admin capability route filtering', () => {
     await mockAdminStats(page);
   });
 
-  test('limited admin cannot reach Open Platform route or trigger its API', async ({
+  test('limited admin falls back from Open Platform without triggering its API', async ({
     page,
   }) => {
     const openPlatformRequests: string[] = [];
@@ -436,12 +436,13 @@ test.describe('Admin capability route filtering', () => {
 
     await page.goto('/open-platform/apps');
 
-    await expect(page.getByText('哎呀！未找到页面')).toBeVisible({
+    await expect(page).toHaveURL(/\/analytics(?:[?#]|$)/, {
       timeout: 10_000,
     });
     await expect(
-      page.getByText('抱歉，我们无法找到您要找的页面。'),
+      page.getByRole('heading', { name: /分析页|Analytics/ }),
     ).toBeVisible();
+    await expect(page.getByText('哎呀！未找到页面')).toHaveCount(0);
     expect(openPlatformRequests).toEqual([]);
   });
 

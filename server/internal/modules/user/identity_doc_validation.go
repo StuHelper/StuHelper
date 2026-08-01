@@ -3,6 +3,8 @@ package user
 import (
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 )
 
 var mainlandIDChecksumWeights = [...]int{7, 9, 10, 5, 8, 4, 2, 1, 6, 3, 7, 9, 10, 5, 8, 4, 2}
@@ -22,10 +24,21 @@ func isValidIdentityDocNumber(docType, docNumber string) bool {
 	case DocTypeMainlandID:
 		return isValidMainlandIDNumber(docNumber)
 	case DocTypeHKMacau, DocTypeTW, DocTypePassport:
-		return strings.TrimSpace(docNumber) != "" && len([]rune(docNumber)) <= 50
+		return isValidNonMainlandIdentityDocNumber(docNumber)
 	default:
 		return false
 	}
+}
+
+func isValidNonMainlandIdentityDocNumber(docNumber string) bool {
+	if docNumber == "" || !utf8.ValidString(docNumber) || utf8.RuneCountInString(docNumber) > 50 {
+		return false
+	}
+	return !strings.ContainsFunc(docNumber, func(r rune) bool {
+		return unicode.IsSpace(r) ||
+			unicode.IsControl(r) ||
+			unicode.In(r, unicode.Cf, unicode.Co, unicode.Cs)
+	})
 }
 
 func isValidMainlandIDNumber(id string) bool {

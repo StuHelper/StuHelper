@@ -12,8 +12,8 @@ func detachedRefreshContext(parent context.Context, timeout time.Duration) (cont
 }
 
 func (s *Service) cacheRefreshContext(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
-	if s != nil && s.asyncCtx != nil {
-		return context.WithTimeout(s.asyncCtx, timeout)
+	if s != nil && s.backgroundCtx != nil {
+		return context.WithTimeout(s.backgroundCtx, timeout)
 	}
 	return detachedRefreshContext(parent, timeout)
 }

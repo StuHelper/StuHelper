@@ -16,7 +16,7 @@ import App from './App.vue'
 import { useAuthStore } from './stores/auth'
 import { useLocaleStore } from './stores/locale'
 import { vRipple } from './directives/ripple'
-import { initObservability } from './utils/observability'
+import { initObservability, reportFrontendError } from './utils/observability'
 import { shouldInitObservability } from './utils/observabilityBootstrap'
 import { hasStoredSessionHint } from './utils/sessionHint'
 
@@ -59,6 +59,7 @@ app.config.errorHandler = (err, instance, info) => {
   if (import.meta.env.DEV) {
     console.error(`[Vue Error] ${componentName} — ${info}:`, err)
   }
+  reportFrontendError('vue-error')
 }
 
 app.use(pinia)

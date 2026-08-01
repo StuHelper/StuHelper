@@ -55,6 +55,9 @@ fi
 if run_gate "${valid_env[@]}" EXTERNAL_STUDENT_SOURCE_ORACLE_TABLE='T_XS_JBXX;DROP' >/dev/null 2>&1; then
   fail "unsafe Oracle identifier must fail"
 fi
+if run_gate "${valid_env[@]}" EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME=usr_jwbiz >/dev/null 2>&1; then
+  fail "Oracle source schema owner must not be accepted as the runtime account"
+fi
 if run_gate "${valid_env[@]}" EXTERNAL_STUDENT_SOURCE_ORACLE_MAX_IDLE_CONNS=5 >/dev/null 2>&1; then
   fail "Oracle idle connections above max open connections must fail"
 fi

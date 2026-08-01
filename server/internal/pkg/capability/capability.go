@@ -24,7 +24,7 @@ func ExpandRoles(roles []string) []string {
 
 // ExpandRoleGrants 将角色列表展开为带 scope 的能力授权。
 // school_admin 绑定 school scope；section_* 绑定 section scope；super_admin 与普通用户角色保持全局授权。
-func ExpandRoleGrants(roles []string, orgScopedRoles map[string][]string) []Grant {
+func ExpandRoleGrants(roles []string, scopedRoleGrants map[string][]string) []Grant {
 	grants := make([]Grant, 0, len(roles))
 	for _, role := range roles {
 		caps, ok := roleCapabilities[role]
@@ -33,7 +33,7 @@ func ExpandRoleGrants(roles []string, orgScopedRoles map[string][]string) []Gran
 		}
 		switch {
 		case roleRequiresSectionScope(role):
-			sectionIDs := normalizeScope(orgScopedRoles[role])
+			sectionIDs := normalizeScope(scopedRoleGrants[role])
 			if len(sectionIDs) == 0 {
 				continue
 			}
@@ -44,7 +44,7 @@ func ExpandRoleGrants(roles []string, orgScopedRoles map[string][]string) []Gran
 				})
 			}
 		case roleRequiresSchoolScope(role):
-			schoolIDs := normalizeScope(orgScopedRoles[role])
+			schoolIDs := normalizeScope(scopedRoleGrants[role])
 			if len(schoolIDs) == 0 {
 				continue
 			}

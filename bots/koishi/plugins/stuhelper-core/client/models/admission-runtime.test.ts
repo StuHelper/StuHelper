@@ -14,6 +14,12 @@ test('buildAdmissionRuntimeModel exposes admission runtime metrics and switch st
   assert.equal(model.metrics[0].note, '2 个启用绑定，去重后 2 个有效目标群')
   assert.equal(model.metrics[1].value, 2)
   assert.equal(model.metrics[3].tone, 'danger')
+  assert.deepEqual(model.activeMemberWindow, {
+    shown: 2,
+    total: 2,
+    limit: 100,
+    truncated: false,
+  })
   assert.equal(model.switchRows.find((row) => row.id === 'service-token')?.tone, 'success')
   assert.equal(model.switchRows.find((row) => row.id === 'action-stream')?.editable, true)
   assert.equal(model.switchRows.find((row) => row.id === 'action-stream')?.settingKey, 'actionStreamEnabled')
@@ -42,47 +48,79 @@ test('buildAdmissionRuntimeModel exposes admission runtime metrics and switch st
   assert.deepEqual(model.activeMembers[0].availableActions, ['query', 'resend'])
 })
 
+test('buildAdmissionRuntimeModel hides bot-wide controls from guild-scoped page data', () => {
+  const data = createAdmissionRuntimeFixture()
+  data.globalRuntime = null
+
+  const model = buildAdmissionRuntimeModel(data)
+
+  assert.deepEqual(model.switchRows, [])
+  assert.equal(model.metrics[0].value, 2)
+  assert.deepEqual(model.activeMembers.map((member) => member.memberId), ['2001', '2002'])
+})
+
+test('buildAdmissionRuntimeModel preserves window metadata and stabilizes equal deadlines by id', () => {
+  const data = createAdmissionRuntimeFixture()
+  data.activeMemberWindow = {
+    shown: 2,
+    total: 125,
+    limit: 100,
+    truncated: true,
+  }
+  data.activeMembers = [
+    { ...data.activeMembers[0], id: 'member-z', deadlineAt: '2026-06-04T08:10:00.000Z' },
+    { ...data.activeMembers[1], id: 'member-a', deadlineAt: '2026-06-04T08:10:00.000Z' },
+  ]
+
+  const model = buildAdmissionRuntimeModel(data)
+
+  assert.deepEqual(model.activeMemberWindow, data.activeMemberWindow)
+  assert.deepEqual(model.activeMembers.map((member) => member.id), ['member-a', 'member-z'])
+})
+
 function createAdmissionRuntimeFixture(): AdmissionRuntimePageData {
   return {
     generatedAt: '2026-06-04T08:00:00.000Z',
-    platform: {
-      baseUrl: 'https://stuhelper.com',
-      serviceTokenConfigured: true,
+    globalRuntime: {
+      platform: {
+        baseUrl: 'https://stuhelper.com',
+        serviceTokenConfigured: true,
+      },
+      scheduler: {
+        fallbackScanEnabled: true,
+        scanIntervalSeconds: 300,
+      },
+      actionStream: {
+        enabled: true,
+        reconnectDelaySeconds: 5,
+      },
+      commands: {
+        publicCommandsRegistered: true,
+        publicCommandsEnabled: false,
+        adminCommandsRegistered: true,
+        adminCommandsEnabled: true,
+        admissionCommandsRegistered: true,
+        admissionCommandsEnabled: true,
+      },
+      moderation: {
+        enabled: false,
+        keywordRuleCount: 0,
+        repeatThreshold: 3,
+        repeatWindowSize: 3,
+        antiRecallNotify: false,
+      },
+      freshmanForward: {
+        enabled: false,
+      },
+      reminderDelivery: {
+        groupEnabled: true,
+        directEnabled: false,
+      },
+      timeCode: {
+        reminderEnabled: true,
+      },
+      bots: [{ platform: 'onebot', selfId: '2118785781', status: 'online' }],
     },
-    scheduler: {
-      fallbackScanEnabled: true,
-      scanIntervalSeconds: 300,
-    },
-    actionStream: {
-      enabled: true,
-      reconnectDelaySeconds: 5,
-    },
-    commands: {
-      publicCommandsRegistered: true,
-      publicCommandsEnabled: false,
-      adminCommandsRegistered: true,
-      adminCommandsEnabled: true,
-      admissionCommandsRegistered: true,
-      admissionCommandsEnabled: true,
-    },
-    moderation: {
-      enabled: false,
-      keywordRuleCount: 0,
-      repeatThreshold: 3,
-      repeatWindowSize: 3,
-      antiRecallNotify: false,
-    },
-    freshmanForward: {
-      enabled: false,
-    },
-    reminderDelivery: {
-      groupEnabled: true,
-      directEnabled: false,
-    },
-    timeCode: {
-      reminderEnabled: true,
-    },
-    bots: [{ platform: 'onebot', selfId: '2118785781', status: 'online' }],
     stats: {
       templateCount: 1,
       bindingCount: 2,
@@ -91,6 +129,12 @@ function createAdmissionRuntimeFixture(): AdmissionRuntimePageData {
       backendSyncPendingCount: 1,
       membersWithAdmissionSessionCount: 1,
       membersWithLastErrorCount: 1,
+    },
+    activeMemberWindow: {
+      shown: 2,
+      total: 2,
+      limit: 100,
+      truncated: false,
     },
     templates: [{
       id: 'default',

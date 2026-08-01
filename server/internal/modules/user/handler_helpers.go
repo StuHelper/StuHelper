@@ -53,6 +53,13 @@ type identityReviewItemResponse struct {
 	UpdatedAt       time.Time  `json:"updatedAt"`
 }
 
+type identityReviewDetailResponse struct {
+	identityReviewItemResponse
+	DocPhotoFrontURL  *string `json:"docPhotoFrontURL"`
+	DocPhotoBackURL   *string `json:"docPhotoBackURL"`
+	DocPhotoSelfieURL *string `json:"docPhotoSelfieURL"`
+}
+
 type profileResponse struct {
 	UserID             int64      `json:"userID"`
 	SchoolID           *int64     `json:"schoolID"`
@@ -190,6 +197,15 @@ func identityReviewItemToJSON(i *IdentityReviewItem) identityReviewItemResponse 
 		RejectionReason: i.RejectionReason,
 		CreatedAt:       i.CreatedAt,
 		UpdatedAt:       i.UpdatedAt,
+	}
+}
+
+func identityReviewDetailToJSON(i *IdentityReviewItem) identityReviewDetailResponse {
+	return identityReviewDetailResponse{
+		identityReviewItemResponse: identityReviewItemToJSON(i),
+		DocPhotoFrontURL:           i.DocPhotoFront,
+		DocPhotoBackURL:            i.DocPhotoBack,
+		DocPhotoSelfieURL:          i.DocPhotoSelfie,
 	}
 }
 

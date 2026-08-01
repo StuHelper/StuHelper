@@ -5,6 +5,7 @@
       <div class="sidebar-header">
         <h2>角色</h2>
         <button
+          type="button"
           class="icon-btn"
           :disabled="loading || Boolean(loadError) || Boolean(roleOperation)"
           @click="createRole"
@@ -47,7 +48,7 @@
           <strong>刷新角色权限数据失败</strong>
           <span>{{ loadError }}</span>
         </div>
-        <button class="secondary-btn" @click="fetchData">重试</button>
+        <button type="button" class="secondary-btn" @click="fetchData">重试</button>
       </div>
 
       <div v-if="actionError" class="roles-action-banner" role="alert">
@@ -64,11 +65,11 @@
           <span v-if="currentRole.builtin" class="builtin-badge">内置</span>
         </h1>
         <div class="header-actions" v-if="!currentRole.builtin">
-            <button class="clone-btn" :disabled="Boolean(roleOperation)" @click="cloneRole">
+            <button type="button" class="clone-btn" :disabled="Boolean(roleOperation)" @click="cloneRole">
               {{ roleOperation === 'clone' ? '克隆中…' : '克隆角色' }}
             </button>
             <span style="width: 12px; display: inline-block;"></span>
-           <button class="danger-btn" :disabled="Boolean(roleOperation)" @click="deleteRole">
+           <button type="button" class="danger-btn" :disabled="Boolean(roleOperation)" @click="deleteRole">
              {{ roleOperation === 'delete' ? '删除中…' : '删除角色' }}
            </button>
         </div>
@@ -136,7 +137,7 @@
             <label>角色 ID</label>
             <div class="id-display">
               <code class="role-id-code">{{ currentRole.id }}</code>
-              <button class="copy-btn" @click="copyRoleId" title="复制角色 ID">
+              <button type="button" class="copy-btn" @click="copyRoleId" title="复制角色 ID">
                 📋
               </button>
             </div>
@@ -145,20 +146,20 @@
 
           <div class="form-group">
             <label>角色名称</label>
-            <input type="text" v-model="editingRole.name" :disabled="currentRole.builtin" class="form-input">
+            <input type="text" v-model="editingRole.name" :disabled="currentRole.builtin" class="form-input" aria-label="角色名称">
           </div>
 
           <div class="form-group" v-if="!currentRole.builtin">
             <label>角色别名</label>
-            <input type="text" v-model="editingRole.alias" placeholder="用于命令查找的简短名称" class="form-input">
+            <input type="text" v-model="editingRole.alias" placeholder="用于命令查找的简短名称" class="form-input" aria-label="角色别名">
             <div class="field-hint">命令示例：gauth.add @用户 {{ editingRole.alias || editingRole.name || '别名' }}</div>
           </div>
 
           <div class="form-group">
             <label>角色颜色</label>
             <div class="color-picker-wrapper">
-              <input type="color" v-model="editingRole.color" class="color-input">
-              <input type="text" v-model="editingRole.color" placeholder="#RRGGBB" class="form-input color-text">
+              <input type="color" v-model="editingRole.color" class="color-input" aria-label="角色颜色选择">
+              <input type="text" v-model="editingRole.color" placeholder="#RRGGBB" class="form-input color-text" aria-label="角色颜色十六进制值">
             </div>
           </div>
 
@@ -186,6 +187,7 @@
             <label>指定群组 ID（每行一个）</label>
             <textarea
               v-model="guildIdsText"
+              aria-label="指定群组 ID"
               placeholder="输入群号，每行一个&#10;例如：&#10;123456789&#10;987654321"
               class="form-textarea"
               rows="4"
@@ -205,8 +207,8 @@
             <!-- 左侧主内容 -->
             <div class="permissions-main" ref="permissionsMainRef">
               <div class="search-bar">
-                <input type="text" v-model="permSearch" placeholder="搜索权限..." class="form-input search-input">
-                <button class="secondary-btn" @click="clearPermissions">清除所有</button>
+                <input type="text" v-model="permSearch" placeholder="搜索权限..." class="form-input search-input" aria-label="搜索权限">
+                <button type="button" class="secondary-btn" @click="clearPermissions">清除所有</button>
               </div>
 
               <!-- 当前选中权限列表 -->
@@ -313,15 +315,16 @@
                    <input
                      type="text"
                      v-model="newMemberId"
+                     aria-label="添加成员用户 ID"
                      placeholder="输入用户 ID 添加..."
                      class="form-input"
                      :disabled="addingMember || memberLoading"
                      @keyup.enter="addMember"
                    >
-                   <button class="primary-btn" :disabled="memberLoading || addingMember || !newMemberId.trim()" @click.stop="handleAddMember">
+                   <button type="button" class="primary-btn" :disabled="memberLoading || addingMember || !newMemberId.trim()" @click.stop="handleAddMember">
                      {{ addingMember ? '添加中…' : '添加成员' }}
                    </button>
-                   <button class="secondary-btn" :disabled="memberLoading || addingMember" @click.stop="openImportDialog">导入成员</button>
+                   <button type="button" class="secondary-btn" :disabled="memberLoading || addingMember" @click.stop="openImportDialog">导入成员</button>
                </div>
 
                <!-- 成员搜索框 -->
@@ -329,6 +332,7 @@
                  <input
                    type="text"
                    v-model="memberSearchQuery"
+                   aria-label="搜索角色成员"
                    placeholder="搜索成员..."
                    class="form-input"
                  >
@@ -352,6 +356,7 @@
                           </div>
                        </div>
                        <button
+                         type="button"
                          class="danger-btn"
                          :disabled="removingMemberIds.has(member.id)"
                          @click.stop="handleRemoveMember(member.id)"
@@ -372,8 +377,8 @@
         <div class="save-bar" v-if="hasChanges">
           <span>检测到未保存的修改</span>
           <div class="save-actions">
-            <button class="reset-btn" :disabled="savingChanges" @click="resetChanges">重置</button>
-            <button class="save-btn" :disabled="savingChanges" @click="saveChanges">
+            <button type="button" class="reset-btn" :disabled="savingChanges" @click="resetChanges">重置</button>
+            <button type="button" class="save-btn" :disabled="savingChanges" @click="saveChanges">
               {{ savingChanges ? '保存中…' : '保存更改' }}
             </button>
           </div>
@@ -386,7 +391,7 @@
         <strong>加载角色权限数据失败</strong>
         <span>{{ loadError }}</span>
       </div>
-      <button class="secondary-btn" @click="fetchData">重试</button>
+      <button type="button" class="secondary-btn" @click="fetchData">重试</button>
     </main>
 
     <main v-else class="main-content roles-load-empty">
@@ -415,7 +420,12 @@
 
     <!-- 导入成员对话框 -->
     <transition name="fade">
-      <div class="modal-overlay" v-if="showImportDialog" @click.self="closeImportDialog">
+      <div
+        v-if="showImportDialog"
+        class="modal-overlay"
+        role="presentation"
+        @click.self="closeImportDialog"
+      >
         <div
           ref="importDialogRef"
           class="modal-dialog import-dialog"
@@ -459,7 +469,7 @@
             <!-- 角色选择 -->
             <div class="form-group" v-if="importSource === 'role'">
               <label>选择角色</label>
-              <select v-model="importSourceRoleId" class="form-input" @change="loadImportPreview">
+              <select v-model="importSourceRoleId" class="form-input" aria-label="选择角色" @change="loadImportPreview">
                 <option value="">请选择角色...</option>
                 <option
                   v-for="role in otherRoles"
@@ -472,7 +482,7 @@
             <!-- Authority 等级选择 -->
             <div class="form-group" v-if="importSource === 'authority'">
               <label>选择权限等级</label>
-              <select v-model="importAuthorityLevel" class="form-input" @change="loadAuthorityUsers">
+              <select v-model="importAuthorityLevel" class="form-input" aria-label="选择权限等级" @change="loadAuthorityUsers">
                 <option :value="1">Authority 1</option>
                 <option :value="2">Authority 2</option>
                 <option :value="3">Authority 3</option>
@@ -489,11 +499,12 @@
                 <input
                   type="text"
                   v-model="importGuildId"
+                  aria-label="输入群号"
                   placeholder="请输入群号..."
                   class="form-input"
                   @keyup.enter="loadGuildAdmins"
                 >
-                <button class="primary-btn" @click="loadGuildAdmins" :disabled="importLoading">
+                <button type="button" class="primary-btn" @click="loadGuildAdmins" :disabled="importLoading">
                   {{ importLoading ? '加载中...' : '获取' }}
                 </button>
               </div>

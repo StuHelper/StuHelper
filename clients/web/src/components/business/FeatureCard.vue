@@ -59,6 +59,8 @@ const onLeave = () => {
     @mouseenter="onHover"
     @mousemove="onHover"
     @mouseleave="onLeave"
+    @focusin="onLeave"
+    @focusout="onLeave"
   >
     <div class="feature-card__icon">
       <component :is="icon" class="w-8 h-8" />

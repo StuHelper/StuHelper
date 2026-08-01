@@ -22,18 +22,18 @@ func TestExternalSyncOutbox_UpsertClaimRetryLifecycle(t *testing.T) {
 		return repo.UpsertExternalSyncJobTx(
 			ctx,
 			tx,
-			externalSyncJobTypeVerifiedStudentRole,
-			verifiedStudentRoleSyncKey(42),
+			externalSyncJobTypeUserProfileProjection,
+			userProfileProjectionKey(42),
 			[]byte(`{"userID":42,"approved":true}`),
 		)
 	})
 	require.NoError(t, err)
-	assertExternalSyncStream(t, fixture, verifiedStudentRoleSyncKey(42), outbox.StreamIAMCasdoorRoleSync)
+	assertExternalSyncStream(t, fixture, userProfileProjectionKey(42), outbox.StreamIAMOpenFGATupleSync)
 
 	jobs, err := repo.ClaimExternalSyncJobs(ctx, 10, time.Minute)
 	require.NoError(t, err)
 	require.Len(t, jobs, 1)
-	assert.Equal(t, externalSyncJobTypeVerifiedStudentRole, jobs[0].JobType)
+	assert.Equal(t, externalSyncJobTypeUserProfileProjection, jobs[0].JobType)
 	assert.JSONEq(t, `{"userID":42,"approved":true}`, string(jobs[0].Payload))
 	assert.Equal(t, 0, jobs[0].AttemptCount)
 
@@ -89,7 +89,6 @@ func TestExternalSyncOutbox_ClaimSplitsAcrossIAMStreams(t *testing.T) {
 	ctx := context.Background()
 
 	for userID := int64(1); userID <= 4; userID++ {
-		upsertExternalSyncJob(t, repo, ctx, externalSyncJobTypeVerifiedStudentRole, verifiedStudentRoleSyncKey(userID))
 		upsertExternalSyncJob(t, repo, ctx, externalSyncJobTypeUserProfileProjection, userProfileProjectionKey(userID))
 		upsertExternalSyncJob(t, repo, ctx, externalSyncJobTypeAdmissionVerification, admissionVerificationProjectionKey(userID))
 	}
@@ -103,9 +102,8 @@ func TestExternalSyncOutbox_ClaimSplitsAcrossIAMStreams(t *testing.T) {
 	for _, job := range jobs {
 		counts[job.JobType]++
 	}
-	assert.Equal(t, 2, counts[externalSyncJobTypeVerifiedStudentRole])
-	assert.Equal(t, 2, counts[externalSyncJobTypeUserProfileProjection])
-	assert.Equal(t, 2, counts[externalSyncJobTypeAdmissionVerification])
+	assert.Equal(t, 3, counts[externalSyncJobTypeUserProfileProjection])
+	assert.Equal(t, 3, counts[externalSyncJobTypeAdmissionVerification])
 	assertExternalSyncJobStatus(t, fixture, "review-relations:foreign", "pending")
 }
 

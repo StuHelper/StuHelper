@@ -237,7 +237,7 @@ func TestReviewHandler_MoreValidationBranches(t *testing.T) {
 
 		h.BatchUpdateReviews(c)
 
-		assert.Equal(t, http.StatusPreconditionRequired, w.Code)
+		assert.Equal(t, http.StatusPreconditionFailed, w.Code)
 	})
 
 }

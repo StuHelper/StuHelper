@@ -68,11 +68,11 @@ make prod-deploy  # 配置校验 → 镜像构建 → 启动 → Smoke Check
 
 ## CI/CD
 
-GitHub Actions 是仓库的权威 CI/CD 通道：PR 和 `develop` / `main` push 运行按路径裁剪的质量门禁；质量门禁通过后发布带完整 commit SHA 的 GHCR 镜像。staging 与 production 部署使用受保护 GitHub environment 和手工工作流，production 必须经过审批。迁移前的 GitLab 工作树只保留为只读恢复锚点，不再接收日常提交或承担发布权威。
+GitHub Actions 是仓库唯一的 CI/CD 通道：PR 和 `develop` / `main` push 运行按路径裁剪的质量门禁；受信任分支的质量门禁通过后发布带完整 commit SHA 的 GHCR 镜像。staging 与 production 部署使用受保护 GitHub environment 和手工作流，production 必须经过审批。
 
 质量门禁：Go lint/test/build、OpenAPI lint/drift、gosec、govulncheck、pnpm audit、Trivy、Web/Admin lint/type-check/test/build/Playwright、Koishi 单元 / 启动 / Console Playwright smoke。
 
-迁移步骤、Actions 权限、branch ruleset、environment secrets 和回滚约束见 [GitHub 迁移与 Actions 治理](docs/guides/github-migration.md)。仓库不保存真实部署 secrets；真实 staging / production 发布仍须按该文档配置环境秘密并单独验收。GitLab CI 定义仅存在于迁移恢复材料中，不再作为当前发布门禁。
+Actions 权限、branch ruleset、environment secrets 和回滚约束见 [GitHub 仓库与 Actions 治理](docs/guides/github-migration.md)。仓库不保存真实部署 secrets；真实 staging / production 发布仍须按该文档配置环境秘密并单独验收。
 
 ```bash
 make prod-rollback              # 本地回滚
@@ -133,8 +133,11 @@ StuHelper/
 - 数据库权威来源：`server/migrations/`
 - 生成代码禁止手改：`server/internal/api/gen/`、`clients/shared/src/types/api.gen.ts`
 
-## 许可状态
+## 许可证
 
-仓库根目录目前没有统一的开源许可证。除子目录中明确附带许可证的第三方或派生组件外，仓库公开可见不代表授予复制、修改、分发或再许可权利；在项目所有者完成 monorepo 许可证决策前，不应把整个仓库称为开源项目。
+除明确标注为第三方或使用其他许可证的文件与目录外，本仓库按照
+[GNU Affero General Public License v3.0 only](LICENSE)（SPDX：`AGPL-3.0-only`）授权。
+通过网络向用户提供修改后的程序时，须同时遵守 AGPLv3 第 13 节对应的源代码提供义务。
 
-`clients/admin/` 保留其目录内 Vben 的 MIT 许可证与版权声明；`bots/koishi/package.json` 当前声明 `AGPL-3.0`。这两个既有边界不自动扩展到仓库其他目录。
+`clients/admin/` 中源自 Vben 的代码继续保留并遵守其目录内的 MIT 许可证与版权声明；
+根许可证不会删除或替代第三方组件自身的许可证、版权和通知要求。

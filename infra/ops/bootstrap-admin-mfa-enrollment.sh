@@ -15,13 +15,14 @@ Usage:
 Break-glass operation for the initial privileged admin MFA bootstrap.
 
 StuHelper Admin requires two facts for super_admin/school_admin users:
-  1. Casdoor OIDC role claims contain a privileged role.
+  1. StuHelper authorization_grants contains a desired privileged grant.
   2. StuHelper DB user_mfa_enrollment has active=true with an allowed method.
 
 This script idempotently writes the StuHelper DB enrollment row only after it
-confirms the Casdoor user belongs to the configured organization, has a
-privileged Casdoor role membership, and already has a Casdoor SMS/App/WebAuthn/TOTP
-MFA factor. It does not disable MFA and does not create a Casdoor MFA factor.
+confirms the StuHelper user has a PostgreSQL-managed super_admin or school_admin
+grant and the corresponding Casdoor identity already has a
+SMS/App/WebAuthn/TOTP MFA factor. It does not disable MFA, create a Casdoor MFA
+factor, or modify Casdoor role membership.
 
 Inputs:
   STUHELPER_ADMIN_MFA_BOOTSTRAP_USERS      Comma-separated Casdoor usernames.
@@ -161,29 +162,15 @@ END;
 SQL
 }
 
-casdoor_privileged_role_count() {
+stuhelper_privileged_grant_count() {
   local target_user="$1"
-  casdoor_sql -v target_user="${target_user}" <<'SQL'
-WITH roles AS (
-  SELECT
-    name,
-    CASE
-      WHEN users IS NULL OR trim(users) = '' OR lower(trim(users)) = 'null' THEN '[]'::jsonb
-      ELSE users::jsonb
-    END AS users
-  FROM public.role
-  WHERE owner = :'organization'
-    AND name IN ('super_admin', 'school_admin')
-    AND COALESCE(is_enabled, true)
-),
-members AS (
-  SELECT roles.name AS role_name, value AS member
-  FROM roles, jsonb_array_elements_text(roles.users) AS value
-)
+  stuhelper_sql -v target_user="${target_user}" <<'SQL'
 SELECT count(*)
-FROM members
-WHERE member = :'target_user'
-   OR member = :'organization' || '/' || :'target_user';
+FROM public.authorization_grants grants
+JOIN public.users target ON target.id = grants.subject_user_id
+WHERE lower(target.username) = lower(:'target_user')
+  AND grants.role IN ('super_admin', 'school_admin')
+  AND grants.desired_state = 'granted';
 SQL
 }
 
@@ -311,9 +298,9 @@ for raw_user in "${requested_users[@]}"; do
     die "StuHelper user ${target_user} was not found or is ambiguous"
   fi
 
-  privileged_count="$(casdoor_privileged_role_count "${target_user}")"
+  privileged_count="$(stuhelper_privileged_grant_count "${target_user}")"
   if [[ "${privileged_count}" -lt 1 ]]; then
-    die "Casdoor user ${organization}/${target_user} does not have super_admin or school_admin role membership"
+    die "StuHelper user ${target_user} does not have a desired super_admin or school_admin authorization grant"
   fi
 
   casdoor_method="$(casdoor_mfa_method_for_user "${target_user}")"

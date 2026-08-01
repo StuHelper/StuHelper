@@ -1068,6 +1068,12 @@ test.describe("Auth callback and admission entry", () => {
             page.locator("[data-admission-freshman-flow]"),
         ).toBeVisible();
         await expect(
+            page.getByRole("tab", { name: "新生认证" }),
+        ).toHaveAttribute("aria-selected", "true");
+        await expect(
+            page.getByRole("tab", { name: "老生认证" }),
+        ).toHaveCount(0);
+        await expect(
             page.getByRole("button", { name: "当前浏览器不支持摄像头" }),
         ).toBeDisabled();
         await expect(

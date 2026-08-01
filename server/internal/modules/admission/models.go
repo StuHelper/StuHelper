@@ -168,10 +168,11 @@ type AdmissionFailureResetResult struct {
 }
 
 type BotEventInput struct {
-	Action    BotAction
-	Success   bool
-	MessageID string
-	Error     string
+	Action          BotAction
+	Success         bool
+	DispatchAttempt int
+	MessageID       string
+	Error           string
 }
 
 type FreshmanMaterialType string

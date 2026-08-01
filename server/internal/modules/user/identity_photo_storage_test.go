@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/StuHelper/StuHelper/server/internal/pkg/response"
+	"github.com/StuHelper/StuHelper/server/internal/testutil/redisfixture"
 )
 
 type fakeIdentityPhotoStore struct {
@@ -120,7 +121,7 @@ func TestResolveIdentityReviewItemAssets_PresignsStoredKeys(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	raw := "identities/42/2026/04/front.png"
+	raw := "identities/42/2026/04/1777777777777777001-front.png"
 	resolved, err := svc.ResolveIdentityReviewItemAssets(context.Background(), &IdentityReviewItem{
 		UserID:        42,
 		DocPhotoFront: &raw,
@@ -130,6 +131,51 @@ func TestResolveIdentityReviewItemAssets_PresignsStoredKeys(t *testing.T) {
 	require.NotNil(t, resolved.DocPhotoFront)
 	assert.Equal(t, raw, store.presignedKey)
 	assert.Equal(t, store.presignURL, *resolved.DocPhotoFront)
+}
+
+func TestResolveIdentityReviewItemAssets_RejectsUntrustedStoredValues(t *testing.T) {
+	svc, err := NewService(
+		&mockRepo{},
+		[]byte("test-hmac-key-at-least-32-chars!"),
+		&fakeEncryptor{},
+		WithIdentityPhotoStore(&fakeIdentityPhotoStore{
+			presignURL: "https://storage.example.test/identity/front.png",
+		}),
+	)
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		name  string
+		value string
+	}{
+		{
+			name:  "cross-user object",
+			value: "identities/43/2026/04/1777777777777777001-front.png",
+		},
+		{
+			name:  "wrong slot",
+			value: "identities/42/2026/04/1777777777777777001-selfie.png",
+		},
+		{
+			name:  "external tracking url",
+			value: "https://attacker.example.test/tracking.png",
+		},
+		{
+			name:  "legacy data url",
+			value: "data:image/png;base64,ZmFrZQ==",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := svc.ResolveIdentityReviewItemAssets(
+				context.Background(),
+				&IdentityReviewItem{
+					UserID:        42,
+					DocPhotoFront: &tc.value,
+				},
+			)
+			assert.ErrorIs(t, err, ErrIdentityPhotoInvalidRef)
+		})
+	}
 }
 
 func TestSubmitIdentity_VerifiesPhotoRefsAndNormalizesKeys(t *testing.T) {
@@ -222,6 +268,30 @@ func TestSubmitIdentity_RejectsPhotoRefForWrongUserOrSlot(t *testing.T) {
 	}
 }
 
+func TestSubmitIdentity_NonMainlandManualReviewRequiresFrontAndSelfie(t *testing.T) {
+	store := &fakeIdentityPhotoStore{
+		presignURL: "https://storage.example.test/identity/photo.png",
+	}
+	svc, err := NewService(
+		&mockRepo{},
+		[]byte("test-hmac-key-at-least-32-chars!"),
+		&fakeEncryptor{},
+		WithIdentityPhotoStore(store),
+	)
+	require.NoError(t, err)
+
+	front := "identities/42/2026/04/1777777777777777001-front.png"
+	_, err = svc.SubmitIdentity(context.Background(), 42, SubmitIdentityRequest{
+		DocType:       DocTypePassport,
+		DocNumber:     "P12345678",
+		RealName:      "张三",
+		DocPhotoFront: &front,
+	})
+
+	assert.ErrorIs(t, err, ErrPhotoRequired)
+	assert.Empty(t, store.presignedKeys, "incomplete submissions should fail before object-store lookups")
+}
+
 func TestSubmitIdentity_RejectsPhotoRefWhenObjectCannotBeVerified(t *testing.T) {
 	store := &fakeIdentityPhotoStore{presignErr: ErrIdentityPhotoStorageUnavailable}
 	repo := &mockRepo{
@@ -239,11 +309,13 @@ func TestSubmitIdentity_RejectsPhotoRefWhenObjectCannotBeVerified(t *testing.T) 
 	require.NoError(t, err)
 
 	front := "identities/42/2026/04/1777777777777777001-front.png"
+	selfie := "identities/42/2026/04/1777777777777777002-selfie.png"
 	_, err = svc.SubmitIdentity(context.Background(), 42, SubmitIdentityRequest{
-		DocType:       DocTypePassport,
-		DocNumber:     "P12345678",
-		RealName:      "张三",
-		DocPhotoFront: &front,
+		DocType:        DocTypePassport,
+		DocNumber:      "P12345678",
+		RealName:       "张三",
+		DocPhotoFront:  &front,
+		DocPhotoSelfie: &selfie,
 	})
 
 	require.ErrorIs(t, err, ErrIdentityPhotoStorageUnavailable)
@@ -308,6 +380,42 @@ func TestHandleUploadIdentityPhoto_MapsUnavailableStorageDomainErrorTo503(t *tes
 
 	require.Equal(t, http.StatusServiceUnavailable, resp.Code)
 	assert.Equal(t, "identity photo upload is not available", decodeUserErrorMessage(t, resp.Body.Bytes()))
+}
+
+func TestHandleUploadIdentityPhoto_IsRateLimitedPerUser(t *testing.T) {
+	redis := redisfixture.Start(t)
+	repo := &mockRepo{
+		onGetInternalUserID: func(_ context.Context, _ string) (int64, error) {
+			return 42, nil
+		},
+	}
+	store := &fakeIdentityPhotoStore{}
+	router := setupUserHandlerTestRouterWithRuntimeDeps(
+		t,
+		repo,
+		redis.Client,
+		nil,
+		nil,
+		WithIdentityPhotoStore(store),
+	)
+	requestBody := `{"slot":"front","filename":"identity.png","contentType":"image/png","dataBase64":"` +
+		base64.StdEncoding.EncodeToString(validPNGBytes(t)) + `"}`
+
+	for range identityPhotoUploadLimitPerDay {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/user/identity/uploads", strings.NewReader(requestBody))
+		req.Header.Set("Content-Type", "application/json")
+		resp := httptest.NewRecorder()
+		router.ServeHTTP(resp, req)
+		require.Equal(t, http.StatusCreated, resp.Code)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/user/identity/uploads", strings.NewReader(requestBody))
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+	router.ServeHTTP(resp, req)
+
+	require.Equal(t, http.StatusTooManyRequests, resp.Code)
+	assert.Equal(t, "rate limit exceeded", decodeUserErrorMessage(t, resp.Body.Bytes()))
 }
 
 func decodeUserErrorMessage(t *testing.T, body []byte) string {

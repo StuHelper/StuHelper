@@ -234,7 +234,6 @@ func (s *Service) VoteReview(ctx context.Context, params VoteReviewParams) (int6
 	}
 
 	var courseID int64
-	var shouldNotifyLike bool
 	err = s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		exists, err := s.repo.ReviewExistsTx(ctx, tx, params.ReviewID)
 		if err != nil {
@@ -264,8 +263,10 @@ func (s *Service) VoteReview(ctx context.Context, params VoteReviewParams) (int6
 				return nil
 			}
 			if params.VoteType == voteTypeLike {
-				shouldNotifyLike = true
-				return s.repo.IncrementLikeCount(ctx, tx, params.ReviewID)
+				if err := s.repo.IncrementLikeCount(ctx, tx, params.ReviewID); err != nil {
+					return err
+				}
+				return s.enqueueVoteNotificationTx(ctx, tx, params.ReviewID, params.UserHash)
 			}
 			return s.repo.IncrementDislikeCount(ctx, tx, params.ReviewID)
 
@@ -283,11 +284,13 @@ func (s *Service) VoteReview(ctx context.Context, params VoteReviewParams) (int6
 				return err
 			}
 			if params.VoteType == voteTypeLike {
-				shouldNotifyLike = true
 				if err := s.repo.DecrementDislikeCount(ctx, tx, params.ReviewID); err != nil {
 					return err
 				}
-				return s.repo.IncrementLikeCount(ctx, tx, params.ReviewID)
+				if err := s.repo.IncrementLikeCount(ctx, tx, params.ReviewID); err != nil {
+					return err
+				}
+				return s.enqueueVoteNotificationTx(ctx, tx, params.ReviewID, params.UserHash)
 			}
 			if err := s.repo.DecrementLikeCount(ctx, tx, params.ReviewID); err != nil {
 				return err
@@ -297,12 +300,6 @@ func (s *Service) VoteReview(ctx context.Context, params VoteReviewParams) (int6
 	})
 	if err != nil {
 		return 0, err
-	}
-	// 仅在新增 upvote 时通知评价作者
-	if shouldNotifyLike {
-		s.dispatchNotification(ctx, func(notifCtx context.Context) {
-			s.sendVoteNotification(notifCtx, params.ReviewID, params.UserHash)
-		})
 	}
 	return courseID, nil
 }
@@ -448,34 +445,4 @@ func (s *Service) DeleteReview(ctx context.Context, params DeleteReviewParams) e
 		}
 		return nil
 	})
-}
-
-// sendVoteNotification 异步发送点赞通知给评价作者
-func (s *Service) sendVoteNotification(ctx context.Context, reviewID, voterHash string) {
-	review, err := s.repo.GetReviewByID(ctx, reviewID)
-	if err != nil || review == nil {
-		return
-	}
-	if review.UserHash == voterHash {
-		return
-	}
-	authorID, err := s.repo.GetUserIDByUserHash(ctx, review.UserHash)
-	if err != nil || authorID == 0 {
-		return
-	}
-	if err := s.notifSender.SendReviewNotification(ctx, ReviewNotification{
-		UserID:       authorID,
-		Type:         voteTypeLike,
-		Title:        "你的评价获得了一个赞",
-		Body:         "有人赞了你的评价",
-		SourceModule: "review",
-		SourceID:     reviewID,
-		CourseID:     review.CourseID,
-	}); err != nil {
-		logger.L().Warn("failed to send vote notification",
-			zap.String("review_id", reviewID),
-			zap.Int64("author_id", authorID),
-			zap.Error(err),
-		)
-	}
 }

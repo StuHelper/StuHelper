@@ -76,3 +76,85 @@ func TestAuthContextCollectionHelpers(t *testing.T) {
 	c.Set(CtxKeyGlobalCapabilities, []string{"cap:1"})
 	require.Equal(t, []string{"cap:1"}, GetGlobalCapabilities(c))
 }
+
+func TestRequestLogRouteNeverReturnsDynamicPathValues(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	t.Run("matched route uses template before and after handler", func(t *testing.T) {
+		var beforeHandler string
+		var afterHandler string
+		r := gin.New()
+		r.Use(func(c *gin.Context) {
+			beforeHandler = requestLogRoute(c)
+			c.Next()
+			afterHandler = requestLogRoute(c)
+		})
+		r.GET("/api/v1/admission/sessions/:token", func(c *gin.Context) {
+			c.Status(http.StatusNoContent)
+		})
+
+		const credential = "admission-bearer-secret"
+		req := httptest.NewRequest(
+			http.MethodGet,
+			"/api/v1/admission/sessions/"+credential,
+			nil,
+		)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusNoContent, w.Code)
+		assert.Equal(t, "/api/v1/admission/sessions/:token", beforeHandler)
+		assert.Equal(t, beforeHandler, afterHandler)
+		assert.NotContains(t, beforeHandler, credential)
+	})
+
+	t.Run("unknown route uses fixed label", func(t *testing.T) {
+		var observed string
+		r := gin.New()
+		r.Use(func(c *gin.Context) {
+			observed = requestLogRoute(c)
+			c.Next()
+		})
+
+		const credential = "unknown-bearer-secret"
+		req := httptest.NewRequest(
+			http.MethodGet,
+			"/not-registered/"+credential,
+			nil,
+		)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusNotFound, w.Code)
+		assert.Equal(t, unmatchedRequestRoute, observed)
+		assert.NotContains(t, observed, credential)
+	})
+
+	t.Run("method mismatch uses fixed label", func(t *testing.T) {
+		var observed string
+		r := gin.New()
+		r.HandleMethodNotAllowed = true
+		r.Use(func(c *gin.Context) {
+			observed = requestLogRoute(c)
+			c.Next()
+		})
+		r.GET("/api/v1/admission/sessions/:token", func(c *gin.Context) {
+			c.Status(http.StatusNoContent)
+		})
+
+		const credential = "method-mismatch-secret"
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/api/v1/admission/sessions/"+credential,
+			nil,
+		)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusMethodNotAllowed, w.Code)
+		assert.Equal(t, unmatchedRequestRoute, observed)
+		assert.NotContains(t, observed, credential)
+	})
+
+	assert.Equal(t, unmatchedRequestRoute, requestLogRoute(nil))
+}

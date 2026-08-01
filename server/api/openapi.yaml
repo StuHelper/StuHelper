@@ -4,8 +4,8 @@ info:
   version: "1.0.0"
   description: StuHelper 学习助手平台 API
   license:
-    name: MIT
-    url: https://opensource.org/licenses/MIT
+    name: GNU Affero General Public License v3.0 only
+    url: https://www.gnu.org/licenses/agpl-3.0.html
 
 servers:
   - url: http://127.0.0.1:8080
@@ -464,6 +464,18 @@ paths:
   /api/v1/admin/system-configs/{key}:
     $ref: "paths/admin-user-system.yaml#/~1api~1v1~1admin~1system-configs~1{key}"
 
+  # ── Admin: Authorization Control Plane ──
+  /api/v1/admin/authorization/grants:
+    $ref: "paths/admin-authorization.yaml#/~1api~1v1~1admin~1authorization~1grants"
+  /api/v1/admin/authorization/grants/{grantID}:
+    $ref: "paths/admin-authorization.yaml#/~1api~1v1~1admin~1authorization~1grants~1{grantID}"
+  /api/v1/admin/authorization/grants/{grantID}/revoke:
+    $ref: "paths/admin-authorization.yaml#/~1api~1v1~1admin~1authorization~1grants~1{grantID}~1revoke"
+  /api/v1/admin/authorization/grants/{grantID}/reconcile:
+    $ref: "paths/admin-authorization.yaml#/~1api~1v1~1admin~1authorization~1grants~1{grantID}~1reconcile"
+  /api/v1/admin/authorization/projections/reconcile:
+    $ref: "paths/admin-authorization.yaml#/~1api~1v1~1admin~1authorization~1projections~1reconcile"
+
   # ── Admin: Admission ──
   /api/v1/admin/admission/policies:
     $ref: "paths/admin-admission.yaml#/~1api~1v1~1admin~1admission~1policies"
@@ -538,7 +550,7 @@ paths:
               properties:
                 kind:
                   type: string
-                  enum: [error, unhandledrejection]
+                  enum: [error, unhandledrejection, vue-error]
       responses:
         "204":
           description: Accepted
@@ -688,6 +700,8 @@ components:
       $ref: "components/schemas/user-system.yaml#/UserIdentity"
     AdminIdentityReviewItem:
       $ref: "components/schemas/user-system.yaml#/AdminIdentityReviewItem"
+    AdminIdentityReviewDetail:
+      $ref: "components/schemas/user-system.yaml#/AdminIdentityReviewDetail"
     SubmitIdentityRequest:
       $ref: "components/schemas/user-system.yaml#/SubmitIdentityRequest"
     UserProfile:
@@ -730,6 +744,26 @@ components:
       $ref: "components/schemas/user-system.yaml#/ConsumeQQBindingRequest"
     QQVerificationStatus:
       $ref: "components/schemas/user-system.yaml#/QQVerificationStatus"
+
+    # Authorization Control Plane
+    AuthorizationRole:
+      $ref: "components/schemas/authorization.yaml#/AuthorizationRole"
+    AuthorizationDesiredState:
+      $ref: "components/schemas/authorization.yaml#/AuthorizationDesiredState"
+    AuthorizationProjectionStatus:
+      $ref: "components/schemas/authorization.yaml#/AuthorizationProjectionStatus"
+    AuthorizationGrant:
+      $ref: "components/schemas/authorization.yaml#/AuthorizationGrant"
+    AuthorizationGrantList:
+      $ref: "components/schemas/authorization.yaml#/AuthorizationGrantList"
+    CreateAuthorizationGrantRequest:
+      $ref: "components/schemas/authorization.yaml#/CreateAuthorizationGrantRequest"
+    AuthorizationGrantMutationRequest:
+      $ref: "components/schemas/authorization.yaml#/AuthorizationGrantMutationRequest"
+    AuthorizationGrantMutationResult:
+      $ref: "components/schemas/authorization.yaml#/AuthorizationGrantMutationResult"
+    AuthorizationProjectionReconcileResult:
+      $ref: "components/schemas/authorization.yaml#/AuthorizationProjectionReconcileResult"
 
     # Open Platform
     OpenPlatformScopeDefinition:

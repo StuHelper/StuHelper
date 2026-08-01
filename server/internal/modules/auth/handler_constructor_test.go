@@ -53,7 +53,7 @@ func TestNewHandler_WiresDependencies(t *testing.T) {
 	assert.Equal(t, "https://account.example.com", h.accountSettingsBaseURL)
 }
 
-func TestNewHandlerFailsClosedWithoutProviderRefreshTokenRevocation(t *testing.T) {
+func TestNewHandlerFailsClosedWithoutProviderTokenFamilyRevocation(t *testing.T) {
 	tokenSvc, fixture := newTokenServiceForHandlerCtor(t)
 	supportedClient := newHandlerConstructorOIDCClient(t, "advertise")
 	unsupportedClient := newHandlerConstructorOIDCClient(t, nil)
@@ -99,7 +99,7 @@ func TestNewHandlerFailsClosedWithoutProviderRefreshTokenRevocation(t *testing.T
 		t.Run(tt.name, func(t *testing.T) {
 			h, err := NewHandler(tt.cfg, tokenSvc, fixture.Client, tt.client, &fakeUserSyncRepo{})
 
-			require.ErrorIs(t, err, ErrProviderRefreshTokenRevocationUnavailable)
+			require.ErrorIs(t, err, ErrProviderTokenFamilyRevocationUnavailable)
 			assert.Nil(t, h)
 		})
 	}

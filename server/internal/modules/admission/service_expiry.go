@@ -2,7 +2,7 @@ package admission
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -70,19 +70,19 @@ func (s *Service) runMemberBlacklistExpiryBatch(ctx context.Context) {
 }
 
 func (s *Service) ProcessExpiredFreshmanCredentials(ctx context.Context) (int, error) {
-	if s.projection == nil {
-		return 0, ErrAdmissionProjectionUnavailable
-	}
 	items, err := s.repo.ListExpiredFreshmanCredentials(ctx, s.now(), outbox.IAMWorkerBatchSize)
 	if err != nil {
 		return 0, err
 	}
 	processed := 0
 	for _, item := range items {
-		if err := s.processExpiredFreshmanCredential(ctx, item); err != nil {
+		updated, err := s.processExpiredFreshmanCredential(ctx, item)
+		if err != nil {
 			return processed, err
 		}
-		processed++
+		if updated {
+			processed++
+		}
 	}
 	return processed, nil
 }
@@ -94,10 +94,13 @@ func (s *Service) ProcessExpiredMemberBlacklists(ctx context.Context) (int, erro
 	}
 	processed := 0
 	for _, item := range items {
-		if err := s.processExpiredMemberBlacklist(ctx, item); err != nil {
+		updated, err := s.processExpiredMemberBlacklist(ctx, item)
+		if err != nil {
 			return processed, err
 		}
-		processed++
+		if updated {
+			processed++
+		}
 	}
 	return processed, nil
 }
@@ -105,32 +108,42 @@ func (s *Service) ProcessExpiredMemberBlacklists(ctx context.Context) (int, erro
 func (s *Service) processExpiredFreshmanCredential(
 	ctx context.Context,
 	item ExpiredFreshmanCredential,
-) error {
-	return s.repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		if err := s.repo.MarkFreshmanCredentialExpiryProcessedTx(ctx, tx, item.ID, s.now()); err != nil {
+) (bool, error) {
+	updated := false
+	err := s.repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		won, err := s.repo.MarkFreshmanCredentialExpiryProcessedTx(ctx, tx, item.ID, s.now())
+		if err != nil {
 			return err
 		}
-		if err := s.projection.EnqueueFreshmanProvisionalRoleSyncTx(ctx, tx, item.UserID, false); err != nil {
-			return fmt.Errorf("enqueue freshman provisional role removal: %w", err)
+		if !won {
+			return nil
 		}
+		updated = true
 		return s.repo.InsertAuditEventTx(ctx, tx, freshmanExpiryAuditEvent(ctx, item))
 	})
+	return updated, err
 }
 
-func (s *Service) processExpiredMemberBlacklist(ctx context.Context, item MemberBlacklistEntry) error {
+func (s *Service) processExpiredMemberBlacklist(ctx context.Context, item MemberBlacklistEntry) (bool, error) {
 	input := MemberBlacklistReleaseInput{
 		ID:                item.ID,
 		ReleasedByType:    BlacklistActorSystem,
 		ReleasedByID:      "system",
 		ReleaseReasonCode: BlacklistReleasePolicyExpiredAuto,
 	}
-	return s.repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+	updated := false
+	err := s.repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		entry, err := s.repo.ReleaseMemberBlacklistByIDTx(ctx, tx, input, s.now())
+		if errors.Is(err, ErrMemberBlacklistNotFound) {
+			return nil
+		}
 		if err != nil {
 			return err
 		}
+		updated = true
 		return s.afterMemberBlacklistReleaseTx(ctx, tx, entry, input.ReleaseReasonCode)
 	})
+	return updated, err
 }
 
 func freshmanExpiryAuditEvent(ctx context.Context, item ExpiredFreshmanCredential) audit.Event {

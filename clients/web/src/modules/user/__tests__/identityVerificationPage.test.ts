@@ -60,6 +60,16 @@ vi.mock("@/composables/useToast", () => ({
     }),
 }));
 
+vi.mock("@/api/errors", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("@/api/errors")>();
+    return {
+        ...actual,
+        isApiError: (error: unknown) =>
+            error instanceof Error &&
+            typeof (error as Error & { code?: unknown }).code === "string",
+    };
+});
+
 const { default: IdentityVerificationPage } =
     await import("../views/IdentityVerificationPage.vue");
 
@@ -133,8 +143,11 @@ describe("IdentityVerificationPage", () => {
             "[data-identity-submit]",
         );
         expect(submitButton.element.disabled).toBe(true);
+        expect(submitButton.attributes("type")).toBe("submit");
 
-        await submitButton.trigger("click");
+        await wrapper
+            .find("[data-identity-verification-form]")
+            .trigger("submit");
 
         expect(mockIdentityApi.submitIdentity).not.toHaveBeenCalled();
         expect(mockToastError).not.toHaveBeenCalled();
@@ -163,7 +176,9 @@ describe("IdentityVerificationPage", () => {
         );
         expect(submitButton.element.disabled).toBe(false);
 
-        await submitButton.trigger("click");
+        await wrapper
+            .find("[data-identity-verification-form]")
+            .trigger("submit");
         await flushPromises();
 
         expect(mockIdentityApi.submitIdentity).toHaveBeenCalledWith({
@@ -171,6 +186,42 @@ describe("IdentityVerificationPage", () => {
             realName: "张三",
             docNumber: "11010519491231002X",
         });
+    });
+
+    it("requests manual evidence when mainland academic matching is unavailable", async () => {
+        const evidenceRequiredError = Object.assign(
+            new Error("manual evidence required"),
+            { code: "A0030005" },
+        );
+        mockIdentityApi.submitIdentity.mockRejectedValue(
+            evidenceRequiredError,
+        );
+
+        const wrapper = mountPage();
+        await flushPromises();
+
+        await wrapper.find("[data-identity-real-name-input]").setValue("张三");
+        await wrapper
+            .find("[data-identity-doc-number-input]")
+            .setValue("11010519491231002X");
+        await wrapper
+            .find("[data-identity-verification-form]")
+            .trigger("submit");
+        await flushPromises();
+
+        const evidencePrompt = wrapper.find(
+            "[data-identity-manual-evidence-required]",
+        );
+        expect(evidencePrompt.exists()).toBe(true);
+        expect(evidencePrompt.attributes("role")).toBe("alert");
+        expect(wrapper.findAll('input[type="file"]')).toHaveLength(3);
+        expect(
+            wrapper.find<HTMLButtonElement>("[data-identity-submit]").element
+                .disabled,
+        ).toBe(true);
+        expect(mockToastError).toHaveBeenCalledWith(
+            "user.verification.identity.manualEvidencePrompt",
+        );
     });
 
     it("returns to the intended page after successful identity verification", async () => {
@@ -197,9 +248,12 @@ describe("IdentityVerificationPage", () => {
             .setValue("11010519491231002X");
         await flushPromises();
 
-        await wrapper.find("[data-identity-submit]").trigger("click");
+        await wrapper
+            .find("[data-identity-verification-form]")
+            .trigger("submit");
         await flushPromises();
 
         expect(mockRouterPush).toHaveBeenCalledWith("/courses/reviews/post");
+        expect(mockRouterPush).toHaveBeenCalledTimes(1);
     });
 });

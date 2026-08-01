@@ -2,6 +2,7 @@
   <div class="max-w-2xl mx-auto p-6 animate-fade-in max-sm:p-4">
     <header class="flex items-center gap-3 mb-6">
       <button
+        type="button"
         class="p-2 bg-transparent rounded-lg text-text-muted cursor-pointer transition-all duration-fast hover:text-text-primary"
         :aria-label="t('common.actions.back')"
         @click="goBack"
@@ -40,6 +41,7 @@
     <div v-else-if="errorState === 'unknown'" class="bg-bg-card rounded-xl p-8 text-center shadow-card">
       <p class="text-red-500 mb-4">{{ t('common.loadFailed') }}</p>
       <button
+        type="button"
         class="px-4 py-2 bg-text-primary text-bg-base rounded-lg text-sm font-medium border-0 cursor-pointer transition-all duration-fast hover:bg-accent hover:text-white"
         @click="load"
       >

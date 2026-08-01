@@ -1,22 +1,32 @@
 <script setup lang="ts">
-import type { IdentityVerification } from '#/api/admin';
+import type {
+  IdentityVerification,
+  IdentityVerificationReviewDetail,
+} from '#/api/admin';
 
-import { onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 
 import {
   ElAlert,
   ElButton,
   ElDialog,
+  ElEmpty,
+  ElImage,
   ElInput,
   ElMessage,
   ElOption,
   ElPagination,
   ElPopconfirm,
   ElSelect,
+  ElSkeleton,
   ElTag,
 } from 'element-plus';
 
-import { getIdentityList, reviewIdentity } from '#/api/admin';
+import {
+  getIdentityList,
+  getIdentityReviewDetail,
+  reviewIdentity,
+} from '#/api/admin';
 import { $t } from '#/locales';
 
 import PersistentAdminTable from '../../shared/admin-table/PersistentAdminTable.vue';
@@ -34,15 +44,37 @@ const actionError = ref('');
 const rejectDialogVisible = ref(false);
 const rejectTarget = ref<IdentityVerification | null>(null);
 const rejectionReason = ref('');
+const detailDialogVisible = ref(false);
+const detailLoading = ref(false);
+const detailError = ref('');
+const detailTarget = ref<IdentityVerification | null>(null);
+const detail = ref<IdentityVerificationReviewDetail | null>(null);
 const reviewingActionsByUserId = reactive<
   Record<number, IdentityReviewAction | undefined>
 >({});
 let fetchRequestSeq = 0;
+let detailRequestSeq = 0;
 const query = reactive({
   page: 1,
   pageSize: 20,
   status: 'all' as 'all' | 'pending' | 'rejected' | 'verified',
 });
+
+const detailPreviewURLs = computed(() => {
+  const current = detail.value;
+  if (!current) return [];
+  return [
+    current.docPhotoFrontURL,
+    current.docPhotoBackURL,
+    current.docPhotoSelfieURL,
+  ].filter((url): url is string => url !== null);
+});
+
+const detailHasRequiredEvidence = computed(
+  () =>
+    Boolean(detail.value?.docPhotoFrontURL) &&
+    Boolean(detail.value?.docPhotoSelfieURL),
+);
 
 async function fetchData() {
   const requestSeq = ++fetchRequestSeq;
@@ -66,6 +98,55 @@ async function fetchData() {
 function resetPageAndFetch() {
   query.page = 1;
   void fetchData();
+}
+
+function isPending(row: IdentityVerification) {
+  return !row.verified && !row.reviewedAt;
+}
+
+async function fetchIdentityDetail() {
+  const target = detailTarget.value;
+  if (!target) return;
+
+  const userId = target.userID;
+  const requestSeq = ++detailRequestSeq;
+  detailLoading.value = true;
+  detailError.value = '';
+  detail.value = null;
+  try {
+    const data = await getIdentityReviewDetail(userId);
+    if (
+      requestSeq !== detailRequestSeq ||
+      detailTarget.value?.userID !== userId
+    ) {
+      return;
+    }
+    detail.value = data;
+  } catch (error) {
+    if (requestSeq !== detailRequestSeq) return;
+    detailError.value = adminErrorMessage(error);
+  } finally {
+    if (requestSeq === detailRequestSeq) {
+      detailLoading.value = false;
+    }
+  }
+}
+
+function openEvidenceDialog(row: IdentityVerification) {
+  if (!isPending(row)) return;
+  detailTarget.value = row;
+  detail.value = null;
+  detailError.value = '';
+  detailDialogVisible.value = true;
+  void fetchIdentityDetail();
+}
+
+function resetIdentityDetail() {
+  detailRequestSeq += 1;
+  detailLoading.value = false;
+  detailError.value = '';
+  detail.value = null;
+  detailTarget.value = null;
 }
 
 async function handleReview(
@@ -103,6 +184,7 @@ async function handleReview(
 }
 
 function openRejectDialog(row: IdentityVerification) {
+  if (!isPending(row)) return;
   rejectTarget.value = row;
   rejectionReason.value = '';
   rejectDialogVisible.value = true;
@@ -126,8 +208,33 @@ async function submitReject() {
   }
 
   rejectDialogVisible.value = false;
+  detailDialogVisible.value = false;
   rejectTarget.value = null;
   rejectionReason.value = '';
+}
+
+async function approveDetail() {
+  const target = detailTarget.value;
+  if (
+    !target ||
+    !detail.value ||
+    !isPending(target) ||
+    !detailHasRequiredEvidence.value
+  ) {
+    return;
+  }
+
+  const submitted = await handleReview(target.userID, true);
+  if (submitted) {
+    detailDialogVisible.value = false;
+  }
+}
+
+function rejectDetail() {
+  const target = detailTarget.value;
+  if (target) {
+    openRejectDialog(target);
+  }
 }
 
 function userReviewing(userId: number) {
@@ -145,6 +252,16 @@ function rejectTargetReviewing() {
 function rejectTargetActionLoading(action: IdentityReviewAction) {
   return rejectTarget.value
     ? userActionLoading(rejectTarget.value.userID, action)
+    : false;
+}
+
+function detailTargetReviewing() {
+  return detailTarget.value ? userReviewing(detailTarget.value.userID) : false;
+}
+
+function detailTargetActionLoading(action: IdentityReviewAction) {
+  return detailTarget.value
+    ? userActionLoading(detailTarget.value.userID, action)
     : false;
 }
 
@@ -306,37 +423,19 @@ onMounted(fetchData);
         column-key="actions"
         fixed="right"
         :label="$t('admin.common.actions')"
-        :default-width="170"
+        :default-width="132"
       >
         <template #default="{ row }">
-          <div v-if="!row.verified" class="admin-action-group">
-            <ElPopconfirm
-              :title="$t('admin.users.identityReview.confirmApprove')"
-              @confirm="handleReview(row.userID, true)"
-            >
-              <template #reference>
-                <ElButton
-                  plain
-                  size="small"
-                  type="success"
-                  data-action="approve"
-                  :disabled="userReviewing(row.userID)"
-                  :loading="userActionLoading(row.userID, 'approve')"
-                >
-                  {{ $t('admin.users.identityReview.approve') }}
-                </ElButton>
-              </template>
-            </ElPopconfirm>
+          <div v-if="isPending(row)" class="admin-action-group">
             <ElButton
               plain
               size="small"
-              type="danger"
-              data-action="reject"
+              type="primary"
+              data-action="review-evidence"
               :disabled="userReviewing(row.userID)"
-              :loading="userActionLoading(row.userID, 'reject')"
-              @click="openRejectDialog(row)"
+              @click="openEvidenceDialog(row)"
             >
-              {{ $t('admin.users.identityReview.reject') }}
+              {{ $t('admin.users.identityReview.reviewEvidence') }}
             </ElButton>
           </div>
           <span v-else class="admin-cell-muted">—</span>
@@ -353,6 +452,146 @@ onMounted(fetchData);
         @current-change="fetchData"
       />
     </template>
+
+    <ElDialog
+      v-model="detailDialogVisible"
+      destroy-on-close
+      :title="$t('admin.users.identityReview.evidenceDialogTitle')"
+      width="min(920px, 92vw)"
+      @closed="resetIdentityDetail"
+    >
+      <ElSkeleton v-if="detailLoading" animated :rows="5" />
+
+      <ElAlert
+        v-else-if="detailError"
+        type="error"
+        :closable="false"
+        show-icon
+        :title="detailError"
+      >
+        <ElButton size="small" @click="fetchIdentityDetail">
+          {{ $t('admin.common.retry') }}
+        </ElButton>
+      </ElAlert>
+
+      <div v-else-if="detail" class="identity-evidence-detail">
+        <dl class="identity-evidence-meta">
+          <div>
+            <dt>{{ $t('admin.users.identityReview.userId') }}</dt>
+            <dd>{{ detail.userID }}</dd>
+          </div>
+          <div>
+            <dt>{{ $t('admin.users.identityReview.realName') }}</dt>
+            <dd>{{ detail.realName }}</dd>
+          </div>
+          <div>
+            <dt>{{ $t('admin.users.identityReview.docTypeLabel') }}</dt>
+            <dd>{{ docTypeLabel(detail.docType) }}</dd>
+          </div>
+        </dl>
+
+        <ElAlert
+          v-if="!detailHasRequiredEvidence"
+          type="warning"
+          :closable="false"
+          show-icon
+          :title="$t('admin.users.identityReview.incompleteEvidence')"
+        />
+
+        <div class="identity-evidence-grid">
+          <section class="identity-evidence-card">
+            <h3>{{ $t('admin.users.identityReview.photoFront') }}</h3>
+            <ElImage
+              v-if="detail.docPhotoFrontURL"
+              :alt="$t('admin.users.identityReview.photoFront')"
+              fit="contain"
+              :preview-src-list="detailPreviewURLs"
+              :src="detail.docPhotoFrontURL"
+            />
+            <p v-else class="identity-evidence-missing">
+              {{ $t('admin.users.identityReview.missingEvidence') }}
+            </p>
+          </section>
+
+          <section class="identity-evidence-card">
+            <h3>{{ $t('admin.users.identityReview.photoBack') }}</h3>
+            <ElImage
+              v-if="detail.docPhotoBackURL"
+              :alt="$t('admin.users.identityReview.photoBack')"
+              fit="contain"
+              :preview-src-list="detailPreviewURLs"
+              :src="detail.docPhotoBackURL"
+            />
+            <p v-else class="identity-evidence-missing">
+              {{ $t('admin.users.identityReview.optionalEvidenceMissing') }}
+            </p>
+          </section>
+
+          <section class="identity-evidence-card">
+            <h3>{{ $t('admin.users.identityReview.photoSelfie') }}</h3>
+            <ElImage
+              v-if="detail.docPhotoSelfieURL"
+              :alt="$t('admin.users.identityReview.photoSelfie')"
+              fit="contain"
+              :preview-src-list="detailPreviewURLs"
+              :src="detail.docPhotoSelfieURL"
+            />
+            <p v-else class="identity-evidence-missing">
+              {{ $t('admin.users.identityReview.missingEvidence') }}
+            </p>
+          </section>
+        </div>
+      </div>
+
+      <ElEmpty
+        v-else
+        :description="$t('admin.users.identityReview.noEvidenceDetail')"
+      />
+
+      <template #footer>
+        <ElButton
+          :disabled="detailTargetReviewing()"
+          @click="detailDialogVisible = false"
+        >
+          {{ $t('admin.common.cancel') }}
+        </ElButton>
+        <ElButton
+          data-action="reject"
+          :disabled="
+            !detail ||
+            !detailTarget ||
+            !isPending(detailTarget) ||
+            detailTargetReviewing()
+          "
+          :loading="detailTargetActionLoading('reject')"
+          type="danger"
+          @click="rejectDetail"
+        >
+          {{ $t('admin.users.identityReview.reject') }}
+        </ElButton>
+        <ElPopconfirm
+          :title="$t('admin.users.identityReview.confirmApprove')"
+          @confirm="approveDetail"
+        >
+          <template #reference>
+            <ElButton
+              data-action="approve"
+              :disabled="
+                !detail ||
+                !detailTarget ||
+                !isPending(detailTarget) ||
+                !detailHasRequiredEvidence ||
+                detailTargetReviewing()
+              "
+              :loading="detailTargetActionLoading('approve')"
+              type="success"
+            >
+              {{ $t('admin.users.identityReview.approve') }}
+            </ElButton>
+          </template>
+        </ElPopconfirm>
+      </template>
+    </ElDialog>
 
     <ElDialog
       v-model="rejectDialogVisible"
@@ -384,3 +623,82 @@ onMounted(fetchData);
     </ElDialog>
   </AdminContentLayout>
 </template>
+
+<style scoped>
+.identity-evidence-detail {
+  display: grid;
+  gap: 20px;
+}
+
+.identity-evidence-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.identity-evidence-meta > div,
+.identity-evidence-card {
+  min-width: 0;
+  padding: 14px;
+  background: var(--el-fill-color-extra-light);
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 10px;
+}
+
+.identity-evidence-meta dt {
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.identity-evidence-meta dd {
+  margin: 0;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+  overflow-wrap: anywhere;
+}
+
+.identity-evidence-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.identity-evidence-card {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  min-height: 240px;
+}
+
+.identity-evidence-card h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.identity-evidence-card :deep(.el-image) {
+  width: 100%;
+  height: 190px;
+  background: var(--el-bg-color);
+  border-radius: 8px;
+}
+
+.identity-evidence-missing {
+  display: grid;
+  place-items: center;
+  min-height: 190px;
+  margin: 0;
+  color: var(--el-text-color-secondary);
+  text-align: center;
+}
+
+@media (max-width: 760px) {
+  .identity-evidence-meta,
+  .identity-evidence-grid {
+    grid-template-columns: 1fr;
+  }
+}
+</style>

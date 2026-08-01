@@ -107,6 +107,24 @@ func (r *Repository) GetProfileByUserIDTx(ctx context.Context, tx pgx.Tx, userID
 	return item, nil
 }
 
+func (r *Repository) GetProfileByUserIDForUpdateTx(ctx context.Context, tx pgx.Tx, userID int64) (*Profile, error) {
+	ctx = withDBTable(ctx, "user_profiles")
+	var lockedUserID int64
+	if err := tx.QueryRow(ctx, `
+		SELECT id
+		FROM users
+		WHERE id = $1
+		FOR UPDATE
+	`, userID).Scan(&lockedUserID); err != nil {
+		return nil, fmt.Errorf("GetProfileByUserIDForUpdateTx lock user: %w", err)
+	}
+	item, err := scanProfileRow(tx.QueryRow(ctx, selectProfileByUserIDSQL+` FOR UPDATE OF p`, userID))
+	if err != nil {
+		return nil, fmt.Errorf("GetProfileByUserIDForUpdateTx: %w", err)
+	}
+	return item, nil
+}
+
 // CreateProfile 创建学生认证档案
 func (r *Repository) CreateProfile(ctx context.Context, profile *Profile) error {
 	ctx = withDBTable(ctx, "user_profiles")
