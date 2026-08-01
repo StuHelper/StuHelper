@@ -1,118 +1,139 @@
 ---
 type: design
-audience: maintainers, backend-dev, frontend-dev
+audience: all
 status: current
-authoritative-source: this file + scripts/check-docs-hygiene.mjs
-last-verified: 2026-05-07
+authoritative-source: scripts/lib/docs-hygiene-lib.mjs + scripts/check-docs-hygiene.mjs
+last-verified: 2026-08-01
 ---
 
 # 文档治理模型
 
-`docs/` 是 StuHelper 的长期文档系统，不是随手堆放 Markdown 的目录。它的目标只有三个：
+本文是 StuHelper 文档结构和治理规则的唯一说明。具体操作步骤见
+[文档维护指南](../guides/documentation-maintenance.md)，机械校验以
+`scripts/lib/docs-hygiene-lib.mjs` 为准。
 
-1. 让读者能快速找到对自己有用的内容。
-2. 让文档与代码、契约、迁移保持单一真源关系。
-3. 让文档质量尽可能被脚本和 CI 机械化约束，而不是依赖口头约定。
+## 1. 目标与真源
 
-## 目录职责
+文档系统只承担三项职责：
 
-| 目录 | 文档类型 | 作用 | 不应该放什么 |
-|------|----------|------|--------------|
-| `guides/` | guide | 操作指南，回答“怎么做” | 设计取舍、历史复盘 |
-| `design/` | design | 架构解释，回答“为什么这样设计” | 逐步操作手册、全量事实清单 |
-| `product-specs/` | product-spec | 业务边界、规则、范围 | 具体技术机制实现 |
-| `reference/` | reference | 导航摘要、稳定查阅入口 | 手写真源副本 |
-| `adr/` | adr | 已采纳、代价高、难回退的单项决策 | 实现复盘、变更日志 |
-| `internal/` | internal | 临时工件、历史设计快照、阶段性评估、执行计划 | 现行规范与长期说明 |
+1. 帮助读者找到正确入口；
+2. 解释代码、契约和数据模型之间的边界；
+3. 让结构、元数据和链接错误能被 CI 发现。
 
-## 长期文档与临时工件
-
-- `docs/` 根目录下除 `internal/` 以外的内容，都应反映当前代码库的**现行状态**。
-- `docs/internal/` 记录的是某一轮执行中的输入、输出、历史设计快照或评估快照，可以过时。
-- 历史计划、历史审计、阶段评分不应回流到长期文档目录。
-
-## Frontmatter 规则
-
-所有 `docs/**/*.md` 都必须带 YAML frontmatter，字段固定为：
-
-| 字段 | 含义 | 规则 |
-|------|------|------|
-| `type` | 文档类型 | 必须与所在目录匹配 |
-| `audience` | 目标读者 | 逗号分隔，使用受控值 |
-| `status` | 生命周期状态 | 长期文档只允许 `current / draft / deprecated`；内部文档允许 `current / snapshot / archived` |
-| `authoritative-source` | 真源 | 可以是当前文件，也可以是源码路径 |
-| `last-verified` | 最近与代码核对日期 | `YYYY-MM-DD` |
-
-受控 `audience` 取值：
-
-- `all`
-- `backend-dev`
-- `frontend-dev`
-- `ops`
-- `product`
-- `qa`
-- `maintainers`
-
-受控例外：
-
-- `docs/README.md` 是根索引，`type` 固定为 `reference`
-- `docs/adr/README.md` 与 `docs/adr/template.md` 是 ADR 目录配套材料，`type` 固定为 `reference`
-
-## 真源规则
+同一事实只能有一个权威来源：
 
 | 事实 | 唯一真源 | 文档职责 |
 |------|----------|----------|
-| API 契约 | `server/api/openapi.yaml` | 解释模块边界，提供导航入口 |
-| 数据库 schema | `server/migrations/` | 解释数据面、模块归属、跨表约束 |
-| 能力常量 | `server/internal/pkg/capability/` | 解释授权模型，不复制常量全集 |
-| 资源关系模型 | `docs/design/openfga-model.fga` | 作为设计资产保存，并由设计文档解释其含义 |
-| 运行时行为 | 源代码与测试 | 文档只解释，不替代测试 |
+| API operation、字段和响应 | `server/api/openapi.yaml` | 解释模块边界并提供导航 |
+| 数据库表、列、约束和索引 | `server/migrations/` | 解释数据归属和跨表不变量 |
+| Capability 常量 | `server/internal/pkg/capability/` | 解释授权层次，不复制全集 |
+| OpenFGA 关系模型 | `docs/design/openfga-model.fga` | 保存模型资产并解释关系语义 |
+| 运行时行为 | 源代码和测试 | 描述稳定机制，不替代回归测试 |
 
-## Reference 约束
+当文档和真源冲突时，以真源为准，并在同一变更中修正文档。不要通过新增另一份说明来
+“兼容”冲突。
 
-`reference/` 只做“查到入口”，不做“复制真源”。
+## 2. 目录职责
 
-- 可以写模块分组、目录索引、查找指引。
-- 可以写跨模块的稳定规则，例如错误码分类。
-- 不维护完整接口表、完整字段表、完整表结构清单。
-- API 概要必须服从 `cd server && make check-doc-sync`。
+长期文档采用 Diátaxis 的职责划分；历史工件单独隔离：
 
-## ADR 约束
+| 位置 | 类型 | 回答的问题 | 不应承载的内容 |
+|------|------|------------|----------------|
+| `docs/QUICKSTART.md` | guide | 第一次如何跑起来 | 架构历史和全量参考表 |
+| `docs/guides/` | guide | 如何完成具体任务 | 设计取舍和阶段评分 |
+| `docs/design/` | design | 系统为何这样设计 | 执行计划、待办、审计流水 |
+| `docs/product-specs/` | product-spec | 产品行为和验收规则是什么 | 具体实现细节 |
+| `docs/reference/` | reference | 去哪里查稳定事实 | 手抄 OpenAPI、schema 或常量全集 |
+| `docs/adr/` | adr | 一项高代价决策为何被采纳 | 全局架构说明和实施日志 |
+| `docs/internal/` | internal | 某一阶段发生了什么 | 现行规范和长期事实 |
 
-只有满足以下条件的决策才应进入 `adr/`：
+`docs/internal/` 可以保存历史计划、设计快照和阶段性评估，但它不是当前实现的事实来源。
+审计台账属于阶段性工作产物，保留在仓库根目录或 Issue/PR 中，不进入长期文档导航。
 
-- 已经采纳，而不是讨论中。
-- 影响跨模块协作、维护成本或回滚成本。
-- 如果没有文档记录，后续团队会反复争论“为什么当初这样选”。
+## 3. 一文档一职责
 
-ADR 不承担以下职责：
+- 一份文档只回答一种问题；同时承担 guide、reference 和设计说明时应拆分。
+- 同一主题只能有一份当前态设计文档。旧文件被新文件替代时，应在同一变更中更新链接并删除
+  旧文件；不要长期保留两份都声称 `status: current` 的副本。
+- 设计文档解释系统级机制，产品规格固定业务行为，ADR 记录单项决策理由，guide 只写操作步骤。
+- 当前态文档使用现在时。执行轨迹、修复数量、阶段结论和未完成清单进入审计台账、Issue、PR
+  或 `docs/internal/`。
 
-- 代替设计文档描述全局架构。
-- 记录一次普通重构的变更历史。
-- 充当 release note 或审计清单。
+## 4. Frontmatter 契约
 
-## 非 Markdown 例外
+所有 `docs/**/*.md` 必须以 YAML frontmatter 开头，并包含：
 
-长期文档默认只接受 Markdown。确实属于设计真源的结构化资产，可以作为**显式白名单**与文档并存。
+```yaml
+---
+type: guide | design | product-spec | reference | adr | internal
+audience: all | backend-dev | frontend-dev | ops | product | qa | maintainers
+status: current | draft | deprecated
+authoritative-source: <仓库相对路径或 this file>
+last-verified: YYYY-MM-DD
+---
+```
 
-当前白名单：
+规则如下：
+
+- `type` 必须与目录匹配；`docs/README.md`、`docs/adr/README.md` 和 ADR 模板使用
+  `reference`。
+- `audience` 可以用逗号组合受控值。
+- 长期文档状态只能是 `current`、`draft`、`deprecated`。
+- `docs/internal/` 状态可以是 `current`、`snapshot`、`archived`。
+- `authoritative-source` 必须指向实际核对的来源；组合来源使用清晰的仓库相对路径。
+- `last-verified` 只在实际对照真源后更新，不能把编辑日期冒充核对日期。
+
+## 5. ADR 边界
+
+只有同时满足以下条件的决策进入 `docs/adr/`：
+
+- 已被项目 owner 采纳；
+- 跨模块、维护或回滚成本较高；
+- 后续维护者需要理解当时为何选择该方案。
+
+ADR 记录上下文、决策、后果和备选方案，不承担全局架构说明、发布记录或任务清单职责。方向改变时
+新增 ADR，并在索引中标明取代关系；不要让两条 ADR 同时声称互斥方案均为当前权威。
+
+## 6. Reference 与生成物
+
+`reference/` 只提供模块分组、稳定规则和真源入口：
+
+- 不维护完整 API 路径和字段副本；
+- 不维护完整数据库结构副本；
+- 不维护 Capability 常量全集；
+- OpenAPI 变更后运行 `cd server && make check-doc-sync`。
+
+生成代码和生成契约不能手改。接口变化必须先修改 OpenAPI，再运行生成命令。
+
+## 7. 非 Markdown 资产
+
+长期文档默认只接受 Markdown。当前唯一长期设计资产白名单是：
 
 - `docs/design/openfga-model.fga`
 
-新增非 Markdown 长期资产前，应先确认它确实是“设计真源”，而不是生成物、截图或临时草稿。
+`docs/internal/` 可以保存阶段性非 Markdown 工件，但不得被长期文档当作当前真源。
 
-## 机械化守卫
+## 8. CI 当前实际执行的守卫
 
-文档治理不是人工承诺，必须能跑：
+`make check-docs` 执行测试和文档树校验，当前覆盖：
 
-- `make check-docs`
-  检查 frontmatter、目录归属、绝对路径、retired 路径、相对链接、长期资产白名单。
-- `cd server && make check-doc-sync`
-  检查 `docs/reference/api-overview.md` 的模块前缀仍覆盖当前 OpenAPI。
-- GitHub Actions 的 `Repository policy` 作业执行同一套规则。
+- 目录布局和 retired path；
+- frontmatter 必填字段、类型、受众、状态和日期格式；
+- 长期文档相对链接；
+- 长期文档中的本机绝对路径；
+- 长期非 Markdown 资产白名单；
+- `.DS_Store` 仓库卫生。
 
-## 变更原则
+这些是当前代码真实执行的规则。时态、内容重复和 `last-verified` 对应源码提交时间仍需评审者
+人工核对；在脚本真正实现前，不得把它们描述成 CI 已强制的能力。
 
-- 改代码事实，优先改真源，再改文档。
-- 改长期文档时，只改当前状态；历史说明放进 `internal/`。
-- 一份文档只回答一种问题，避免 “Guide + Reference” 或 “Spec + ADR” 混写。
+## 9. 变更流程
+
+1. 先改代码、OpenAPI、migration 或其他事实真源。
+2. 找到唯一负责解释该事实的当前态文档并更新；不要新增平行副本。
+3. 更新索引和所有旧链接。
+4. 实际核对后更新 `last-verified`。
+5. 运行 `make check-docs`；涉及 API 摘要时再运行 `cd server && make check-doc-sync`，涉及
+   OpenAPI 时运行 `cd server && make lint-spec` 和生成漂移检查。
+
+详细命令和常见错误见[文档维护指南](../guides/documentation-maintenance.md)。
