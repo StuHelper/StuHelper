@@ -74,7 +74,7 @@ catalog:
   '@intlify/unplugin-vue-i18n': ^11.0.7
   '@jspm/generator': ^2.12.0
   '@manypkg/get-packages': ^3.1.0
-  '@playwright/test': ^1.58.2
+  '@playwright/test': ^1.62.1
   '@pnpm/workspace.read-manifest': ^1000.3.0
   '@stylistic/stylelint-plugin': ^5.0.1
   '@tailwindcss/typography': ^0.5.19
@@ -85,7 +85,7 @@ catalog:
   '@types/html-minifier-terser': ^7.0.2
   '@types/json-bigint': ^1.0.4
   '@types/lodash.clonedeep': ^4.5.9
-  '@types/node': ^25.5.0
+  '@types/node': ^24.13.3
   '@types/nprogress': ^0.2.3
   '@types/qrcode': ^1.5.6
   '@types/qs': ^6.15.0
@@ -154,7 +154,7 @@ catalog:
   pinia: ^3.0.4
   pinia-plugin-persistedstate: ^4.7.1
   pkg-types: ^2.3.0
-  playwright: ^1.58.2
+  playwright: ^1.62.1
   postcss: ^8.5.18
   postcss-html: ^1.8.1
   postcss-scss: ^4.0.9

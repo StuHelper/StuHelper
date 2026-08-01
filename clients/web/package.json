@@ -35,14 +35,14 @@
     "web-vitals": "^5.1.0"
   },
   "devDependencies": {
-    "@playwright/test": "^1.58.2",
+    "@playwright/test": "^1.62.1",
     "@storybook/addon-a11y": "8.6.17",
     "@storybook/addon-essentials": "8.6.17",
     "@storybook/test": "8.6.17",
     "@storybook/vue3": "8.6.17",
     "@storybook/vue3-vite": "8.6.17",
     "@tailwindcss/vite": "^4.0.0",
-    "@types/node": "^22.0.0",
+    "@types/node": "^24.13.3",
     "@types/qrcode": "^1.5.6",
     "@vitejs/plugin-vue": "^5.2.0",
     "@vitest/coverage-v8": "^4.1.10",
