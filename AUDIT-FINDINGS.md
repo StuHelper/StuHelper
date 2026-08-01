@@ -4,10 +4,11 @@
 > 性质：仓库根目录阶段性工作产物，不是运行时事实真源。代码、测试、OpenAPI 和 migration
 > 与本文件冲突时，以前者为准。
 
-本文件是 Claude 两轮审计和 Codex 交叉复核后的**唯一当前台账**。重复的
-`AUDIT-REPORT.md` 已删除，避免原始叙事、历史决策和当前实施状态同时被误读为权威结论。
+本文件是 Claude 两轮审计和 Codex 交叉复核后的**唯一当前台账**。原始长报告
+[`AUDIT-REPORT.md`](AUDIT-REPORT.md) 已应项目 owner 要求恢复，只作为历史取证和编号来源；
+其中与本台账、源码、测试、OpenAPI、migration 或现行 ADR 冲突的内容均已失效。
 
-Claude 原始长报告仍保存在 Git 历史中，可按需取证：
+删除前原文也仍可从 Git 历史独立取证：
 
 ```bash
 git show 7f4849c3:AUDIT-REPORT.md

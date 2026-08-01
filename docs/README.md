@@ -49,6 +49,7 @@ last-verified: 2026-08-01
 8. [design/storage-architecture.md](design/storage-architecture.md) — 存储抽象与驱动
 9. [design/security-model.md](design/security-model.md) — 安全措施
 10. [design/admission-flow.md](design/admission-flow.md) — 入群认证流程与验收分层
+    - [design/admission-flow-review.md](design/admission-flow-review.md) — 已废弃的历史评审与决策轨迹
 11. [guides/koishi-development.md](guides/koishi-development.md) — 机器人子系统边界与开发入口
 12. [adr/](adr/) — 单项架构决策
 
