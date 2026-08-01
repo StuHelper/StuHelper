@@ -155,6 +155,8 @@ Claude 两轮共有 117 个原始标签，均已完成源码级复核：
 （SPDX：`AGPL-3.0-only`）。根 `LICENSE` 与 GNU 官方原文 SHA-256 一致；README、贡献规则、
 OpenAPI、生成契约及 StuHelper 自有包元数据已对齐。`clients/admin/` 中源自 Vben 的代码继续
 保留其 MIT 许可证与版权声明，第三方通知不因根许可证而被删除或替代。
+OpenAPI License Object 使用 GNU 官方许可证 URL，而不是仅适用于 3.1 的 `identifier` 字段；
+这样既保留明确的 AGPL-3.0-only 声明，也兼容当前生成后嵌入契约的运行时校验路径。
 
 ## 6. 低优先级、条件性和决策项
 
