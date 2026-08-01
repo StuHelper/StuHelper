@@ -51,10 +51,20 @@ updates:
       default-days: 7
     open-pull-requests-limit: 10
     groups:
-      workspace-dependencies:
-        group-by: dependency-name
+      npm-minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
     ignore:
       - dependency-name: "@types/node"
+        update-types:
+          - "version-update:semver-major"
+      - dependency-name: "typescript"
+        update-types:
+          - "version-update:semver-major"
+      - dependency-name: "zod"
         update-types:
           - "version-update:semver-major"
 
