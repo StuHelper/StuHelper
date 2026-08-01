@@ -203,8 +203,8 @@ importers:
         specifier: ^1.62.1
         version: 1.62.1
       '@storybook/addon-a11y':
-        specifier: 8.6.17
-        version: 8.6.17(storybook@8.6.17(prettier@3.8.1))
+        specifier: 10.5.4
+        version: 10.5.4(storybook@8.6.17(prettier@3.8.1))
       '@storybook/addon-essentials':
         specifier: 8.6.17
         version: 8.6.17(@types/react@19.2.14)(storybook@8.6.17(prettier@3.8.1))
@@ -1625,10 +1625,10 @@ packages:
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
 
-  '@storybook/addon-a11y@8.6.17':
-    resolution: {integrity: sha512-W26CsptrxRuajW4FhygFX1fmcxTZQIvBcHCGOVIZtU+/tJU6+TgJvbhnhBX0VPjitGWAD1+EI3oNMyX+i1bK6w==}
+  '@storybook/addon-a11y@10.5.4':
+    resolution: {integrity: sha512-UWdZtB7Dh1GjqxTPOrisUNDhDGF5pKGzZdzW9DSSHMBcAOx2dsTmXGzLSFprAz4LTT0OHCtKhxNqKK0JZJ0Y8g==}
     peerDependencies:
-      storybook: ^8.6.17
+      storybook: ^10.5.4
 
   '@storybook/addon-actions@8.6.17':
     resolution: {integrity: sha512-/G3Y7WIzGHMtKT6r3KCqgY/pAzfMhNHvBoRWoPfxMa27GiwmUaJlbfRPSReK/jGz6ye0Uwqix+NFbRXKiTqOJQ==}
@@ -3479,6 +3479,7 @@ packages:
 
   lucide-vue-next@0.563.0:
     resolution: {integrity: sha512-zsE/lCKtmaa7bGfhSpN84br1K9YoQ5pCN+2oKWjQQG3Lo6ufUUKBuHSjNFI6RvUevxaajNXb8XwFUKeTXG3sIA==}
+    deprecated: Package deprecated. Please use @lucide/vue instead.
     peerDependencies:
       vue: '>=3.0.1'
 
@@ -6348,11 +6349,9 @@ snapshots:
 
   '@standard-schema/spec@1.1.0': {}
 
-  '@storybook/addon-a11y@8.6.17(storybook@8.6.17(prettier@3.8.1))':
+  '@storybook/addon-a11y@10.5.4(storybook@8.6.17(prettier@3.8.1))':
     dependencies:
-      '@storybook/addon-highlight': 8.6.17(storybook@8.6.17(prettier@3.8.1))
       '@storybook/global': 5.0.0
-      '@storybook/test': 8.6.17(storybook@8.6.17(prettier@3.8.1))
       axe-core: 4.12.1
       storybook: 8.6.17(prettier@3.8.1)
 

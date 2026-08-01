@@ -36,7 +36,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
-    "@storybook/addon-a11y": "8.6.17",
+    "@storybook/addon-a11y": "10.5.4",
     "@storybook/addon-essentials": "8.6.17",
     "@storybook/test": "8.6.17",
     "@storybook/vue3": "8.6.17",
