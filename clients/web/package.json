@@ -24,7 +24,7 @@
     "element-plus": "^2.14.3",
     "gsap": "^3.15.0",
     "lucide-vue-next": "^0.563.0",
-    "pinia": "^2.2.0",
+    "pinia": "^2.3.1",
     "pinyin-pro": "^3.28.2",
     "qrcode": "^1.5.4",
     "radix-vue": "^1.9.0",
@@ -32,7 +32,7 @@
     "vue-echarts": "^8.0.1",
     "vue-i18n": "^11.4.7",
     "vue-router": "^4.5.0",
-    "web-vitals": "^5.1.0"
+    "web-vitals": "^5.3.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
