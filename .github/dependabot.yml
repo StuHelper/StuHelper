@@ -37,9 +37,10 @@ updates:
           - minor
           - patch
 
-  # Keep each JavaScript workspace independently reviewable. Version-update PRs
-  # are limited to minor/patch releases; Dependabot security updates are not
-  # restricted by this allow rule and may still cross a major version.
+  # Keep each JavaScript workspace independently reviewable. Dependabot's
+  # default version-update scope is direct manifest dependencies; vulnerable
+  # lockfile dependencies remain covered by security updates. Ignore only
+  # routine major version updates so security remediations can cross majors.
   - package-ecosystem: npm
     directory: /bots/koishi
     schedule:
@@ -57,11 +58,11 @@ updates:
         update-types:
           - minor
           - patch
-    allow:
+    ignore:
       - dependency-name: "*"
         update-types:
-          - "version-update:semver-minor"
-          - "version-update:semver-patch"
+          - "version-update:semver-major"
+
   - package-ecosystem: npm
     directory: /clients
     # UniAppX follows an exact DCloud build train whose packages, Vue compiler,
@@ -84,12 +85,10 @@ updates:
         update-types:
           - minor
           - patch
-    allow:
+    ignore:
       - dependency-name: "*"
         update-types:
-          - "version-update:semver-minor"
-          - "version-update:semver-patch"
-    ignore:
+          - "version-update:semver-major"
       # UniAppX packages form one exact DCloud/Vue/Pinia build train. Its
       # dependencies remain visible through the shared pnpm lockfile even when
       # the manifest is excluded, so ignore routine DCloud version updates in
@@ -117,12 +116,10 @@ updates:
         update-types:
           - minor
           - patch
-    allow:
+    ignore:
       - dependency-name: "*"
         update-types:
-          - "version-update:semver-minor"
-          - "version-update:semver-patch"
-    ignore:
+          - "version-update:semver-major"
       # zod-defaults >= 0.2 requires Zod 4, while the current form stack and
       # @vee-validate/zod remain on Zod 3. Revisit in the coordinated Zod 4 migration.
       - dependency-name: "zod-defaults"
