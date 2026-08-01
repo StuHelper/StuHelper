@@ -120,6 +120,28 @@ updates:
       - dependency-name: "*"
         update-types:
           - "version-update:semver-major"
+      # Dependabot currently conflates these pnpm catalog entries with older,
+      # same-named transitive lockfile instances. It then asks pnpm to apply an
+      # update already present in the catalog/importer and fails with
+      # FileUpdater::NoChangeError. Keep routine minor/patch maintenance for
+      # these entries in deliberate Admin catalog refreshes until that parser
+      # behavior changes. update-types filters do not suppress security updates.
+      - dependency-name: "defu"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
+      - dependency-name: "es-toolkit"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
+      - dependency-name: "postcss"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
+      - dependency-name: "sass"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
       # zod-defaults >= 0.2 requires Zod 4, while the current form stack and
       # @vee-validate/zod remain on Zod 3. Revisit in the coordinated Zod 4 migration.
       - dependency-name: "zod-defaults"
