@@ -26,7 +26,7 @@
   "devDependencies": {
     "@playwright/test": "^1.62.1",
     "@dcloudio/types": "3.4.31",
-    "@dcloudio/vite-plugin-uni": "3.0.0-alpha-5020220260725001",
+    "@dcloudio/vite-plugin-uni": "3.0.0-5010520260709002",
     "@vue/compiler-sfc": "3.4.21",
     "@vueuse/core": "11.3.0",
     "typescript": "^5.9.0",
