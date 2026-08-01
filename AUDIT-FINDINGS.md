@@ -181,6 +181,20 @@ OpenAPI License Object 使用 GNU 官方许可证 URL，而不是仅适用于 3.
 角色前置条件完成全量上行、最新 migration 回滚与重新上行；Koishi 全工作区 production build、
 基础设施 contract、文档/自定义 Semgrep/OpenAPI drift 守卫和新增 cutover shellcheck 均通过。
 
+### 2026-08-01 PR 合并与单维护者治理决策
+
+PR #21 在提交 `84ad33f5` 上完成全部适用 CI、CodeQL 和 review conversation 后，由 `Xauryan`
+使用仓库 ruleset 的 `pull_request` bypass 合并为 `main` 提交 `6fc03cce`。GitHub 拒绝作者对
+自己的 PR 提交 `APPROVED` review（HTTP 422），所以该例外的准确语义是“允许唯一维护者在
+保留 PR、检查、讨论和审计轨迹的前提下完成合并”，不是伪造作者自审。
+
+ruleset 默认仍要求 1 个独立 approval、CODEOWNERS、最后推送者之外审批、线程解决、线性历史、
+Required 与 Go/JavaScript CodeQL。bypass actor 只允许 GitHub 用户 `Xauryan`（user ID
+`268165484`），最终模式固定为 `pull_request`；不授予组织管理员、仓库角色或其他用户，
+不允许直接推送、force push 或 `exempt` 无审计绕过。为让两个长期分支保持相同历史，合并后
+曾将该用户模式短暂切为 `always`，仅用 `force=false` 把 `develop` 从 `2da0d180` 非强制快进
+到 `6fc03cce`，随后立即恢复为 `pull_request`；最终 `main`、`develop` 指向同一提交。
+
 ## 6. 低优先级、条件性和决策项
 
 以下条目经过复核后不属于当前致命/高/中级队列。它们只有在产品决策、真实规模、运行指标或
@@ -250,7 +264,7 @@ OpenAPI License Object 使用 GNU 官方许可证 URL，而不是仅适用于 3.
 
 ## 8. 发布与生产验证边界
 
-当前审计分支上的修复尚不能统一宣称已发布。下列证据必须按实际发布范围逐项补齐：
+当前 `main` 上的修复尚不能统一宣称已发布到生产。下列证据必须按实际发布范围逐项补齐：
 
 - 真实 Casdoor organization admin 晋升、降权、lookup 故障关闭和 MFA step-up；
 - 首次授权账本切换的 digest/count/marker/audit/outbox evidence，以及旧 scoped operator 保留验证；

@@ -3,7 +3,7 @@ type: guide
 audience: maintainers
 status: current
 authoritative-source: .github/workflows/ + GitHub repository settings
-last-verified: 2026-07-30
+last-verified: 2026-08-01
 ---
 
 # GitHub 仓库与 Actions 治理
@@ -130,6 +130,18 @@ SSH known_hosts 必须预先固定真实 host public key，且条目必须与 `D
 - 要求分支在合并前更新；
 - 高风险路径由 `.github/CODEOWNERS` 审批。
 
+仓库采用一项明确、最小的单维护者例外：ruleset bypass list 只包含 GitHub 用户
+`Xauryan`（user ID `268165484`），且 `bypass_mode` 必须保持为 `pull_request`。这意味着
+`Xauryan` 仍必须通过 Pull Request 留下变更、检查和合并审计轨迹，但可以在所有必需检查通过、
+review conversation 已解决后，选择绕过“另一名审批者 / CODEOWNER / 最后推送者之外审批”门禁。
+该例外不得扩大为组织管理员、仓库角色或其他用户，也不得改成长期 `always` 或 `exempt`；
+因此它不允许直接推送、force push 或无审计绕过。
+
+GitHub 不允许 PR 作者提交 `APPROVED` 自审记录。上述行为在 GitHub 中表现为由 `Xauryan`
+使用 ruleset bypass 合并，而不是伪造的“作者批准”。其他身份仍完整适用 1 个独立 approval、
+CODEOWNERS 和最后推送者之外审批要求。若未来增加第二名常任维护者，应重新评估并优先移除
+这个单维护者例外。
+
 ### Code security
 
 仓库必须保持：
@@ -172,7 +184,7 @@ GitHub 原生检测不能替代仓库内的完整历史 Gitleaks 门禁：两者
 | 项目 | 状态 | 当前事实 |
 |------|------|----------|
 | 仓库与分支 | 已验证 | `StuHelper/StuHelper` 为 public，默认分支为 `main`；`main` / `develop` 受同一 ruleset 保护 |
-| 合并门禁 | 已验证 | 要求 PR、1 个 approval、CODEOWNERS、撤销旧审批、最后推送者之外的批准、解决 review thread、线性历史和 squash merge；Required、Go CodeQL、JavaScript/TypeScript CodeQL 为必需检查 |
+| 合并门禁 | 已验证 | 默认要求 PR、1 个 approval、CODEOWNERS、撤销旧审批、最后推送者之外的批准、解决 review thread、线性历史和 squash merge；Required、Go CodeQL、JavaScript/TypeScript CodeQL 为必需检查。唯一例外是 `Xauryan` 的 `pull_request`-only ruleset bypass；它仍要求 PR 和审计轨迹，不产生作者自审记录，也不允许直接推送 |
 | Actions 供应链 | 已验证 | Actions 已启用 selected-actions 策略，外部 action 固定完整 commit SHA，默认 `GITHUB_TOKEN` 只读且不能批准 PR |
 | Code security | 已验证 | Secret scanning、push protection、Dependabot alerts/security updates 和 private vulnerability reporting 已启用；当前 CodeQL、Dependabot、secret-scanning alert 均为 0 |
 | Environments | 部分验证 | `staging` 与 `production` 分支策略存在；production 当前只有一名 reviewer 且允许自批，不构成双人复核 |
