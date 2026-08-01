@@ -396,6 +396,9 @@ compose --profile prod up -d --wait "${authz_services[@]}"
 log "bootstrapping runtime identities against external Casdoor and local OpenFGA"
 "${SCRIPT_DIR}/bootstrap-platform.sh" prod
 
+log "importing and sealing the PostgreSQL authorization authority ledger"
+"${SCRIPT_DIR}/authorization-ledger-cutover.sh" prod
+
 log "running Open Platform production evidence smokes"
 "${SCRIPT_DIR}/open-platform-production-evidence.sh"
 

@@ -1,8 +1,11 @@
 package authorization
 
 import (
+	"context"
 	"errors"
 	"time"
+
+	"github.com/StuHelper/StuHelper/server/internal/pkg/fga"
 )
 
 type Role string
@@ -43,15 +46,17 @@ const (
 )
 
 var (
-	ErrGrantNotFound       = errors.New("authorization grant not found")
-	ErrInvalidGrant        = errors.New("invalid authorization grant")
-	ErrTargetUserNotFound  = errors.New("authorization target user not found")
-	ErrActorUserNotFound   = errors.New("authorization actor user not found")
-	ErrSchoolNotFound      = errors.New("authorization scope school not found")
-	ErrProviderManagedRole = errors.New("authorization role is managed by the identity provider")
-	ErrProjectionStale     = errors.New("authorization projection revision is stale")
-	ErrProjectionMalformed = errors.New("authorization projection payload is malformed")
-	ErrReconciliationLimit = errors.New("authorization projection reconciliation threshold exceeded")
+	ErrGrantNotFound              = errors.New("authorization grant not found")
+	ErrInvalidGrant               = errors.New("invalid authorization grant")
+	ErrTargetUserNotFound         = errors.New("authorization target user not found")
+	ErrActorUserNotFound          = errors.New("authorization actor user not found")
+	ErrSchoolNotFound             = errors.New("authorization scope school not found")
+	ErrProviderManagedRole        = errors.New("authorization role is managed by the identity provider")
+	ErrProjectionStale            = errors.New("authorization projection revision is stale")
+	ErrProjectionMalformed        = errors.New("authorization projection payload is malformed")
+	ErrReconciliationLimit        = errors.New("authorization projection reconciliation threshold exceeded")
+	ErrAuthorityCutoverIncomplete = errors.New("authorization authority cutover is incomplete")
+	ErrAuthorityCutoverConflict   = errors.New("authorization authority cutover conflicts with existing state")
 )
 
 type Grant struct {
@@ -142,4 +147,54 @@ type AccessSnapshot struct {
 type MutationResult struct {
 	Grant   Grant
 	Changed bool
+}
+
+type AuthorityCutoverUser struct {
+	InternalUserID  int64
+	ProviderSubject string
+}
+
+type AuthorityCutoverGrant struct {
+	SubjectUserID int64
+	Role          Role
+	Source        GrantSource
+	SchoolID      *int64
+	SectionID     *string
+}
+
+type AuthorityCutoverInput struct {
+	SourceDigest string
+	Grants       []AuthorityCutoverGrant
+}
+
+type AuthorityCutoverStatus struct {
+	Completed          bool
+	SourceDigest       string
+	ImportedGrantCount int
+	CompletedAt        *time.Time
+}
+
+type AuthorityCutoverResult struct {
+	Changed            bool
+	SourceDigest       string
+	ImportedGrantCount int
+	SkippedTupleCount  int
+}
+
+type LegacyAuthorityIdentity struct {
+	ID                 string
+	Owner              string
+	Name               string
+	OrganizationAdmin  bool
+	ForbiddenOrDeleted bool
+}
+
+type LegacyAuthoritySnapshot struct {
+	Organization string
+	Users        []LegacyAuthorityIdentity
+	RoleMembers  map[Role][]string
+}
+
+type AuthorityCutoverTupleReader interface {
+	ReadTuples(ctx context.Context, object, relation string) ([]fga.Tuple, error)
 }

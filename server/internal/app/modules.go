@@ -62,6 +62,14 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 		authorizationRepo,
 		authorizationmodule.WithProjectionClient(fgaClient),
 	)
+	if rt.isProduction {
+		cutoverCtx, cancel := context.WithTimeout(bgCtx, 15*time.Second)
+		cutoverErr := authorizationService.RequireAuthorityCutoverComplete(cutoverCtx)
+		cancel()
+		if cutoverErr != nil {
+			return fmt.Errorf("authorization authority cutover gate: %w", cutoverErr)
+		}
+	}
 	authorizationService.StartBackgroundJobs(bgCtx, startBackgroundTask)
 	oidcSubjectValidator, err := rt.initOIDCSubjectValidator()
 	if err != nil {

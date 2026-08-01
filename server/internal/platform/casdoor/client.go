@@ -16,10 +16,11 @@ import (
 type AdminPurpose string
 
 const (
-	PurposeBootstrap       AdminPurpose = "casdoor-admin-bootstrap"
-	PurposeAppProvisioning AdminPurpose = "casdoor-admin-app-provisioning"
-	PurposeUserLookup      AdminPurpose = "casdoor-admin-user-lookup"
-	PurposeUserProfile     AdminPurpose = "casdoor-admin-user-profile"
+	PurposeBootstrap        AdminPurpose = "casdoor-admin-bootstrap"
+	PurposeAppProvisioning  AdminPurpose = "casdoor-admin-app-provisioning"
+	PurposeAuthorityCutover AdminPurpose = "casdoor-admin-authority-cutover"
+	PurposeUserLookup       AdminPurpose = "casdoor-admin-user-lookup"
+	PurposeUserProfile      AdminPurpose = "casdoor-admin-user-profile"
 )
 
 var ErrOperationRejected = errors.New("casdoor operation rejected")
@@ -173,7 +174,7 @@ func validateCredential(credential Credential) (Credential, error) {
 	credential.Organization = strings.TrimSpace(credential.Organization)
 	credential.Application = strings.TrimSpace(credential.Application)
 	switch credential.Purpose {
-	case PurposeBootstrap, PurposeAppProvisioning, PurposeUserLookup, PurposeUserProfile:
+	case PurposeBootstrap, PurposeAppProvisioning, PurposeAuthorityCutover, PurposeUserLookup, PurposeUserProfile:
 	default:
 		return Credential{}, fmt.Errorf("casdoor: unsupported admin purpose %q", credential.Purpose)
 	}

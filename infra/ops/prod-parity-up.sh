@@ -378,6 +378,12 @@ CASDOOR_BOOTSTRAP_ENABLED=true \
   "${SCRIPT_DIR}/bootstrap-platform.sh" dev
 load_env
 
+log "importing and sealing the local production-parity authorization ledger"
+CASDOOR_CUTOVER_ENDPOINT="http://sso.stuhelper.com" \
+  OPENFGA_CUTOVER_API_URL="http://127.0.0.1:8081" \
+  AUTHORIZATION_CUTOVER_DATABASE_URL="postgres://stuhelper_app:${STUHELPER_APP_DB_PASSWORD}@127.0.0.1:${PROD_PARITY_POSTGRES_PORT:-15432}/stuhelper?sslmode=disable" \
+  "${SCRIPT_DIR}/authorization-ledger-cutover.sh" dev
+
 log "starting local production-parity application services"
 compose --profile prod up -d --wait app frontend admin
 

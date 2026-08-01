@@ -6,6 +6,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 PROD_DEPLOY_FILE="${REPO_ROOT}/infra/ops/prod-deploy.sh"
 PROD_ENV_EXAMPLE_FILE="${REPO_ROOT}/.env.prod.example"
 ADMISSION_READINESS_FILE="${REPO_ROOT}/infra/ops/admission-production-readiness.sh"
+AUTHORIZATION_CUTOVER_FILE="${REPO_ROOT}/infra/ops/authorization-ledger-cutover.sh"
 LEGACY_SUPER_ADMIN_BOOTSTRAP_FILE="${REPO_ROOT}/infra/ops/authorization-bootstrap-super-admin.sh"
 
 fail() {
@@ -49,6 +50,7 @@ migrate_line="$(line_number 'compose --profile prod up --no-deps migrate')"
 admission_readiness_line="$(line_number '"${SCRIPT_DIR}/admission-production-readiness.sh"')"
 start_authz_line="$(line_number 'compose --profile prod up -d --wait "${authz_services[@]}"')"
 bootstrap_platform_line="$(line_number '"${SCRIPT_DIR}/bootstrap-platform.sh" prod')"
+authorization_cutover_line="$(line_number '"${SCRIPT_DIR}/authorization-ledger-cutover.sh" prod')"
 open_platform_evidence_line="$(line_number '"${SCRIPT_DIR}/open-platform-production-evidence.sh"')"
 start_app_line="$(line_number 'compose --profile prod up -d --wait app frontend admin')"
 sso_public_smoke_line="$(line_number '"${SCRIPT_DIR}/sso-public-smoke.sh"')"
@@ -108,6 +110,11 @@ admission_readiness_require_line="$(line_number 'require_nonempty ADMISSION_PROD
 bash -n "${ADMISSION_READINESS_FILE}"
 if [[ ! -x "${ADMISSION_READINESS_FILE}" ]]; then
   fail "admission production readiness script must be executable"
+fi
+[[ -f "${AUTHORIZATION_CUTOVER_FILE}" ]] || fail "missing authorization ledger cutover script"
+bash -n "${AUTHORIZATION_CUTOVER_FILE}"
+if [[ ! -x "${AUTHORIZATION_CUTOVER_FILE}" ]]; then
+  fail "authorization ledger cutover script must be executable"
 fi
 
 [[ -f "${PROD_ENV_EXAMPLE_FILE}" ]] || fail "missing production environment example"
@@ -393,6 +400,12 @@ if (( start_authz_line <= admission_readiness_line )); then
 fi
 if (( open_platform_evidence_line <= bootstrap_platform_line )); then
   fail "Open Platform production evidence smokes must run after bootstrap-platform creates Casdoor smoke app and writes OpenFGA IDs"
+fi
+if (( authorization_cutover_line <= bootstrap_platform_line )); then
+  fail "authorization ledger cutover must run after Casdoor/OpenFGA bootstrap"
+fi
+if (( open_platform_evidence_line <= authorization_cutover_line )); then
+  fail "Open Platform production evidence must wait until the authorization ledger cutover is sealed"
 fi
 if (( start_app_line <= open_platform_evidence_line )); then
   fail "application services must start after Open Platform production evidence smokes pass"
