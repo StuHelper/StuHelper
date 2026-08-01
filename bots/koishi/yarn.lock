@@ -1924,6 +1924,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@sindresorhus/merge-streams@npm:^2.1.0":
+  version: 2.3.0
+  resolution: "@sindresorhus/merge-streams@npm:2.3.0"
+  checksum: 10c0/69ee906f3125fb2c6bb6ec5cdd84e8827d93b49b3892bce8b62267116cc7e197b5cccf20c160a1d32c26014ecd14470a72a5e3ee37a58f1d6dadc0db1ccf3894
+  languageName: node
+  linkType: hard
+
 "@standard-schema/spec@npm:^1.1.0":
   version: 1.1.0
   resolution: "@standard-schema/spec@npm:1.1.0"
@@ -3505,21 +3512,21 @@ __metadata:
   languageName: node
   linkType: hard
 
-"dumble@npm:^0.2.1":
-  version: 0.2.2
-  resolution: "dumble@npm:0.2.2"
+"dumble@npm:^0.2.3":
+  version: 0.2.3
+  resolution: "dumble@npm:0.2.3"
   dependencies:
     cac: "npm:^6.7.14"
-    globby: "npm:^11.1.0"
-    js-yaml: "npm:^4.1.0"
+    globby: "npm:^14.1.0"
+    js-yaml: "npm:^4.1.1"
     kleur: "npm:^4.1.5"
-    tsconfig-utils: "npm:^4.0.5"
+    tsconfig-utils: "npm:^4.1.1"
   peerDependencies:
     esbuild: "*"
     typescript: "*"
   bin:
     dumble: lib/bin.js
-  checksum: 10c0/75be9b7e9545d7764601bc984aa2d30e7d549e0b38ba60b69b1cb05f9387c283a256eba6d0a473ad8e4e6ebe15cc2b4c99df0d471a0c7c495a7ecfce20dd4a44
+  checksum: 10c0/aec555f1d503ba39b7dc4a14ecdf8b64d204b8ed214818160814de4bf9be1e4240d8da275fb8b6dfd7fca3006e5c3b4dff54683c5e2bc3a404446dbc8075214b
   languageName: node
   linkType: hard
 
@@ -3972,7 +3979,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"fast-glob@npm:^3.2.9":
+"fast-glob@npm:^3.2.9, fast-glob@npm:^3.3.3":
   version: 3.3.3
   resolution: "fast-glob@npm:3.3.3"
   dependencies:
@@ -4268,6 +4275,20 @@ __metadata:
   languageName: node
   linkType: hard
 
+"globby@npm:^14.1.0":
+  version: 14.1.0
+  resolution: "globby@npm:14.1.0"
+  dependencies:
+    "@sindresorhus/merge-streams": "npm:^2.1.0"
+    fast-glob: "npm:^3.3.3"
+    ignore: "npm:^7.0.3"
+    path-type: "npm:^6.0.0"
+    slash: "npm:^5.1.0"
+    unicorn-magic: "npm:^0.3.0"
+  checksum: 10c0/527a1063c5958255969620c6fa4444a2b2e9278caddd571d46dfbfa307cb15977afb746e84d682ba5b6c94fc081e8997f80ff05dd235441ba1cb16f86153e58e
+  languageName: node
+  linkType: hard
+
 "gopd@npm:^1.2.0":
   version: 1.2.0
   resolution: "gopd@npm:1.2.0"
@@ -4422,6 +4443,13 @@ __metadata:
   version: 5.3.2
   resolution: "ignore@npm:5.3.2"
   checksum: 10c0/f9f652c957983634ded1e7f02da3b559a0d4cc210fca3792cb67f1b153623c9c42efdc1c4121af171e295444459fc4a9201101fb041b1104a3c000bccb188337
+  languageName: node
+  linkType: hard
+
+"ignore@npm:^7.0.3":
+  version: 7.0.6
+  resolution: "ignore@npm:7.0.6"
+  checksum: 10c0/fc01ef1d14efbe003439b60538726351e81483d1b6f55bdbb3a4465c6346d9481afad5b350dfbd604ddd7049618ef9093ff26dc147984aabc303c56ba53ea3b5
   languageName: node
   linkType: hard
 
@@ -4629,6 +4657,17 @@ __metadata:
   bin:
     js-yaml: bin/js-yaml.js
   checksum: 10c0/058b30473d6915ca5b4feb11e2f7d4d97242f98d00a798ed48dd90b46b7c640398afe9128c5db22c5300f8c6528fe2a174b9a93f351a70ebc28c6203938d8bff
+  languageName: node
+  linkType: hard
+
+"js-yaml@npm:^4.1.1":
+  version: 4.3.1
+  resolution: "js-yaml@npm:4.3.1"
+  dependencies:
+    argparse: "npm:^2.0.1"
+  bin:
+    js-yaml: bin/js-yaml.js
+  checksum: 10c0/13c500ca322e0c3f8c81686e6ecda96d2ea37b45247a420c17c7db36932d6965cc27391abc2d1a104501600e7f0d947a5f8b7be6db619c4fefa87901b3512807
   languageName: node
   linkType: hard
 
@@ -4943,7 +4982,7 @@ __metadata:
     tsx: "npm:^4.23.1"
     typescript: "npm:^5.6.2"
     yakumo: "npm:^1.0.0-beta.21"
-    yakumo-esbuild: "npm:^1.0.0-beta.7"
+    yakumo-esbuild: "npm:^3.0.2"
     yakumo-tsc: "npm:^1.0.0-beta.5"
     yml-register: "npm:^1.2.5"
   languageName: unknown
@@ -5572,6 +5611,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"path-type@npm:^6.0.0":
+  version: 6.0.0
+  resolution: "path-type@npm:6.0.0"
+  checksum: 10c0/55baa8b1187d6dc683d5a9cfcc866168d6adff58e5db91126795376d818eee46391e00b2a4d53e44d844c7524a7d96aa68cc68f4f3e500d3d069a39e6535481c
+  languageName: node
+  linkType: hard
+
 "pathe@npm:^1.1.2":
   version: 1.1.2
   resolution: "pathe@npm:1.1.2"
@@ -6043,7 +6089,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"schemastery@npm:^3.14.6, schemastery@npm:^3.16.1, schemastery@npm:^3.17.1, schemastery@npm:^3.17.2":
+"schemastery@npm:^3.14.6, schemastery@npm:^3.17.1, schemastery@npm:^3.17.2, schemastery@npm:^3.18.0":
   version: 3.18.0
   resolution: "schemastery@npm:3.18.0"
   dependencies:
@@ -6162,6 +6208,13 @@ __metadata:
   version: 3.0.0
   resolution: "slash@npm:3.0.0"
   checksum: 10c0/e18488c6a42bdfd4ac5be85b2ced3ccd0224773baae6ad42cfbb9ec74fc07f9fa8396bd35ee638084ead7a2a0818eb5e7151111544d4731ce843019dab4be47b
+  languageName: node
+  linkType: hard
+
+"slash@npm:^5.1.0":
+  version: 5.1.0
+  resolution: "slash@npm:5.1.0"
+  checksum: 10c0/eb48b815caf0bdc390d0519d41b9e0556a14380f6799c72ba35caf03544d501d18befdeeef074bc9c052acf69654bc9e0d79d7f1de0866284137a40805299eb3
   languageName: node
   linkType: hard
 
@@ -6555,6 +6608,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"unicorn-magic@npm:^0.3.0":
+  version: 0.3.0
+  resolution: "unicorn-magic@npm:0.3.0"
+  checksum: 10c0/0a32a997d6c15f1c2a077a15b1c4ca6f268d574cf5b8975e778bb98e6f8db4ef4e86dfcae4e158cd4c7e38fb4dd383b93b13eefddc7f178dea13d3ac8a603271
+  languageName: node
+  linkType: hard
+
 "universalify@npm:^2.0.0":
   version: 2.0.1
   resolution: "universalify@npm:2.0.1"
@@ -6832,17 +6892,18 @@ __metadata:
   languageName: node
   linkType: hard
 
-"yakumo-esbuild@npm:^1.0.0-beta.7":
-  version: 1.0.0
-  resolution: "yakumo-esbuild@npm:1.0.0"
+"yakumo-esbuild@npm:^3.0.2":
+  version: 3.0.2
+  resolution: "yakumo-esbuild@npm:3.0.2"
   dependencies:
-    dumble: "npm:^0.2.1"
-    schemastery: "npm:^3.16.1"
+    dumble: "npm:^0.2.3"
+    schemastery: "npm:^3.18.0"
     tsconfig-utils: "npm:^4.1.1"
   peerDependencies:
     esbuild: "*"
-    yakumo: ^1.0.0
-  checksum: 10c0/8fc2e07811fe139e35a9e7723b9d2be5c7982d33c2d61f5f60a7f910e113e03193bed7117dd883b85964706eb0c99f0fac8bb42042cf3edbb1f042f92c5f8853
+    typescript: "*"
+    yakumo: ^3.1.1
+  checksum: 10c0/ac3574addf349b8d959ac416f8996831d04aff5aa78e990e30ff76dac20b913bacd9a298d3561e02a6566a94bfc31af9a167de7415eb6471accccfc461880850
   languageName: node
   linkType: hard
 
