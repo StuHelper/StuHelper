@@ -293,6 +293,7 @@ resolver_docker_capture="${tmpdir}/resolver-docker-argv"
 : >"${resolver_docker_capture}"
 export PATH="${resolver_bin}:${PATH}"
 export RESOLVER_DOCKER_CAPTURE="${resolver_docker_capture}"
+export BACKUP_OBJECT_STORAGE_LOCAL_IDENTITY_CIDRS="none"
 
 if ! (
   export OBJECT_STORAGE_ENDPOINT="https://objects.example.test"
@@ -394,6 +395,16 @@ fi
 assert_contains "${tmpdir}/off-host-unconfirmed.log" 'BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED must be true'
 
 if (
+  unset BACKUP_OBJECT_STORAGE_LOCAL_IDENTITY_CIDRS
+  export BACKUP_OBJECT_STORAGE_ENDPOINT="https://192.0.2.25"
+  export BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED="true"
+  require_off_host_backup_object_storage
+) >"${tmpdir}/off-host-local-identities-missing.log" 2>&1; then
+  fail "an off-host assertion without a production public/NAT identity inventory must be rejected"
+fi
+assert_contains "${tmpdir}/off-host-local-identities-missing.log" 'BACKUP_OBJECT_STORAGE_LOCAL_IDENTITY_CIDRS is required'
+
+if (
   export BACKUP_OBJECT_STORAGE_ENDPOINT="https://minio:9000"
   export BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED="true"
   require_off_host_backup_object_storage
@@ -430,6 +441,17 @@ if (
   fail "a backup FQDN resolving to the production host must be rejected"
 fi
 assert_contains "${tmpdir}/off-host-dns-local.log" 'must not resolve to an address assigned to the production host'
+
+if (
+  export BACKUP_OBJECT_STORAGE_LOCAL_IDENTITY_CIDRS="198.51.100.0/24"
+  export BACKUP_OBJECT_STORAGE_ENDPOINT="https://backup-off-host.example.test"
+  export BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED="true"
+  export BACKUP_OBJECT_STORAGE_DOCKER_NETWORK="contract-backup-network"
+  require_off_host_backup_object_storage
+) >"${tmpdir}/off-host-dns-nat-identity.log" 2>&1; then
+  fail "a backup FQDN resolving to a configured production NAT identity must be rejected"
+fi
+assert_contains "${tmpdir}/off-host-dns-nat-identity.log" 'must not resolve to a configured public/NAT/LB identity'
 
 if (
   export BACKUP_OBJECT_STORAGE_ENDPOINT="https://backup-local-container.example.test"

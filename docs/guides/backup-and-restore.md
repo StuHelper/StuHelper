@@ -140,6 +140,10 @@ systemd/告警处理，而不是继续把同机副本计作灾备。升级已有
 `./infra/ops/install-backup-timers.sh`；预检会验证三个 service 的有效环境，并拒绝可经
 `EnvironmentFile=`、`UnsetEnvironment=` 或 `PassEnvironment=` 改写保护标记的 unit/drop-in，不能继续使用缺少或可降级门禁的旧单元。
 
+生产主机位于 1:1 NAT、hairpin LB 或公网边缘之后时，还必须把所有能路由回本机的地址/CIDR 写入
+`BACKUP_OBJECT_STORAGE_LOCAL_IDENTITY_CIDRS`；无额外身份时显式写 `none`。该清单用于补足
+`ip address` 看不到的公网身份，但仍不能替代“关闭/丢失生产主机后从独立环境取回并恢复”的演练。
+
 ## 逻辑备份恢复
 
 > 恢复是破坏性操作，必须先确认目标库、确认当前连接字符串、确认业务窗口。
