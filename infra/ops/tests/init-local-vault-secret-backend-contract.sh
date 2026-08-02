@@ -51,6 +51,7 @@ assert_contains "${TARGET_SCRIPT}" 'VAULT_TOKEN_FILE:-\$\{secret_file_root\}/vau
 assert_contains "${TARGET_SCRIPT}" 'GENERATED_ENV_SECRET_REF:-\$\{vault_kv_mount\}/stuhelper/prod/generated-secrets-env'
 assert_contains "${TARGET_SCRIPT}" 'LOCAL_VAULT_RECREATE_CONTAINER:-false'
 assert_contains "${TARGET_SCRIPT}" 'LOCAL_VAULT_REQUIRE_EXISTING_DATA:-false'
+assert_contains "${TARGET_SCRIPT}" 'refusing to initialize an uninitialized Vault while LOCAL_VAULT_REQUIRE_EXISTING_DATA=true'
 assert_contains "${TARGET_SCRIPT}" 'refusing to recreate initialized Vault from an empty data directory'
 assert_contains "${TARGET_SCRIPT}" 'local Vault container layout verification failed'
 assert_contains "${TARGET_SCRIPT}" 'ln -s "\$\{remote_config_file\}" "\$\{remote_config_compat_file\}"'
