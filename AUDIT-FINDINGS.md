@@ -208,7 +208,7 @@ Required 与 Go/JavaScript CodeQL。bypass actor 只允许 GitHub 用户 `Xaurya
 | P2-5 | `implemented`：批量禁言只在第一个空白处分隔秒数，后续成员 ID 继续按空白/中英文逗号解析；格式提示改为真实命令 `群审禁言`。管理员命令专项 11/11 通过。本条所在提交。 |
 | P2-8 | `implemented`：Admin 中英文补齐后端会返回的 `school_email_otp` / `school_sso` 学生认证方式，并用 locale 契约覆盖全部四种枚举。本条所在提交。 |
 | P2-11 | `implemented`：OpenAPI 明确 `form + explode=true`，Handler 读取全部重复 `courseIDs` 并兼容旧逗号格式；共享客户端真实 wire test 与 Go parser 回归锁定三端一致性，删除未使用且错误扁平化 grouped response 的 Web adapter。本条所在提交。 |
-| P2-17 | P3/P4 决策：preview knobs 是废弃还是受限恢复 |
+| P2-17 | `implemented`：把误命名且被拿来限制游客正文的 `review_preview_title_chars` 无损迁移为 `review_guest_preview_content_chars`；游客仍只见首个非空行且默认上限保持 24 字，登录但无完整权限的用户改为真实应用正文字符数与百分比两个开关，标题保持可见。策略、用户配置和评课包测试通过。本条所在提交。 |
 | P2-19 | `implemented`：拆分评课正文、回复正文与举报说明的长度 sentinel；只有评课正文使用 `A0110003/A0110004`，回复和举报仍保持通用范围错误，同时为危险内容、缺少评分维度和非法评分补上已有专用码。评课包全量测试通过。本条所在提交。 |
 | P3-1 | `implemented`：`AdminContentLayout` 正式支持并显示可选页面说明，保留标题、总数和 action 布局；组件回归覆盖有/无说明。本条所在提交。 |
 | P3-2 | `implemented`：持久化表格列的显式 `defaultMinWidth` 优先，否则保留调用方透传的 `min-width`，不再被 `undefined` 覆盖；组件回归锁定属性合并顺序。本条所在提交。 |

@@ -37,7 +37,7 @@ func TestBuildReviewAccessPolicy_UsesConfiguredValues(t *testing.T) {
 		},
 		[]reviewaccess.SystemConfig{
 			{Key: systemconfig.ReviewAccessSchoolIDsKey, Value: `["4111010007","4111010008"]`},
-			{Key: systemconfig.ReviewPreviewTitleCharsKey, Value: "36"},
+			{Key: systemconfig.ReviewGuestPreviewContentCharsKey, Value: "36"},
 			{Key: systemconfig.ReviewPreviewContentCharsKey, Value: "180"},
 			{Key: systemconfig.ReviewPreviewContentPercentKey, Value: "40"},
 		},
@@ -47,7 +47,7 @@ func TestBuildReviewAccessPolicy_UsesConfiguredValues(t *testing.T) {
 	assert.True(t, policy.AllowsSchool("4111010007"))
 	assert.True(t, policy.AllowsSchool("4111010008"))
 	assert.False(t, policy.AllowsSchool("4111010006"))
-	assert.Equal(t, 36, policy.PreviewTitleRunes)
+	assert.Equal(t, 36, policy.GuestPreviewContentRunes)
 	assert.Equal(t, 180, policy.PreviewContentRunes)
 	assert.Equal(t, 40, policy.PreviewContentPct)
 }
@@ -67,7 +67,7 @@ func TestBuildReviewAccessPolicy_UsesEnabledSchoolsAndPreviewKeys(t *testing.T) 
 
 	assert.True(t, policy.AllowsSchool("4111010006"))
 	assert.True(t, policy.AllowsSchool("4111010007"))
-	assert.Equal(t, systemconfig.DefaultReviewAccessPolicySnapshot().PreviewTitleRunes, policy.PreviewTitleRunes)
+	assert.Equal(t, systemconfig.DefaultReviewAccessPolicySnapshot().GuestPreviewContentRunes, policy.GuestPreviewContentRunes)
 	assert.Equal(t, 96, policy.PreviewContentRunes)
 	assert.Equal(t, 25, policy.PreviewContentPct)
 }
@@ -88,9 +88,10 @@ func TestStripReviewsForResponse_LocksContentWithoutFullAccess(t *testing.T) {
 	}}
 
 	result := stripReviewsForResponse(reviews, ReviewAccessFacts{
-		Authenticated:     true,
-		CanViewFull:       false,
-		PreviewTitleRunes: 8,
+		Authenticated:       true,
+		CanViewFull:         false,
+		PreviewContentRunes: 8,
+		PreviewContentPct:   100,
 	})
 
 	require.Len(t, result, 1)
@@ -98,6 +99,27 @@ func TestStripReviewsForResponse_LocksContentWithoutFullAccess(t *testing.T) {
 	assert.Equal(t, "第一行会作为安全...", result[0].Content)
 	assert.NotContains(t, result[0].Content, "第二行正文")
 	assert.Equal(t, fullContent, reviews[0].Content)
+}
+
+func TestStripReviewsForResponse_AppliesAuthenticatedPreviewPolicyToFirstLine(t *testing.T) {
+	firstLine := strings.Repeat("评", 20)
+	reviews := []Review{{
+		ID:      "review-percent",
+		Title:   "标题保持可见",
+		Content: firstLine + "\n第二行不得泄露",
+		Status:  StatusPublished,
+	}}
+
+	result := stripReviewsForResponse(reviews, ReviewAccessFacts{
+		Authenticated:       true,
+		PreviewContentRunes: 96,
+		PreviewContentPct:   25,
+	})
+
+	require.Len(t, result, 1)
+	assert.Equal(t, "标题保持可见", result[0].Title)
+	assert.Equal(t, strings.Repeat("评", 5)+"...", result[0].Content)
+	assert.NotContains(t, result[0].Content, "第二行")
 }
 
 func TestStripReviewsForResponse_HidesAnonymousContentAndTitle(t *testing.T) {
@@ -109,7 +131,7 @@ func TestStripReviewsForResponse_HidesAnonymousContentAndTitle(t *testing.T) {
 	}}
 
 	result := stripReviewsForResponse(reviews, ReviewAccessFacts{
-		PreviewTitleRunes: 12,
+		GuestPreviewContentRunes: 12,
 	})
 
 	require.Len(t, result, 1)

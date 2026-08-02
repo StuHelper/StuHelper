@@ -86,11 +86,11 @@ func TestReviewHandler_AdminUpdateReviewForbiddenOnFailClosedFGA(t *testing.T) {
 
 func newFactAwareHandler(canPost, canEdit, canDelete bool) *Handler {
 	systemconfig.SetReviewAccessPolicySnapshot(systemconfig.ReviewAccessPolicySnapshot{
-		AllowedSchoolIDs:    []string{"4111010001"},
-		PreviewTitleRunes:   24,
-		PreviewContentRunes: 120,
-		PreviewContentPct:   100,
-		LoadedAt:            time.Now(),
+		AllowedSchoolIDs:         []string{"4111010001"},
+		GuestPreviewContentRunes: 24,
+		PreviewContentRunes:      120,
+		PreviewContentPct:        100,
+		LoadedAt:                 time.Now(),
 	})
 	subjectSchoolID := int64(4111010001)
 	return &Handler{

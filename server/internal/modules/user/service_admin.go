@@ -463,7 +463,7 @@ func (s *Service) validateSystemConfigValue(ctx context.Context, key, value stri
 		if err := s.validateReviewAccessSchoolIDs(ctx, schoolIDs); err != nil {
 			return fmt.Errorf("%w: %s %v", ErrInvalidSystemConfigValue, key, err)
 		}
-	case systemconfig.ReviewPreviewTitleCharsKey:
+	case systemconfig.ReviewGuestPreviewContentCharsKey:
 		if _, err := systemconfig.ParseBoundedInt(value, 1, 200); err != nil {
 			return fmt.Errorf("%w: %s %v", ErrInvalidSystemConfigValue, key, err)
 		}
