@@ -74,6 +74,7 @@ BACKUP_MODE=basebackup ./infra/ops/backup-postgres.sh backups/stuhelper-$(date +
 - 只有本轮全部远端复制成功后，它才会清理超出保留期的本地 logical / base / WAL 文件；认证、网络或对象存储故障不会触发本地删除
 - 同步器显式排除 `*.partial*`、WAL 归档的 `*.tmp*` 和 staging 路径；只有已经原子发布的工件会上传
 - 生产 systemd unit 固定要求异机门禁；门禁会在创建备份或执行 logical / base / WAL 保留期清理之前检查，失败时不会删除任何尚未上传的本地工件
+- 定时任务加载环境文件后，调用备份和同步子脚本时仍会再次清除 `BASH_ENV` / `ENV`，并使用非登录、无 profile 的 Bash，防止环境文件通过子进程启动钩子改变门禁或清理顺序
 
 生产机建议直接安装 systemd timer：
 
@@ -103,6 +104,8 @@ sudo ./infra/ops/install-backup-timers.sh
 ./infra/ops/fetch-postgres-backups.sh base
 ./infra/ops/fetch-postgres-backups.sh wal
 ```
+
+在 `APP_ENV=production` 或显式要求异机门禁时，取回脚本不会复用父进程留下的旧地址固定：它会先加载最终环境，重新解析并验证实际传输主机，再把本轮验证结果固定给 rclone。门禁失败时不会发起取回，也不能把同机对象存储响应计作生产恢复 evidence。
 
 默认会把对象存储中的内容拉回：
 
@@ -134,7 +137,7 @@ sudo ./infra/ops/install-backup-timers.sh
 对象存储“可取回”也不自动代表异机灾备：同一生产主机上的 MinIO 会与数据库一起丢失。生产配置
 只有在备份端点位于独立故障域、且已验证生产主机完全丢失后仍可访问时，才能设置
 `BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED=true`。`remote-preflight.sh` 和 `prod-deploy.sh` 会对此
-失败关闭，并拒绝单标签 Compose 服务名、旧式缩写数字 IPv4 及解析到本机接口的 FQDN。生产备份
+失败关闭，并拒绝单标签 Compose 服务名、旧式缩写数字 IPv4、带 zone identifier 的 IPv6 及解析到本机接口的 FQDN。使用 virtual-hosted S3 时，门禁会分别解析、校验并固定 endpoint 与 `bucket.endpoint`；bucket 必须能组成合法的小写 ASCII DNS 主机名，不能让实际传输绕过基础 endpoint 的验证。生产备份
 systemd service 也固定要求这项门禁，不能由共享 env 将要求降级；配置漂移后定时同步会失败并留给
 systemd/告警处理，而不是继续把同机副本计作灾备。升级已有节点后须由 root 重新运行
 `./infra/ops/install-backup-timers.sh`；预检会验证三个 service 的有效环境，并拒绝可经
