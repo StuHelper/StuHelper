@@ -240,6 +240,8 @@ capture_file="${tmpdir}/docker-argv"
 docker() {
   [[ "${RCLONE_CONFIG_TARGET_SECRET_ACCESS_KEY:-}" == "contract-runtime-secret" ]] ||
     fail "rclone secret was not passed through the child environment"
+  [[ "${RCLONE_CONFIG_TARGET_ENDPOINT:-}" == "https://backup-off-host.example.test" ]] ||
+    fail "rclone endpoint hostname was not normalized to match its validated address pin"
   printf '%s\n' "$@" >"${capture_file}"
 }
 
@@ -310,6 +312,7 @@ if ! (
   export BACKUP_OBJECT_STORAGE_TLS_CA="${distinct_dir}/ca.crt"
   export BACKUP_OBJECT_STORAGE_TLS_INSECURE="false"
   require_production_object_storage
+  [[ -z "${BACKUP_OBJECT_STORAGE_PINNED_IPS:-}" ]]
 ); then
   fail "valid HTTPS production object-storage configuration was rejected"
 fi
@@ -424,6 +427,15 @@ fi
 assert_contains "${tmpdir}/off-host-compose-service.log" 'must use an off-host fully-qualified hostname'
 
 if (
+  export BACKUP_OBJECT_STORAGE_ENDPOINT="https://backup-off-host.example.test."
+  export BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED="true"
+  require_off_host_backup_object_storage
+) >"${tmpdir}/off-host-trailing-dot.log" 2>&1; then
+  fail "a trailing-dot backup hostname that can bypass Docker host pinning must be rejected"
+fi
+assert_contains "${tmpdir}/off-host-trailing-dot.log" 'must not use a trailing-dot hostname'
+
+if (
   export BACKUP_OBJECT_STORAGE_ENDPOINT="https://127.1:9000"
   export BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED="true"
   require_off_host_backup_object_storage
@@ -499,18 +511,20 @@ if ! (
   export BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED="true"
   export BACKUP_OBJECT_STORAGE_DOCKER_NETWORK="contract-backup-network"
   require_off_host_backup_object_storage
+  [[ "${BACKUP_OBJECT_STORAGE_PINNED_IPS:-}" == "198.51.100.42" ]]
 ); then
-  fail "an asserted backup FQDN resolving only to a non-local address was rejected"
+  fail "an asserted backup FQDN did not export its validated non-local address set"
 fi
 assert_contains "${resolver_docker_capture}" '^--network$'
 assert_contains "${resolver_docker_capture}" '^contract-backup-network$'
 assert_contains "${resolver_docker_capture}" '^/usr/bin/getent$'
 
-export BACKUP_OBJECT_STORAGE_ENDPOINT="https://objects.example.test"
+export BACKUP_OBJECT_STORAGE_ENDPOINT="https://BACKUP-OFF-HOST.EXAMPLE.TEST"
 export BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID="contract-runtime-key"
 export BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY="contract-runtime-secret"
 export BACKUP_OBJECT_STORAGE_FORCE_PATH_STYLE="false"
 export BACKUP_OBJECT_STORAGE_TLS_INSECURE="false"
+export BACKUP_OBJECT_STORAGE_PINNED_IPS=$'198.51.100.42\n2001:db8::42'
 export RCLONE_IMAGE_REF="rclone/rclone:beta@sha256:f52965eba611ba8984117638b2a0539dcce170731937f93fbace66897d102698"
 run_backup_object_storage_rclone \
   "1000:1000" \
@@ -523,6 +537,9 @@ assert_contains "${capture_file}" '^RCLONE_CONFIG_TARGET_SECRET_ACCESS_KEY$'
 assert_contains "${capture_file}" '^--read-only$'
 assert_contains "${capture_file}" '^ALL$'
 assert_contains "${capture_file}" '^no-new-privileges$'
+assert_contains "${capture_file}" '^--add-host$'
+assert_contains "${capture_file}" '^backup-off-host\.example\.test=198\.51\.100\.42$'
+assert_contains "${capture_file}" '^backup-off-host\.example\.test=2001:db8::42$'
 assert_contains "${capture_file}" '^copy$'
 assert_contains "${capture_file}" '@sha256:[0-9a-f]{64}$'
 
@@ -542,6 +559,9 @@ assert_contains "${SYNC_BACKUPS}" "--exclude 'quarantine-incomplete-\\*/\\*\\*'"
 assert_contains "${SYNC_BACKUPS}" 'target:\$\{BACKUP_OBJECT_STORAGE_BUCKET\}/\$\{prefix\}/wal.*\\'
 assert_contains "${SYNC_BACKUPS}" 'load_env_preserving BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED'
 assert_contains "${SYNC_BACKUPS}" 'require_off_host_backup_object_storage'
+assert_contains "${SYNC_BACKUPS}" 'APP_ENV:-.*production'
+assert_contains "${SYNC_BACKUPS}" 'unset BACKUP_OBJECT_STORAGE_PINNED_IPS'
+assert_contains "${FETCH_BACKUPS}" 'unset BACKUP_OBJECT_STORAGE_PINNED_IPS'
 assert_contains "${SCHEDULED_BACKUP}" 'load_env_preserving BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED'
 assert_contains "${SCHEDULED_BACKUP}" 'true\) require_off_host_backup_object_storage'
 assert_contains "${SCHEDULED_BACKUP}" "-path '/wal/quarantine-incomplete-\\*' -prune"

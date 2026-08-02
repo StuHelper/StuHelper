@@ -333,6 +333,10 @@ require_off_host_backup_object_storage() {
     *) die "BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED must be true or false" ;;
   esac
 
+  require_https_object_storage_endpoint \
+    "BACKUP_OBJECT_STORAGE_ENDPOINT" \
+    "${BACKUP_OBJECT_STORAGE_ENDPOINT:-}"
+  unset BACKUP_OBJECT_STORAGE_PINNED_IPS
   if ! output="$(python3 - "${BACKUP_OBJECT_STORAGE_ENDPOINT:-}" 2>&1 <<'PY'
 import ipaddress
 import json
@@ -344,9 +348,14 @@ import sys
 from urllib.parse import urlsplit
 
 endpoint = sys.argv[1].strip()
-host = (urlsplit(endpoint).hostname or "").lower().rstrip(".")
-if not host:
+raw_host = (urlsplit(endpoint).hostname or "").lower()
+if not raw_host:
     raise SystemExit("BACKUP_OBJECT_STORAGE_ENDPOINT must include a hostname")
+if raw_host.endswith("."):
+    raise SystemExit(
+        "BACKUP_OBJECT_STORAGE_ENDPOINT must not use a trailing-dot hostname"
+    )
+host = raw_host
 
 local_identity_spec = os.environ.get(
     "BACKUP_OBJECT_STORAGE_LOCAL_IDENTITY_CIDRS", ""
@@ -395,6 +404,15 @@ if address is None and (
     raise SystemExit(
         "BACKUP_OBJECT_STORAGE_ENDPOINT must use an off-host fully-qualified hostname or a non-local IP address"
     )
+if address is None:
+    labels = host.split(".")
+    if len(host) > 253 or any(
+        not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", label)
+        for label in labels
+    ):
+        raise SystemExit(
+            "BACKUP_OBJECT_STORAGE_ENDPOINT must use a valid ASCII DNS hostname"
+        )
 
 image_ref = os.environ.get(
     "RCLONE_IMAGE_REF",
@@ -571,10 +589,18 @@ for resolved_address in resolved_addresses:
         raise SystemExit(
             "BACKUP_OBJECT_STORAGE_ENDPOINT must not resolve into a Docker network hosted on the production host"
         )
+
+if address is None:
+    pinned_addresses = {normalize(value) for value in resolved_addresses}
+    for pinned_address in sorted(
+        pinned_addresses, key=lambda value: (value.version, int(value))
+    ):
+        print(pinned_address.compressed)
 PY
   )"; then
     die "${output}"
   fi
+  export BACKUP_OBJECT_STORAGE_PINNED_IPS="${output}"
 }
 
 require_production_object_storage() {

@@ -11,6 +11,7 @@ run_backup_object_storage_rclone() {
   local force_path_style="${BACKUP_OBJECT_STORAGE_FORCE_PATH_STYLE:-${OBJECT_STORAGE_FORCE_PATH_STYLE:-true}}"
   local tls_insecure="${BACKUP_OBJECT_STORAGE_TLS_INSECURE:-false}"
   local ca_file="${BACKUP_OBJECT_STORAGE_TLS_CA:-}"
+  local pinned_ips="${BACKUP_OBJECT_STORAGE_PINNED_IPS:-}"
   local -x RCLONE_CONFIG_TARGET_TYPE="s3"
   local -x RCLONE_CONFIG_TARGET_PROVIDER="${BACKUP_OBJECT_STORAGE_PROVIDER:-Other}"
   local -x RCLONE_CONFIG_TARGET_ACCESS_KEY_ID="${BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID:-}"
@@ -82,6 +83,89 @@ run_backup_object_storage_rclone() {
     [[ "${BACKUP_OBJECT_STORAGE_DOCKER_NETWORK}" =~ ^[A-Za-z0-9_.-]+$ ]] ||
       die "BACKUP_OBJECT_STORAGE_DOCKER_NETWORK contains unsupported characters"
     docker_args+=(--network "${BACKUP_OBJECT_STORAGE_DOCKER_NETWORK}")
+  fi
+  if [[ -n "${pinned_ips}" ]]; then
+    local pinned_payload
+    if ! pinned_payload="$(python3 - "${endpoint}" "${pinned_ips}" 2>&1 <<'PY'
+import ipaddress
+import re
+import sys
+from urllib.parse import urlsplit, urlunsplit
+
+endpoint, pinned_ips = sys.argv[1:]
+parsed = urlsplit(endpoint)
+raw_host = (parsed.hostname or "").lower()
+if parsed.username is not None or parsed.password is not None:
+    raise SystemExit(
+        "BACKUP_OBJECT_STORAGE_PINNED_IPS does not allow endpoint credentials"
+    )
+if raw_host.endswith("."):
+    raise SystemExit(
+        "BACKUP_OBJECT_STORAGE_PINNED_IPS does not allow a trailing-dot endpoint hostname"
+    )
+host = raw_host
+labels = host.split(".")
+if (
+    not host
+    or len(host) > 253
+    or any(
+        not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", label)
+        for label in labels
+    )
+):
+    raise SystemExit(
+        "BACKUP_OBJECT_STORAGE_PINNED_IPS requires a valid ASCII DNS endpoint hostname"
+    )
+
+addresses = set()
+for raw_value in pinned_ips.splitlines():
+    value = raw_value.strip()
+    if not value:
+        continue
+    try:
+        address = ipaddress.ip_address(value)
+    except ValueError:
+        raise SystemExit(
+            f"BACKUP_OBJECT_STORAGE_PINNED_IPS contains an invalid IP address: {value}"
+        ) from None
+    if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped is not None:
+        address = address.ipv4_mapped
+    addresses.add(address)
+if not addresses:
+    raise SystemExit("BACKUP_OBJECT_STORAGE_PINNED_IPS must contain at least one IP address")
+
+try:
+    port = parsed.port
+except ValueError as error:
+    raise SystemExit(f"BACKUP_OBJECT_STORAGE_ENDPOINT has an invalid port: {error}") from None
+normalized_authority = host if port is None else f"{host}:{port}"
+print(
+    urlunsplit(
+        (
+            parsed.scheme,
+            normalized_authority,
+            parsed.path,
+            parsed.query,
+            parsed.fragment,
+        )
+    )
+)
+for address in sorted(addresses, key=lambda value: (value.version, int(value))):
+    print(f"{host}={address.compressed}")
+PY
+    )"; then
+      die "${pinned_payload}"
+    fi
+    local -a pinned_lines=()
+    mapfile -t pinned_lines <<<"${pinned_payload}"
+    (( ${#pinned_lines[@]} >= 2 )) ||
+      die "failed to render the validated backup endpoint address pins"
+    endpoint="${pinned_lines[0]}"
+    RCLONE_CONFIG_TARGET_ENDPOINT="${endpoint}"
+    local pinned_index
+    for ((pinned_index = 1; pinned_index < ${#pinned_lines[@]}; pinned_index++)); do
+      docker_args+=(--add-host "${pinned_lines[${pinned_index}]}")
+    done
   fi
 
   docker "${docker_args[@]}" "${image_ref}" "$@" "${rclone_args[@]}"
