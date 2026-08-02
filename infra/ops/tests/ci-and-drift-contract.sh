@@ -139,7 +139,7 @@ assert_contains "${GITHUB_CI_FILE}" '^  promote-staging:$'
 assert_contains "${GITHUB_CI_FILE}" "vars\.STAGING_AUTO_DEPLOY_ENABLED == 'true'"
 assert_contains "${GITHUB_CI_FILE}" 'uses: \./\.github/workflows/deploy\.yml'
 assert_contains "${GITHUB_CI_FILE}" '^      target: staging$'
-assert_contains "${GITHUB_CI_FILE}" '^    secrets: inherit$'
+assert_not_contains "${GITHUB_CI_FILE}" '^    secrets: inherit$'
 
 assert_contains "${GITHUB_CI_FILE}" 'INSTALL_ADMIN: \$\{\{ matrix\.install_admin \}\}'
 assert_contains "${GITHUB_CI_FILE}" 'if \[ "\$\{INSTALL_ADMIN\}" = "true" \]; then'

@@ -784,4 +784,3 @@ jobs:
     with:
       target: staging
       reason: Automated staging promotion after trusted main CI and image publication
-    secrets: inherit
