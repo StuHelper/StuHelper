@@ -131,6 +131,13 @@ sudo ./infra/ops/install-backup-timers.sh
 **evidence 通过不等于 PITR 已验收。**它证明近期工件存在、完整且能从远端取回；仍须按下方
 演练清单，在隔离实例实际启动恢复后的 PGDATA，并在目标时间点恢复场景中验证 WAL 连续性。
 
+对象存储“可取回”也不自动代表异机灾备：同一生产主机上的 MinIO 会与数据库一起丢失。生产配置
+只有在备份端点位于独立故障域、且已验证生产主机完全丢失后仍可访问时，才能设置
+`BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED=true`。`remote-preflight.sh` 和 `prod-deploy.sh` 会对此
+失败关闭，并拒绝单标签 Compose 服务名、旧式缩写数字 IPv4 及明确的本机地址。生产备份
+systemd service 也固定要求这项门禁，不能由共享 env 将要求降级；配置漂移后定时同步会失败并留给
+systemd/告警处理，而不是继续把同机副本计作灾备。
+
 ## 逻辑备份恢复
 
 > 恢复是破坏性操作，必须先确认目标库、确认当前连接字符串、确认业务窗口。
@@ -171,6 +178,8 @@ PGDATA 目录；提取后还会要求 `PG_VERSION` 和 `backup_manifest` 存在�
 ## 生产规则
 
 - 每次 production 发布前至少做一次人工备份
+- 备份对象存储必须位于独立故障域；同机 MinIO 只能作为迁移前临时副本，不能设置
+  `BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED=true`
 - 生产机必须启用逻辑备份 / base backup / backup sync timer
 - 发布前 `postgres-backup-evidence.sh` 必须同时显示四份（本地/取回 × 逻辑/物理）工件
   `sha256Verified=true`、`fresh=true`，物理工件还须 `archiveReadable=true`

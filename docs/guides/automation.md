@@ -160,6 +160,8 @@ make prod-deploy
 
 生产对象存储 bucket、访问身份、服务端加密和生命周期策略必须由外部 S3 控制面预先创建；部署身份没有建桶或管理 IAM 的权限。公共 CA 场景下 `OBJECT_STORAGE_TLS_CA` 与 `OBJECT_STORAGE_TLS_CA_HOST_PATH` 都留空。私有 CA 场景下，前者固定为容器路径 `/object-storage-tls/ca.crt`，后者指向宿主机上经核验的只读 PEM CA bundle；部署脚本只把公开证书原子复制到 `infra/generated/object-storage-client-ca/ca.crt`，应用容器不会挂载本地 SeaweedFS 的私钥或身份配置。备份 rclone 的 `BACKUP_OBJECT_STORAGE_TLS_CA` 仍使用宿主机可读路径，可与应用 CA 不同。
 
+备份目标还必须与生产主机处于独立故障域。完成异机/云对象存储配置并验证生产主机完全丢失后仍可取回工件，才可把 `BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED` 设为 `true`。生产预检会拒绝缺少这项确认的配置，也会拒绝 `minio`、`object-storage` 等单标签 Compose 主机名、loopback、link-local、旧式缩写数字 IPv4 和 `.local` 端点。root 管理的三个生产备份 systemd service 还会固定注入 `BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true`；共享配置无法把它覆盖为 false，因此发布后发生配置漂移时，定时同步同样失败关闭。该变量是运维确认而不是自动证明，不能替代隔离恢复与 PITR 演练。
+
 ## 远端部署控制面
 
 远端部署配置由目标机持有，CI / Ansible 不在每次发布时下发 `deploy.remote.env`：
@@ -216,7 +218,7 @@ sudo -u stuhelper REMOTE_DEPLOY_CONFIG_FILE=/opt/stuhelper/.deploy/remote.env \
 - 本机宝塔 Nginx 主站和 join 入口配置是否满足 `infra/ops/nginx-public-ingress-preflight.sh` 契约
 - 公网 SSO 入口是否已经具备可用 TLS，并且 `sso.stuhelper.com/.well-known/openid-configuration` 返回有效 Casdoor OIDC discovery
 - PostgreSQL 逻辑备份 / base backup / backup sync timer 是否已启用
-- `BACKUP_DATABASE_URL` / `REPLICATION_DATABASE_URL` / `BACKUP_OBJECT_STORAGE_ENDPOINT` / `BACKUP_OBJECT_STORAGE_BUCKET` / `BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID` / `BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY`
+- `BACKUP_DATABASE_URL` / `REPLICATION_DATABASE_URL` / `BACKUP_OBJECT_STORAGE_ENDPOINT` / `BACKUP_OBJECT_STORAGE_BUCKET` / `BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID` / `BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY`，以及仅在独立故障域验证完成后设置的 `BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED=true`
 
 停止生产环境：
 
