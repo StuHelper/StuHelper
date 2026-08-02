@@ -120,8 +120,9 @@ tmpfs，避免每次受控重建遗留新的匿名 Docker volume；正式审计�
 配置和非空数据已经按字节核验、unseal/token 材料已经安全落盘后，运维人员才能显式设置
 `LOCAL_VAULT_RECREATE_CONTAINER=true` 做一次容器重建。恢复隔离目录不是长期运行路径；迁移成功后
 同时设置 `LOCAL_VAULT_REQUIRE_EXISTING_DATA=true`，会在任何 KV enable/seed 操作之前要求原 token、
-KV mount 和既有 `GENERATED_ENV_SECRET_REF` 全部可读。恢复隔离目录应保留为只读恢复锚点，直到完成
-重启、解封和已知 KV 读取验证；不能让 Docker 继续依赖已移动目录的存活 inode。
+KV mount 和既有 `GENERATED_ENV_SECRET_REF` 全部可读；如果 staged storage 报告为 uninitialized，
+脚本会在 `vault operator init` 和任何凭据文件覆盖之前失败。恢复隔离目录应保留为只读恢复锚点，
+直到完成重启、解封和已知 KV 读取验证；不能让 Docker 继续依赖已移动目录的存活 inode。
 
 ### 宝塔 Compose 源码包应急发布
 
