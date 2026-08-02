@@ -334,6 +334,10 @@ if docker_network and not re.fullmatch(r"[A-Za-z0-9_.-]+", docker_network):
     raise SystemExit(
         "BACKUP_OBJECT_STORAGE_DOCKER_NETWORK contains unsupported characters"
     )
+if docker_network in {"host", "none"}:
+    raise SystemExit(
+        "BACKUP_OBJECT_STORAGE_DOCKER_NETWORK must not use host or none for off-host production backups"
+    )
 effective_docker_network = docker_network or "bridge"
 
 if address is not None:

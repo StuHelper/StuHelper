@@ -409,6 +409,16 @@ fi
 assert_contains "${tmpdir}/off-host-legacy-loopback.log" 'must not use a legacy or abbreviated numeric IPv4 address'
 
 if (
+  export BACKUP_OBJECT_STORAGE_ENDPOINT="https://192.0.2.25"
+  export BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED="true"
+  export BACKUP_OBJECT_STORAGE_DOCKER_NETWORK="host"
+  require_off_host_backup_object_storage
+) >"${tmpdir}/off-host-host-network.log" 2>&1; then
+  fail "host networking must be rejected for an asserted off-host backup target"
+fi
+assert_contains "${tmpdir}/off-host-host-network.log" 'must not use host or none'
+
+if (
   export BACKUP_OBJECT_STORAGE_ENDPOINT="https://backup-on-host.example.test"
   export BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED="true"
   export BACKUP_OBJECT_STORAGE_DOCKER_NETWORK="contract-backup-network"
