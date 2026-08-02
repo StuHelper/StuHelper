@@ -139,7 +139,8 @@ func exerciseMFAHandlers(
 	})
 
 	called := false
-	handlers := append(mfaHandlers, func(c *gin.Context) {
+	handlers := append([]gin.HandlerFunc(nil), mfaHandlers...)
+	handlers = append(handlers, func(c *gin.Context) {
 		called = true
 		c.Status(http.StatusOK)
 	})

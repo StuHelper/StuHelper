@@ -909,7 +909,7 @@ func isDisallowedExternalOracleRuntimeUsername(username string) bool {
 
 func isSafeExternalOracleIdentifier(value string) bool {
 	value = strings.TrimSpace(value)
-	if len(value) == 0 || len(value) > 128 {
+	if value == "" || len(value) > 128 {
 		return false
 	}
 	for index, ch := range value {
