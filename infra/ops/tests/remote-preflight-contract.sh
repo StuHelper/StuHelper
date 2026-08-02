@@ -78,11 +78,13 @@ assert_contains "${PREFLIGHT_FILE}" 'vault-runtime-token\.sh" check'
 assert_contains "${PREFLIGHT_FILE}" 'stuhelper-vault-token-renewal\.timer'
 assert_contains "${PREFLIGHT_FILE}" 'Vault runtime token renewal timer is not active'
 assert_contains "${COMMON_LIB_FILE}" 'require_systemd_unit_environment_value\(\)'
+assert_contains "${COMMON_LIB_FILE}" 'require_systemd_unit_hardened_execution\(\)'
 assert_contains "${PREFLIGHT_FILE}" 'stuhelper-postgres-dump-backup\.service'
 assert_contains "${PREFLIGHT_FILE}" 'stuhelper-postgres-basebackup\.service'
 assert_contains "${PREFLIGHT_FILE}" 'stuhelper-postgres-backup-sync\.service'
 [[ "$(grep -c 'BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true' "${PREFLIGHT_FILE}")" == "1" ]] || \
   fail "remote preflight must require the off-host marker for every backup service"
+assert_contains "${PREFLIGHT_FILE}" 'require_systemd_unit_hardened_execution'
 assert_contains "${PREFLIGHT_FILE}" 'require_production_postgres_ssl'
 assert_contains "${PREFLIGHT_FILE}" 'require_production_external_student_source_security'
 assert_contains "${COMMON_LIB_FILE}" 'EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_MODE must be verify-full in production'
@@ -217,6 +219,44 @@ if bash -c '
 fi
 grep -q 'must not set UnsetEnvironment' "${tmpdir}/backup-unit-unset-env.err" || \
   fail "the backup unit UnsetEnvironment failure did not report the protected marker policy"
+
+if ! bash -c '
+  set -euo pipefail
+  source "$1"
+  systemctl() {
+    case "$*" in
+      *--property=WorkingDirectory*) printf "%s\n" "/opt/stuhelper" ;;
+      *--property=ExecStart*) printf "%s\n" "{ path=/usr/bin/env ; argv[]=/usr/bin/env --unset=BASH_ENV --unset=ENV /bin/bash --noprofile --norc ./infra/ops/sync-postgres-backups.sh ; ignore_errors=no ; }" ;;
+      *) return 2 ;;
+    esac
+  }
+  require_systemd_unit_hardened_execution \
+    stuhelper-postgres-backup-sync.service \
+    /opt/stuhelper \
+    "./infra/ops/sync-postgres-backups.sh"
+' bash "${COMMON_LIB_FILE}"; then
+  fail "the systemd execution validator rejected the protected non-login backup command"
+fi
+
+if bash -c '
+  set -euo pipefail
+  source "$1"
+  systemctl() {
+    case "$*" in
+      *--property=WorkingDirectory*) printf "%s\n" "/opt/stuhelper" ;;
+      *--property=ExecStart*) printf "%s\n" "{ path=/bin/bash ; argv[]=/bin/bash -lc cd /opt/stuhelper && ./infra/ops/sync-postgres-backups.sh ; ignore_errors=no ; }" ;;
+      *) return 2 ;;
+    esac
+  }
+  require_systemd_unit_hardened_execution \
+    stuhelper-postgres-backup-sync.service \
+    /opt/stuhelper \
+    "./infra/ops/sync-postgres-backups.sh"
+' bash "${COMMON_LIB_FILE}" >"${tmpdir}/backup-unit-login-shell.out" 2>"${tmpdir}/backup-unit-login-shell.err"; then
+  fail "the systemd execution validator accepted a login shell that can override the backup gate"
+fi
+grep -q 'protected non-login Bash execution path' "${tmpdir}/backup-unit-login-shell.err" || \
+  fail "the backup unit login-shell failure did not report the protected execution policy"
 
 fake_bin="${tmpdir}/bin"
 mkdir -p "${fake_bin}"

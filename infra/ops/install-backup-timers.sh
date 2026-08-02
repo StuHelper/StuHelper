@@ -46,7 +46,7 @@ Environment=GENERATED_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.generated
 Environment=GENERATED_SECRET_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.generated.secrets
 Environment=BACKUP_STAGING_DIR=${BACKUP_STAGING_DIR}
 Environment=BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true
-ExecStart=/bin/bash -lc 'cd "${DEPLOY_APP_DIR}" && ./infra/ops/run-scheduled-backup.sh dump'
+ExecStart=/usr/bin/env --unset=BASH_ENV --unset=ENV /bin/bash --noprofile --norc ./infra/ops/run-scheduled-backup.sh dump
 EOF
 
   cat >"${dump_timer}" <<EOF
@@ -78,7 +78,7 @@ Environment=GENERATED_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.generated
 Environment=GENERATED_SECRET_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.generated.secrets
 Environment=BACKUP_STAGING_DIR=${BACKUP_STAGING_DIR}
 Environment=BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true
-ExecStart=/bin/bash -lc 'cd "${DEPLOY_APP_DIR}" && ./infra/ops/run-scheduled-backup.sh basebackup'
+ExecStart=/usr/bin/env --unset=BASH_ENV --unset=ENV /bin/bash --noprofile --norc ./infra/ops/run-scheduled-backup.sh basebackup
 EOF
 
   cat >"${base_timer}" <<EOF
@@ -110,7 +110,7 @@ Environment=SECRETS_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.secrets
 Environment=GENERATED_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.generated
 Environment=GENERATED_SECRET_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.generated.secrets
 Environment=BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true
-ExecStart=/bin/bash -lc 'cd "${DEPLOY_APP_DIR}" && ./infra/ops/sync-postgres-backups.sh'
+ExecStart=/usr/bin/env --unset=BASH_ENV --unset=ENV /bin/bash --noprofile --norc ./infra/ops/sync-postgres-backups.sh
 EOF
 
   cat >"${sync_timer}" <<EOF

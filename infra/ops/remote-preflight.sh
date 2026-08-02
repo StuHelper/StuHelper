@@ -128,6 +128,11 @@ if command -v systemctl >/dev/null 2>&1; then
     stuhelper-postgres-basebackup.service
     stuhelper-postgres-backup-sync.service
   )
+  backup_service_commands=(
+    "./infra/ops/run-scheduled-backup.sh dump"
+    "./infra/ops/run-scheduled-backup.sh basebackup"
+    "./infra/ops/sync-postgres-backups.sh"
+  )
   backup_timer_units=(
     stuhelper-postgres-dump-backup.timer
     stuhelper-postgres-basebackup.timer
@@ -138,10 +143,15 @@ if command -v systemctl >/dev/null 2>&1; then
       die "backup unit ${unit} is not installed on the target host"
     fi
   done
-  for unit in "${backup_service_units[@]}"; do
+  for index in "${!backup_service_units[@]}"; do
+    unit="${backup_service_units[${index}]}"
     require_systemd_unit_environment_value \
       "${unit}" \
       "BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true"
+    require_systemd_unit_hardened_execution \
+      "${unit}" \
+      "${REPO_ROOT}" \
+      "${backup_service_commands[${index}]}"
   done
   for unit in "${backup_timer_units[@]}"; do
     if ! systemctl is-enabled --quiet "${unit}"; then
