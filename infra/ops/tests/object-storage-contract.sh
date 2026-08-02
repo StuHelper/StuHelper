@@ -405,6 +405,16 @@ fi
 assert_contains "${tmpdir}/off-host-local-identities-missing.log" 'BACKUP_OBJECT_STORAGE_LOCAL_IDENTITY_CIDRS is required'
 
 if (
+  export BACKUP_OBJECT_STORAGE_LOCAL_IDENTITY_CIDRS=" , , "
+  export BACKUP_OBJECT_STORAGE_ENDPOINT="https://192.0.2.25"
+  export BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED="true"
+  require_off_host_backup_object_storage
+) >"${tmpdir}/off-host-local-identities-empty.log" 2>&1; then
+  fail "a separator-only production public/NAT identity inventory must be rejected"
+fi
+assert_contains "${tmpdir}/off-host-local-identities-empty.log" 'must contain at least one address or CIDR, or be exactly none'
+
+if (
   export BACKUP_OBJECT_STORAGE_ENDPOINT="https://minio:9000"
   export BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED="true"
   require_off_host_backup_object_storage

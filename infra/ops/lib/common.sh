@@ -366,6 +366,10 @@ if local_identity_spec.lower() != "none":
             raise SystemExit(
                 f"BACKUP_OBJECT_STORAGE_LOCAL_IDENTITY_CIDRS contains an invalid address or CIDR: {item}"
             ) from None
+    if not local_identity_networks:
+        raise SystemExit(
+            "BACKUP_OBJECT_STORAGE_LOCAL_IDENTITY_CIDRS must contain at least one address or CIDR, or be exactly none"
+        )
 
 try:
     address = ipaddress.ip_address(host)
