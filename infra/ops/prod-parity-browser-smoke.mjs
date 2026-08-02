@@ -202,7 +202,6 @@ const checks = [
     requiredTexts: [
       '当前浏览器会话',
       '退出当前会话',
-      '打开账号设置',
       '绑定手机',
       '授权应用',
       '实名认证',
@@ -539,7 +538,8 @@ const checks = [
     flow: 'web-authenticated-refresh',
     expectedTexts: ['我的评价', 'My Reviews'],
     requiredTexts: ['我的评价', '我的点赞', '我的收藏'],
-    forbiddenTexts: [
+    requiredTabTexts: ['我的评价', '我的点赞', '我的收藏'],
+    forbiddenTabTexts: [
       '个人资料',
       'Account Profile',
       '实名认证',
@@ -1086,6 +1086,13 @@ async function runCheck(browser, check, viewportVariant) {
       ...toArray(check.forbiddenTexts),
     ];
     const presentForbiddenTexts = forbiddenTexts.filter((text) => bodyText.includes(text));
+    const requiredTabTexts = toArray(check.requiredTabTexts);
+    const forbiddenTabTexts = toArray(check.forbiddenTabTexts);
+    const tabTexts = requiredTabTexts.length > 0 || forbiddenTabTexts.length > 0
+      ? (await page.getByRole('tab').allInnerTexts()).map((text) => text.trim())
+      : [];
+    const missingRequiredTabTexts = requiredTabTexts.filter((text) => !tabTexts.includes(text));
+    const presentForbiddenTabTexts = forbiddenTabTexts.filter((text) => tabTexts.includes(text));
 
     if (!matchedText) {
       throw new Error(
@@ -1100,6 +1107,16 @@ async function runCheck(browser, check, viewportVariant) {
     if (presentForbiddenTexts.length > 0) {
       throw new Error(
         `present forbidden text: ${presentForbiddenTexts.join(', ')}`,
+      );
+    }
+    if (missingRequiredTabTexts.length > 0) {
+      throw new Error(
+        `missing required tab text: ${missingRequiredTabTexts.join(', ')}`,
+      );
+    }
+    if (presentForbiddenTabTexts.length > 0) {
+      throw new Error(
+        `present forbidden tab text: ${presentForbiddenTabTexts.join(', ')}`,
       );
     }
     if (
@@ -1138,6 +1155,9 @@ async function runCheck(browser, check, viewportVariant) {
       matchedText,
       requiredTexts,
       forbiddenTexts,
+      requiredTabTexts,
+      forbiddenTabTexts,
+      tabTexts,
       responseHeaders: readExpectedResponseHeaders(response, check),
       flowResult,
       ignoredConsoleErrors,
