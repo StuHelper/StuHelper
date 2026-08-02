@@ -498,7 +498,9 @@
       },
       "method": {
         "ldap": "LDAP",
-        "manual": "人工审核"
+        "manual": "人工审核",
+        "school_email_otp": "学校邮箱验证码",
+        "school_sso": "学校 SSO"
       }
     },
     "schoolConfig": {

@@ -498,7 +498,9 @@
       },
       "method": {
         "ldap": "LDAP",
-        "manual": "Manual Review"
+        "manual": "Manual Review",
+        "school_email_otp": "School Email Code",
+        "school_sso": "School SSO"
       }
     },
     "schoolConfig": {
