@@ -245,7 +245,9 @@ require_off_host_backup_object_storage() {
 
   if ! output="$(python3 - "${BACKUP_OBJECT_STORAGE_ENDPOINT:-}" 2>&1 <<'PY'
 import ipaddress
+import json
 import socket
+import subprocess
 import sys
 from urllib.parse import urlsplit
 
@@ -270,10 +272,7 @@ if address is None:
         )
 
 if address is not None:
-    if address.is_loopback or address.is_unspecified or address.is_link_local:
-        raise SystemExit(
-            "BACKUP_OBJECT_STORAGE_ENDPOINT must not resolve to a loopback, unspecified, or link-local address"
-        )
+    resolved_addresses = {address}
 elif (
     "." not in host
     or host == "host.docker.internal"
@@ -283,6 +282,81 @@ elif (
     raise SystemExit(
         "BACKUP_OBJECT_STORAGE_ENDPOINT must use an off-host fully-qualified hostname or a non-local IP address"
     )
+else:
+    resolved_addresses = set()
+    for database in ("ahostsv4", "ahostsv6"):
+        try:
+            result = subprocess.run(
+                ["getent", database, host],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+        except FileNotFoundError:
+            raise SystemExit(
+                "getent is required to resolve BACKUP_OBJECT_STORAGE_ENDPOINT"
+            ) from None
+        for line in result.stdout.splitlines():
+            fields = line.split()
+            if not fields:
+                continue
+            candidate = fields[0].split("%", 1)[0]
+            try:
+                resolved_addresses.add(ipaddress.ip_address(candidate))
+            except ValueError:
+                continue
+    if not resolved_addresses:
+        raise SystemExit(
+            "BACKUP_OBJECT_STORAGE_ENDPOINT must resolve to at least one A or AAAA address"
+        )
+
+try:
+    local_result = subprocess.run(
+        ["ip", "-j", "address", "show"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    local_interfaces = json.loads(local_result.stdout)
+except FileNotFoundError:
+    raise SystemExit(
+        "iproute2 is required to verify that BACKUP_OBJECT_STORAGE_ENDPOINT is off-host"
+    ) from None
+except (subprocess.CalledProcessError, json.JSONDecodeError) as error:
+    raise SystemExit(
+        f"failed to enumerate local addresses while verifying BACKUP_OBJECT_STORAGE_ENDPOINT: {error}"
+    ) from None
+
+local_addresses = set()
+for interface in local_interfaces:
+    for info in interface.get("addr_info", []):
+        candidate = str(info.get("local", "")).split("%", 1)[0]
+        try:
+            local_addresses.add(ipaddress.ip_address(candidate))
+        except ValueError:
+            continue
+
+def normalize(value):
+    if isinstance(value, ipaddress.IPv6Address) and value.ipv4_mapped is not None:
+        return value.ipv4_mapped
+    return value
+
+normalized_local_addresses = {normalize(value) for value in local_addresses}
+for resolved_address in resolved_addresses:
+    normalized_address = normalize(resolved_address)
+    if (
+        normalized_address.is_loopback
+        or normalized_address.is_unspecified
+        or normalized_address.is_link_local
+        or normalized_address.is_multicast
+    ):
+        raise SystemExit(
+            "BACKUP_OBJECT_STORAGE_ENDPOINT must not resolve to a loopback, unspecified, link-local, or multicast address"
+        )
+    if normalized_address in normalized_local_addresses:
+        raise SystemExit(
+            "BACKUP_OBJECT_STORAGE_ENDPOINT must not resolve to an address assigned to the production host"
+        )
 PY
   )"; then
     die "${output}"
