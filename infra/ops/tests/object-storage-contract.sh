@@ -254,7 +254,7 @@ if ! (
   export OBJECT_STORAGE_FORCE_PATH_STYLE="false"
   export OBJECT_STORAGE_ACCESS_KEY_ID="contract-app-key"
   export OBJECT_STORAGE_SECRET_ACCESS_KEY="contract-app-secret"
-  export BACKUP_OBJECT_STORAGE_ENDPOINT="https://backups.example.test"
+  export BACKUP_OBJECT_STORAGE_ENDPOINT="https://192.0.2.25"
   export BACKUP_OBJECT_STORAGE_BUCKET="contract-backup"
   export BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID="contract-backup-key"
   export BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY="contract-backup-secret"
@@ -275,7 +275,7 @@ if ! (
   export OBJECT_STORAGE_SECRET_ACCESS_KEY="contract-app-secret"
   export OBJECT_STORAGE_TLS_CA="/object-storage-tls/ca.crt"
   export OBJECT_STORAGE_TLS_CA_HOST_PATH="${distinct_dir}/ca.crt"
-  export BACKUP_OBJECT_STORAGE_ENDPOINT="https://backups.example.test"
+  export BACKUP_OBJECT_STORAGE_ENDPOINT="https://192.0.2.25"
   export BACKUP_OBJECT_STORAGE_BUCKET="contract-backup"
   export BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID="contract-backup-key"
   export BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY="contract-backup-secret"
@@ -295,7 +295,7 @@ if (
   export OBJECT_STORAGE_SECRET_ACCESS_KEY="contract-app-secret"
   export OBJECT_STORAGE_TLS_CA="/object-storage-tls/ca.crt"
   export OBJECT_STORAGE_TLS_CA_HOST_PATH=""
-  export BACKUP_OBJECT_STORAGE_ENDPOINT="https://backups.example.test"
+  export BACKUP_OBJECT_STORAGE_ENDPOINT="https://192.0.2.25"
   export BACKUP_OBJECT_STORAGE_BUCKET="contract-backup"
   export BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID="contract-backup-key"
   export BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY="contract-backup-secret"
@@ -311,7 +311,7 @@ if (
   export OBJECT_STORAGE_USE_SSL="true"
   export OBJECT_STORAGE_ACCESS_KEY_ID="contract-app-key"
   export OBJECT_STORAGE_SECRET_ACCESS_KEY="contract-app-secret"
-  export BACKUP_OBJECT_STORAGE_ENDPOINT="https://backups.example.test"
+  export BACKUP_OBJECT_STORAGE_ENDPOINT="https://192.0.2.25"
   export BACKUP_OBJECT_STORAGE_BUCKET="contract-backup"
   export BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID="contract-backup-key"
   export BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY="contract-backup-secret"
@@ -327,7 +327,7 @@ if (
   export OBJECT_STORAGE_USE_SSL="true"
   export OBJECT_STORAGE_ACCESS_KEY_ID="contract-app-key"
   export OBJECT_STORAGE_SECRET_ACCESS_KEY="contract-shared-secret"
-  export BACKUP_OBJECT_STORAGE_ENDPOINT="https://backups.example.test"
+  export BACKUP_OBJECT_STORAGE_ENDPOINT="https://192.0.2.25"
   export BACKUP_OBJECT_STORAGE_BUCKET="contract-backup"
   export BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID="contract-backup-key"
   export BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY="contract-shared-secret"
@@ -364,6 +364,53 @@ if (
   fail "an abbreviated numeric loopback endpoint must be rejected"
 fi
 assert_contains "${tmpdir}/off-host-legacy-loopback.log" 'must not use a legacy or abbreviated numeric IPv4 address'
+
+resolver_bin="${tmpdir}/resolver-bin"
+mkdir -p "${resolver_bin}"
+cat >"${resolver_bin}/getent" <<'GETENT'
+#!/usr/bin/env bash
+set -euo pipefail
+
+database="${1:-}"
+host="${2:-}"
+[[ "${database}" == "ahostsv4" || "${database}" == "ahostsv6" ]] || exit 2
+case "${database}:${host}" in
+  ahostsv4:backup-on-host.example.test)
+    printf '203.0.113.77 STREAM %s\n' "${host}"
+    ;;
+  ahostsv4:backup-off-host.example.test)
+    printf '198.51.100.42 STREAM %s\n' "${host}"
+    ;;
+  *) exit 2 ;;
+esac
+GETENT
+cat >"${resolver_bin}/ip" <<'IP'
+#!/usr/bin/env bash
+set -euo pipefail
+
+[[ "$*" == "-j address show" ]] || exit 2
+printf '%s\n' '[{"ifname":"eth0","addr_info":[{"family":"inet","local":"203.0.113.77","prefixlen":24}]}]'
+IP
+chmod +x "${resolver_bin}/getent" "${resolver_bin}/ip"
+
+if (
+  export PATH="${resolver_bin}:${PATH}"
+  export BACKUP_OBJECT_STORAGE_ENDPOINT="https://backup-on-host.example.test"
+  export BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED="true"
+  require_off_host_backup_object_storage
+) >"${tmpdir}/off-host-dns-local.log" 2>&1; then
+  fail "a backup FQDN resolving to the production host must be rejected"
+fi
+assert_contains "${tmpdir}/off-host-dns-local.log" 'must not resolve to an address assigned to the production host'
+
+if ! (
+  export PATH="${resolver_bin}:${PATH}"
+  export BACKUP_OBJECT_STORAGE_ENDPOINT="https://backup-off-host.example.test"
+  export BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED="true"
+  require_off_host_backup_object_storage
+); then
+  fail "an asserted backup FQDN resolving only to a non-local address was rejected"
+fi
 
 export BACKUP_OBJECT_STORAGE_ENDPOINT="https://objects.example.test"
 export BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID="contract-runtime-key"
