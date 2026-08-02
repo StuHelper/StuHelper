@@ -50,8 +50,7 @@ fi
 
 release_file="${DEPLOY_STATE_DIR}/releases/${target_tag}.env"
 if [[ -f "${release_file}" ]]; then
-  # shellcheck disable=SC1090
-  source "${release_file}"
+  source_env_file "${release_file}"
 else
   BACKEND_IMAGE_REF="$(derive_tagged_image_ref "${BACKEND_IMAGE_REF:-}" "${target_tag}" || true)"
   FRONTEND_IMAGE_REF="$(derive_tagged_image_ref "${FRONTEND_IMAGE_REF:-}" "${target_tag}" || true)"

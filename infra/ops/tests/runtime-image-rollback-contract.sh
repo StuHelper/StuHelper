@@ -51,10 +51,25 @@ load_env() {
   export FRONTEND_IMAGE_REF=ghcr.io/stuhelper/frontend@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
   export ADMIN_IMAGE_REF=ghcr.io/stuhelper/admin@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 }
+source_env_file() {
+  local file="$1"
+  local key value
+  while IFS='=' read -r key value; do
+    [[ -n "${key}" ]] || continue
+    printf -v "${key}" '%s' "${value}"
+    export "${key}"
+  done <"${file}"
+}
 resolve_previous_release_tag() {
   return 1
 }
 EOF
+
+grep -qF 'source_env_file "${release_file}"' "${ROLLBACK_SCRIPT}" ||
+  fail "rollback release records must use source_env_file"
+if grep -qF 'source "${release_file}"' "${ROLLBACK_SCRIPT}"; then
+  fail "rollback release records must not be raw-sourced"
+fi
 
 cat >"${fixture_repo}/infra/ops/validate-runtime-image-scan.py" <<'PY'
 import os
