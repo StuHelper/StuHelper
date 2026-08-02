@@ -2,13 +2,16 @@
 type: reference
 audience: backend-dev
 status: current
-authoritative-source: server/internal/pkg/errs/codes.go
-last-verified: 2026-04-19
+authoritative-source: server/internal/pkg/errs/codes.go + server/internal/modules/admission/handler_errors.go
+last-verified: 2026-08-02
 ---
 
 # API 错误码
 
-权威来源：`server/internal/pkg/errs/codes.go`
+通用及模块化八位错误码的权威来源是 `server/internal/pkg/errs/codes.go`。Admission 在既有客户端
+上线前采用了 `admission.*` 命名空间；为保持公开 API 兼容性，这六个稳定码继续由
+`server/internal/modules/admission/handler_errors.go` 管理，并同步到 OpenAPI
+`AdmissionErrorCode`。新增错误应优先使用八位错误码，不再扩展第二套命名体系。
 
 ## 编码结构
 
@@ -39,6 +42,8 @@ last-verified: 2026-04-19
 | 评课 | `011` |
 | 文件 | `020` |
 | 通知 | `030` |
+
+Admission 的历史 `admission.*` 兼容命名空间不占用数字模块号，详见下文专节。
 
 ## 响应格式
 
@@ -183,6 +188,20 @@ last-verified: 2026-04-19
 | A0110300 | 400 | ErrDangerousContent | 危险内容 |
 | A0110301 | 400 | ErrSensitiveContent | 敏感内容 |
 | A0110302 | 400 | ErrInvalidTransition | 状态流转无效 |
+
+## Admission 兼容错误码
+
+以下错误码已经被 Web、Koishi 和外部契约消费，属于稳定 wire contract。它们是八位编码规则的
+明确兼容例外，不代表可以继续新增 dotted code。
+
+| 码 | 常见 HTTP | 常量 | 说明 |
+|----|-----------|------|------|
+| admission.member_blacklisted | 409 | ErrCodeAdmissionMemberBlacklisted | 入群主体处于成员黑名单 |
+| admission.qq_mismatch | 400 | ErrCodeAdmissionQQMismatch | 链接中的 QQ 与会话不一致 |
+| admission.token_consumed | 409 | ErrCodeAdmissionTokenConsumed | admission token 已被消费 |
+| admission.token_expired | 410 | ErrCodeAdmissionTokenExpired | admission token 已过期 |
+| admission.token_not_found | 404 | ErrCodeAdmissionTokenNotFound | admission token 不存在 |
+| admission.session_not_found | 404 | ErrCodeAdmissionSessionNotFound | admission session 不存在 |
 
 ## B000 系统
 

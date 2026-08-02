@@ -9,6 +9,7 @@ FreshmanApplicationStatus:
 AdmissionErrorCode:
   type: string
   enum:
+    - admission.member_blacklisted
     - admission.qq_mismatch
     - admission.token_consumed
     - admission.token_expired

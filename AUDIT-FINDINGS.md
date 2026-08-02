@@ -219,7 +219,7 @@ Required 与 Go/JavaScript CodeQL。bypass actor 只允许 GitHub 用户 `Xaurya
 | P3-8 | `implemented`：取消收藏、删除教师、删除敏感词三个成功 Handler 改为真正的 204 且无响应体，与既有 OpenAPI 契约一致；集成断言锁定 status/body。本条所在提交。 |
 | R-3 | P3 UX：签名图片 URL 过期后的刷新/禁用 |
 | R-4 | 可选：区分 array 的 payload guard 去重 |
-| R-5 | P3：error-code reference exception/真源一致性 |
+| R-5 | `implemented`：错误码参考明确八位码与六个已发布 `admission.*` 兼容码的双真源边界，禁止继续扩展 dotted code；补齐 OpenAPI 遗漏的 `member_blacklisted` 并以契约测试覆盖全部六项。本条所在提交。 |
 | R-6 | P3：四个限流端点补 429/503 契约 |
 | R-7 | P4 hygiene：删除无业务语义的 `capturedAt`，不持久化客户端时间 |
 | R-11 | P3 先测：outbox 固定 dedupe row lock-wait |

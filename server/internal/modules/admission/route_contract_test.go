@@ -49,6 +49,7 @@ func TestAdmissionErrorCodes(t *testing.T) {
 	}
 
 	schema := string(raw)
+	assertSchemaContains(t, schema, "admission.member_blacklisted")
 	assertSchemaContains(t, schema, "admission.qq_mismatch")
 	assertSchemaContains(t, schema, "admission.token_consumed")
 	assertSchemaContains(t, schema, "admission.token_expired")
