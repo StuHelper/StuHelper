@@ -47,7 +47,8 @@ last-verified: 2026-08-02
 
 1. Pull Request、`develop` 或 `main` push 运行按路径选择的 `CI`。
 2. `CI / Required` 汇总后端、契约、客户端、E2E、Koishi、Infra、依赖和安全扫描。
-3. 只有受信任的 `develop` / `main` push 且聚合门禁成功，才调用 `Publish images`。
+3. 只有受信任的 `develop` / `main` push、聚合门禁与两项 CodeQL 成功，且提交仍是实时 branch head，
+   才调用 `Publish images`。
 4. backend / frontend / admin 使用完整 commit SHA 构建并在本地接受 Trivy 扫描。
 5. 同一候选镜像推送到 GHCR，记录 manifest digest，并签发 provenance 与 CycloneDX SBOM
    attestation；SBOM JSON 作为 Actions evidence 保留 30 天。

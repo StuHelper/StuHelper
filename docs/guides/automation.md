@@ -228,7 +228,8 @@ Pull Request、`develop` 和 `main` push 会触发 `.github/workflows/ci.yml`。
 - npm/Yarn 依赖审计、Semgrep、CodeQL、完整 Git 历史 Gitleaks；
 - 应用候选镜像的 `HIGH` / `CRITICAL` Trivy 门禁，以及 22 个受管运行时镜像额外 `UNKNOWN` 策略、限时例外和 VEX 校验。
 
-受信任的 `develop` / `main` push 只有在 `CI / Required` 成功后，才调用
+受信任的 `develop` / `main` push 只有在 `CI / Required` 和两项 CodeQL 都成功、提交仍是实时 branch
+head 后，才调用
 `.github/workflows/publish-images.yml`：
 
 1. 使用完整 commit SHA 构建 backend / frontend / admin；

@@ -32,7 +32,8 @@ StuHelper 当前由单一常任维护者 `Xauryan` 管理。项目 owner 已明�
 ## Decision
 
 1. Pull Request 是代码评审和变更验证入口；`develop` / `main` 的可信 push 只有在 `CI / Required`
-   成功后才发布镜像。CodeQL 的 Go 与 JavaScript/TypeScript 结果继续作为受保护分支门禁。
+   与 CodeQL 的 Go、JavaScript/TypeScript 都成功，且提交仍是实时 branch head 时才发布镜像；三项
+   checks 同时继续作为受保护分支门禁。
 2. 每个可信 commit 的 backend、frontend、admin 镜像只构建一次。候选镜像先在本地完成
    `HIGH` / `CRITICAL` 漏洞门禁，再推送不可变完整 SHA tag；发布后为 digest 签发 provenance 和
    CycloneDX SBOM attestation。`latest` / `develop-latest` 只用于人类识别，永不作为部署输入。

@@ -758,6 +758,7 @@ jobs:
       github.event_name == 'push' &&
       (github.ref_name == 'develop' || github.ref_name == 'main')
     permissions:
+      checks: read # Publish only after Required and both CodeQL jobs succeed
       contents: read
       packages: write # Publish scanned images after every CI gate succeeds
       attestations: write # Attach provenance to each immutable image digest
