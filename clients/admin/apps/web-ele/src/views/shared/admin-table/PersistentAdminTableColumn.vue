@@ -32,7 +32,14 @@ const width = computed(() => {
   return table?.columnWidth(props.columnKey) ?? props.defaultWidth;
 });
 const minWidth = computed(() => {
-  return props.defaultMinWidth ?? attrs['min-width'];
+  if (props.defaultMinWidth !== undefined) {
+    return props.defaultMinWidth;
+  }
+  const inheritedMinWidth = attrs['min-width'];
+  return typeof inheritedMinWidth === 'number' ||
+    typeof inheritedMinWidth === 'string'
+    ? inheritedMinWidth
+    : undefined;
 });
 
 function normalizeSlotProps(slotProps: unknown): TableColumnSlotProps {

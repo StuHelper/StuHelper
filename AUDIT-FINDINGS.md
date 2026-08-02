@@ -211,7 +211,7 @@ Required 与 Go/JavaScript CodeQL。bypass actor 只允许 GitHub 用户 `Xaurya
 | P2-17 | `implemented`：把误命名且被拿来限制游客正文的 `review_preview_title_chars` 无损迁移为 `review_guest_preview_content_chars`；游客仍只见首个非空行且默认上限保持 24 字，登录但无完整权限的用户改为真实应用正文字符数与百分比两个开关，标题保持可见。策略、用户配置和评课包测试通过。本条所在提交。 |
 | P2-19 | `implemented`：拆分评课正文、回复正文与举报说明的长度 sentinel；只有评课正文使用 `A0110003/A0110004`，回复和举报仍保持通用范围错误，同时为危险内容、缺少评分维度和非法评分补上已有专用码。评课包全量测试通过。本条所在提交。 |
 | P3-1 | `implemented`：`AdminContentLayout` 正式支持并显示可选页面说明，保留标题、总数和 action 布局；组件回归覆盖有/无说明。本条所在提交。 |
-| P3-2 | `implemented`：持久化表格列的显式 `defaultMinWidth` 优先，否则保留调用方透传的 `min-width`，不再被 `undefined` 覆盖；组件回归锁定属性合并顺序。本条所在提交。 |
+| P3-2 | `implemented`：持久化表格列的显式 `defaultMinWidth` 优先，否则只保留调用方透传的 string/number `min-width`，不再被 `undefined` 或非法 attribute 类型覆盖；组件回归锁定属性合并顺序，Admin 全量类型检查通过。提交 `743bcc3f` 及类型收尾提交。 |
 | P3-3 | `implemented`：只有 `pending` 新生申请显示审核控件，已处理行只显示状态；提交入口再次检查当前行状态并阻断陈旧动作。专项回归覆盖 pending/approved/rejected。本条所在提交。 |
 | P3-4 | `implemented`：把成员黑名单迁移计划重写为当前 PostgreSQL 权威、Admin/Bot API、Admission 联动、Koishi 故障语义和生产验收边界；移除 `blacklist.json` 仍为现状及“待移除/改为”等过时叙事。本条所在提交。 |
 | P3-5 | `implemented`：前端目录/模块、后端 RBAC 边界已按当前源码校正；GitHub 时点状态迁入 `docs/internal` snapshot，现行 guide 只保留可重复验收步骤；automation/runbook 去除迁移叙事。文档卫生通过。本条所在提交。 |
