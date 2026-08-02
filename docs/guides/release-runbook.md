@@ -23,7 +23,7 @@ last-verified: 2026-08-03
 - [ ] GitHub Actions `Runtime image security` 已通过并保留本次 JSON evidence；`infra/security/runtime-images.json` 中没有过期的 pin review、漏洞例外或 VEX，生产 `.env.prod.shared` 中的基础设施镜像引用与已扫描策略一致。
 - [ ] production `Deploy` 作业已通过受保护 GitHub environment 的人工审批。
 - [ ] 如果包含数据库变更，已完成备份；`prod-deploy.sh` 在迁移前执行 `backup-postgres.sh`。
-- [ ] 生产机上的逻辑备份 / base backup / backup sync timer 已启用。
+- [ ] 生产机上的逻辑备份 / base backup / backup sync timer 已启用；升级部署 bundle 后已由 root 重新运行 `./infra/ops/install-backup-timers.sh`，三个 service 的有效环境均含 `BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true`。
 - [ ] 承载 `postgres_data` / `redis_data` 的宿主机块设备已启用静态加密；外部 S3 已启用服务端加密、版本/保留和生命周期策略。
 - [ ] 远端部署控制面已核对：`.deploy/remote.env`；GitHub 自动部署要求
   `REGISTRY=ghcr.io`、`REGISTRY_AUTH_MODE=workflow-token`。
