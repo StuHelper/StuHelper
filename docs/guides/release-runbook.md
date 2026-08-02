@@ -30,6 +30,9 @@ last-verified: 2026-08-03
 - [ ] 共享配置已核对：`.env.prod.shared`。
 - [ ] secrets 已核对：`.env.prod.secrets`（本地演练可用 `.env.prod.secrets.local`）；运行时派生 secrets 必须通过 `GENERATED_ENV_SECRET_REF` 写入远端 secret backend，`.env.prod.generated.secrets` 仅保留空占位。
 - [ ] secret backend 已核对：`.deploy/remote.env` 中的 `SECRET_BACKEND` / `*_SECRET_REF` / `GENERATED_ENV_SECRET_REF` / `VAULT_ADDR` / `VAULT_TOKEN_FILE`。
+- [ ] `${DEPLOY_APP_DIR}/.secrets/vault/token` 是无 `default` policy 的专用 periodic token，而不是
+  初始化 root token；`stuhelper-vault-token-renewal.timer` 已安装、enabled 且 active，部署用户执行
+  `./infra/ops/vault-runtime-token.sh check` 能验证精确路径权限、TTL 与三条 secret ref。
 - [ ] 关键变量已核对：内置 PostgreSQL 模式的 `POSTGRES_PASSWORD`、所有模式的 `POSTGRES_EXPORTER_DB_PASSWORD`、`REDIS_PASSWORD`、`REDIS_EXPORTER_PASSWORD`、`TAG`、`OBJECT_STORAGE_*`、`BACKUP_OBJECT_STORAGE_*`、`ADMISSION_PUBLIC_BASE_URL=https://join.stuhelper.com`、`WEB_VITE_SSO_URL=https://sso.stuhelper.com`、`WEB_VITE_WEB_URL=https://stuhelper.com`。外部 PostgreSQL 模式不生成、不保存也不要求 StuHelper 自建数据库的超级用户密码。`POSTGRES_EXPORTER_DB_PASSWORD` 必须是 PostgreSQL `stuhelper_metrics` 专用值，不与应用、备份或超级用户复用；`REDIS_EXPORTER_PASSWORD` 必须是 Redis `stuhelper_metrics` 专用值，不与 `REDIS_PASSWORD` 复用。生产对象存储与备份端点必须为 HTTPS；公共 CA 场景下 `OBJECT_STORAGE_TLS_CA` / `OBJECT_STORAGE_TLS_CA_HOST_PATH` 都留空。私有 CA 场景下前者固定为 `/object-storage-tls/ca.crt`，后者指向宿主机可读 PEM CA bundle；`BACKUP_OBJECT_STORAGE_TLS_CA` 独立使用宿主机可读路径。
 - [ ] admission 最小生产数据已通过 `./infra/ops/import-school-directory.sh` 和 `./infra/ops/admission-bootstrap-production-data.sh` 幂等准备：学校目录包含 `school_code=4111010006` 的北京航空航天大学，当前只启用该校，公开学生认证/admission 表单以 `schoolCode=4111010006` 为主识别字段，邮箱域仅 `buaa.edu.cn`，`platform=qq` 的 `178037297` 策略存在，`auto_approve_verified_join=true`、`auto_approve_unverified_join=true`、`forward_raw_material_to_qq=false`。
 - [ ] Koishi/NapCat 独立节点已确认：Koishi service 使用 `env_file` 或等价机制注入 `STUHELPER_PLATFORM_BASE_URL=https://stuhelper.com`、`STUHELPER_PLATFORM_SERVICE_TOKEN`、`STUHELPER_FRESHMAN_MATERIAL_HOSTS=stuhelper.com,join.stuhelper.com`；真实 token 不写入仓库或 runbook。
@@ -95,6 +98,10 @@ make prod-init
 # 远端机器需要自持部署控制面
 ./infra/ops/init-remote-deploy-config.sh
 
+# Vault 初始化、解封并 seed 三条 secret ref 后，以 root 创建 scoped runtime token 并安装续期 timer
+sudo VAULT_ROOT_INIT_FILE=/var/lib/stuhelper/vault-credentials/init.json \
+  ./infra/ops/vault-runtime-token.sh configure
+
 # 可选：指定要发布的不可变镜像
 export BACKEND_IMAGE_REF=<registry/backend:sha-or-tag>
 export FRONTEND_IMAGE_REF=<registry/frontend:sha-or-tag>
@@ -118,7 +125,7 @@ make prod-deploy
 |------|----------------|
 | Vault 配置与 file storage | `${XDG_STATE_HOME:-$HOME/.local/state}/stuhelper/vault/` |
 | init / unseal 材料 | `${XDG_STATE_HOME:-$HOME/.local/state}/stuhelper/vault-credentials/` |
-| Vault token | `${XDG_STATE_HOME:-$HOME/.local/state}/stuhelper/secrets/vault/token` |
+| Vault runtime token | `${XDG_STATE_HOME:-$HOME/.local/state}/stuhelper/secrets/vault/token` |
 | 本机 remote deploy config | `${XDG_STATE_HOME:-$HOME/.local/state}/stuhelper/deploy/remote.env` |
 
 macOS 使用 `$HOME/Library/Application Support/StuHelper/`。这些目录必须保持 `0700`，凭据与配置
@@ -141,6 +148,12 @@ tmpfs，避免每次受控重建遗留新的匿名 Docker volume；正式审计�
 KV mount 和既有 `GENERATED_ENV_SECRET_REF` 全部可读；如果 staged storage 报告为 uninitialized，
 脚本会在 `vault operator init` 和任何凭据文件覆盖之前失败。恢复隔离目录应保留为只读恢复锚点，
 直到完成重启、解封和已知 KV 读取验证；不能让 Docker 继续依赖已移动目录的存活 inode。
+
+初始化入口只在 runtime token 文件缺失或为空时从 `init.json` 临时填入 root token；一旦
+`vault-runtime-token.sh configure` 已换成 scoped token，后续幂等执行不会把它覆盖回 root。生产机的
+`init.json` / unseal key 必须继续保持 root-only；部署用户只持有 scoped token。默认 72 小时 period、
+12 小时续期和 12 小时 preflight TTL 下限给人工解封/故障处理留下窗口，同时确保停止续期的机器凭据
+会自动失效。
 
 ### 宝塔 Compose 源码包应急发布
 

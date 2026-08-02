@@ -143,6 +143,9 @@ VAULT_ADDR=REPLACE_WITH_VAULT_ADDR
 VAULT_NAMESPACE=
 VAULT_TOKEN_FILE=${DEPLOY_APP_DIR}/.secrets/vault/token
 VAULT_KV_MOUNT=secret
+VAULT_RUNTIME_TOKEN_POLICY=stuhelper-production-deploy
+VAULT_RUNTIME_TOKEN_PERIOD_SECONDS=259200
+VAULT_RUNTIME_TOKEN_MIN_TTL_SECONDS=43200
 EOF
   chown "${DEPLOY_USER}:${DEPLOY_GROUP}" "${remote_config}"
   chmod 0600 "${remote_config}"
@@ -335,8 +338,9 @@ Deploy dir:  ${DEPLOY_APP_DIR}
 Next steps:
 1. Put production shared config into ${DEPLOY_APP_DIR}/.env.prod.shared
 2. Put production secrets into ${DEPLOY_APP_DIR}/.env.prod.secrets
-3. Put the Vault token into:
-   - ${DEPLOY_APP_DIR}/.secrets/vault/token
+3. Initialize/unseal Vault, seed the three configured secret refs, then install the scoped runtime token:
+   - sudo VAULT_ROOT_INIT_FILE=/var/lib/stuhelper/vault-credentials/init.json ${DEPLOY_APP_DIR}/infra/ops/vault-runtime-token.sh configure
+   - do not persist the Vault root token in ${DEPLOY_APP_DIR}/.secrets/vault/token
 4. Review the remote deploy control plane in ${DEPLOY_APP_DIR}/.deploy/remote.env
    - set REGISTRY=ghcr.io and REGISTRY_AUTH_MODE=workflow-token for GitHub Actions
    - shared/generated secret refs should point to your remote secret backend

@@ -34,6 +34,19 @@ fi
 if [[ -z "${SECRET_BACKEND:-}" || "${SECRET_BACKEND:-}" == "none" || "${SECRET_BACKEND:-}" == "file" ]]; then
   die "production bootstrap requires a non-file secret backend for generated secrets"
 fi
+if [[ "${SECRET_BACKEND}" == "vault-kv-v2" ]]; then
+  require_cmd systemctl
+  [[ -x "${SCRIPT_DIR}/vault-runtime-token.sh" ]] ||
+    die "Vault runtime token checker is missing or not executable"
+  "${SCRIPT_DIR}/vault-runtime-token.sh" check
+  if ! systemctl list-unit-files | grep -q '^stuhelper-vault-token-renewal\.timer'; then
+    die "Vault runtime token renewal timer is not installed on the target host"
+  fi
+  systemctl is-enabled --quiet stuhelper-vault-token-renewal.timer ||
+    die "Vault runtime token renewal timer is not enabled"
+  systemctl is-active --quiet stuhelper-vault-token-renewal.timer ||
+    die "Vault runtime token renewal timer is not active"
+fi
 
 ensure_generated_files
 if [[ -n "${SHARED_ENV_SECRET_REF:-}" ]]; then

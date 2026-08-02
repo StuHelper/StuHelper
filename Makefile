@@ -1,4 +1,4 @@
-.PHONY: help bootstrap-dev-ubuntu2404 dev dev-init dev-up dev-docker-up dev-down dev-reset dev-smoke dev-status dev-logs e2e e2e-web e2e-admin e2e-uni e2e-koishi obs-up obs-down obs-smoke prod-init prod-vault-init prod-render prod-deploy prod-rollback deploy prod-down prod-reset prod-smoke prod-sso-smoke prod-tencent-ses-smoke prod-resend-email-smoke prod-admission-reviewer-readiness prod-admission-mvp-evidence prod-admission-mvp-final-evidence prod-admission-mvp-final-koishi-evidence prod-admission-mvp-final-verify prod-open-platform-evidence prod-backup-evidence prod-parity-ingress prod-parity-ingress-down prod-parity-up prod-parity-down prod-parity-reset prod-parity-smoke prod-parity-datastore-smoke prod-parity-browser-smoke prod-parity-admission-e2e deploy-bundle ansible-bootstrap ansible-deploy-staging ansible-deploy-prod ansible-rollback-staging ansible-rollback-prod check-docs check-admission-mvp check-infra-contracts check-semgrep-custom
+.PHONY: help bootstrap-dev-ubuntu2404 dev dev-init dev-up dev-docker-up dev-down dev-reset dev-smoke dev-status dev-logs e2e e2e-web e2e-admin e2e-uni e2e-koishi obs-up obs-down obs-smoke prod-init prod-vault-init prod-vault-runtime-token prod-render prod-deploy prod-rollback deploy prod-down prod-reset prod-smoke prod-sso-smoke prod-tencent-ses-smoke prod-resend-email-smoke prod-admission-reviewer-readiness prod-admission-mvp-evidence prod-admission-mvp-final-evidence prod-admission-mvp-final-koishi-evidence prod-admission-mvp-final-verify prod-open-platform-evidence prod-backup-evidence prod-parity-ingress prod-parity-ingress-down prod-parity-up prod-parity-down prod-parity-reset prod-parity-smoke prod-parity-datastore-smoke prod-parity-browser-smoke prod-parity-admission-e2e deploy-bundle ansible-bootstrap ansible-deploy-staging ansible-deploy-prod ansible-rollback-staging ansible-rollback-prod check-docs check-admission-mvp check-infra-contracts check-semgrep-custom
 
 .DEFAULT_GOAL := help
 
@@ -38,6 +38,7 @@ help:
 	@echo "Production:"
 	@echo "  make prod-init   - generate production shared/secrets env skeletons with required placeholders"
 	@echo "  make prod-vault-init - start/init local Vault in the OS state dir and link .deploy/remote.env"
+	@echo "  make prod-vault-runtime-token - configure the production least-privilege periodic Vault token (root)"
 	@echo "  make prod-render - render generated observability configs"
 	@echo "  make prod-deploy - pull pinned production images, bootstrap, deploy, and smoke-check prod stack"
 	@echo "  make prod-rollback - rollback to the previous successful production tag"
@@ -136,6 +137,9 @@ prod-init:
 
 prod-vault-init:
 	$(PROD_RUNTIME_ENV) ./infra/ops/init-local-vault-secret-backend.sh
+
+prod-vault-runtime-token:
+	sudo ./infra/ops/vault-runtime-token.sh configure
 
 prod-render:
 	$(PROD_RUNTIME_ENV) ./infra/ops/render-observability.sh prod

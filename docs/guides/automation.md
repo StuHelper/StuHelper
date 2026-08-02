@@ -167,8 +167,13 @@ make prod-deploy
 - 目标机自持 `${DEPLOY_APP_DIR}/.deploy/remote.env`
 - 目标机自持 `${DEPLOY_APP_DIR}/.env.prod.shared` / `${DEPLOY_APP_DIR}/.env.prod.secrets`
 - 运行时派生 secrets 通过 `GENERATED_ENV_SECRET_REF` 写入远端 secret backend；`${DEPLOY_APP_DIR}/.env.prod.generated.secrets` 仅保留空占位文件
-- 目标机自持 Vault token 文件：
+- 目标机自持 Vault **最小权限运行 token** 文件：
   - `${DEPLOY_APP_DIR}/.secrets/vault/token`
+- 该文件禁止保存初始化 root token。`vault-runtime-token.sh configure` 用 root-only init material
+  创建无 `default` policy 的孤儿 periodic token：shared/secrets 两条 KV v2 路径只能读取，generated
+  路径只能创建、读取和更新，并只额外拥有 `lookup-self`、`renew-self`、`capabilities-self` 与为幂等
+  Vault bootstrap 核对 mount 所需的 `sys/mounts` 只读权限；其他路径默认拒绝。默认 period 为 72
+  小时，systemd 每 12 小时续期，部署前要求 TTL 至少还有 12 小时。
 - shared env / generated env secrets 由 `${DEPLOY_APP_DIR}/.deploy/remote.env` 中的 secret ref 决定
   （默认 `SECRET_BACKEND=vault-kv-v2`）
 - GitHub Actions 远端发布使用 `REGISTRY_AUTH_MODE=workflow-token`：每个 job 的短期
@@ -185,9 +190,26 @@ cd /opt/stuhelper
 ./infra/ops/init-remote-deploy-config.sh
 ```
 
+Vault 已初始化、解封并写入三条 secret ref 后，由 root 一次性收敛运行权限并安装续期 timer：
+
+```bash
+cd /opt/stuhelper
+sudo VAULT_ROOT_INIT_FILE=/var/lib/stuhelper/vault-credentials/init.json \
+  ./infra/ops/vault-runtime-token.sh configure
+sudo systemctl status stuhelper-vault-token-renewal.timer --no-pager
+sudo -u stuhelper REMOTE_DEPLOY_CONFIG_FILE=/opt/stuhelper/.deploy/remote.env \
+  ./infra/ops/vault-runtime-token.sh check
+```
+
+`init.json` 与 unseal key 保持 `root:root 0600`；运行 token 文件保持 `stuhelper:stuhelper 0600`。
+初始化脚本重复执行时不会再用 root token 覆盖已经安装的 scoped token。Vault 仍采用人工解封：主机
+重启后必须先解封；在未解封期间续期与部署均失败关闭，不能通过延长为永久 token 绕过。
+
 如果是远端部署，实际链路里会先执行 `infra/ops/remote-preflight.sh`，检查：
 
 - `.deploy/remote.env` 是否就位
+- Vault 运行 token 是否只有约定策略、TTL 是否高于安全下限、三条精确 KV 路径是否可读，以及续期
+  timer 是否已安装、启用并处于 active
 - 共享配置 / secrets 文件是否就位
 - 备份目录是否存在
 - 生产 PostgreSQL TLS 是否强制开启并使用 `verify-ca` 或更严格的 `verify-full`
@@ -294,6 +316,8 @@ sudo bash infra/ops/bootstrap-ubuntu2404.sh
 - 部署目录
 - `.deploy/remote.env`
 - `.secrets/vault/token` 占位文件
+- 最小权限 Vault token 配置脚本和 12 小时续期 timer 安装入口（需要在 Vault 初始化/seed 后由 root
+  执行 `vault-runtime-token.sh configure`）
 - PostgreSQL 逻辑备份 timer
 - PostgreSQL base backup timer
 - PostgreSQL backup sync timer
@@ -324,7 +348,8 @@ variables、workflow YAML 或构建参数中。
 - `${DEPLOY_APP_DIR}/.env.prod.shared`
 - `${DEPLOY_APP_DIR}/.env.prod.secrets`
 - `${DEPLOY_APP_DIR}/.env.prod.generated.secrets`（应为空占位）
-- `${DEPLOY_APP_DIR}/.secrets/vault/token`
+- `${DEPLOY_APP_DIR}/.secrets/vault/token`（只能是 `vault-runtime-token.sh configure` 生成的 scoped
+  periodic token，不能是 Vault 初始化 root token）
 
 ## 回滚
 
