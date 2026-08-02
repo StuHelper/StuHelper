@@ -198,7 +198,7 @@ assert_contains "${PUBLISH_WORKFLOW}" "steps\.existing\.outputs\.found == 'true'
 assert_contains "${PUBLISH_WORKFLOW}" "format\('\{0\}@\{1\}', matrix\.image, steps\.existing\.outputs\.digest\)"
 assert_contains "${PUBLISH_WORKFLOW}" 'sbom-path: sbom-\$\{\{ matrix\.name \}\}\.cdx\.json'
 assert_contains "${PUBLISH_WORKFLOW}" 'name: Upload the SBOM evidence'
-assert_contains "${PUBLISH_WORKFLOW}" 'group: publish-images-\$\{\{ inputs\.commit_sha \}\}'
+assert_contains "${PUBLISH_WORKFLOW}" '^  group: publish-images$'
 assert_contains "${PUBLISH_WORKFLOW}" 'cancel-in-progress: false'
 assert_contains "${PUBLISH_WORKFLOW}" 'SOURCE_DATE_EPOCH: \$\{\{ steps\.build-meta\.outputs\.commit_epoch \}\}'
 assert_contains "${PUBLISH_WORKFLOW}" 'org\.opencontainers\.image\.created=\$\{\{ steps\.build-meta\.outputs\.build_time \}\}'

@@ -16,7 +16,9 @@ permissions:
   contents: read
 
 concurrency:
-  group: publish-images-${{ inputs.commit_sha }}
+  # Serialize every registry mutation so immutable tags and human-readable
+  # aliases cannot race across develop/main or rapid consecutive pushes.
+  group: publish-images
   cancel-in-progress: false
 
 jobs:

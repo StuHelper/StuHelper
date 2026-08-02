@@ -51,9 +51,10 @@ StuHelper 当前由单一常任维护者 `Xauryan` 管理。项目 owner 已明�
    break-glass；该开关不适用于 staging，也不绕过 checks、provenance、digest 或分支规则。
 7. 部署前验证 job 不绑定 environment，也不读取部署 secret。只有验证完成后的 deploy job 才进入
    environment 审批并获得环境级 SSH secrets；审批后、任何 SSH 前再次校验实时 branch head、checks
-   和 staging gate，防止等待期间候选过期。可信分支 push 的发布 run 不允许被后续 push 半途取消，
-   过期 run 由二次校验失败关闭。上传 bundle 使用唯一 run ID 文件名、固定 host key、专用私钥、
-   传输后 SHA-256 校验和严格 SSH 超时。
+   和 staging gate，防止等待期间候选过期。可信分支 push 使用独立 CI run，不允许被后续 push 半途
+   取消，也不会因旧 production approval 排队而阻塞新 head 的测试；registry mutation 全局串行，
+   environment mutation 按环境串行，过期候选由二次校验失败关闭。上传 bundle 使用唯一 run ID
+   文件名、固定 host key、专用私钥、传输后 SHA-256 校验和严格 SSH 超时。
 8. Rollback 始终使用当前可信 `main` / `develop` controller 和当前运维脚本，只把经过 provenance
    验证的历史应用镜像 digest 作为回滚目标。禁止让历史 release 的 workflow 或运维控制脚本重新
    获得 environment secrets。

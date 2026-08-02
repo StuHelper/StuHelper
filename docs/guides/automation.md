@@ -255,8 +255,9 @@ reviewer `Xauryan` 审批，并默认要求同一 SHA 的最新 staging deployme
 只能通过手工 `Deploy` 显式选择 `skip_staging_gate=true`、填写足够的事故上下文并留下 production
 approval；它不绕过 checks、provenance、digest 或分支校验。
 
-PR 的旧 run 会在新 push 后自动取消；`develop` / `main` 的可信 push run 不会相互取消，避免镜像发布
-或远端部署半途终止。若分支在排队或等待 environment 审批期间前移，部署前二次校验会拒绝旧候选。
+PR 的旧 run 会在新 push 后自动取消；`develop` / `main` 的可信 push 使用独立 run，不会相互取消，
+也不会让旧 production approval 阻塞新 head 的 CI。registry mutation 全局串行，staging / production
+mutation 分环境串行。若分支在排队或等待 environment 审批期间前移，部署前二次校验会拒绝旧候选。
 
 生产分支真正部署到线上之前，打包阶段和 `remote-preflight.sh` 会共同避免：
 

@@ -135,6 +135,7 @@ assert_text_contains "${required_job_block}" '^      - static-contracts$' "requi
 assert_contains "${GITHUB_CI_FILE}" '^  schedule:$'
 assert_contains "${GITHUB_CI_FILE}" '^    - cron: "23 18 \* \* 0"$'
 assert_contains "${GITHUB_CI_FILE}" "github\.event_name == 'schedule'"
+assert_contains "${GITHUB_CI_FILE}" "github\.event_name == 'pull_request' && github\.ref \|\| github\.run_id"
 assert_contains "${GITHUB_CI_FILE}" 'cancel-in-progress: \$\{\{ github\.event_name == .pull_request. \}\}'
 assert_contains "${GITHUB_CI_FILE}" '^  promote-staging:$'
 assert_contains "${GITHUB_CI_FILE}" "vars\.STAGING_AUTO_DEPLOY_ENABLED == 'true'"
