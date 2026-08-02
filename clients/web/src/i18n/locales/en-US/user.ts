@@ -372,6 +372,7 @@ export default {
             regenerateCode: "Regenerate Binding Code",
             creating: "Creating...",
             codeCreated: "Binding code created",
+            codeExpired: "The binding code has expired. Create a new one.",
             refreshStatus: "Refresh Status",
             checkingStatus: "Checking...",
             statusUpdated: "QQ binding status updated",

@@ -346,6 +346,7 @@ export default {
             regenerateCode: "重新生成绑定码",
             creating: "生成中...",
             codeCreated: "绑定码已生成",
+            codeExpired: "绑定码已过期，请重新生成",
             refreshStatus: "刷新状态",
             checkingStatus: "检查中...",
             statusUpdated: "QQ 绑定状态已更新",
