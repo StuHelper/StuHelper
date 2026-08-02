@@ -147,7 +147,7 @@ make prod-deploy
 - `.env.prod.secrets.local`：本机或临时环境使用的 secrets 文件
 - `.env.prod.generated`：运行时派生配置
 - `.env.prod.generated.secrets`：生产保留空占位；真实运行时派生 secrets 写入远端 secret backend，避免本地明文落盘
-- `.env.casdoor-bootstrap.local`：一次性 Casdoor bootstrap admin credential；只由部署脚本读取，不挂载到运行时 app 容器
+- `.env.casdoor-bootstrap.local`：一次性 Casdoor bootstrap admin credential；只按受限 `KEY=VALUE` 环境文件解析，不执行 shell 语法，拒绝 `BASH_ENV` / `ENV`，且不挂载到运行时 app 容器
 
 `make prod-deploy` 会自动完成：
 

@@ -197,6 +197,7 @@ PY
 
   # shellcheck disable=SC1091
   source /dev/stdin <<<"${rendered}"
+  unset BASH_ENV ENV
 }
 
 default_local_state_dir() {

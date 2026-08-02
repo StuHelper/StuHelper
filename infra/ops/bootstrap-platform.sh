@@ -64,10 +64,7 @@ source_casdoor_bootstrap_env() {
     *) file="$(dirname "${ENV_FILE}")/${CASDOOR_BOOTSTRAP_ENV_FILE}" ;;
   esac
   if [[ -f "${file}" ]]; then
-    # shellcheck disable=SC1090
-    set -a
-    source "${file}"
-    set +a
+    source_env_file "${file}"
   fi
 }
 

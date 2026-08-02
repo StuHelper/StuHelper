@@ -88,8 +88,7 @@ source_casdoor_bootstrap_env() {
   local file
   file="$(resolve_env_path "${CASDOOR_BOOTSTRAP_ENV_FILE:-.env.casdoor-bootstrap.local}")"
   [[ -f "${file}" ]] || die "missing Casdoor bootstrap env file: ${file}"
-  # shellcheck disable=SC1090
-  source "${file}"
+  source_env_file "${file}"
 }
 
 require_immutable_image_ref() {
