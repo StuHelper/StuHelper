@@ -74,7 +74,7 @@ BACKUP_MODE=basebackup ./infra/ops/backup-postgres.sh backups/stuhelper-$(date +
 - 只有本轮全部远端复制成功后，它才会清理超出保留期的本地 logical / base / WAL 文件；认证、网络或对象存储故障不会触发本地删除
 - 同步器显式排除 `*.partial*`、WAL 归档的 `*.tmp*` 和 staging 路径；只有已经原子发布的工件会上传
 - 生产 systemd unit 固定要求异机门禁；门禁会在创建备份或执行 logical / base / WAL 保留期清理之前检查，失败时不会删除任何尚未上传的本地工件
-- 定时任务加载环境文件后，调用备份和同步子脚本时仍会再次清除 `BASH_ENV` / `ENV`，并使用非登录、无 profile 的 Bash，防止环境文件通过子进程启动钩子改变门禁或清理顺序
+- StuHelper 环境加载器拒绝配置文件中的 `BASH_ENV` / `ENV`，并在加载后清除父进程继承的同名变量；定时任务调用备份和同步子脚本时仍使用非登录、无 profile 的隔离 Bash，防止子进程启动钩子改变门禁或清理顺序
 
 生产机建议直接安装 systemd timer：
 

@@ -171,6 +171,10 @@ for lineno, line in enumerate(path.read_text().splitlines(), 1):
     key = key.strip()
     if not key_pattern.fullmatch(key):
         raise SystemExit(f"{path}:{lineno}: invalid env key: {key}")
+    if key in {"BASH_ENV", "ENV"}:
+        raise SystemExit(
+            f"{path}:{lineno}: shell startup variable {key} is not allowed in StuHelper environment files"
+        )
 
     raw_value = raw_value.strip()
     if raw_value:
@@ -1286,6 +1290,7 @@ load_env() {
   if [[ "${preserved_frontend_image_ref}" != "__STUHELPER_UNSET__" ]]; then export FRONTEND_IMAGE_REF="${preserved_frontend_image_ref}"; fi
   if [[ "${preserved_admin_image_ref}" != "__STUHELPER_UNSET__" ]]; then export ADMIN_IMAGE_REF="${preserved_admin_image_ref}"; fi
   set +a
+  unset BASH_ENV ENV
 }
 
 load_env_preserving() {
@@ -1307,6 +1312,7 @@ load_env_preserving() {
     export "${key}"
   done
   materialize_postgres_runtime_urls
+  unset BASH_ENV ENV
 }
 
 load_remote_deploy_config() {
@@ -1332,6 +1338,7 @@ load_remote_deploy_config() {
   if [[ "${preserved_registry_username}" != "__STUHELPER_UNSET__" ]]; then export REGISTRY_USERNAME="${preserved_registry_username}"; fi
   if [[ "${preserved_registry_password}" != "__STUHELPER_UNSET__" ]]; then export REGISTRY_PASSWORD="${preserved_registry_password}"; fi
   set +a
+  unset BASH_ENV ENV
 }
 
 compose() {
