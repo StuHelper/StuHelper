@@ -236,17 +236,17 @@ Required 与 Go/JavaScript CodeQL。bypass actor 只允许 GitHub 用户 `Xaurya
 | #33 | `validated-no-change`：`navigationStyle=custom` 的状态栏/微信胶囊遮挡机制在 App/mp-weixin 成立，但仓库现行 UniAppX 发布契约是 H5-only，平台守卫明确禁止声明或构建 mp-weixin；H5 浏览器视口不包含原生状态栏/胶囊。删除 custom navigation 会无依据改变已验收 H5 布局，因此当前不改；将来新增 App/小程序正式目标时，必须随认证、构建、CI 和真机门禁一起重新选择原生导航或实现安全区。本条所在提交。 |
 | #40 | `implemented`：SearchPage 订阅 ReviewCard 的 `moderated` 事件后，只重新读取用户已经加载的 review 页，不重跑 course 搜索、不清空结果也不滚回页首；多页结果按 ID 去重并更新真实 total，进行中的刷新 single-flight，新搜索会通过既有 AbortSignal 取消旧刷新。组件回归锁定审核后卡片更新、course 请求数与滚动位置。本条所在提交。 |
 | #41 | `implemented`：教师主页把首屏错误与追加页错误拆开；page N 失败时保留已加载 ReviewCard、在列表底部显示可重试错误，并继续请求同一页，不清空列表或重置滚动位置。组件回归覆盖第一页成功、第二页失败后列表仍可见。本条所在提交。 |
-| #58 | P3：moderation route 渐进使用现有 capability |
-| #66 | P3：OIDC ES256/RS256 配置与 verifier 行为对齐 |
-| #69 | P3：Native SSO 保存经校验的登录前 redirect |
-| #70 | P3：通用评课列表从 OpenAPI 增加 `isOwner` |
-| #71 | P3：inline edit 对齐 10–5000 字规则 |
-| #72 | P3：Admission 登录按钮 single-flight |
-| #73 | P3：OTP 重发 cooldown 和本地化错误 |
-| #74 | P3：QQ bind polling deadline、终态和后台暂停 |
-| #75 | P3：`sessionStorage` 副本失败不阻断登录 |
-| #76 | P3：匿名 handoff operations 显式 `security: []` |
-| #78 | P3：authorization 文档角色语义校正 |
+| #58 | `implemented`（`88f39e00`）：评课举报、审核、正文编辑和内容标记路由按既有细粒度 capability 授权；global-only 导出/教师/敏感词边界保持不变，scoped moderator 负向/正向契约已覆盖。 |
+| #66 | `implemented`（`cd4806cc`）：OIDC verifier 的允许算法由共享配置真源驱动，默认与 Casdoor RS256 对齐并允许显式 ES256；登录、Bearer、introspection 与测试不再各自维护不一致的算法假设。 |
+| #69 | `implemented`（`c38fa484`）：UniAppX native 登录把经校验的登录前 redirect 持久化到 SSO state，callback 只消费安全站内目标并保留默认回退；H5/native 定向回归覆盖。 |
+| #70 | `implemented`（`1d970d00`）：OpenAPI Review 增加只对已认证响应可见的 `isOwner`，Repository 仅内部携带 user hash、Service 统一计算所有列表 ownership；Web 不再用“有删除回调”猜所有权，后端同时拒绝自我举报。 |
+| #71 | `implemented`（`6efd2b36`）：inline edit 与后端共享的 trim 后 10–5000 字规则、maxlength、计数、禁用和本地化提示一致；组件回归覆盖上下界和空白。 |
+| #72 | `implemented`（`d8ab5147`）：Admission 登录、注册、切换账号与重新认证共享一个 pending redirect promise，并在按钮层提供互斥 loading；重复点击不会创建多个 OAuth state 或导航。 |
+| #73 | `implemented`（`8a3eb4f5`）：学籍邮箱 OTP 按服务端 `cooldownSeconds` 倒计时，离开页面清理 timer，发送失败使用结构化错误和本地化提示；专项回归覆盖 cooldown。 |
+| #74 | `implemented`（`f268e19c`）：QQ 绑定轮询使用服务端过期时间和 10 分钟硬上限，页面隐藏时暂停、恢复时沿原 deadline 继续；成功、401、过期均停止且过期码不可继续复制。 |
+| #75 | `implemented`（`e0783ed6`）：OAuth state 的 `sessionStorage` 副本改为 best-effort；存储不可用时记录稳定可观测事件但仍跳转，服务端 state/PKCE 保持权威。 |
+| #76 | `implemented previously`（`a6ead805`，与 P3-6 同一根因）：三个 mobile handoff operation 已显式 `security: []`，school SSO login/callback 继续继承认证；YAML 契约同时锁定两类相反语义，不重复修改。 |
+| #78 | `implemented`（`73ab0e3f`）：授权文档列出当前 catalog 的全部八类角色并区分 catalog/展开实现，明确 provisional 与空 capability 的 `section_reviewer` 语义；Go 契约验证文档覆盖 catalog。 |
 | 反向 `/admin/stats` | `implemented`：显式拆分只读 dashboard 与 privileged 管理路由的认证强度策略；生产/prod-parity 的统计读取要求活动 enrollment 和当前会话 MFA proof，但不要求 5 分钟 freshness，其余管理路由继续要求 5 分钟 step-up。Authorization Service、RBAC、app 组装与路由契约均覆盖缺 enrollment、缺 proof、陈旧 proof 和高风险 gate。本条所在提交。 |
 | 反向 Developer Connect | `implemented`：Connect 端点只从显式 `VITE_SSO_URL` 解析绝对 HTTP(S) issuer；缺失、相对、非法或非 HTTP(S) 配置统一回退到受控的 `https://sso.stuhelper.com`，不再把当前 Web origin 猜成 OIDC issuer。单测覆盖分域、非法 scheme 与默认值。本条所在提交。 |
 | U-3 | `implemented`：StudentVerificationPanel 的姓名、学号邮箱、验证码、匹配状态、阻断提示与 OTP 结果全部改用中英文 locale；不再显示后端中文 `message`，状态文案由机器状态映射并可随 locale 响应变化。页面专项回归、locale 契约、类型与 lint 均覆盖。本条所在提交。 |
@@ -290,7 +290,8 @@ Required 与 Go/JavaScript CodeQL。bypass actor 只允许 GitHub 用户 `Xaurya
 6. 一个唯一根因形成一个提交，不混入无关工作树文件；
 7. 只有提交和验证证据齐全后，才把状态改为 `implemented`。
 
-截至当前提交，已再次从源码、OpenAPI、migration、回归测试和本台账反向核对：第 5 节 4 个
-PR 线程及其 OpenFGA 分页依赖均已实施，没有发现其他未实施的 P0/P1/P2 根因。第 6 节其余
-条目均为已降级的 P3/P4、条件性、先测或产品决策项，不应为了关闭审计数字自动进入实现；
-第 8 节生产门禁必须在真实环境单独留证。
+截至 2026-08-02，已再次从源码、OpenAPI、migration、回归测试和本台账反向核对：第 5 节
+4 个 PR 线程及其 OpenFGA 分页依赖均已实施；第 6 节所有仍可达且必要的 P3 也已实施，重复
+标签已归并，条件性项目均有 `validated-no-change` 或明确不实施证据。没有发现其他未实施的
+P0/P1/P2/P3 代码根因。第 8 节是发布后必须从真实环境取得的运行证据，不得用本地实现或 CI
+结果伪报完成。
