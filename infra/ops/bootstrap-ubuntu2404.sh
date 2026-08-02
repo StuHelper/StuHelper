@@ -312,7 +312,7 @@ main() {
   require_root
 
   log "installing base packages"
-  apt_install ca-certificates curl gnupg jq openssl git bash python3
+  apt_install ca-certificates curl gnupg iproute2 jq openssl git bash python3
 
   log "installing Docker Engine and Compose plugin"
   ensure_docker_repo

@@ -33,7 +33,7 @@ assert_contains "${BOOTSTRAP_SCRIPT}" 'GO_VERSION="\$\{GO_VERSION:-1\.26\.5\}"'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'run as root \(sudo bash infra/ops/bootstrap-ubuntu2404\.sh\)'
 
 assert_contains "${BOOTSTRAP_SCRIPT}" 'apt-get update -y'
-assert_contains "${BOOTSTRAP_SCRIPT}" 'ca-certificates curl gnupg jq openssl git bash python3'
+assert_contains "${BOOTSTRAP_SCRIPT}" 'ca-certificates curl gnupg iproute2 jq openssl git bash python3'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'https://download\.docker\.com/linux/ubuntu/gpg'
 assert_contains "${BOOTSTRAP_SCRIPT}" '/etc/apt/keyrings/docker\.asc'
 assert_contains "${BOOTSTRAP_SCRIPT}" '/etc/apt/sources\.list\.d/docker\.list'
