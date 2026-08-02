@@ -258,6 +258,7 @@ if ! (
   export BACKUP_OBJECT_STORAGE_BUCKET="contract-backup"
   export BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID="contract-backup-key"
   export BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY="contract-backup-secret"
+  export BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED="true"
   export BACKUP_OBJECT_STORAGE_FORCE_PATH_STYLE="false"
   export BACKUP_OBJECT_STORAGE_TLS_CA="${distinct_dir}/ca.crt"
   export BACKUP_OBJECT_STORAGE_TLS_INSECURE="false"
@@ -278,6 +279,7 @@ if ! (
   export BACKUP_OBJECT_STORAGE_BUCKET="contract-backup"
   export BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID="contract-backup-key"
   export BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY="contract-backup-secret"
+  export BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED="true"
   export BACKUP_OBJECT_STORAGE_FORCE_PATH_STYLE="false"
   export BACKUP_OBJECT_STORAGE_TLS_INSECURE="false"
   require_production_object_storage
@@ -297,6 +299,7 @@ if (
   export BACKUP_OBJECT_STORAGE_BUCKET="contract-backup"
   export BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID="contract-backup-key"
   export BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY="contract-backup-secret"
+  export BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED="true"
   export BACKUP_OBJECT_STORAGE_TLS_INSECURE="false"
   require_production_object_storage
 ) >"${tmpdir}/missing-client-ca-host-path.log" 2>&1; then
@@ -312,6 +315,7 @@ if (
   export BACKUP_OBJECT_STORAGE_BUCKET="contract-backup"
   export BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID="contract-backup-key"
   export BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY="contract-backup-secret"
+  export BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED="true"
   export BACKUP_OBJECT_STORAGE_TLS_INSECURE="false"
   require_production_object_storage
 ) >"${tmpdir}/invalid-http.log" 2>&1; then
@@ -327,11 +331,39 @@ if (
   export BACKUP_OBJECT_STORAGE_BUCKET="contract-backup"
   export BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID="contract-backup-key"
   export BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY="contract-shared-secret"
+  export BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED="true"
   export BACKUP_OBJECT_STORAGE_TLS_INSECURE="false"
   require_production_object_storage
 ) >"${tmpdir}/invalid-shared-production-secret.log" 2>&1; then
   fail "production application and backup identities must not share one secret"
 fi
+
+if (
+  export BACKUP_OBJECT_STORAGE_ENDPOINT="https://backups.example.test"
+  export BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED="false"
+  require_off_host_backup_object_storage
+) >"${tmpdir}/off-host-unconfirmed.log" 2>&1; then
+  fail "an unconfirmed off-host backup target must be rejected"
+fi
+assert_contains "${tmpdir}/off-host-unconfirmed.log" 'BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED must be true'
+
+if (
+  export BACKUP_OBJECT_STORAGE_ENDPOINT="https://minio:9000"
+  export BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED="true"
+  require_off_host_backup_object_storage
+) >"${tmpdir}/off-host-compose-service.log" 2>&1; then
+  fail "a Compose-local backup endpoint must be rejected even when it is asserted as off-host"
+fi
+assert_contains "${tmpdir}/off-host-compose-service.log" 'must use an off-host fully-qualified hostname'
+
+if (
+  export BACKUP_OBJECT_STORAGE_ENDPOINT="https://127.1:9000"
+  export BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED="true"
+  require_off_host_backup_object_storage
+) >"${tmpdir}/off-host-legacy-loopback.log" 2>&1; then
+  fail "an abbreviated numeric loopback endpoint must be rejected"
+fi
+assert_contains "${tmpdir}/off-host-legacy-loopback.log" 'must not use a legacy or abbreviated numeric IPv4 address'
 
 export BACKUP_OBJECT_STORAGE_ENDPOINT="https://objects.example.test"
 export BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID="contract-runtime-key"
@@ -367,6 +399,9 @@ assert_contains "${SYNC_BACKUPS}" "--exclude '\\*\\.tmp'"
 assert_contains "${SYNC_BACKUPS}" "--exclude '\\*\\.tmp\\.\\*'"
 assert_contains "${SYNC_BACKUPS}" "--exclude 'quarantine-incomplete-\\*/\\*\\*'"
 assert_contains "${SYNC_BACKUPS}" 'target:\$\{BACKUP_OBJECT_STORAGE_BUCKET\}/\$\{prefix\}/wal.*\\'
+assert_contains "${SYNC_BACKUPS}" 'load_env_preserving BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED'
+assert_contains "${SYNC_BACKUPS}" 'require_off_host_backup_object_storage'
+assert_contains "${SCHEDULED_BACKUP}" 'load_env_preserving BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED'
 assert_contains "${SCHEDULED_BACKUP}" "-path '/wal/quarantine-incomplete-\\*' -prune"
 assert_contains "${FETCH_BACKUPS}" 'copy "target:'
 assert_not_contains "${SYNC_BACKUPS}" '(^|[[:space:]])sync([[:space:]]|$)'

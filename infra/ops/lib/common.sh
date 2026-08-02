@@ -231,10 +231,69 @@ PY
   fi
 }
 
+require_off_host_backup_object_storage() {
+  local confirmation="${BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED:-false}"
+  local output
+
+  case "${confirmation}" in
+    true) ;;
+    false|"")
+      die "BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED must be true only after the backup target has been verified to survive loss of the production host"
+      ;;
+    *) die "BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED must be true or false" ;;
+  esac
+
+  if ! output="$(python3 - "${BACKUP_OBJECT_STORAGE_ENDPOINT:-}" 2>&1 <<'PY'
+import ipaddress
+import socket
+import sys
+from urllib.parse import urlsplit
+
+endpoint = sys.argv[1].strip()
+host = (urlsplit(endpoint).hostname or "").lower().rstrip(".")
+if not host:
+    raise SystemExit("BACKUP_OBJECT_STORAGE_ENDPOINT must include a hostname")
+
+try:
+    address = ipaddress.ip_address(host)
+except ValueError:
+    address = None
+
+if address is None:
+    try:
+        socket.inet_aton(host)
+    except OSError:
+        pass
+    else:
+        raise SystemExit(
+            "BACKUP_OBJECT_STORAGE_ENDPOINT must not use a legacy or abbreviated numeric IPv4 address"
+        )
+
+if address is not None:
+    if address.is_loopback or address.is_unspecified or address.is_link_local:
+        raise SystemExit(
+            "BACKUP_OBJECT_STORAGE_ENDPOINT must not resolve to a loopback, unspecified, or link-local address"
+        )
+elif (
+    "." not in host
+    or host == "host.docker.internal"
+    or host.endswith(".localhost")
+    or host.endswith(".local")
+):
+    raise SystemExit(
+        "BACKUP_OBJECT_STORAGE_ENDPOINT must use an off-host fully-qualified hostname or a non-local IP address"
+    )
+PY
+  )"; then
+    die "${output}"
+  fi
+}
+
 require_production_object_storage() {
   require_backup_object_storage_config
   require_https_object_storage_endpoint "OBJECT_STORAGE_ENDPOINT" "${OBJECT_STORAGE_ENDPOINT:-}"
   require_https_object_storage_endpoint "BACKUP_OBJECT_STORAGE_ENDPOINT" "${BACKUP_OBJECT_STORAGE_ENDPOINT:-}"
+  require_off_host_backup_object_storage
 
   [[ "${OBJECT_STORAGE_USE_SSL:-false}" == "true" ]] ||
     die "OBJECT_STORAGE_USE_SSL must be true for production"
