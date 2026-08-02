@@ -247,7 +247,7 @@ Required 与 Go/JavaScript CodeQL。bypass actor 只允许 GitHub 用户 `Xaurya
 | #75 | P3：`sessionStorage` 副本失败不阻断登录 |
 | #76 | P3：匿名 handoff operations 显式 `security: []` |
 | #78 | P3：authorization 文档角色语义校正 |
-| 反向 `/admin/stats` | P3 决策：保留 freshness carve-out 时是否只补基础 MFA enrollment/proof |
+| 反向 `/admin/stats` | `implemented`：显式拆分只读 dashboard 与 privileged 管理路由的认证强度策略；生产/prod-parity 的统计读取要求活动 enrollment 和当前会话 MFA proof，但不要求 5 分钟 freshness，其余管理路由继续要求 5 分钟 step-up。Authorization Service、RBAC、app 组装与路由契约均覆盖缺 enrollment、缺 proof、陈旧 proof 和高风险 gate。本条所在提交。 |
 | 反向 Developer Connect | P3：issuer fallback 不使用 Web origin |
 | U-3 | P3：StudentVerificationPanel 学籍邮箱流程国际化 |
 

@@ -11,6 +11,7 @@ import (
 	"github.com/StuHelper/StuHelper/server/internal/modules/admission"
 	"github.com/StuHelper/StuHelper/server/internal/modules/auth"
 	authorizationmodule "github.com/StuHelper/StuHelper/server/internal/modules/authorization"
+	"github.com/StuHelper/StuHelper/server/internal/modules/course/review"
 	"github.com/StuHelper/StuHelper/server/internal/modules/rbac"
 	"github.com/StuHelper/StuHelper/server/internal/modules/user"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/config"
@@ -159,5 +160,18 @@ func adminMFAMiddlewares(appEnv string, repo user.MFAContextRepository) []gin.Ha
 	return []gin.HandlerFunc{
 		user.MFAContextMiddleware(repo),
 		rbac.RequirePrivilegedMFA(),
+	}
+}
+
+func adminReviewRouteSecurity(appEnv string, repo user.MFAContextRepository) review.AdminRouteSecurity {
+	if appEnv == config.EnvDevelopment {
+		return review.AdminRouteSecurity{}
+	}
+	return review.AdminRouteSecurity{
+		Dashboard: []gin.HandlerFunc{
+			user.MFAContextMiddleware(repo),
+			rbac.RequireMFAProof(),
+		},
+		Privileged: adminMFAMiddlewares(appEnv, repo),
 	}
 }

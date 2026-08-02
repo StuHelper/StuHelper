@@ -128,7 +128,7 @@ func TestReviewModerationRoutesUseScopedCapabilities(t *testing.T) {
 	}
 }
 
-func TestReviewAdminStatsDoesNotUseGroupStepUpGate(t *testing.T) {
+func TestReviewAdminStatsUsesDashboardMFAGateWithoutPrivilegedFreshnessGate(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	fixture := redisfixture.Start(t)
@@ -143,16 +143,25 @@ func TestReviewAdminStatsDoesNotUseGroupStepUpGate(t *testing.T) {
 	r := gin.New()
 	api := r.Group("/api/v1/course/review")
 	authMW := globalAdminCapabilityAuth(capability.AdminDashboardView, capability.AdminLogsView)
+	dashboardGateCalled := false
+	dashboardMFAGate := func(c *gin.Context) {
+		dashboardGateCalled = true
+		c.Next()
+	}
 	blockingStepUpGate := func(c *gin.Context) {
 		response.Error(c, http.StatusPreconditionFailed, errs.ErrStepUpRequired, "step-up required")
 	}
-	h.RegisterRoutes(api, authMW, authMW, blockingStepUpGate)
+	h.RegisterRoutes(api, authMW, authMW, AdminRouteSecurity{
+		Dashboard:  []gin.HandlerFunc{dashboardMFAGate},
+		Privileged: []gin.HandlerFunc{blockingStepUpGate},
+	})
 
 	stats := httptest.NewRecorder()
 	statsReq := httptest.NewRequest(http.MethodGet, "/api/v1/course/review/admin/stats", nil)
 	r.ServeHTTP(stats, statsReq)
 
 	assert.Equal(t, http.StatusOK, stats.Code)
+	assert.True(t, dashboardGateCalled)
 	assert.Contains(t, stats.Body.String(), "totalReviews")
 	assert.NotContains(t, stats.Body.String(), string(errs.ErrStepUpRequired))
 
