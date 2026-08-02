@@ -162,7 +162,7 @@ make prod-deploy
 
 ## 远端部署控制面
 
-远端机器不再由 CI / Ansible 在每次发布时下发 `deploy.remote.env`。现在改为：
+远端部署配置由目标机持有，CI / Ansible 不在每次发布时下发 `deploy.remote.env`：
 
 - 目标机自持 `${DEPLOY_APP_DIR}/.deploy/remote.env`
 - 目标机自持 `${DEPLOY_APP_DIR}/.env.prod.shared` / `${DEPLOY_APP_DIR}/.env.prod.secrets`

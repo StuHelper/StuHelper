@@ -22,7 +22,7 @@ last-verified: 2026-07-31
 - [ ] 涉及运维脚本、部署配置、生产 evidence、Nginx preflight 或 CI 漂移门禁时，本地已执行 `make check-infra-contracts`；该入口同时覆盖 `infra/ops/tests/*.sh` 和 `infra/ops/tests/*.mjs`。
 - [ ] GitHub Actions `Runtime image security` 已通过并保留本次 JSON evidence；`infra/security/runtime-images.json` 中没有过期的 pin review、漏洞例外或 VEX，生产 `.env.prod.shared` 中的基础设施镜像引用与已扫描策略一致。
 - [ ] production `Deploy` 作业已通过受保护 GitHub environment 的人工审批。
-- [ ] 如果包含数据库变更，已完成备份（注：`prod-deploy.sh` 现已自动在迁移前执行 `backup-postgres.sh`）。
+- [ ] 如果包含数据库变更，已完成备份；`prod-deploy.sh` 在迁移前执行 `backup-postgres.sh`。
 - [ ] 生产机上的逻辑备份 / base backup / backup sync timer 已启用。
 - [ ] 承载 `postgres_data` / `redis_data` 的宿主机块设备已启用静态加密；外部 S3 已启用服务端加密、版本/保留和生命周期策略。
 - [ ] 远端部署控制面已核对：`.deploy/remote.env`。
