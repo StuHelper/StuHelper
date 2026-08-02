@@ -115,8 +115,7 @@ path.write_text(
 path.chmod(0o600)
 PY
 
-# shellcheck disable=SC1090
-source "${config_file}"
+source_env_file "${config_file}"
 if [[ "${SECRET_BACKEND:-}" == "file" && "${REGISTRY_AUTH_MODE:-persistent-secret}" == "persistent-secret" ]]; then
   registry_username_path="$(secret_file_path "${REGISTRY_USERNAME_SECRET_REF}")"
   registry_password_path="$(secret_file_path "${REGISTRY_PASSWORD_SECRET_REF}")"
