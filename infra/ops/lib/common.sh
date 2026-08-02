@@ -43,6 +43,30 @@ require_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "missing required command: $1"
 }
 
+require_systemd_unit_environment_value() {
+  local unit="$1"
+  local expected="$2"
+  local effective_environment
+
+  if ! effective_environment="$(systemctl show "${unit}" --property=Environment --value 2>/dev/null)"; then
+    die "failed to inspect effective environment for systemd unit ${unit}"
+  fi
+  if ! python3 - "${expected}" "${effective_environment}" <<'PY'
+import shlex
+import sys
+
+expected, effective = sys.argv[1:3]
+try:
+    values = shlex.split(effective)
+except ValueError:
+    raise SystemExit(1) from None
+raise SystemExit(0 if expected in values else 1)
+PY
+  then
+    die "systemd unit ${unit} must set ${expected}; reinstall the production backup timers"
+  fi
+}
+
 require_integer_range() {
   local key="$1"
   local value="$2"

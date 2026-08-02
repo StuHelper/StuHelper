@@ -77,6 +77,12 @@ assert_contains "${PREFLIGHT_FILE}" 'APP_ENV must be production for remote prefl
 assert_contains "${PREFLIGHT_FILE}" 'vault-runtime-token\.sh" check'
 assert_contains "${PREFLIGHT_FILE}" 'stuhelper-vault-token-renewal\.timer'
 assert_contains "${PREFLIGHT_FILE}" 'Vault runtime token renewal timer is not active'
+assert_contains "${COMMON_LIB_FILE}" 'require_systemd_unit_environment_value\(\)'
+assert_contains "${PREFLIGHT_FILE}" 'stuhelper-postgres-dump-backup\.service'
+assert_contains "${PREFLIGHT_FILE}" 'stuhelper-postgres-basebackup\.service'
+assert_contains "${PREFLIGHT_FILE}" 'stuhelper-postgres-backup-sync\.service'
+[[ "$(grep -c 'BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true' "${PREFLIGHT_FILE}")" == "1" ]] || \
+  fail "remote preflight must require the off-host marker for every backup service"
 assert_contains "${PREFLIGHT_FILE}" 'require_production_postgres_ssl'
 assert_contains "${PREFLIGHT_FILE}" 'require_production_external_student_source_security'
 assert_contains "${COMMON_LIB_FILE}" 'EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_MODE must be verify-full in production'
@@ -139,6 +145,34 @@ cleanup() {
   rm -rf "${tmpdir}"
 }
 trap cleanup EXIT
+
+if ! bash -c '
+  set -euo pipefail
+  source "$1"
+  systemctl() {
+    printf "%s\n" "ENV_FILE=/opt/stuhelper/.env.prod.shared BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true"
+  }
+  require_systemd_unit_environment_value \
+    stuhelper-postgres-backup-sync.service \
+    BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true
+' bash "${COMMON_LIB_FILE}"; then
+  fail "the systemd environment validator rejected the required off-host marker"
+fi
+
+if bash -c '
+  set -euo pipefail
+  source "$1"
+  systemctl() {
+    printf "%s\n" "ENV_FILE=/opt/stuhelper/.env.prod.shared BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=false"
+  }
+  require_systemd_unit_environment_value \
+    stuhelper-postgres-backup-sync.service \
+    BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true
+' bash "${COMMON_LIB_FILE}" >"${tmpdir}/stale-backup-unit.out" 2>"${tmpdir}/stale-backup-unit.err"; then
+  fail "the systemd environment validator accepted a stale backup unit"
+fi
+grep -q 'reinstall the production backup timers' "${tmpdir}/stale-backup-unit.err" || \
+  fail "the stale backup unit failure did not report the remediation"
 
 fake_bin="${tmpdir}/bin"
 mkdir -p "${fake_bin}"

@@ -123,10 +123,27 @@ mkdir -p \
   "${DEPLOY_STATE_DIR}"
 
 if command -v systemctl >/dev/null 2>&1; then
-  for unit in     stuhelper-postgres-dump-backup.timer     stuhelper-postgres-basebackup.timer     stuhelper-postgres-backup-sync.timer; do
+  backup_service_units=(
+    stuhelper-postgres-dump-backup.service
+    stuhelper-postgres-basebackup.service
+    stuhelper-postgres-backup-sync.service
+  )
+  backup_timer_units=(
+    stuhelper-postgres-dump-backup.timer
+    stuhelper-postgres-basebackup.timer
+    stuhelper-postgres-backup-sync.timer
+  )
+  for unit in "${backup_service_units[@]}" "${backup_timer_units[@]}"; do
     if ! systemctl list-unit-files | grep -q "^${unit}"; then
-      die "backup timer ${unit} is not installed on the target host"
+      die "backup unit ${unit} is not installed on the target host"
     fi
+  done
+  for unit in "${backup_service_units[@]}"; do
+    require_systemd_unit_environment_value \
+      "${unit}" \
+      "BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true"
+  done
+  for unit in "${backup_timer_units[@]}"; do
     if ! systemctl is-enabled --quiet "${unit}"; then
       die "backup timer ${unit} is not enabled"
     fi

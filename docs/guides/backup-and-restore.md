@@ -134,9 +134,10 @@ sudo ./infra/ops/install-backup-timers.sh
 对象存储“可取回”也不自动代表异机灾备：同一生产主机上的 MinIO 会与数据库一起丢失。生产配置
 只有在备份端点位于独立故障域、且已验证生产主机完全丢失后仍可访问时，才能设置
 `BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED=true`。`remote-preflight.sh` 和 `prod-deploy.sh` 会对此
-失败关闭，并拒绝单标签 Compose 服务名、旧式缩写数字 IPv4 及明确的本机地址。生产备份
+失败关闭，并拒绝单标签 Compose 服务名、旧式缩写数字 IPv4 及解析到本机接口的 FQDN。生产备份
 systemd service 也固定要求这项门禁，不能由共享 env 将要求降级；配置漂移后定时同步会失败并留给
-systemd/告警处理，而不是继续把同机副本计作灾备。
+systemd/告警处理，而不是继续把同机副本计作灾备。升级已有节点后须由 root 重新运行
+`./infra/ops/install-backup-timers.sh`；预检会验证三个 service 的有效环境，拒绝继续使用缺少门禁的旧单元。
 
 ## 逻辑备份恢复
 
