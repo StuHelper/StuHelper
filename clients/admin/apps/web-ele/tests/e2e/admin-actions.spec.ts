@@ -282,10 +282,9 @@ async function mockAdminApi(page: Page, capturedMutations: CapturedMutation[]) {
         await route.fulfill(
           ok({
             ...item,
-            docPhotoFrontURL:
-              identityReviewDetailBrokenPhoto
-                ? 'data:image/png;base64,broken'
-                : 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=',
+            docPhotoFrontURL: identityReviewDetailBrokenPhoto
+              ? 'data:image/png;base64,broken'
+              : 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=',
             docPhotoBackURL: null,
             docPhotoSelfieURL: identityReviewDetailMissingSelfie
               ? null
