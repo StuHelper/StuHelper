@@ -9,6 +9,7 @@ PREPARE_CLIENT_CA="${REPO_ROOT}/infra/ops/prepare-object-storage-client-ca.sh"
 RCLONE_HELPER="${REPO_ROOT}/infra/ops/lib/rclone-object-storage.sh"
 SYNC_BACKUPS="${REPO_ROOT}/infra/ops/sync-postgres-backups.sh"
 FETCH_BACKUPS="${REPO_ROOT}/infra/ops/fetch-postgres-backups.sh"
+SCHEDULED_BACKUP="${REPO_ROOT}/infra/ops/run-scheduled-backup.sh"
 BASE_COMPOSE="${REPO_ROOT}/docker-compose.yml"
 PROD_COMPOSE="${REPO_ROOT}/docker-compose.prod.yml"
 PROD_DEPLOY="${REPO_ROOT}/infra/ops/prod-deploy.sh"
@@ -48,7 +49,8 @@ for file in \
   "${PREPARE_CLIENT_CA}" \
   "${RCLONE_HELPER}" \
   "${SYNC_BACKUPS}" \
-  "${FETCH_BACKUPS}"; do
+  "${FETCH_BACKUPS}" \
+  "${SCHEDULED_BACKUP}"; do
   [[ -f "${file}" ]] || fail "missing file: ${file}"
   bash -n "${file}"
 done
@@ -354,11 +356,18 @@ assert_contains "${capture_file}" '@sha256:[0-9a-f]{64}$'
 assert_contains "${SYNC_BACKUPS}" 'source "\$\{SCRIPT_DIR\}/lib/rclone-object-storage\.sh"'
 assert_contains "${FETCH_BACKUPS}" 'source "\$\{SCRIPT_DIR\}/lib/rclone-object-storage\.sh"'
 assert_contains "${SYNC_BACKUPS}" 'copy /source'
+assert_contains "${SYNC_BACKUPS}" 'host_user="\$\(id -u\):\$\(id -g\)"'
+assert_contains "${SYNC_BACKUPS}" 'wal_archive_user="\$\{POSTGRES_WAL_ARCHIVE_CONTAINER_USER:-70:70\}"'
+assert_contains "${SYNC_BACKUPS}" '"\$\{host_user\}"'
+assert_contains "${SYNC_BACKUPS}" '"\$\{wal_archive_user\}"'
+assert_not_contains "${SYNC_BACKUPS}" '"0:0"'
 assert_contains "${SYNC_BACKUPS}" "--exclude '\\*\\.partial'"
 assert_contains "${SYNC_BACKUPS}" "--exclude '\\*\\.partial\\.\\*'"
 assert_contains "${SYNC_BACKUPS}" "--exclude '\\*\\.tmp'"
 assert_contains "${SYNC_BACKUPS}" "--exclude '\\*\\.tmp\\.\\*'"
+assert_contains "${SYNC_BACKUPS}" "--exclude 'quarantine-incomplete-\\*/\\*\\*'"
 assert_contains "${SYNC_BACKUPS}" 'target:\$\{BACKUP_OBJECT_STORAGE_BUCKET\}/\$\{prefix\}/wal.*\\'
+assert_contains "${SCHEDULED_BACKUP}" "-path '/wal/quarantine-incomplete-\\*' -prune"
 assert_contains "${FETCH_BACKUPS}" 'copy "target:'
 assert_not_contains "${SYNC_BACKUPS}" '(^|[[:space:]])sync([[:space:]]|$)'
 assert_not_contains "${FETCH_BACKUPS}" '(^|[[:space:]])sync([[:space:]]|$)'
