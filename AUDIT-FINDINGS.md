@@ -222,7 +222,7 @@ Required 与 Go/JavaScript CodeQL。bypass actor 只允许 GitHub 用户 `Xaurya
 | R-5 | `implemented`：错误码参考明确八位码与六个已发布 `admission.*` 兼容码的双真源边界，禁止继续扩展 dotted code；补齐 OpenAPI 遗漏的 `member_blacklisted` 并以契约测试覆盖全部六项。本条所在提交。 |
 | R-6 | `implemented`：复核所有 19 个挂载 endpoint/user/progressive limiter 的操作，不只修原报告少算的四项；每个 OpenAPI operation 现在都声明 limiter 可达的 429 与 Redis fail-closed 503，并由生成契约测试统一锁定。本条所在提交。 |
 | R-7 | `implemented`：从 CameraCaptureRequest 和 Web payload 删除从未被服务端消费、且不能作为可信取证时间的客户端 `capturedAt`；服务端继续以接收/落库时间为准，E2E 明确断言 wire payload 不再携带该字段。本条所在提交。 |
-| R-11 | P3 先测：outbox 固定 dedupe row lock-wait |
+| R-11 | `validated-no-change`：真实 PostgreSQL 并发测试证明固定 dedupe 行确会产生可观测 `Lock` wait，释放事务后两次写仍正确合并为一个 durable job；昂贵刷新不在锁内，因此无证据支持拆 key。新增 source-write p95 告警与“持续 SLO 违约且归因到该 key 才重构”的门槛，保留现有 supersession fence。本条所在提交。 |
 | R-13 | P3 hardening：Oracle expected identity 与 grant evidence |
 | R-14 | `implemented`：删除未启用且会与现行 Dependabot 更新策略形成双重权威的 `renovate.json`；依赖更新继续由 `.github/dependabot.yml` 单一治理。本条所在提交。 |
 | R-15 | `implemented`：`IdentityPhotoUploadResult` 收敛为 Handler 实际且唯一返回的 `key`，删除永不返回的 `rejectionReason` / `createdAt` / `updatedAt` 可选字段，避免生成客户端承诺虚假能力。本条所在提交。 |
