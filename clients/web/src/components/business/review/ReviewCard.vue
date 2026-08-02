@@ -269,7 +269,23 @@
         class="w-full px-3 py-2 bg-transparent rounded-lg text-sm text-text-primary outline-none border border-border-light focus:border-primary resize-y min-h-[100px]"
         :aria-label="t('review.review.editPlaceholder')"
         :placeholder="t('review.review.editPlaceholder')"
+        :maxlength="REVIEW_CONTENT_MAX_LENGTH"
+        :aria-invalid="editContentTooShort"
+        :aria-describedby="editContentTooShort ? `review-edit-error-${review.id}` : undefined"
       />
+      <div class="mt-1.5 flex items-start justify-between gap-3 text-xs">
+        <span
+          v-if="editContentTooShort"
+          :id="`review-edit-error-${review.id}`"
+          class="text-danger"
+        >
+          {{ t('review.validation.contentTooShort', { min: REVIEW_CONTENT_MIN_LENGTH }) }}
+        </span>
+        <span v-else />
+        <span class="shrink-0 text-text-muted">
+          {{ editContentLength }}/{{ REVIEW_CONTENT_MAX_LENGTH }}
+        </span>
+      </div>
       <div class="flex justify-end gap-2 mt-2">
         <button
           type="button"
@@ -281,7 +297,7 @@
         <button
           type="button"
           class="px-4 py-1.5 text-xs rounded-full bg-primary text-white cursor-pointer transition-opacity hover:opacity-90 disabled:opacity-50"
-          :disabled="saving || !editContent.trim()"
+          :disabled="saving || editContentTooShort"
           @click="handleSaveEdit"
         >
           {{ saving ? t('common.actions.saving') : t('common.actions.save') }}
@@ -348,6 +364,10 @@
 import { ref, computed, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Heart, ThumbsDown, MessageCircle, EyeOff, Eye, Pencil, ShieldAlert, Flag, Trash2 } from 'lucide-vue-next'
+import {
+  REVIEW_CONTENT_MAX_LENGTH,
+  REVIEW_CONTENT_MIN_LENGTH,
+} from '@stuhelper/shared/constants'
 import type { Review } from '@stuhelper/shared/review'
 import {
   canEditReviewContent as canEditReviewContentAccess,
@@ -477,6 +497,8 @@ const {
   cancelEditing,
   handleSaveEdit,
 } = useReviewEdit(() => props.review, t, (id, content) => emit('updated', id, content))
+const editContentLength = computed(() => editContent.value.trim().length)
+const editContentTooShort = computed(() => editContentLength.value < REVIEW_CONTENT_MIN_LENGTH)
 
 const { deleting, handleDeleteOwn } = useReviewDelete(() => props.review, t, (id) => emit('deleted', id))
 const confirmingDelete = ref(false)
