@@ -119,6 +119,11 @@ assert_contains "${tmpdir}/dry-run.out" 'dry-run complete'
 assert_mode 700 "${source_dir}/infra/generated/postgres"
 assert_mode 600 "${source_dir}/infra/generated/redis/users.acl"
 
+# Recovered Baota trees can contain a non-traversable generated observability
+# parent even when its child directories have usable modes. The repair must
+# normalize the parent before walking or updating those children.
+chmod 600 "${source_dir}/infra/generated/observability"
+
 "${SCRIPT}" \
   --source-dir "${source_dir}" \
   --casdoor-compose-root "${casdoor_root}" \
@@ -170,6 +175,7 @@ assert_mode 644 "${source_dir}/infra/observability/tempo/tempo.yaml"
 assert_mode 755 "${source_dir}/infra/observability/grafana/dashboards"
 assert_mode 644 "${source_dir}/infra/observability/grafana/dashboards/overview.json"
 
+assert_mode 755 "${source_dir}/infra/generated/observability"
 assert_mode 750 "${source_dir}/infra/generated/observability/prometheus"
 assert_mode 640 "${source_dir}/infra/generated/observability/prometheus/prometheus.yml"
 assert_mode 750 "${source_dir}/infra/generated/observability/alertmanager"
