@@ -216,7 +216,7 @@ Required 与 Go/JavaScript CodeQL。bypass actor 只允许 GitHub 用户 `Xaurya
 | P3-4 | `implemented`：把成员黑名单迁移计划重写为当前 PostgreSQL 权威、Admin/Bot API、Admission 联动、Koishi 故障语义和生产验收边界；移除 `blacklist.json` 仍为现状及“待移除/改为”等过时叙事。本条所在提交。 |
 | P3-5 | `implemented`：前端目录/模块、后端 RBAC 边界已按当前源码校正；GitHub 时点状态迁入 `docs/internal` snapshot，现行 guide 只保留可重复验收步骤；automation/runbook 去除迁移叙事。文档卫生通过。本条所在提交。 |
 | P3-6 | `implemented`：school SSO login/callback 继承全局 cookie/bearer 鉴权并补齐 Handler 可达错误响应；三个 token 型 mobile handoff 端点显式声明匿名访问。YAML 契约测试同时锁定两类相反语义。本条所在提交。 |
-| P3-8 | P3：三个 Handler 真正返回 204 No Content |
+| P3-8 | `implemented`：取消收藏、删除教师、删除敏感词三个成功 Handler 改为真正的 204 且无响应体，与既有 OpenAPI 契约一致；集成断言锁定 status/body。本条所在提交。 |
 | R-3 | P3 UX：签名图片 URL 过期后的刷新/禁用 |
 | R-4 | 可选：区分 array 的 payload guard 去重 |
 | R-5 | P3：error-code reference exception/真源一致性 |

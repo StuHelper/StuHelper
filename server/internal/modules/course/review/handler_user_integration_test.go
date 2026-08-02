@@ -78,7 +78,9 @@ func TestReviewHandler_UserInteractionSuccessPaths(t *testing.T) {
 	w, c = withUserContext(http.MethodDelete, "/courses/1/favorites", "", selfUserID)
 	c.Params = gin.Params{{Key: "courseID", Value: strconv.FormatInt(courseID, 10)}}
 	h.RemoveFavorite(c)
-	assert.Equal(t, http.StatusOK, w.Code)
+	c.Writer.WriteHeaderNow()
+	assert.Equal(t, http.StatusNoContent, w.Code)
+	assert.Empty(t, w.Body.String())
 
 	// user reviews list
 	w, c = withUserContext(http.MethodGet, "/user/reviews", "", selfUserID)

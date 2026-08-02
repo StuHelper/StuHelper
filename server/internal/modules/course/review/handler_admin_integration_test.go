@@ -203,7 +203,9 @@ func TestReviewHandler_AdminSuccessPaths(t *testing.T) {
 	w, c = withAdminContext(http.MethodDelete, "/admin/sensitive-words/"+sensitiveWordID, "")
 	c.Params = gin.Params{{Key: "sensitiveWordID", Value: sensitiveWordID}}
 	h.DeleteSensitiveWord(c)
-	assert.Equal(t, http.StatusOK, w.Code)
+	c.Writer.WriteHeaderNow()
+	assert.Equal(t, http.StatusNoContent, w.Code)
+	assert.Empty(t, w.Body.String())
 
 	// Teacher admin handlers
 	w, c = withAdminContext(http.MethodGet, "/admin/teachers?search=孙", "")
@@ -229,7 +231,9 @@ func TestReviewHandler_AdminSuccessPaths(t *testing.T) {
 	w, c = withAdminContext(http.MethodDelete, "/admin/teachers/1", "")
 	c.Params = gin.Params{{Key: "teacherID", Value: strconv.FormatInt(createdTeacherID, 10)}}
 	h.DeleteTeacher(c)
-	assert.Equal(t, http.StatusOK, w.Code)
+	c.Writer.WriteHeaderNow()
+	assert.Equal(t, http.StatusNoContent, w.Code)
+	assert.Empty(t, w.Body.String())
 
 	// Content flag handlers
 	w, c = withAdminContext(http.MethodGet, "/admin/content-flags", "")
