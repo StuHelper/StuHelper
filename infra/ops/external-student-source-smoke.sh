@@ -150,6 +150,23 @@ if evidence.get("readableRecordPresent") is not True:
 oracle = evidence.get("oracle") or {}
 if oracle.get("tlsMode") != "verify-full" or oracle.get("tlsVerified") is not True:
     raise SystemExit("external Oracle student source did not use verified TLS")
+if oracle.get("expectedIdentityConfigured") is not True or oracle.get("runtimeIdentityMatched") is not True:
+    raise SystemExit("external Oracle runtime identity did not match the provisioned readonly identity")
+if not oracle.get("runtimeIdentityHashPrefix"):
+    raise SystemExit("external Oracle runtime identity evidence is missing")
+if oracle.get("leastPrivilegeGrantsVerified") is not True:
+    raise SystemExit("external Oracle runtime grants exceed the approved readonly boundary")
+expected_grant_counts = {
+    "roleGrantCount": 0,
+    "systemGrantCount": 1,
+    "approvedSystemGrantCount": 1,
+    "objectGrantCount": 1,
+    "approvedObjectGrantCount": 1,
+    "columnGrantCount": 0,
+}
+for evidence_key, expected in expected_grant_counts.items():
+    if oracle.get(evidence_key) != expected:
+        raise SystemExit(f"unexpected external Oracle {evidence_key}: {oracle.get(evidence_key)!r}")
 
 expected_oracle_tuning = {
     "maxOpenConns": "EXTERNAL_STUDENT_SOURCE_ORACLE_MAX_OPEN_CONNS",

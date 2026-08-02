@@ -1,6 +1,6 @@
 # StuHelper 审计与修复台账
 
-> 状态日期：2026-08-01
+> 状态日期：2026-08-02
 > 性质：仓库根目录阶段性工作产物，不是运行时事实真源。代码、测试、OpenAPI 和 migration
 > 与本文件冲突时，以前者为准。
 
@@ -223,7 +223,7 @@ Required 与 Go/JavaScript CodeQL。bypass actor 只允许 GitHub 用户 `Xaurya
 | R-6 | `implemented`：复核所有 19 个挂载 endpoint/user/progressive limiter 的操作，不只修原报告少算的四项；每个 OpenAPI operation 现在都声明 limiter 可达的 429 与 Redis fail-closed 503，并由生成契约测试统一锁定。本条所在提交。 |
 | R-7 | `implemented`：从 CameraCaptureRequest 和 Web payload 删除从未被服务端消费、且不能作为可信取证时间的客户端 `capturedAt`；服务端继续以接收/落库时间为准，E2E 明确断言 wire payload 不再携带该字段。本条所在提交。 |
 | R-11 | `validated-no-change`：真实 PostgreSQL 并发测试证明固定 dedupe 行确会产生可观测 `Lock` wait，释放事务后两次写仍正确合并为一个 durable job；昂贵刷新不在锁内，因此无证据支持拆 key。新增 source-write p95 告警与“持续 SLO 违约且归因到该 key 才重构”的门槛，保留现有 supersession fence。本条所在提交。 |
-| R-13 | P3 hardening：Oracle expected identity 与 grant evidence |
+| R-13 | `implemented`、`production-pending`：配置门禁要求应用 username 与 DBA provisioning 的 expected readonly username 相等；真实 smoke 从同一 Oracle 会话读取 `SESSION_USER` 和 `USER_*_PRIVS`，仅接受身份匹配、零 role、一个无 admin option 的 `CREATE SESSION`、目标表上一个无 grant/hierarchy option 的 `SELECT`、零列级授权。Evidence 只落身份哈希前缀、布尔值与授权计数。Go、配置、shell/readiness/init 合约均通过；本机没有真实 Oracle，生产 grant evidence 仍待发布验收。本条所在提交。 |
 | R-14 | `implemented`：删除未启用且会与现行 Dependabot 更新策略形成双重权威的 `renovate.json`；依赖更新继续由 `.github/dependabot.yml` 单一治理。本条所在提交。 |
 | R-15 | `implemented`：`IdentityPhotoUploadResult` 收敛为 Handler 实际且唯一返回的 `key`，删除永不返回的 `rejectionReason` / `createdAt` / `updatedAt` 可选字段，避免生成客户端承诺虚假能力。本条所在提交。 |
 | R-16 | 条件性：真实 academics connector 上线前再做 batching |
@@ -273,6 +273,7 @@ Required 与 Go/JavaScript CodeQL。bypass actor 只允许 GitHub 用户 `Xaurya
 - PostgreSQL 生产备份取回与 PITR；
 - 受保护 GitHub environment 的发布/回滚；
 - 真实 Redis、Oracle、对象存储、Koishi Console 热重载和 QQ admission 端到端；
+- Oracle smoke 的 `runtimeIdentityMatched=true`、`leastPrivilegeGrantsVerified=true` 及严格授权计数；
 - 前端生产构建在桌面/移动端的受控角色验收。
 
 本地测试、健康检查、CI 绿灯和开发数据库样本都不能替代上述证据。

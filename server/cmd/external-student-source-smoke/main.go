@@ -43,23 +43,33 @@ type smokeEvidence struct {
 }
 
 type oracleEvidence struct {
-	BreakerFailureThreshold int    `json:"breakerFailureThreshold"`
-	BreakerOpenSeconds      int64  `json:"breakerOpenSeconds"`
-	BreakerSuccessThreshold int    `json:"breakerSuccessThreshold"`
-	ConnMaxIdleTimeSeconds  int64  `json:"connMaxIdleTimeSeconds"`
-	ConnMaxLifetimeSeconds  int64  `json:"connMaxLifetimeSeconds"`
-	HostConfigured          bool   `json:"hostConfigured"`
-	MaxIdleConns            int    `json:"maxIdleConns"`
-	MaxOpenConns            int    `json:"maxOpenConns"`
-	Port                    int    `json:"port"`
-	Schema                  string `json:"schema"`
-	ServiceName             string `json:"serviceName"`
-	StudentIDColumn         string `json:"studentIDColumn"`
-	StudentNameColumn       string `json:"studentNameColumn"`
-	Table                   string `json:"table"`
-	TLSMode                 string `json:"tlsMode"`
-	TLSVerified             bool   `json:"tlsVerified"`
-	UsernameConfigured      bool   `json:"usernameConfigured"`
+	ApprovedObjectGrantCount     int    `json:"approvedObjectGrantCount"`
+	ApprovedSystemGrantCount     int    `json:"approvedSystemGrantCount"`
+	BreakerFailureThreshold      int    `json:"breakerFailureThreshold"`
+	BreakerOpenSeconds           int64  `json:"breakerOpenSeconds"`
+	BreakerSuccessThreshold      int    `json:"breakerSuccessThreshold"`
+	ConnMaxIdleTimeSeconds       int64  `json:"connMaxIdleTimeSeconds"`
+	ConnMaxLifetimeSeconds       int64  `json:"connMaxLifetimeSeconds"`
+	HostConfigured               bool   `json:"hostConfigured"`
+	ExpectedIdentityConfigured   bool   `json:"expectedIdentityConfigured"`
+	RuntimeIdentityHashPrefix    string `json:"runtimeIdentityHashPrefix"`
+	RuntimeIdentityMatched       bool   `json:"runtimeIdentityMatched"`
+	LeastPrivilegeGrantsVerified bool   `json:"leastPrivilegeGrantsVerified"`
+	RoleGrantCount               int    `json:"roleGrantCount"`
+	SystemGrantCount             int    `json:"systemGrantCount"`
+	ObjectGrantCount             int    `json:"objectGrantCount"`
+	ColumnGrantCount             int    `json:"columnGrantCount"`
+	MaxIdleConns                 int    `json:"maxIdleConns"`
+	MaxOpenConns                 int    `json:"maxOpenConns"`
+	Port                         int    `json:"port"`
+	Schema                       string `json:"schema"`
+	ServiceName                  string `json:"serviceName"`
+	StudentIDColumn              string `json:"studentIDColumn"`
+	StudentNameColumn            string `json:"studentNameColumn"`
+	Table                        string `json:"table"`
+	TLSMode                      string `json:"tlsMode"`
+	TLSVerified                  bool   `json:"tlsVerified"`
+	UsernameConfigured           bool   `json:"usernameConfigured"`
 }
 
 type sampleLookupEvidence struct {
@@ -108,6 +118,10 @@ func run(ctx context.Context, getenv func(string) string) (evidence smokeEvidenc
 	timeoutCtx, cancel := context.WithTimeout(ctx, cfg.Timeout)
 	defer cancel()
 
+	securityProbe, err := directory.ProbeRuntimeSecurity(timeoutCtx)
+	if err != nil {
+		return smokeEvidence{}, err
+	}
 	probe, err := directory.Probe(timeoutCtx)
 	if err != nil {
 		return smokeEvidence{}, err
@@ -124,23 +138,33 @@ func run(ctx context.Context, getenv func(string) string) (evidence smokeEvidenc
 		SourceName:            cfg.SourceName,
 		TimeoutSeconds:        int64(cfg.Timeout / time.Second),
 		Oracle: oracleEvidence{
-			BreakerFailureThreshold: cfg.Oracle.BreakerFailureThreshold,
-			BreakerOpenSeconds:      int64(cfg.Oracle.BreakerOpenTimeout / time.Second),
-			BreakerSuccessThreshold: cfg.Oracle.BreakerSuccessThreshold,
-			ConnMaxIdleTimeSeconds:  int64(cfg.Oracle.ConnMaxIdleTime / time.Second),
-			ConnMaxLifetimeSeconds:  int64(cfg.Oracle.ConnMaxLifetime / time.Second),
-			HostConfigured:          strings.TrimSpace(cfg.Oracle.Host) != "",
-			MaxIdleConns:            cfg.Oracle.MaxIdleConns,
-			MaxOpenConns:            cfg.Oracle.MaxOpenConns,
-			Port:                    cfg.Oracle.Port,
-			Schema:                  strings.ToUpper(strings.TrimSpace(cfg.Oracle.Schema)),
-			ServiceName:             cfg.Oracle.ServiceName,
-			StudentIDColumn:         strings.ToUpper(strings.TrimSpace(cfg.Oracle.StudentIDColumn)),
-			StudentNameColumn:       strings.ToUpper(strings.TrimSpace(cfg.Oracle.StudentNameColumn)),
-			Table:                   strings.ToUpper(strings.TrimSpace(cfg.Oracle.Table)),
-			TLSMode:                 strings.ToLower(strings.TrimSpace(cfg.Oracle.TLSMode)),
-			TLSVerified:             strings.EqualFold(strings.TrimSpace(cfg.Oracle.TLSMode), "verify-full"),
-			UsernameConfigured:      strings.TrimSpace(cfg.Oracle.Username) != "",
+			ApprovedObjectGrantCount:     securityProbe.ApprovedObjectGrantCount,
+			ApprovedSystemGrantCount:     securityProbe.ApprovedSystemGrantCount,
+			BreakerFailureThreshold:      cfg.Oracle.BreakerFailureThreshold,
+			BreakerOpenSeconds:           int64(cfg.Oracle.BreakerOpenTimeout / time.Second),
+			BreakerSuccessThreshold:      cfg.Oracle.BreakerSuccessThreshold,
+			ConnMaxIdleTimeSeconds:       int64(cfg.Oracle.ConnMaxIdleTime / time.Second),
+			ConnMaxLifetimeSeconds:       int64(cfg.Oracle.ConnMaxLifetime / time.Second),
+			HostConfigured:               strings.TrimSpace(cfg.Oracle.Host) != "",
+			ExpectedIdentityConfigured:   strings.TrimSpace(cfg.Oracle.ExpectedUsername) != "",
+			RuntimeIdentityHashPrefix:    hashPrefix(securityProbe.SessionUsername),
+			RuntimeIdentityMatched:       securityProbe.IdentityMatched,
+			LeastPrivilegeGrantsVerified: securityProbe.LeastPrivilegeVerified,
+			RoleGrantCount:               securityProbe.RoleGrantCount,
+			SystemGrantCount:             securityProbe.SystemGrantCount,
+			ObjectGrantCount:             securityProbe.ObjectGrantCount,
+			ColumnGrantCount:             securityProbe.ColumnGrantCount,
+			MaxIdleConns:                 cfg.Oracle.MaxIdleConns,
+			MaxOpenConns:                 cfg.Oracle.MaxOpenConns,
+			Port:                         cfg.Oracle.Port,
+			Schema:                       strings.ToUpper(strings.TrimSpace(cfg.Oracle.Schema)),
+			ServiceName:                  cfg.Oracle.ServiceName,
+			StudentIDColumn:              strings.ToUpper(strings.TrimSpace(cfg.Oracle.StudentIDColumn)),
+			StudentNameColumn:            strings.ToUpper(strings.TrimSpace(cfg.Oracle.StudentNameColumn)),
+			Table:                        strings.ToUpper(strings.TrimSpace(cfg.Oracle.Table)),
+			TLSMode:                      strings.ToLower(strings.TrimSpace(cfg.Oracle.TLSMode)),
+			TLSVerified:                  strings.EqualFold(strings.TrimSpace(cfg.Oracle.TLSMode), "verify-full"),
+			UsernameConfigured:           strings.TrimSpace(cfg.Oracle.Username) != "",
 		},
 		Sample: sampleLookupEvidence{
 			Enabled:              cfg.SampleStudentID != "",
@@ -262,6 +286,7 @@ func smokeConfigFromEnv(getenv func(string) string) (smokeConfig, error) {
 			Port:                    port,
 			ServiceName:             strings.TrimSpace(getenv("EXTERNAL_STUDENT_SOURCE_ORACLE_SERVICE_NAME")),
 			Username:                strings.TrimSpace(getenv("EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME")),
+			ExpectedUsername:        strings.TrimSpace(getenv("EXTERNAL_STUDENT_SOURCE_ORACLE_READONLY_USERNAME")),
 			Password:                getenv("EXTERNAL_STUDENT_SOURCE_ORACLE_PASSWORD"),
 			TLSMode:                 envOrDefault(getenv, "EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_MODE", "verify-full"),
 			TLSCAFile:               envOrDefault(getenv, "EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_FILE", "/external-student-source-tls/ca.crt"),

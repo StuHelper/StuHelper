@@ -57,6 +57,7 @@ func (rt *Runtime) buildExternalStudentDirectory(
 			Port:                    source.Oracle.Port,
 			ServiceName:             source.Oracle.ServiceName,
 			Username:                source.Oracle.Username,
+			ExpectedUsername:        source.Oracle.ExpectedUsername,
 			Password:                source.Oracle.Password,
 			TLSMode:                 source.Oracle.TLSMode,
 			TLSCAFile:               source.Oracle.TLSCAFile,

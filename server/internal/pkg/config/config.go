@@ -119,6 +119,7 @@ type ExternalOracleStudentSourceConfig struct {
 	Port                    int
 	ServiceName             string
 	Username                string
+	ExpectedUsername        string
 	Password                string
 	TLSMode                 string
 	TLSCAFile               string
@@ -595,6 +596,7 @@ func loadExternalDataConfig(parseErrs *[]string) ExternalDataConfig {
 			Port:                    getEnvInt("EXTERNAL_STUDENT_SOURCE_ORACLE_PORT", 2484, parseErrs),
 			ServiceName:             getEnv("EXTERNAL_STUDENT_SOURCE_ORACLE_SERVICE_NAME", ""),
 			Username:                getEnv("EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME", ""),
+			ExpectedUsername:        getEnv("EXTERNAL_STUDENT_SOURCE_ORACLE_READONLY_USERNAME", ""),
 			Password:                getEnv("EXTERNAL_STUDENT_SOURCE_ORACLE_PASSWORD", ""),
 			TLSMode:                 getEnv("EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_MODE", "verify-full"),
 			TLSCAFile:               getEnv("EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_FILE", "/external-student-source-tls/ca.crt"),
