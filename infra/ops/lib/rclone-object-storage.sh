@@ -11,7 +11,8 @@ run_backup_object_storage_rclone() {
   local force_path_style="${BACKUP_OBJECT_STORAGE_FORCE_PATH_STYLE:-${OBJECT_STORAGE_FORCE_PATH_STYLE:-true}}"
   local tls_insecure="${BACKUP_OBJECT_STORAGE_TLS_INSECURE:-false}"
   local ca_file="${BACKUP_OBJECT_STORAGE_TLS_CA:-}"
-  local pinned_ips="${BACKUP_OBJECT_STORAGE_PINNED_IPS:-}"
+  local pinned_hosts="${BACKUP_OBJECT_STORAGE_PINNED_HOSTS:-}"
+  local bucket="${BACKUP_OBJECT_STORAGE_BUCKET:-}"
   local -x RCLONE_CONFIG_TARGET_TYPE="s3"
   local -x RCLONE_CONFIG_TARGET_PROVIDER="${BACKUP_OBJECT_STORAGE_PROVIDER:-Other}"
   local -x RCLONE_CONFIG_TARGET_ACCESS_KEY_ID="${BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID:-}"
@@ -84,24 +85,32 @@ run_backup_object_storage_rclone() {
       die "BACKUP_OBJECT_STORAGE_DOCKER_NETWORK contains unsupported characters"
     docker_args+=(--network "${BACKUP_OBJECT_STORAGE_DOCKER_NETWORK}")
   fi
-  if [[ -n "${pinned_ips}" ]]; then
+  if [[ -n "${pinned_hosts}" ]]; then
     local pinned_payload
-    if ! pinned_payload="$(python3 - "${endpoint}" "${pinned_ips}" 2>&1 <<'PY'
+    if ! pinned_payload="$(python3 - \
+      "${endpoint}" \
+      "${pinned_hosts}" \
+      "${bucket}" \
+      "${force_path_style}" 2>&1 <<'PY'
 import ipaddress
 import re
 import sys
 from urllib.parse import urlsplit, urlunsplit
 
-endpoint, pinned_ips = sys.argv[1:]
+endpoint, pinned_hosts, bucket, force_path_style = sys.argv[1:]
 parsed = urlsplit(endpoint)
 raw_host = (parsed.hostname or "").lower()
 if parsed.username is not None or parsed.password is not None:
     raise SystemExit(
-        "BACKUP_OBJECT_STORAGE_PINNED_IPS does not allow endpoint credentials"
+        "BACKUP_OBJECT_STORAGE_PINNED_HOSTS does not allow endpoint credentials"
+    )
+if "%" in raw_host:
+    raise SystemExit(
+        "BACKUP_OBJECT_STORAGE_PINNED_HOSTS does not allow an IPv6 zone identifier"
     )
 if raw_host.endswith("."):
     raise SystemExit(
-        "BACKUP_OBJECT_STORAGE_PINNED_IPS does not allow a trailing-dot endpoint hostname"
+        "BACKUP_OBJECT_STORAGE_PINNED_HOSTS does not allow a trailing-dot endpoint hostname"
     )
 host = raw_host
 labels = host.split(".")
@@ -114,25 +123,48 @@ if (
     )
 ):
     raise SystemExit(
-        "BACKUP_OBJECT_STORAGE_PINNED_IPS requires a valid ASCII DNS endpoint hostname"
+        "BACKUP_OBJECT_STORAGE_PINNED_HOSTS requires a valid ASCII DNS endpoint hostname"
     )
 
-addresses = set()
-for raw_value in pinned_ips.splitlines():
+expected_hosts = {host}
+if force_path_style == "false":
+    virtual_host = f"{bucket}.{host}"
+    virtual_labels = virtual_host.split(".")
+    if not bucket or len(virtual_host) > 253 or any(
+        not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", label)
+        for label in virtual_labels
+    ):
+        raise SystemExit(
+            "BACKUP_OBJECT_STORAGE_BUCKET must form a valid lowercase ASCII virtual-hosted S3 hostname"
+        )
+    expected_hosts.add(virtual_host)
+
+addresses_by_host = {}
+for raw_value in pinned_hosts.splitlines():
     value = raw_value.strip()
     if not value:
         continue
+    pinned_host, separator, raw_address = value.partition("=")
+    pinned_host = pinned_host.lower()
+    if separator != "=" or pinned_host not in expected_hosts:
+        raise SystemExit(
+            f"BACKUP_OBJECT_STORAGE_PINNED_HOSTS contains an unexpected transfer hostname: {value}"
+        )
     try:
-        address = ipaddress.ip_address(value)
+        address = ipaddress.ip_address(raw_address)
     except ValueError:
         raise SystemExit(
-            f"BACKUP_OBJECT_STORAGE_PINNED_IPS contains an invalid IP address: {value}"
+            f"BACKUP_OBJECT_STORAGE_PINNED_HOSTS contains an invalid IP address: {value}"
         ) from None
     if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped is not None:
         address = address.ipv4_mapped
-    addresses.add(address)
-if not addresses:
-    raise SystemExit("BACKUP_OBJECT_STORAGE_PINNED_IPS must contain at least one IP address")
+    addresses_by_host.setdefault(pinned_host, set()).add(address)
+missing_hosts = expected_hosts - addresses_by_host.keys()
+if missing_hosts:
+    raise SystemExit(
+        "BACKUP_OBJECT_STORAGE_PINNED_HOSTS is missing validated addresses for: "
+        + ", ".join(sorted(missing_hosts))
+    )
 
 try:
     port = parsed.port
@@ -150,8 +182,12 @@ print(
         )
     )
 )
-for address in sorted(addresses, key=lambda value: (value.version, int(value))):
-    print(f"{host}={address.compressed}")
+for pinned_host in sorted(addresses_by_host):
+    for address in sorted(
+        addresses_by_host[pinned_host],
+        key=lambda value: (value.version, int(value)),
+    ):
+        print(f"{pinned_host}={address.compressed}")
 PY
     )"; then
       die "${pinned_payload}"
