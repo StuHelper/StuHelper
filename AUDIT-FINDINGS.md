@@ -225,7 +225,7 @@ Required 与 Go/JavaScript CodeQL。bypass actor 只允许 GitHub 用户 `Xaurya
 | R-11 | P3 先测：outbox 固定 dedupe row lock-wait |
 | R-13 | P3 hardening：Oracle expected identity 与 grant evidence |
 | R-14 | `implemented`：删除未启用且会与现行 Dependabot 更新策略形成双重权威的 `renovate.json`；依赖更新继续由 `.github/dependabot.yml` 单一治理。本条所在提交。 |
-| R-15 | P3 hygiene：删除永不返回的 upload result 字段 |
+| R-15 | `implemented`：`IdentityPhotoUploadResult` 收敛为 Handler 实际且唯一返回的 `key`，删除永不返回的 `rejectionReason` / `createdAt` / `updatedAt` 可选字段，避免生成客户端承诺虚假能力。本条所在提交。 |
 | R-16 | 条件性：真实 academics connector 上线前再做 batching |
 | R-17 | P3：review list page/pageSize 契约 |
 

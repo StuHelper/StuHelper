@@ -5610,11 +5610,6 @@ export interface components {
         IdentityPhotoUploadResult: {
             /** @description 后续提交实名认证时使用的对象存储 key */
             key: string;
-            rejectionReason?: string | null;
-            /** Format: date-time */
-            createdAt?: string;
-            /** Format: date-time */
-            updatedAt?: string;
         };
         StudentEmailAcademicMatchRequest: {
             /** @description 教育部学校标识码；即时学籍匹配必须以此字段识别学校。 */
