@@ -54,7 +54,9 @@ docker run --rm \
   --entrypoint /bin/sh \
   "${postgres_image_ref}" -ec "
     if [ -d /wal ]; then
-      find /wal -type f -mtime +${WAL_ARCHIVE_RETENTION_DAYS:-14} -print -delete
+      find /wal \
+        -path '/wal/quarantine-incomplete-*' -prune -o \
+        -type f -mtime +${WAL_ARCHIVE_RETENTION_DAYS:-14} -print -delete
     fi
   "
 
