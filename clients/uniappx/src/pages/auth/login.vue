@@ -2,37 +2,20 @@
 import { ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import A11yButton from '@/components/A11yButton.vue'
-import { persistSSOState } from '@/auth/sso-state'
+import {
+  DEFAULT_SSO_REDIRECT,
+  normalizeRedirectOption,
+  persistSSORedirect,
+  persistSSOState,
+} from '@/auth/sso-state'
 import { api } from '@/api'
 import { unwrapData } from '@/api/result'
 import { translate } from '@/i18n'
 
 const t = translate
-const redirect = ref('/pages/user/index')
+const redirect = ref(DEFAULT_SSO_REDIRECT)
 const ssoLoading = ref(false)
 const isNativeApp = typeof plus !== 'undefined'
-
-function normalizeRedirectOption(value: unknown) {
-  if (typeof value !== 'string' || !value) {
-    return '/pages/user/index'
-  }
-
-  let decoded = value
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    try {
-      const next = decodeURIComponent(decoded)
-      if (next === decoded) break
-      decoded = next
-    } catch (_error) { void _error;
-      break
-    }
-  }
-
-  if (!decoded.startsWith('/pages/') || decoded.startsWith('//')) {
-    return '/pages/user/index'
-  }
-  return decoded
-}
 
 onLoad((options) => {
   redirect.value = normalizeRedirectOption(options?.redirect)
@@ -43,7 +26,7 @@ async function handleSSOLogin() {
   ssoLoading.value = true
   try {
     // 原生 App 需要传 platform=native，服务端会标记该 state 走 deep link 回调流程
-    const redirectPath = redirect.value || '/pages/user/index'
+    const redirectPath = redirect.value || DEFAULT_SSO_REDIRECT
     const platform = isNativeApp ? 'native' : undefined
     const result = await api.auth.login(redirectPath, platform, 'uniapp')
     const data = unwrapData<{ url: string; state: string }>(result)
@@ -52,6 +35,7 @@ async function handleSSOLogin() {
     if (isNativeApp) {
       // 暂存 state 到本地，deep link 回调时用于校验
       persistSSOState(data.state)
+      persistSSORedirect(redirectPath)
       // 原生：打开系统浏览器完成 SSO（支持密码管理器、已保存的会话）
       plus.runtime.openURL(data.url)
       return

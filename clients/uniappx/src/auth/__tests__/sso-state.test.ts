@@ -1,7 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  clearStoredSSORedirect,
   clearStoredSSOState,
+  consumeStoredSSORedirect,
+  DEFAULT_SSO_REDIRECT,
+  normalizeRedirectOption,
+  persistSSORedirect,
+  readStoredSSORedirect,
+  SSO_REDIRECT_STORAGE_KEY,
   SSO_STATE_STORAGE_KEY,
   persistSSOState,
   readStoredSSOState,
@@ -114,5 +121,72 @@ describe('validateStoredSSOState', () => {
     })
 
     expect(() => clearStoredSSOState()).toThrow('failed to clear native SSO state')
+  })
+})
+
+describe('native SSO redirect storage', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('normalizes an encoded internal page and rejects external or over-encoded targets', () => {
+    expect(normalizeRedirectOption('%2Fpages%2Fcourse%2Fdetail%3Fid%3D42')).toBe(
+      '/pages/course/detail?id=42',
+    )
+    expect(normalizeRedirectOption('https://evil.example/pages/user/index')).toBe(
+      DEFAULT_SSO_REDIRECT,
+    )
+    const overEncoded = encodeURIComponent(
+      encodeURIComponent(encodeURIComponent('/pages/review/index')),
+    )
+    expect(normalizeRedirectOption(overEncoded)).toBe(DEFAULT_SSO_REDIRECT)
+  })
+
+  it('persists a validated redirect without making storage failure fatal', () => {
+    const setStorageSync = vi.fn()
+    vi.stubGlobal('uni', { setStorageSync })
+
+    persistSSORedirect('/pages/course/detail?id=42')
+    expect(setStorageSync).toHaveBeenCalledWith(
+      SSO_REDIRECT_STORAGE_KEY,
+      '/pages/course/detail?id=42',
+    )
+
+    setStorageSync.mockImplementationOnce(() => {
+      throw new Error('storage unavailable')
+    })
+    expect(() => persistSSORedirect('/pages/review/index')).not.toThrow()
+  })
+
+  it('consumes the stored redirect once and falls back when it is missing', () => {
+    const removeStorageSync = vi.fn()
+    vi.stubGlobal('uni', {
+      getStorageSync: vi.fn(() => '/pages/course/detail?id=42'),
+      removeStorageSync,
+    })
+
+    expect(consumeStoredSSORedirect()).toBe('/pages/course/detail?id=42')
+    expect(removeStorageSync).toHaveBeenCalledWith(SSO_REDIRECT_STORAGE_KEY)
+
+    vi.stubGlobal('uni', {
+      getStorageSync: vi.fn(() => ''),
+      removeStorageSync,
+    })
+    expect(consumeStoredSSORedirect()).toBe(DEFAULT_SSO_REDIRECT)
+  })
+
+  it('treats redirect read and clear failures as a non-fatal fallback', () => {
+    vi.stubGlobal('uni', {
+      getStorageSync: vi.fn(() => {
+        throw new Error('bridge unavailable')
+      }),
+      removeStorageSync: vi.fn(() => {
+        throw new Error('bridge unavailable')
+      }),
+    })
+
+    expect(readStoredSSORedirect()).toBeNull()
+    expect(() => clearStoredSSORedirect()).not.toThrow()
+    expect(consumeStoredSSORedirect()).toBe(DEFAULT_SSO_REDIRECT)
   })
 })
