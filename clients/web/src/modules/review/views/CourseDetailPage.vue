@@ -237,6 +237,7 @@
                     <Eye :size="16" />
                   </button>
                   <button
+                    v-if="canEditReviewContent"
                     type="button"
                     class="p-1.5 rounded-lg text-text-muted transition-colors duration-fast hover:text-text-primary hover:bg-bg-elevated"
                     :title="t('review.admin.edit')"
@@ -641,6 +642,7 @@ const {
 // ── Admin tools ──
 const {
   canManageReviews,
+  canEditReviewContent,
   showModerationDialog,
   showEditDialog,
   editingReview,

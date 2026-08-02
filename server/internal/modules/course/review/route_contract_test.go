@@ -72,6 +72,62 @@ func TestReviewTeacherAdminRequiresGlobalCapability(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, w.Code)
 }
 
+func TestReviewModerationRoutesUseScopedCapabilities(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tests := []struct {
+		name           string
+		path           string
+		method         string
+		capabilityName string
+		expectedStatus int
+	}{
+		{
+			name:           "report management accepts scoped report capability",
+			path:           "/api/v1/course/review/admin/reports/not-a-uuid",
+			method:         http.MethodPut,
+			capabilityName: capability.AdminReportsManage,
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "review moderation accepts scoped review capability",
+			path:           "/api/v1/course/review/admin/reviews/not-a-uuid",
+			method:         http.MethodPut,
+			capabilityName: capability.AdminReviewsManage,
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "content editing accepts dedicated scoped capability",
+			path:           "/api/v1/course/review/admin/reviews/not-a-uuid/edit",
+			method:         http.MethodPost,
+			capabilityName: capability.AdminReviewsEditContent,
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "review moderation capability cannot edit content",
+			path:           "/api/v1/course/review/admin/reviews/not-a-uuid/edit",
+			method:         http.MethodPost,
+			capabilityName: capability.AdminReviewsManage,
+			expectedStatus: http.StatusForbidden,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r := gin.New()
+			api := r.Group("/api/v1/course/review")
+			authMW := scopedCapabilityAuth(tc.capabilityName)
+			(&Handler{adminAuthorizers: reviewAdminAuthorizers()}).RegisterRoutes(api, authMW, authMW)
+
+			w := httptest.NewRecorder()
+			req := httptest.NewRequest(tc.method, tc.path, nil)
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, tc.expectedStatus, w.Code)
+		})
+	}
+}
+
 func TestReviewAdminStatsDoesNotUseGroupStepUpGate(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -114,6 +170,9 @@ func reviewAdminAuthorizers() AdminAuthorizers {
 		DashboardView:        rbac.RequireGlobalCapability(capability.AdminDashboardView),
 		LogsView:             rbac.RequireGlobalCapability(capability.AdminLogsView),
 		ReviewsManage:        rbac.RequireGlobalCapability(capability.AdminReviewsManage),
+		ReviewsModerate:      rbac.RequireCapability(capability.AdminReviewsManage),
+		ReviewsEditContent:   rbac.RequireCapability(capability.AdminReviewsEditContent),
+		ReportsManage:        rbac.RequireCapability(capability.AdminReportsManage),
 		TeachersManage:       rbac.RequireGlobalCapability(capability.AdminTeachersManage),
 		SensitiveWordsManage: rbac.RequireGlobalCapability(capability.AdminSensitiveWordsManage),
 		StepUpVerified:       rbac.EnsureStepUpMFA,

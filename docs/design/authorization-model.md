@@ -3,7 +3,7 @@ type: design
 audience: backend-dev
 status: current
 authoritative-source: server/migrations/ + server/internal/modules/authorization/ + server/internal/pkg/capability/ + design/openfga-model.fga
-last-verified: 2026-08-01
+last-verified: 2026-08-02
 ---
 
 # 授权模型
@@ -47,9 +47,15 @@ fail-closed；若已被降权，先写 DB revoke 围栏并重载快照，再异�
 `review:list:full` / create / edit-own / delete-own 仍从完整 capability 集合读取，并继续
 叠加数据库中的学生、实名和 owner 事实。
 
+评课审核路由先按 capability 做功能入口判定，再按该 capability grant 自身的 school/section
+范围过滤列表，并对单条 review/report 继续执行 OpenFGA 检查。范围不再从 role 名反推，避免角色目录
+与路由策略漂移。正文改写比隐藏、恢复等审核操作权限更高，单独使用
+`admin:reviews:edit_content`，仅由 `super_admin`（global）与 `school_admin`（school-scoped）展开；
+`section_admin` / `section_moderator` 不获得正文改写能力。
+
 典型能力：
 - 后台入口：`admin:dashboard:view`
-- 评课运营：`admin:reviews:manage` / `admin:reports:manage`
+- 评课运营：`admin:reviews:manage` / `admin:reviews:edit_content` / `admin:reports:manage`
 - 教师与敏感词：`admin:teachers:manage` / `admin:sensitive_words:manage`
 - 操作日志：`admin:logs:view`
 - 授权管理：`iam:grants:manage`

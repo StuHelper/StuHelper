@@ -12,6 +12,7 @@ func TestExpandRoles_SuperAdminHasAllCapabilities(t *testing.T) {
 	assert.Contains(t, caps, AdminDashboardView)
 	assert.Contains(t, caps, UserIdentityRead)
 	assert.Contains(t, caps, UserSystemUpdate)
+	assert.Contains(t, caps, AdminReviewsEditContent)
 }
 
 func TestExpandRoles_UserHasOnlyBriefReview(t *testing.T) {
@@ -96,6 +97,7 @@ func TestExpandRoleGrants_SchoolAdminUsesScopedSchoolIDs(t *testing.T) {
 	assert.Empty(t, snapshot.GlobalCapabilities)
 	assert.Contains(t, snapshot.Capabilities, AdminReviewsManage)
 	assert.Contains(t, snapshot.Capabilities, AdminReportsManage)
+	assert.Contains(t, snapshot.Capabilities, AdminReviewsEditContent)
 	assert.Contains(t, snapshot.Capabilities, UserStudentRead)
 	assert.Contains(t, snapshot.Capabilities, UserSchoolUpdate)
 	for _, grant := range snapshot.CapabilityGrants {
@@ -133,6 +135,7 @@ func TestExpandRoleGrants_SectionAdminDoesNotManageTeachers(t *testing.T) {
 	snapshot := BuildUserAccessSnapshot(grants)
 
 	assert.NotContains(t, snapshot.Capabilities, AdminTeachersManage)
+	assert.NotContains(t, snapshot.Capabilities, AdminReviewsEditContent)
 	for _, grant := range snapshot.CapabilityGrants {
 		assert.NotEqual(t, AdminTeachersManage, grant.Name)
 	}

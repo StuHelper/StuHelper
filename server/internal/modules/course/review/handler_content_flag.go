@@ -4,6 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
+	"github.com/StuHelper/StuHelper/server/internal/pkg/capability"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/httputil"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/logger"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/middleware"
@@ -14,7 +15,7 @@ import (
 func (h *Handler) ListFlaggedReviews(c *gin.Context) {
 	page, pageSize := httputil.ParsePage(c)
 	offset := httputil.SafeOffset(page, pageSize)
-	scope := resolveModerationScope(c)
+	scope := resolveModerationScope(c, capability.AdminReviewsManage)
 
 	list, total, err := h.service.ListFlaggedReviews(c.Request.Context(), pageSize, offset, scope.schoolIDs()...)
 	if err != nil {

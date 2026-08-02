@@ -3,6 +3,7 @@ package capability
 const (
 	AdminDashboardView        = "admin:dashboard:view"
 	AdminReviewsManage        = "admin:reviews:manage"
+	AdminReviewsEditContent   = "admin:reviews:edit_content"
 	AdminReportsManage        = "admin:reports:manage"
 	AdminTeachersManage       = "admin:teachers:manage"
 	AdminSensitiveWordsManage = "admin:sensitive_words:manage"
@@ -38,7 +39,7 @@ const (
 
 var roleCapabilities = map[string][]string{
 	"super_admin": {
-		AdminDashboardView, AdminReviewsManage, AdminReportsManage,
+		AdminDashboardView, AdminReviewsManage, AdminReviewsEditContent, AdminReportsManage,
 		AdminTeachersManage, AdminSensitiveWordsManage, AdminLogsView,
 		UserIdentityRead, UserIdentityReview,
 		UserStudentRead, UserStudentReview,
@@ -52,7 +53,7 @@ var roleCapabilities = map[string][]string{
 		OpenPlatformRead, OpenPlatformManage,
 	},
 	"school_admin": {
-		AdminReviewsManage, AdminReportsManage,
+		AdminReviewsManage, AdminReviewsEditContent, AdminReportsManage,
 		UserStudentRead, UserStudentReview,
 		UserSchoolRead, UserSchoolUpdate,
 	},
@@ -77,6 +78,7 @@ var roleCapabilities = map[string][]string{
 var AdminEntryCapabilities = []string{
 	AdminDashboardView,
 	AdminReviewsManage,
+	AdminReviewsEditContent,
 	AdminReportsManage,
 	AdminTeachersManage,
 	AdminSensitiveWordsManage,

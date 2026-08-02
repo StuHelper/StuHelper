@@ -5,7 +5,10 @@ import { api } from '@/api'
 import { getErrorMessage } from '@/api/errors'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
-import { canManageReviews as canManageReviewAccess } from '@/utils/adminAccess'
+import {
+  canEditReviewContent as canEditReviewContentAccess,
+  canManageReviews as canManageReviewAccess,
+} from '@/utils/adminAccess'
 
 import type { Review } from '@stuhelper/shared/review'
 
@@ -15,6 +18,7 @@ export function useReviewAdmin(onRefresh: () => void) {
   const authStore = useAuthStore()
 
   const canManageReviews = computed(() => canManageReviewAccess(authStore.user))
+  const canEditReviewContent = computed(() => canEditReviewContentAccess(authStore.user))
 
   const showModerationDialog = ref(false)
   const showEditDialog = ref(false)
@@ -75,6 +79,7 @@ export function useReviewAdmin(onRefresh: () => void) {
 
   return {
     canManageReviews,
+    canEditReviewContent,
     showModerationDialog,
     showEditDialog,
     moderatingReviewID,

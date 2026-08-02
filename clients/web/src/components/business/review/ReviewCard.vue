@@ -30,6 +30,7 @@
           <Eye :size="16" />
         </button>
         <button
+          v-if="canEditReviewContent"
           type="button"
           class="p-1.5 rounded-lg text-text-muted hover:text-primary hover:bg-primary/10 cursor-pointer transition-colors"
           :title="t('review.admin.edit')"
@@ -348,7 +349,11 @@ import { ref, computed, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Heart, ThumbsDown, MessageCircle, EyeOff, Eye, Pencil, ShieldAlert, Flag, Trash2 } from 'lucide-vue-next'
 import type { Review } from '@stuhelper/shared/review'
-import { canListFullReviews, canManageReviews as canManageReviewAccess } from '@/utils/adminAccess'
+import {
+  canEditReviewContent as canEditReviewContentAccess,
+  canListFullReviews,
+  canManageReviews as canManageReviewAccess,
+} from '@/utils/adminAccess'
 import { getRatingColor } from '@/design-system/rating'
 import { useAuthStore } from '@/stores/auth'
 import { useVerificationStore } from '@/stores/verification'
@@ -398,6 +403,7 @@ const { style: tiltStyle } = use3DTilt(cardRef, { maxTilt: 4, scale: 1.01, speed
 
 const isAuthenticated = computed(() => authStore.isAuthenticated)
 const canManageReviews = computed(() => canManageReviewAccess(authStore.user))
+const canEditReviewContent = computed(() => canEditReviewContentAccess(authStore.user))
 const hasFullListCapability = computed(() => canListFullReviews(authStore.user))
 const isHidden = computed(() => props.review.status === 'hidden')
 const showActions = computed(() => isAuthenticated.value && !isHidden.value)

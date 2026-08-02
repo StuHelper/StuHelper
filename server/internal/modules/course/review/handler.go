@@ -29,6 +29,9 @@ type AdminAuthorizers struct {
 	DashboardView        gin.HandlerFunc
 	LogsView             gin.HandlerFunc
 	ReviewsManage        gin.HandlerFunc
+	ReviewsModerate      gin.HandlerFunc
+	ReviewsEditContent   gin.HandlerFunc
+	ReportsManage        gin.HandlerFunc
 	TeachersManage       gin.HandlerFunc
 	SensitiveWordsManage gin.HandlerFunc
 	StepUpVerified       StepUpVerifier
@@ -165,12 +168,12 @@ func (h *Handler) RegisterRoutes(
 	adminRouteMiddlewares = httputil.AppendRouteMiddlewares(adminRouteMiddlewares, h.adminAuthorizers.Entry)
 	admin.Use(adminRouteMiddlewares...)
 	{
-		admin.GET("/reports", requireModerationRole(), h.ListReports)
-		admin.PUT("/reports/:reportID", requireModerationRole(), h.ProcessReport)
-		admin.GET("/reviews", requireModerationRole(), h.ListAllReviews)
-		admin.PUT("/reviews/:reviewID", requireModerationRole(), h.AdminUpdateReview)
-		admin.POST("/reviews/:reviewID/edit", requireSchoolAdminRole(), h.AdminEditReviewContent)
-		admin.PATCH("/reviews/batch", requireModerationRole(), h.BatchUpdateReviews)
+		admin.GET("/reports", httputil.RouteHandlers(h.ListReports, h.adminAuthorizers.ReportsManage)...)
+		admin.PUT("/reports/:reportID", httputil.RouteHandlers(h.ProcessReport, h.adminAuthorizers.ReportsManage)...)
+		admin.GET("/reviews", httputil.RouteHandlers(h.ListAllReviews, h.adminAuthorizers.ReviewsModerate)...)
+		admin.PUT("/reviews/:reviewID", httputil.RouteHandlers(h.AdminUpdateReview, h.adminAuthorizers.ReviewsModerate)...)
+		admin.POST("/reviews/:reviewID/edit", httputil.RouteHandlers(h.AdminEditReviewContent, h.adminAuthorizers.ReviewsEditContent)...)
+		admin.PATCH("/reviews/batch", httputil.RouteHandlers(h.BatchUpdateReviews, h.adminAuthorizers.ReviewsModerate)...)
 		admin.GET("/logs", httputil.RouteHandlers(h.GetOperationLogs, h.adminAuthorizers.LogsView)...)
 		admin.GET("/export", httputil.RouteHandlers(h.ExportReviews, h.adminAuthorizers.ReviewsManage)...)
 
@@ -184,8 +187,8 @@ func (h *Handler) RegisterRoutes(
 		admin.PUT("/sensitive-words/:sensitiveWordID", httputil.RouteHandlers(h.UpdateSensitiveWord, h.adminAuthorizers.SensitiveWordsManage)...)
 		admin.DELETE("/sensitive-words/:sensitiveWordID", httputil.RouteHandlers(h.DeleteSensitiveWord, h.adminAuthorizers.SensitiveWordsManage)...)
 
-		admin.GET("/content-flags", requireModerationRole(), h.ListFlaggedReviews)
-		admin.PUT("/content-flags/:reviewID/clear", requireModerationRole(), h.ClearContentFlag)
+		admin.GET("/content-flags", httputil.RouteHandlers(h.ListFlaggedReviews, h.adminAuthorizers.ReviewsModerate)...)
+		admin.PUT("/content-flags/:reviewID/clear", httputil.RouteHandlers(h.ClearContentFlag, h.adminAuthorizers.ReviewsModerate)...)
 	}
 }
 
