@@ -70,9 +70,8 @@ BACKUP_MODE=basebackup ./infra/ops/backup-postgres.sh backups/stuhelper-$(date +
 
 说明：
 
-- `run-scheduled-backup.sh` 会在本地生成备份文件
-- 它会清理超出保留期的 logical / base / WAL 文件
-- 最后会自动调用 `./infra/ops/sync-postgres-backups.sh`，把逻辑备份、base backup、WAL 归档镜像到对象存储
+- `run-scheduled-backup.sh` 会先在本地生成备份文件，再调用 `./infra/ops/sync-postgres-backups.sh`，把逻辑备份、base backup、WAL 归档复制到对象存储
+- 只有本轮全部远端复制成功后，它才会清理超出保留期的本地 logical / base / WAL 文件；认证、网络或对象存储故障不会触发本地删除
 - 同步器显式排除 `*.partial*`、WAL 归档的 `*.tmp*` 和 staging 路径；只有已经原子发布的工件会上传
 - 生产 systemd unit 固定要求异机门禁；门禁会在创建备份或执行 logical / base / WAL 保留期清理之前检查，失败时不会删除任何尚未上传的本地工件
 

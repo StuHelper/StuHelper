@@ -547,15 +547,15 @@ import sys
 
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
 gate = source.index("true) require_off_host_backup_object_storage")
+backup = source.index('BACKUP_MODE="${MODE}"')
+sync = source.index('"${SCRIPT_DIR}/sync-postgres-backups.sh"')
 mutations = (
-    'mkdir -p "${logical_dir}"',
-    'BACKUP_MODE=dump "${SCRIPT_DIR}/backup-postgres.sh"',
-    'prune_old_backups "${logical_dir}"',
-    'mkdir -p "${base_dir}"',
-    'BACKUP_MODE=basebackup "${SCRIPT_DIR}/backup-postgres.sh"',
-    'prune_old_backups "${base_dir}"',
+    'mkdir -p "${backup_dir}"',
+    'BACKUP_MODE="${MODE}"',
+)
+deletions = (
+    'prune_old_backups "${backup_dir}"',
     "docker run --rm",
-    './infra/ops/sync-postgres-backups.sh',
 )
 for mutation in mutations:
     position = source.index(mutation)
@@ -563,9 +563,17 @@ for mutation in mutations:
         raise SystemExit(
             f"required off-host gate must precede scheduled-backup mutation: {mutation}"
         )
+if backup >= sync:
+    raise SystemExit("scheduled backup must be created before remote synchronization")
+for deletion in deletions:
+    position = source.index(deletion)
+    if sync >= position:
+        raise SystemExit(
+            f"remote synchronization must succeed before local deletion: {deletion}"
+        )
 PY
 then
-  fail "scheduled backup can mutate or prune local artifacts before its required off-host gate"
+  fail "scheduled backup gate, synchronization, or retention ordering is unsafe"
 fi
 
 assert_contains "${BASE_COMPOSE}" '^  object-storage:'

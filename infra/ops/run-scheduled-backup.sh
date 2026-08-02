@@ -21,6 +21,9 @@ esac
 
 timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
 wal_archive_volume="${POSTGRES_WAL_ARCHIVE_VOLUME_NAME:-${STACK_NAME:-stuhelper}-postgres-wal-archive}"
+postgres_image_ref="${POSTGRES_IMAGE_REF:-cgr.dev/chainguard/postgres:latest@sha256:dc2f04037c1044a22af76cee4de70b9111885b17c561b939d7ed70103d100759}"
+[[ "${postgres_image_ref}" =~ ^.+@sha256:[0-9a-f]{64}$ ]] ||
+  die "POSTGRES_IMAGE_REF must be a complete image@sha256 reference"
 
 prune_old_backups() {
   local dir="$1"
@@ -31,25 +34,30 @@ prune_old_backups() {
 
 case "${MODE}" in
   dump)
-    logical_dir="${BACKUP_LOGICAL_DIR:-${REPO_ROOT}/backups/postgres/logical}"
-    mkdir -p "${logical_dir}"
-    BACKUP_MODE=dump "${SCRIPT_DIR}/backup-postgres.sh" "${logical_dir}/stuhelper-${timestamp}.dump"
-    prune_old_backups "${logical_dir}" "${BACKUP_LOGICAL_RETENTION_DAYS:-14}"
+    backup_dir="${BACKUP_LOGICAL_DIR:-${REPO_ROOT}/backups/postgres/logical}"
+    backup_extension="dump"
+    retention_days="${BACKUP_LOGICAL_RETENTION_DAYS:-14}"
     ;;
   basebackup)
-    base_dir="${BACKUP_BASE_DIR:-${REPO_ROOT}/backups/postgres/base}"
-    mkdir -p "${base_dir}"
-    BACKUP_MODE=basebackup "${SCRIPT_DIR}/backup-postgres.sh" "${base_dir}/stuhelper-${timestamp}.tar.gz"
-    prune_old_backups "${base_dir}" "${BACKUP_BASE_RETENTION_DAYS:-30}"
+    backup_dir="${BACKUP_BASE_DIR:-${REPO_ROOT}/backups/postgres/base}"
+    backup_extension="tar.gz"
+    retention_days="${BACKUP_BASE_RETENTION_DAYS:-30}"
     ;;
   *)
     die "unsupported backup mode: ${MODE} (expected dump or basebackup)"
     ;;
 esac
 
-postgres_image_ref="${POSTGRES_IMAGE_REF:-cgr.dev/chainguard/postgres:latest@sha256:dc2f04037c1044a22af76cee4de70b9111885b17c561b939d7ed70103d100759}"
-[[ "${postgres_image_ref}" =~ ^.+@sha256:[0-9a-f]{64}$ ]] ||
-  die "POSTGRES_IMAGE_REF must be a complete image@sha256 reference"
+mkdir -p "${backup_dir}"
+BACKUP_MODE="${MODE}" \
+  "${SCRIPT_DIR}/backup-postgres.sh" \
+  "${backup_dir}/stuhelper-${timestamp}.${backup_extension}"
+
+# Never delete a local recovery artifact until rclone has confirmed that the
+# complete logical/base/WAL set is present in the independent backup target.
+"${SCRIPT_DIR}/sync-postgres-backups.sh"
+
+prune_old_backups "${backup_dir}" "${retention_days}"
 
 docker run --rm \
   --read-only \
@@ -65,7 +73,5 @@ docker run --rm \
         -type f -mtime +${WAL_ARCHIVE_RETENTION_DAYS:-14} -print -delete
     fi
   "
-
-./infra/ops/sync-postgres-backups.sh
 
 log "scheduled PostgreSQL ${MODE} backup completed"
