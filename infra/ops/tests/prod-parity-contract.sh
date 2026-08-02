@@ -368,6 +368,8 @@ assert_contains "${PARITY_SMOKE_DATA}" 'hmac\.new'
 assert_contains "${PARITY_SMOKE_DATA}" 'REFRESH MATERIALIZED VIEW public\.mv_teacher_public_stats'
 assert_contains "${PARITY_SMOKE_DATA}" "course:\\*"
 assert_contains "${PARITY_SMOKE_DATA}" "review:\\*"
+assert_contains "${PARITY_SMOKE_DATA}" '/redis-runtime/ca\.crt'
+assert_not_contains "${PARITY_SMOKE_DATA}" 'cacert /tls/ca\.crt'
 assert_contains "${PARITY_SMOKE_DATA}" 'courseRatingStatsCount'
 assert_contains "${PARITY_SMOKE_DATA}" 'teacherPublicStatsCount'
 
@@ -380,6 +382,8 @@ assert_contains "${PARITY_BROWSER_SMOKE}" 'clear_rate_limit_keys'
 assert_contains "${PARITY_BROWSER_SMOKE}" 'append_no_proxy'
 assert_contains "${PARITY_BROWSER_SMOKE}" 'prod-parity-smoke-data.sh'
 assert_contains "${PARITY_BROWSER_SMOKE}" "scan --pattern 'rl:\*'"
+assert_contains "${PARITY_BROWSER_SMOKE}" '/redis-runtime/ca\.crt'
+assert_not_contains "${PARITY_BROWSER_SMOKE}" 'cacert /tls/ca\.crt'
 assert_contains "${PARITY_BROWSER_SMOKE}" 'prod-parity-browser-smoke\.mjs'
 assert_contains "${PARITY_UP}" 'API_IP_RATE_LIMIT'
 assert_contains "${PARITY_UP}" 'API_GLOBAL_RATE_LIMIT'
@@ -505,6 +509,8 @@ assert_contains "${ADMISSION_PROD_SIM_E2E}" 'ADMISSION_PROD_SIM_SSO_BASE_URL'
 assert_contains "${ADMISSION_PROD_SIM_E2E}" 'append_no_proxy'
 assert_contains "${ADMISSION_PROD_SIM_E2E}" 'admission-prod-sim-e2e\.mjs'
 assert_contains "${ADMISSION_PROD_SIM_E2E}" "scan --pattern 'rl:\*'"
+assert_contains "${ADMISSION_PROD_SIM_E2E}" '/redis-runtime/ca\.crt'
+assert_not_contains "${ADMISSION_PROD_SIM_E2E}" 'cacert /tls/ca\.crt'
 assert_contains "${ADMISSION_PROD_SIM_E2E_NODE}" '@playwright/test'
 assert_contains "${ADMISSION_PROD_SIM_E2E_NODE}" 'BOT_SERVICE_TOKEN'
 assert_contains "${ADMISSION_PROD_SIM_E2E_NODE}" 'backend previews just-created admission token'

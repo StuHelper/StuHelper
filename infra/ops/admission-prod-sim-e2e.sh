@@ -46,7 +46,7 @@ clear_rate_limit_keys() {
   )
 
   if [[ "${REDIS_TLS_ENABLED:-true}" == "true" ]]; then
-    redis_cli+=(--tls --cacert /tls/ca.crt)
+    redis_cli+=(--tls --cacert /redis-runtime/ca.crt)
   fi
 
   if ! docker inspect "${redis_container}" >/dev/null 2>&1; then

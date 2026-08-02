@@ -544,7 +544,7 @@ clear_cache_keys() {
   )
 
   if [[ "${REDIS_TLS_ENABLED:-true}" == "true" ]]; then
-    redis_cli+=(--tls --cacert /tls/ca.crt)
+    redis_cli+=(--tls --cacert /redis-runtime/ca.crt)
   fi
 
   for pattern in 'course:*' 'review:*' 'cache:version:course*' 'cache:version:review*'; do
