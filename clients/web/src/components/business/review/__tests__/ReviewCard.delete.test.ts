@@ -148,13 +148,16 @@ function deferred() {
   return { promise, resolve }
 }
 
-function mountCard() {
+function mountCard(options: { legacyOwnerOverride?: boolean; review?: Review } = {}) {
+  const props: { isOwnReview?: boolean; review: Review } = {
+    review: options.review ?? review,
+  }
+  if (options.legacyOwnerOverride !== false) {
+    props.isOwnReview = true
+  }
   return mount(ReviewCard, {
     attachTo: document.body,
-    props: {
-      review,
-      isOwnReview: true,
-    },
+    props,
     global: {
       directives: {
         ripple: {},
@@ -206,6 +209,19 @@ describe('ReviewCard own-review deletion', () => {
     expect(document.activeElement).toBe(
       wrapper.get(`[data-testid="review-delete-${review.id}"]`).element,
     )
+
+    wrapper.unmount()
+  })
+
+  it('uses the API ownership fact when no legacy prop override is provided', () => {
+    const wrapper = mountCard({
+      legacyOwnerOverride: false,
+      review: { ...review, isOwner: true },
+    })
+
+    expect(wrapper.find('[aria-label="review.review.reportBtn"]').exists()).toBe(false)
+    expect(wrapper.find('[aria-label="review.review.editBtn"]').exists()).toBe(true)
+    expect(wrapper.find(`[data-testid="review-delete-${review.id}"]`).exists()).toBe(true)
 
     wrapper.unmount()
   })

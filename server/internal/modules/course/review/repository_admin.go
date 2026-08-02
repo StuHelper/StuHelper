@@ -41,7 +41,7 @@ func (r *Repository) ListAllReviews(ctx context.Context, status string, limit, o
 	var qb strings.Builder
 	qb.WriteString(`
 		SELECT r.id, r.course_id, COALESCE(c.name, ''), r.teacher_id, COALESCE(t.name, ''), r.term_id,
-		       r.title, r.content, r.grade, r.ratings,
+		       r.user_hash, r.title, r.content, r.grade, r.ratings,
 		       r.like_count, r.dislike_count,
 		       r.reply_count,
 		       r.status, r.moderation_reason, r.created_at, r.updated_at,

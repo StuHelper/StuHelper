@@ -172,7 +172,7 @@
       <!-- 举报按钮（非自己的评价） -->
       <button
         type="button"
-        v-if="!props.isOwnReview"
+        v-if="!isOwn"
         v-ripple
         :class="[warningActionButtonClass, 'ml-auto']"
         :aria-label="t('review.review.reportBtn')"
@@ -184,7 +184,7 @@
       <!-- 编辑按钮（自己的评价） -->
       <button
         type="button"
-        v-if="props.isOwnReview && !editing"
+        v-if="isOwn && !editing"
         v-ripple
         :class="[primaryActionButtonClass, 'ml-auto']"
         :aria-label="t('review.review.editBtn')"
@@ -196,7 +196,7 @@
       <!-- 删除按钮（自己的评价） -->
       <button
         type="button"
-        v-if="props.isOwnReview && !confirmingDelete"
+        v-if="isOwn && !confirmingDelete"
         ref="deleteButtonRef"
         v-ripple
         :class="[dangerActionButtonClass, { 'ml-auto': editing }]"
@@ -375,10 +375,12 @@ import { useReviewModeration } from './useReviewModeration'
 import { ratingDimensionLabel } from '@/modules/review/ratingHelpers'
 import { accountCenterURL } from '@/utils/redirect'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   review: Review
   isOwnReview?: boolean
-}>()
+}>(), {
+  isOwnReview: undefined,
+})
 
 const emit = defineEmits<{
   moderated: []
@@ -402,6 +404,7 @@ const deleteCancelButtonRef = ref<HTMLButtonElement>()
 const { style: tiltStyle } = use3DTilt(cardRef, { maxTilt: 4, scale: 1.01, speed: 500 })
 
 const isAuthenticated = computed(() => authStore.isAuthenticated)
+const isOwn = computed(() => props.isOwnReview ?? (props.review.isOwner === true))
 const canManageReviews = computed(() => canManageReviewAccess(authStore.user))
 const canEditReviewContent = computed(() => canEditReviewContentAccess(authStore.user))
 const hasFullListCapability = computed(() => canListFullReviews(authStore.user))

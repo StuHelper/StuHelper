@@ -144,6 +144,7 @@ func respondReportReviewError(c *gin.Context, err error) bool {
 		reviewModerationErrorMappings,
 		[]response.ErrorMapping{
 			response.MatchError(ErrInvalidAction, 400, "invalid report reason"),
+			response.MatchError(ErrCannotReportOwnReview, 400, "you cannot report your own review", errs.ErrInvalidParam),
 			response.MatchError(ErrAlreadyReported, 409, "you have already reported this review", errs.ErrAlreadyReported),
 		},
 	)

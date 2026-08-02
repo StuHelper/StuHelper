@@ -3797,6 +3797,8 @@ export interface components {
             dislikeCount: number;
             /** @description 当前已认证用户对该测评的投票；匿名或未投票时省略 */
             userVote?: components["schemas"]["VoteType"];
+            /** @description 当前已认证用户是否为该测评作者；匿名请求为 false */
+            isOwner?: boolean;
             replyCount: number;
             /** @enum {string} */
             status: "published" | "pending_review" | "hidden" | "deleted";

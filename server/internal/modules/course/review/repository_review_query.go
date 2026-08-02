@@ -301,7 +301,7 @@ func (r *Repository) ListByMultipleCourses(ctx context.Context, courseIDs []int6
 	// 使用 LATERAL join 高效获取每个课程的 top-N 测评
 	rows, err := r.db.Query(ctx, `
 		SELECT sub.course_id, sub.id, COALESCE(c.name, ''), sub.teacher_id, COALESCE(t.name, ''), sub.term_id,
-		       sub.title, sub.content, sub.grade, sub.ratings,
+		       sub.user_hash, sub.title, sub.content, sub.grade, sub.ratings,
 		       sub.like_count, sub.dislike_count,
 		       sub.reply_count,
 		       sub.status, sub.moderation_reason, sub.created_at, sub.updated_at,
@@ -331,7 +331,7 @@ func (r *Repository) ListByMultipleCourses(ctx context.Context, courseIDs []int6
 		if err := rows.Scan(
 			&courseID,
 			&item.ID, &item.CourseName, &item.TeacherID, &item.TeacherName,
-			&item.TermID, &item.Title, &item.Content, &item.Grade, &item.Ratings,
+			&item.TermID, &item.UserHash, &item.Title, &item.Content, &item.Grade, &item.Ratings,
 			&item.LikeCount, &item.DislikeCount, &item.ReplyCount,
 			&item.Status, &item.ModerationReason, &item.CreatedAt, &item.UpdatedAt,
 			&total,
@@ -403,7 +403,7 @@ func (r *Repository) ListByCourseWithSort(ctx context.Context, p ListByCourseWit
 	var qb strings.Builder
 	qb.WriteString(`
 		SELECT r.id, r.course_id, COALESCE(c.name, ''), r.teacher_id, COALESCE(t.name, ''), r.term_id,
-		       r.title, r.content, r.grade, r.ratings,
+		       r.user_hash, r.title, r.content, r.grade, r.ratings,
 		       r.like_count, r.dislike_count,
 		       r.reply_count,
 		       r.status, r.moderation_reason, r.created_at, r.updated_at
@@ -496,7 +496,7 @@ func (r *Repository) SearchReviews(ctx context.Context, p SearchReviewsQueryPara
 	var qb strings.Builder
 	qb.WriteString(`
 		SELECT r.id, r.course_id, COALESCE(c.name, ''), r.teacher_id, COALESCE(t.name, ''), r.term_id,
-		       r.title, r.content, r.grade, r.ratings,
+		       r.user_hash, r.title, r.content, r.grade, r.ratings,
 		       r.like_count, r.dislike_count,
 		       r.reply_count,
 		       r.status, r.moderation_reason, r.created_at, r.updated_at
@@ -533,7 +533,7 @@ func (r *Repository) ListByUserHash(ctx context.Context, userHash string, limit,
 	ctx = withDBTable(ctx, "reviews")
 	rows, err := r.db.Query(ctx, `
 		SELECT r.id, r.course_id, COALESCE(c.name, ''), r.teacher_id, COALESCE(t.name, ''), r.term_id,
-		       r.title, r.content, r.grade, r.ratings,
+		       r.user_hash, r.title, r.content, r.grade, r.ratings,
 		       r.like_count, r.dislike_count,
 		       r.reply_count,
 		       r.status, r.moderation_reason, r.created_at, r.updated_at,
@@ -557,7 +557,7 @@ func (r *Repository) ListVotedReviews(ctx context.Context, userHash, voteType st
 	ctx = withDBTable(ctx, "review_votes")
 	rows, err := r.db.Query(ctx, `
 		SELECT r.id, r.course_id, COALESCE(c.name, ''), r.teacher_id, COALESCE(t.name, ''), r.term_id,
-		       r.title, r.content, r.grade, r.ratings,
+		       r.user_hash, r.title, r.content, r.grade, r.ratings,
 		       r.like_count, r.dislike_count,
 		       r.reply_count,
 		       r.status, r.moderation_reason, r.created_at, r.updated_at,

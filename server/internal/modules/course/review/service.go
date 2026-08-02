@@ -56,6 +56,7 @@ var (
 	ErrInvalidGrade              = errors.New("invalid grade")
 	ErrRatingRequired            = errors.New("at least one rating dimension is required")
 	ErrNotReviewOwner            = errors.New("not the review owner")
+	ErrCannotReportOwnReview     = errors.New("cannot report own review")
 	ErrAlreadyReported           = errors.New("already reported this review")
 	ErrReportNotFound            = errors.New("report not found")
 	ErrDraftNotFound             = errors.New("draft not found")
@@ -403,7 +404,7 @@ func (s *Service) GetCourseReviews(ctx context.Context, params GetCourseReviewsP
 	if err != nil {
 		return nil, err
 	}
-	if err := s.populateUserVotes(ctx, params.UserHash, list); err != nil {
+	if err := s.populateUserReviewState(ctx, params.UserHash, list); err != nil {
 		return nil, err
 	}
 
@@ -446,7 +447,7 @@ func (s *Service) GetBatchCourseReviews(ctx context.Context, params GetBatchCour
 	if err != nil {
 		return nil, err
 	}
-	if err := s.populateGroupedUserVotes(ctx, params.UserHash, reviews); err != nil {
+	if err := s.populateGroupedUserReviewState(ctx, params.UserHash, reviews); err != nil {
 		return nil, err
 	}
 	return &BatchCourseReviewsResult{Reviews: reviews, Totals: totals}, nil
@@ -490,7 +491,7 @@ func (s *Service) GetLatestReviews(ctx context.Context, params GetLatestReviewsP
 	if err != nil {
 		return nil, err
 	}
-	if err := s.populateUserVotes(ctx, params.UserHash, list); err != nil {
+	if err := s.populateUserReviewState(ctx, params.UserHash, list); err != nil {
 		return nil, err
 	}
 
@@ -525,7 +526,7 @@ func (s *Service) SearchReviews(ctx context.Context, params SearchReviewsParams)
 	if err != nil {
 		return nil, err
 	}
-	if err := s.populateUserVotes(ctx, params.UserHash, list); err != nil {
+	if err := s.populateUserReviewState(ctx, params.UserHash, list); err != nil {
 		return nil, err
 	}
 

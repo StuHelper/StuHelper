@@ -9595,6 +9595,9 @@ components:
         userVote:
           $ref: '#/components/schemas/VoteType'
           description: 当前已认证用户对该测评的投票；匿名或未投票时省略
+        isOwner:
+          type: boolean
+          description: 当前已认证用户是否为该测评作者；匿名请求为 false
         replyCount:
           type: integer
         status:

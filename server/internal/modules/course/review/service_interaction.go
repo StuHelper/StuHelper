@@ -125,7 +125,7 @@ func (s *Service) GetUserReviews(ctx context.Context, params GetUserReviewsParam
 	if err != nil {
 		return nil, err
 	}
-	if err := s.populateUserVotes(ctx, params.UserHash, list); err != nil {
+	if err := s.populateUserReviewState(ctx, params.UserHash, list); err != nil {
 		return nil, err
 	}
 
@@ -158,6 +158,7 @@ func (s *Service) GetUserVotes(ctx context.Context, params GetUserVotesParams) (
 		return nil, err
 	}
 	setKnownUserVote(list, params.VoteType)
+	populateReviewOwnership(params.UserHash, list)
 
 	return &GetCourseReviewsResult{List: list, Total: total}, nil
 }
