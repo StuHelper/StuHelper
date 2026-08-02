@@ -416,12 +416,18 @@ except (subprocess.CalledProcessError, json.JSONDecodeError) as error:
 local_docker_subnets = set()
 local_docker_addresses = set()
 for network in docker_networks:
-    for config in network.get("IPAM", {}).get("Config", []) or []:
-        subnet = str(config.get("Subnet", "")).split("%", 1)[0]
-        try:
-            local_docker_subnets.add(ipaddress.ip_network(subnet, strict=False))
-        except ValueError:
-            continue
+    driver = str(network.get("Driver", ""))
+    if driver not in {"bridge", "macvlan", "ipvlan", "overlay"}:
+        raise SystemExit(
+            f"unsupported rclone Docker network driver for off-host verification: {driver or 'unknown'}"
+        )
+    if driver == "bridge":
+        for config in network.get("IPAM", {}).get("Config", []) or []:
+            subnet = str(config.get("Subnet", "")).split("%", 1)[0]
+            try:
+                local_docker_subnets.add(ipaddress.ip_network(subnet, strict=False))
+            except ValueError:
+                continue
     for container in (network.get("Containers") or {}).values():
         for key in ("IPv4Address", "IPv6Address"):
             candidate = str(container.get(key, "")).split("/", 1)[0].split("%", 1)[0]

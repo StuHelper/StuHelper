@@ -256,7 +256,7 @@ set -euo pipefail
 
 printf '%s\n' "$@" >>"${RESOLVER_DOCKER_CAPTURE:?}"
 if [[ "${1:-}" == "network" && "${2:-}" == "inspect" ]]; then
-  printf '%s\n' '[{"Name":"contract-backup-network","IPAM":{"Config":[{"Subnet":"172.31.0.0/16"}]},"Containers":{}}]'
+  printf '[{"Name":"contract-backup-network","Driver":"%s","IPAM":{"Config":[{"Subnet":"172.31.0.0/16"}]},"Containers":{"local":{"IPv4Address":"172.31.0.9/16","IPv6Address":""}}}]\n' "${RESOLVER_NETWORK_DRIVER:-bridge}"
   exit 0
 fi
 
@@ -271,6 +271,9 @@ case "${database}:${host}" in
     ;;
   ahostsv4:backup-local-container.example.test)
     printf '172.31.0.9 STREAM %s\n' "${host}"
+    ;;
+  ahostsv4:backup-shared-network.example.test)
+    printf '172.31.0.50 STREAM %s\n' "${host}"
     ;;
   ahostsv4:backup-off-host.example.test)
     printf '198.51.100.42 STREAM %s\n' "${host}"
@@ -437,6 +440,27 @@ if (
   fail "a backup FQDN resolving into a same-host Docker network must be rejected"
 fi
 assert_contains "${tmpdir}/off-host-dns-local-container.log" 'must not resolve into a Docker network hosted on the production host'
+
+if (
+  export RESOLVER_NETWORK_DRIVER="macvlan"
+  export BACKUP_OBJECT_STORAGE_ENDPOINT="https://backup-local-container.example.test"
+  export BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED="true"
+  export BACKUP_OBJECT_STORAGE_DOCKER_NETWORK="contract-backup-network"
+  require_off_host_backup_object_storage
+) >"${tmpdir}/off-host-dns-macvlan-local-container.log" 2>&1; then
+  fail "a backup FQDN resolving to a local container on a shared Docker network must be rejected"
+fi
+assert_contains "${tmpdir}/off-host-dns-macvlan-local-container.log" 'must not resolve into a Docker network hosted on the production host'
+
+if ! (
+  export RESOLVER_NETWORK_DRIVER="macvlan"
+  export BACKUP_OBJECT_STORAGE_ENDPOINT="https://backup-shared-network.example.test"
+  export BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED="true"
+  export BACKUP_OBJECT_STORAGE_DOCKER_NETWORK="contract-backup-network"
+  require_off_host_backup_object_storage
+); then
+  fail "an off-host address in a shared macvlan subnet was incorrectly treated as host-local"
+fi
 
 if ! (
   export BACKUP_OBJECT_STORAGE_ENDPOINT="https://backup-off-host.example.test"
