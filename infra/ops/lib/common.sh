@@ -270,6 +270,8 @@ require_off_host_backup_object_storage() {
   if ! output="$(python3 - "${BACKUP_OBJECT_STORAGE_ENDPOINT:-}" 2>&1 <<'PY'
 import ipaddress
 import json
+import os
+import re
 import socket
 import subprocess
 import sys
@@ -308,17 +310,46 @@ elif (
     )
 else:
     resolved_addresses = set()
+    image_ref = os.environ.get(
+        "RCLONE_IMAGE_REF",
+        "rclone/rclone:beta@sha256:f52965eba611ba8984117638b2a0539dcce170731937f93fbace66897d102698",
+    )
+    if not re.fullmatch(r".+@sha256:[0-9a-f]{64}", image_ref):
+        raise SystemExit("RCLONE_IMAGE_REF must be a complete image@sha256 reference")
+    docker_network = os.environ.get("BACKUP_OBJECT_STORAGE_DOCKER_NETWORK", "")
+    if docker_network and not re.fullmatch(r"[A-Za-z0-9_.-]+", docker_network):
+        raise SystemExit(
+            "BACKUP_OBJECT_STORAGE_DOCKER_NETWORK contains unsupported characters"
+        )
+    resolver_command = [
+        "docker",
+        "run",
+        "--rm",
+        "--read-only",
+        "--cap-drop",
+        "ALL",
+        "--security-opt",
+        "no-new-privileges",
+    ]
+    if docker_network:
+        resolver_command.extend(["--network", docker_network])
+    resolver_command.extend(["--entrypoint", "/usr/bin/getent", image_ref])
     for database in ("ahostsv4", "ahostsv6"):
         try:
             result = subprocess.run(
-                ["getent", database, host],
+                [*resolver_command, database, host],
                 check=False,
                 capture_output=True,
                 text=True,
+                timeout=30,
             )
         except FileNotFoundError:
             raise SystemExit(
-                "getent is required to resolve BACKUP_OBJECT_STORAGE_ENDPOINT"
+                "docker is required to resolve BACKUP_OBJECT_STORAGE_ENDPOINT in the rclone network namespace"
+            ) from None
+        except subprocess.TimeoutExpired:
+            raise SystemExit(
+                "BACKUP_OBJECT_STORAGE_ENDPOINT resolution timed out in the rclone network namespace"
             ) from None
         for line in result.stdout.splitlines():
             fields = line.split()
@@ -331,7 +362,7 @@ else:
                 continue
     if not resolved_addresses:
         raise SystemExit(
-            "BACKUP_OBJECT_STORAGE_ENDPOINT must resolve to at least one A or AAAA address"
+            "BACKUP_OBJECT_STORAGE_ENDPOINT must resolve to at least one A or AAAA address in the rclone network namespace"
         )
 
 try:
