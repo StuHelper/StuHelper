@@ -207,7 +207,7 @@ Required 与 Go/JavaScript CodeQL。bypass actor 只允许 GitHub 用户 `Xaurya
 | P2-4 | P3 先测：只优化仍可达的 dashboard 全扫，不重写聚合 API |
 | P2-5 | `implemented`：批量禁言只在第一个空白处分隔秒数，后续成员 ID 继续按空白/中英文逗号解析；格式提示改为真实命令 `群审禁言`。管理员命令专项 11/11 通过。本条所在提交。 |
 | P2-8 | `implemented`：Admin 中英文补齐后端会返回的 `school_email_otp` / `school_sso` 学生认证方式，并用 locale 契约覆盖全部四种枚举。本条所在提交。 |
-| P2-11 | P3：query array 契约与默认客户端对齐 |
+| P2-11 | `implemented`：OpenAPI 明确 `form + explode=true`，Handler 读取全部重复 `courseIDs` 并兼容旧逗号格式；共享客户端真实 wire test 与 Go parser 回归锁定三端一致性，删除未使用且错误扁平化 grouped response 的 Web adapter。本条所在提交。 |
 | P2-17 | P3/P4 决策：preview knobs 是废弃还是受限恢复 |
 | P2-19 | P3：先拆共享 sentinel，再补精确 review code |
 | P3-1 | `implemented`：`AdminContentLayout` 正式支持并显示可选页面说明，保留标题、总数和 action 布局；组件回归覆盖有/无说明。本条所在提交。 |

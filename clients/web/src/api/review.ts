@@ -12,10 +12,6 @@ type ReviewWireApi = ReturnType<typeof createReviewApi>
 
 export type ReviewAppApi = ReviewWireApi & {
   checkContentResult(data: Parameters<ReviewWireApi['checkContent']>[0]): Promise<ReviewContentCheck>
-  getBatchCourseReviewsPage(
-    courseIDs: Parameters<ReviewWireApi['getBatchCourseReviews']>[0],
-    params?: Parameters<ReviewWireApi['getBatchCourseReviews']>[1],
-  ): Promise<PaginatedResult<Review>>
   getLatestReviewsPage(
     params?: Parameters<ReviewWireApi['getLatestReviews']>[0],
   ): Promise<PaginatedResult<Review>>
@@ -37,10 +33,6 @@ export function createReviewAppApi(client: ApiClient): ReviewAppApi {
     async checkContentResult(data) {
       const result = await wire.checkContent(data)
       return normalizeContentCheck(result.data?.data)
-    },
-    async getBatchCourseReviewsPage(courseIDs, params) {
-      const result = await wire.getBatchCourseReviews(courseIDs, params)
-      return readReviewPagePayload(result.data?.data)
     },
     async getLatestReviewsPage(params) {
       const result = await wire.getLatestReviews(params)

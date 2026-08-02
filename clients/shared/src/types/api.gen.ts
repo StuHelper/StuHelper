@@ -1559,7 +1559,7 @@ export interface paths {
         };
         /**
          * 批量获取多个课程的测评列表（支持可选认证）
-         * @description 通过逗号分隔的课程ID列表批量获取测评，避免N+1查询
+         * @description 通过重复的 courseIDs 查询参数批量获取测评，避免N+1查询；服务端兼容旧逗号格式
          */
         get: operations["getBatchCourseReviews"];
         put?: never;
