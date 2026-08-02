@@ -21,6 +21,7 @@ PARITY_BROWSER_SMOKE_NODE="${REPO_ROOT}/infra/ops/prod-parity-browser-smoke.mjs"
 ADMISSION_PROD_SIM_E2E="${REPO_ROOT}/infra/ops/admission-prod-sim-e2e.sh"
 ADMISSION_PROD_SIM_E2E_NODE="${REPO_ROOT}/infra/ops/admission-prod-sim-e2e.mjs"
 PARITY_LOCAL_INGRESS="${REPO_ROOT}/infra/ops/install-local-prod-parity-ingress.sh"
+PARITY_LOCAL_INGRESS_REMOVE="${REPO_ROOT}/infra/ops/remove-local-prod-parity-ingress.sh"
 PARITY_LOCAL_INGRESS_NGINX="${REPO_ROOT}/infra/nginx/prod-parity-local-ingress.conf"
 COMMON_LIB="${REPO_ROOT}/infra/ops/lib/common.sh"
 ADMIN_INDEX_HTML="${REPO_ROOT}/clients/admin/apps/web-ele/index.html"
@@ -48,11 +49,11 @@ assert_not_contains() {
   fi
 }
 
-for file in "${PARITY_COMPOSE}" "${INIT_SHARED_PG}" "${PARITY_UP}" "${PARITY_DOWN}" "${PARITY_SMOKE}" "${SMOKE_CHECK}" "${SSO_PUBLIC_SMOKE}" "${ADMISSION_PUBLIC_SMOKE}" "${PARITY_SMOKE_DATA}" "${OBJECT_STORAGE_TLS_RENDER}" "${OBJECT_STORAGE_CONFIG_RENDER}" "${ADMISSION_READINESS}" "${PARITY_DATASTORE_SMOKE}" "${PARITY_BROWSER_SMOKE}" "${PARITY_BROWSER_SMOKE_NODE}" "${ADMISSION_PROD_SIM_E2E}" "${ADMISSION_PROD_SIM_E2E_NODE}" "${PARITY_LOCAL_INGRESS}" "${PARITY_LOCAL_INGRESS_NGINX}" "${COMMON_LIB}" "${ADMIN_INDEX_HTML}" "${WEB_NGINX}"; do
+for file in "${PARITY_COMPOSE}" "${INIT_SHARED_PG}" "${PARITY_UP}" "${PARITY_DOWN}" "${PARITY_SMOKE}" "${SMOKE_CHECK}" "${SSO_PUBLIC_SMOKE}" "${ADMISSION_PUBLIC_SMOKE}" "${PARITY_SMOKE_DATA}" "${OBJECT_STORAGE_TLS_RENDER}" "${OBJECT_STORAGE_CONFIG_RENDER}" "${ADMISSION_READINESS}" "${PARITY_DATASTORE_SMOKE}" "${PARITY_BROWSER_SMOKE}" "${PARITY_BROWSER_SMOKE_NODE}" "${ADMISSION_PROD_SIM_E2E}" "${ADMISSION_PROD_SIM_E2E_NODE}" "${PARITY_LOCAL_INGRESS}" "${PARITY_LOCAL_INGRESS_REMOVE}" "${PARITY_LOCAL_INGRESS_NGINX}" "${COMMON_LIB}" "${ADMIN_INDEX_HTML}" "${WEB_NGINX}"; do
   [[ -f "${file}" ]] || fail "missing file: ${file}"
 done
 
-bash -n "${INIT_SHARED_PG}" "${PARITY_UP}" "${PARITY_DOWN}" "${PARITY_SMOKE}" "${SMOKE_CHECK}" "${SSO_PUBLIC_SMOKE}" "${ADMISSION_PUBLIC_SMOKE}" "${PARITY_SMOKE_DATA}" "${OBJECT_STORAGE_TLS_RENDER}" "${OBJECT_STORAGE_CONFIG_RENDER}" "${ADMISSION_READINESS}" "${PARITY_DATASTORE_SMOKE}" "${PARITY_BROWSER_SMOKE}" "${ADMISSION_PROD_SIM_E2E}" "${PARITY_LOCAL_INGRESS}"
+bash -n "${INIT_SHARED_PG}" "${PARITY_UP}" "${PARITY_DOWN}" "${PARITY_SMOKE}" "${SMOKE_CHECK}" "${SSO_PUBLIC_SMOKE}" "${ADMISSION_PUBLIC_SMOKE}" "${PARITY_SMOKE_DATA}" "${OBJECT_STORAGE_TLS_RENDER}" "${OBJECT_STORAGE_CONFIG_RENDER}" "${ADMISSION_READINESS}" "${PARITY_DATASTORE_SMOKE}" "${PARITY_BROWSER_SMOKE}" "${ADMISSION_PROD_SIM_E2E}" "${PARITY_LOCAL_INGRESS}" "${PARITY_LOCAL_INGRESS_REMOVE}"
 
 for default_path in ".env" "./.env" ".env.generated" "./.env.generated" ".env.generated.secrets" "./.env.generated.secrets" ".deploy" "./.deploy"; do
   case "${default_path}" in
@@ -197,6 +198,8 @@ assert_not_contains "${PARITY_UP}" 'prod-deploy.sh'
 
 assert_contains "${PARITY_LOCAL_INGRESS}" 'stuhelper\.com www\.stuhelper\.com join\.stuhelper\.com sso\.stuhelper\.com'
 assert_contains "${PARITY_LOCAL_INGRESS}" 'PROXY_BYPASS_HOSTS'
+assert_contains "${PARITY_LOCAL_INGRESS}" 'PROXY_BYPASS_STATE_FILE'
+assert_contains "${PARITY_LOCAL_INGRESS}" 'validate_hosts_markers'
 assert_contains "${PARITY_LOCAL_INGRESS}" 'gsettings.*org\.gnome\.system\.proxy'
 assert_contains "${PARITY_LOCAL_INGRESS}" '\*\.stuhelper\.com'
 assert_contains "${PARITY_LOCAL_INGRESS}" 'DEFAULT_BAOTA_TLS_CERT'
@@ -223,6 +226,14 @@ assert_not_contains "${PARITY_LOCAL_INGRESS}" 'location = /favicon\.ico'
 assert_not_contains "${PARITY_LOCAL_INGRESS}" 'location = /site\.webmanifest'
 assert_contains "${PARITY_LOCAL_INGRESS}" 'nginx -t'
 assert_contains "${PARITY_LOCAL_INGRESS}" 'nginx -s reload'
+assert_contains "${PARITY_LOCAL_INGRESS_REMOVE}" 'StuHelper prod-parity local ingress BEGIN'
+assert_contains "${PARITY_LOCAL_INGRESS_REMOVE}" 'validate_hosts_markers'
+assert_contains "${PARITY_LOCAL_INGRESS_REMOVE}" 'PROXY_BYPASS_STATE_FILE'
+assert_contains "${PARITY_LOCAL_INGRESS_REMOVE}" 'parity_hosts - original_hosts'
+assert_contains "${PARITY_LOCAL_INGRESS_REMOVE}" '/www/server/panel/vhost/nginx/stuhelper-prod-parity-local\.conf'
+assert_contains "${PARITY_LOCAL_INGRESS_REMOVE}" '/etc/nginx/conf\.d/stuhelper-prod-parity-local\.conf'
+assert_contains "${PARITY_LOCAL_INGRESS_REMOVE}" 'nginx -t'
+assert_contains "${PARITY_LOCAL_INGRESS_REMOVE}" 'pgrep -x nginx'
 assert_contains "${PARITY_LOCAL_INGRESS_NGINX}" 'server_name stuhelper\.com www\.stuhelper\.com'
 assert_contains "${PARITY_LOCAL_INGRESS_NGINX}" 'server_name join\.stuhelper\.com'
 assert_contains "${PARITY_LOCAL_INGRESS_NGINX}" 'server_name sso\.stuhelper\.com'
@@ -290,6 +301,11 @@ assert_contains "${WEB_NGINX}" 'location @spa_default'
 
 assert_contains "${PARITY_DOWN}" 'parity_default_path'
 assert_contains "${PARITY_DOWN}" 'repo_default_path_matches'
+assert_contains "${PARITY_DOWN}" 'cleanup_remaining_parity_resources'
+assert_contains "${PARITY_DOWN}" 'label=com\.docker\.compose\.project='
+assert_contains "${PARITY_DOWN}" 'docker volume rm'
+assert_contains "${PARITY_DOWN}" 'docker network rm'
+assert_contains "${PARITY_DOWN}" 'remove-local-prod-parity-ingress\.sh'
 assert_contains "${PARITY_SMOKE}" 'prod-parity-datastore-smoke.sh'
 assert_contains "${PARITY_SMOKE}" 'prod-parity-smoke-data.sh'
 assert_contains "${PARITY_SMOKE}" 'admission-production-readiness.sh'
@@ -571,6 +587,7 @@ assert_contains "${WEB_NGINX}" 'add_header Cache-Control "public, immutable";'
 
 assert_contains "${MAKEFILE}" 'prod-parity-up'
 assert_contains "${MAKEFILE}" 'prod-parity-ingress'
+assert_contains "${MAKEFILE}" 'prod-parity-ingress-down'
 assert_contains "${MAKEFILE}" 'prod-parity-down'
 assert_contains "${MAKEFILE}" 'prod-parity-smoke'
 assert_contains "${MAKEFILE}" 'prod-parity-datastore-smoke'
