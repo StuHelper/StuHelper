@@ -3,7 +3,7 @@ type: guide
 audience: all
 status: current
 authoritative-source: this file
-last-verified: 2026-07-29
+last-verified: 2026-08-03
 ---
 
 # 快速开始
@@ -214,7 +214,7 @@ make e2e-koishi
 
 - Pull Request、`develop` 和 `main` push 运行 GitHub Actions 质量、安全、契约和 E2E 门禁。
 - `develop` / `main` 的受信任 push 只有在 `CI / Required`、Go/JS CodeQL 通过且仍是实时 branch head 后，才把三个带完整 commit SHA 的不可变镜像发布到 GHCR，并附加 provenance 与 CycloneDX SBOM attestation。
-- Forward `Deploy` 固定发布当前 workflow ref 的 head，不接受历史 SHA；`main` 可自动晋级同一制品到 staging，并在两个 promotion 开关启用时自动创建 production approval，批准后才部署生产。
+- Forward `Deploy` 固定发布当前 workflow ref 的 head，不接受历史 SHA；staging 暂缓期间，`main` 可用显式 `direct` 模式创建 production approval，批准后才部署生产。未来独立 staging 就绪后切换到同 SHA `after-staging` 晋级。
 - GitHub `Rollback` 手工作业由当前可信 controller 按相同的 provenance 和 digest 约束选择历史完整 SHA，不接受可变 tag，也不执行历史运维脚本。
 
 远端服务器首次准备：
@@ -223,7 +223,7 @@ make e2e-koishi
 sudo bash infra/ops/bootstrap-ubuntu2404.sh
 ```
 
-这个脚本会一起装好 Docker / Compose、Go 1.26、部署目录、备份目录、`.deploy/remote.env`、Vault token 占位文件，以及 PostgreSQL 逻辑备份 / base backup / backup sync timer。
+这个脚本会一起装好 Docker / Compose、Go 1.26、部署目录、备份目录、`.deploy/remote.env`、Vault token 占位文件，以及 PostgreSQL 逻辑备份 / base backup / backup sync timer。GitHub 自动部署的 GHCR token 只在单次 job 中使用，不写入这些持久文件。
 
 仓库、Actions 权限、GHCR、environment secrets、发布和回滚治理见
 [GitHub 仓库与 Actions 治理](guides/github-migration.md)。
@@ -232,6 +232,8 @@ Ansible 入口：
 
 ```bash
 make ansible-bootstrap
+export REGISTRY_USERNAME=<ghcr-user>
+export REGISTRY_PULL_TOKEN=<short-lived-read-packages-token>
 make ansible-deploy-staging
 make ansible-deploy-prod
 ```

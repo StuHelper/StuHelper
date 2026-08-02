@@ -3,7 +3,7 @@ type: guide
 audience: ops
 status: current
 authoritative-source: infra/ops/*.sh + infra/ansible/
-last-verified: 2026-08-02
+last-verified: 2026-08-03
 ---
 
 # 发布运行手册
@@ -25,7 +25,8 @@ last-verified: 2026-08-02
 - [ ] 如果包含数据库变更，已完成备份；`prod-deploy.sh` 在迁移前执行 `backup-postgres.sh`。
 - [ ] 生产机上的逻辑备份 / base backup / backup sync timer 已启用。
 - [ ] 承载 `postgres_data` / `redis_data` 的宿主机块设备已启用静态加密；外部 S3 已启用服务端加密、版本/保留和生命周期策略。
-- [ ] 远端部署控制面已核对：`.deploy/remote.env`。
+- [ ] 远端部署控制面已核对：`.deploy/remote.env`；GitHub 自动部署要求
+  `REGISTRY=ghcr.io`、`REGISTRY_AUTH_MODE=workflow-token`。
 - [ ] 共享配置已核对：`.env.prod.shared`。
 - [ ] secrets 已核对：`.env.prod.secrets`（本地演练可用 `.env.prod.secrets.local`）；运行时派生 secrets 必须通过 `GENERATED_ENV_SECRET_REF` 写入远端 secret backend，`.env.prod.generated.secrets` 仅保留空占位。
 - [ ] secret backend 已核对：`.deploy/remote.env` 中的 `SECRET_BACKEND` / `*_SECRET_REF` / `GENERATED_ENV_SECRET_REF` / `VAULT_ADDR` / `VAULT_TOKEN_FILE`。
@@ -53,24 +54,27 @@ last-verified: 2026-08-02
 5. 同一候选镜像推送到 GHCR，记录 manifest digest，并签发 provenance 与 CycloneDX SBOM
    attestation；SBOM JSON 作为 Actions evidence 保留 30 天。
 
-### staging / production
+### staging / production promotion
 
 1. `main` CI 成功发布三个镜像后，如果仓库变量 `STAGING_AUTO_DEPLOY_ENABLED=true`，自动调用
    `Deploy` 把同一 SHA 晋级到 staging；未启用时可手工运行 `Deploy`。
-2. 如果同时设置 `PRODUCTION_AUTO_PROMOTION_ENABLED=true`，staging 成功后自动创建同 SHA
-   production deployment；工作流会停在 protected environment，直到 `Xauryan` 审批，批准后才部署。
-3. 手工运行时选择 workflow ref、`staging` 或 `production`，并填写变更/事故原因。Forward Deploy
-   不再接受 commit SHA；候选固定为当前 workflow ref 的 `github.sha`。
+2. production 自动晋级还必须设置 `PRODUCTION_AUTO_PROMOTION_ENABLED=true`，并显式选择一个仓库
+   变量模式：`PRODUCTION_PROMOTION_MODE=after-staging` 要求同 SHA staging 成功；
+   `PRODUCTION_PROMOTION_MODE=direct` 在 staging 暂缓时从已发布的可信 `main` 制品直接创建
+   production deployment。两条路径都会停在 protected environment，直到 `Xauryan` 审批。
+3. 手工运行时选择 workflow ref、`staging` 或 `production`、匹配的 promotion mode，并填写变更/事故
+   原因。Forward Deploy 不再接受 commit SHA；候选固定为当前 workflow ref 的 `github.sha`。
 4. environment secrets 暴露和 production 审批之前，工作流先验证目标仍是当前 branch head、
    `Required`、Go/JavaScript-TypeScript CodeQL、三个 GHCR digest 的来源与 provenance。
-5. production 默认还要求同一 SHA 的最新 staging deployment 为 success。事故中确需绕过时，手工
-   运行 `Deploy` 并显式
-   选择 `skip_staging_gate=true`、填写至少 24 字符上下文，并留下 production approval 审计。
+5. `direct` 是 staging 暂缓期间经过架构决策接受的常规模式，至少填写 24 字符变更上下文；事故中
+   使用独立的 `break-glass` 模式并填写至少 24 字符事故上下文。两者都不绕过其他门禁，且不能把
+   自动 promotion mode 配置为 `break-glass`。
 6. 验证完成后 environment 再校验允许分支、审批者和 secrets；production 当前唯一 reviewer 为
-   `Xauryan` 且允许该用户自批。审批后、任何 SSH 前再次校验实时 branch head、checks 和 staging
-   gate，等待期间已经过期的候选会失败关闭。
-7. 远端实际执行 `./infra/ops/remote-preflight.sh` 和
-   `./infra/ops/remote-prod-deploy.sh`。
+   `Xauryan` 且允许该用户自批。审批后、任何 SSH 前再次校验实时 branch head、checks 和 promotion
+   policy，等待期间已经过期的候选会失败关闭。
+7. Actions 把本次 job 的短期 GHCR token 经 SSH 标准输入交给
+   `./infra/ops/remote-ci-release.sh deploy`。远端用临时 `DOCKER_CONFIG` 登录，随后执行 preflight 和
+   deploy；结束时删除临时 registry 凭据，不在目标机保存个人 PAT。
 8. 自动运行业务与严格可观测性 smoke；任何 smoke 失败，本次发布即失败并进入回滚判断。
 
 只要 Smoke Check 失败，本次发布就视为失败，需要立刻进入回滚判断。
@@ -330,7 +334,8 @@ reason=<incident-or-change-record-and-rollback-rationale>
    digest 并验证发布 provenance
 3. environment 审批后校验 SSH endpoint，上传当前可信 controller bundle，并只传递已校验的历史
    digest 引用
-4. 读取目标机 `.deploy/remote.env`，用当前 `prod-rollback.sh` / `prod-deploy.sh` 执行应用镜像回滚
+4. 读取目标机 `.deploy/remote.env`，通过 `remote-ci-release.sh rollback` 的临时 GHCR 登录调用当前
+   rollback controller 执行应用镜像回滚
 5. 自动再次运行业务与严格可观测性 smoke checks
 
 GitHub `Rollback` 不接受 `latest`、短 SHA 或任意业务 tag。仓库本地的 `make prod-rollback`

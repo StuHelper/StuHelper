@@ -44,6 +44,7 @@ fi
 mkdir -p "$(dirname "${config_file}")"
 
 DEFAULT_REGISTRY="${REGISTRY:-REPLACE_WITH_REGISTRY_HOST}" \
+DEFAULT_REGISTRY_AUTH_MODE="${REGISTRY_AUTH_MODE:-workflow-token}" \
 DEFAULT_REGISTRY_USERNAME_SECRET_REF="${REGISTRY_USERNAME_SECRET_REF:-secret/stuhelper/prod/registry-username}" \
 DEFAULT_REGISTRY_PASSWORD_SECRET_REF="${REGISTRY_PASSWORD_SECRET_REF:-secret/stuhelper/prod/registry-password}" \
 DEFAULT_ENV_FILE="${default_env_file}" \
@@ -76,6 +77,7 @@ if path.exists():
 
 defaults = {
     "REGISTRY": os.environ["DEFAULT_REGISTRY"],
+    "REGISTRY_AUTH_MODE": os.environ["DEFAULT_REGISTRY_AUTH_MODE"],
     "REGISTRY_USERNAME_SECRET_REF": os.environ["DEFAULT_REGISTRY_USERNAME_SECRET_REF"],
     "REGISTRY_PASSWORD_SECRET_REF": os.environ["DEFAULT_REGISTRY_PASSWORD_SECRET_REF"],
     "ENV_FILE": os.environ["DEFAULT_ENV_FILE"],
@@ -109,7 +111,7 @@ PY
 
 # shellcheck disable=SC1090
 source "${config_file}"
-if [[ "${SECRET_BACKEND:-}" == "file" ]]; then
+if [[ "${SECRET_BACKEND:-}" == "file" && "${REGISTRY_AUTH_MODE:-persistent-secret}" == "persistent-secret" ]]; then
   registry_username_path="$(secret_file_path "${REGISTRY_USERNAME_SECRET_REF}")"
   registry_password_path="$(secret_file_path "${REGISTRY_PASSWORD_SECRET_REF}")"
   install -d -m 0700 "${SECRET_FILE_ROOT}" "$(dirname "${registry_username_path}")" "$(dirname "${registry_password_path}")"

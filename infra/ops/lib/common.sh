@@ -1051,12 +1051,25 @@ resolve_registry_credentials() {
 }
 
 docker_registry_login() {
+  local auth_mode="${REGISTRY_AUTH_MODE:-persistent-secret}"
   [[ -n "${REGISTRY:-}" ]] || die "REGISTRY is required"
-  resolve_registry_credentials
-  [[ -n "${REGISTRY_USERNAME:-}" ]] || die "REGISTRY_USERNAME or REGISTRY_USERNAME_SECRET_REF is required"
-  [[ -n "${REGISTRY_PASSWORD:-}" ]] || die "REGISTRY_PASSWORD or REGISTRY_PASSWORD_SECRET_REF is required"
 
-  echo "${REGISTRY_PASSWORD}" | docker login "${REGISTRY}" --username "${REGISTRY_USERNAME}" --password-stdin >/dev/null
+  case "${auth_mode}" in
+    workflow-token)
+      [[ "${CI_REGISTRY_LOGIN_READY:-false}" == "true" ]] ||
+        die "workflow-token registry auth must be established by remote-ci-release.sh"
+      ;;
+    persistent-secret)
+      resolve_registry_credentials
+      [[ -n "${REGISTRY_USERNAME:-}" ]] || die "REGISTRY_USERNAME or REGISTRY_USERNAME_SECRET_REF is required"
+      [[ -n "${REGISTRY_PASSWORD:-}" ]] || die "REGISTRY_PASSWORD or REGISTRY_PASSWORD_SECRET_REF is required"
+      printf '%s\n' "${REGISTRY_PASSWORD}" |
+        docker login "${REGISTRY}" --username "${REGISTRY_USERNAME}" --password-stdin >/dev/null
+      ;;
+    *)
+      die "REGISTRY_AUTH_MODE must be workflow-token or persistent-secret"
+      ;;
+  esac
 }
 
 record_release() {

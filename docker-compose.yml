@@ -16,6 +16,8 @@
 #   生产部署:            docker compose -f docker-compose.yml -f docker-compose.observability.yml -f docker-compose.prod.yml --profile prod up -d --wait
 #   生产公网入口:        宝塔 Nginx → 127.0.0.1:18080 / 18000 / 18001
 
+name: ${STACK_NAME:-stuhelper}
+
 x-node-dev-build: &node-dev-build
   context: ./infra/images/node-dev
   dockerfile: Dockerfile
