@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 VALIDATOR="${REPO_ROOT}/infra/ops/validate-ci-deploy-inputs.sh"
 RESOLVER="${REPO_ROOT}/infra/ops/resolve-attested-release-images.sh"
+RELEASE_VERIFIER="${REPO_ROOT}/infra/ops/verify-github-release.sh"
 DEPLOY_WORKFLOW="${REPO_ROOT}/.github/workflows/deploy.yml"
 ROLLBACK_WORKFLOW="${REPO_ROOT}/.github/workflows/rollback.yml"
 PUBLISH_WORKFLOW="${REPO_ROOT}/.github/workflows/publish-images.yml"
@@ -63,6 +64,7 @@ expect_validator_failure() {
 
 bash -n "${VALIDATOR}"
 bash -n "${RESOLVER}"
+bash -n "${RELEASE_VERIFIER}"
 
 validator_output="$(run_validator)"
 [[ "${validator_output}" == *"deployment inputs validated"* ]] ||
@@ -157,6 +159,11 @@ fi
 
 assert_contains "${DEPLOY_WORKFLOW}" 'attestations: read'
 assert_contains "${ROLLBACK_WORKFLOW}" 'attestations: read'
+assert_contains "${DEPLOY_WORKFLOW}" 'checks: read'
+assert_contains "${ROLLBACK_WORKFLOW}" 'checks: read'
+assert_contains "${DEPLOY_WORKFLOW}" 'workflow_call:'
+assert_contains "${DEPLOY_WORKFLOW}" 'verify-github-release\.sh'
+assert_contains "${ROLLBACK_WORKFLOW}" 'verify-github-release\.sh'
 assert_contains "${DEPLOY_WORKFLOW}" 'validate-ci-deploy-inputs\.sh'
 assert_contains "${ROLLBACK_WORKFLOW}" 'validate-ci-deploy-inputs\.sh'
 assert_contains "${DEPLOY_WORKFLOW}" 'resolve-attested-release-images\.sh'
@@ -165,18 +172,26 @@ assert_contains "${DEPLOY_WORKFLOW}" 'steps\.release-images\.outputs\.backend_im
 assert_contains "${ROLLBACK_WORKFLOW}" 'steps\.release-images\.outputs\.backend_image_ref'
 assert_contains "${ROLLBACK_WORKFLOW}" 'commit_sha:'
 assert_contains "${ROLLBACK_WORKFLOW}" 'reason:'
+assert_not_contains "${DEPLOY_WORKFLOW}" 'commit_sha:'
 assert_not_contains "${ROLLBACK_WORKFLOW}" 'release_tag:'
 assert_not_contains "${ROLLBACK_WORKFLOW}" 'TARGET_TAG'
-assert_contains "${ROLLBACK_WORKFLOW}" 'ref: \$\{\{ github\.workflow_sha \}\}'
-assert_contains "${ROLLBACK_WORKFLOW}" 'path: rollback-controller'
-assert_contains "${ROLLBACK_WORKFLOW}" 'path: rollback-release'
-assert_contains "${ROLLBACK_WORKFLOW}" '"\$\{GITHUB_WORKSPACE\}/rollback-release"'
-assert_contains "${ROLLBACK_WORKFLOW}" 'rollback-controller\.tgz'
-assert_contains "${ROLLBACK_WORKFLOW}" 'infra/ops/prod-rollback\.sh'
-assert_contains "${ROLLBACK_WORKFLOW}" 'infra/ops/validate-runtime-image-scan\.py'
+assert_contains "${DEPLOY_WORKFLOW}" 'ref: \$\{\{ fromJSON\(toJSON\(job\)\)\.workflow_sha \}\}'
+assert_contains "${ROLLBACK_WORKFLOW}" 'ref: \$\{\{ fromJSON\(toJSON\(job\)\)\.workflow_sha \}\}'
+assert_not_contains "${DEPLOY_WORKFLOW}" 'github\.workflow_sha'
+assert_not_contains "${ROLLBACK_WORKFLOW}" 'github\.workflow_sha'
+assert_not_contains "${ROLLBACK_WORKFLOW}" 'path: rollback-release'
+assert_not_contains "${ROLLBACK_WORKFLOW}" '"\$\{GITHUB_WORKSPACE\}/rollback-release"'
+assert_contains "${ROLLBACK_WORKFLOW}" 'Build the trusted rollback-controller bundle'
+assert_contains "${ROLLBACK_WORKFLOW}" 'remote-prod-rollback\.sh'
 assert_contains "${ROLLBACK_WORKFLOW}" 'ROLLBACK_REVIEW_ACTOR'
 assert_contains "${ROLLBACK_WORKFLOW}" 'ROLLBACK_REVIEW_REASON_B64'
 assert_contains "${PUBLISH_WORKFLOW}" 'name: Scan the candidate image'
+assert_contains "${PUBLISH_WORKFLOW}" 'name: Generate the candidate SBOM'
+assert_contains "${PUBLISH_WORKFLOW}" 'format: cyclonedx'
+assert_contains "${PUBLISH_WORKFLOW}" "steps\.existing\.outputs\.found == 'true'"
+assert_contains "${PUBLISH_WORKFLOW}" "format\('\{0\}@\{1\}', matrix\.image, steps\.existing\.outputs\.digest\)"
+assert_contains "${PUBLISH_WORKFLOW}" 'sbom-path: sbom-\$\{\{ matrix\.name \}\}\.cdx\.json'
+assert_contains "${PUBLISH_WORKFLOW}" 'name: Upload the SBOM evidence'
 assert_contains "${PUBLISH_WORKFLOW}" 'group: publish-images-\$\{\{ inputs\.commit_sha \}\}'
 assert_contains "${PUBLISH_WORKFLOW}" 'cancel-in-progress: false'
 assert_contains "${PUBLISH_WORKFLOW}" 'SOURCE_DATE_EPOCH: \$\{\{ steps\.build-meta\.outputs\.commit_epoch \}\}'

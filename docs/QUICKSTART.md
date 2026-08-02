@@ -213,9 +213,9 @@ make e2e-koishi
 ## GitHub 发布
 
 - Pull Request、`develop` 和 `main` push 运行 GitHub Actions 质量、安全、契约和 E2E 门禁。
-- `develop` / `main` 的受信任 push 只有在 `CI / Required` 通过后，才把三个带完整 commit SHA 的不可变镜像发布到 GHCR。
-- staging / production 通过 GitHub `Deploy` 手工作业发布，输入必须是已经发布并带 provenance 的完整 40 位 commit SHA；production 由受保护 environment 审批。
-- GitHub `Rollback` 手工作业按相同的 provenance 和 digest 约束回滚，不接受可变 tag。
+- `develop` / `main` 的受信任 push 只有在 `CI / Required` 通过后，才把三个带完整 commit SHA 的不可变镜像发布到 GHCR，并附加 provenance 与 CycloneDX SBOM attestation。
+- Forward `Deploy` 固定发布当前 workflow ref 的 head，不接受历史 SHA；`main` 可在 `STAGING_AUTO_DEPLOY_ENABLED=true` 时自动晋级同一制品到 staging，production 在制品预验证和同 SHA staging success 后由受保护 environment 审批。
+- GitHub `Rollback` 手工作业由当前可信 controller 按相同的 provenance 和 digest 约束选择历史完整 SHA，不接受可变 tag，也不执行历史运维脚本。
 
 远端服务器首次准备：
 
