@@ -137,7 +137,8 @@ sudo ./infra/ops/install-backup-timers.sh
 失败关闭，并拒绝单标签 Compose 服务名、旧式缩写数字 IPv4 及解析到本机接口的 FQDN。生产备份
 systemd service 也固定要求这项门禁，不能由共享 env 将要求降级；配置漂移后定时同步会失败并留给
 systemd/告警处理，而不是继续把同机副本计作灾备。升级已有节点后须由 root 重新运行
-`./infra/ops/install-backup-timers.sh`；预检会验证三个 service 的有效环境，拒绝继续使用缺少门禁的旧单元。
+`./infra/ops/install-backup-timers.sh`；预检会验证三个 service 的有效环境，并拒绝可经
+`EnvironmentFile=` 覆盖保护标记的 unit/drop-in，不能继续使用缺少或可降级门禁的旧单元。
 
 ## 逻辑备份恢复
 

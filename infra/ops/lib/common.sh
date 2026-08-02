@@ -47,6 +47,14 @@ require_systemd_unit_environment_value() {
   local unit="$1"
   local expected="$2"
   local effective_environment
+  local environment_files
+
+  if ! environment_files="$(systemctl show "${unit}" --property=EnvironmentFiles --value 2>/dev/null)"; then
+    die "failed to inspect environment files for systemd unit ${unit}"
+  fi
+  if [[ -n "${environment_files//[[:space:]]/}" ]]; then
+    die "systemd unit ${unit} must not use EnvironmentFile for the protected backup gate; reinstall the production backup timers and remove overriding drop-ins"
+  fi
 
   if ! effective_environment="$(systemctl show "${unit}" --property=Environment --value 2>/dev/null)"; then
     die "failed to inspect effective environment for systemd unit ${unit}"
@@ -56,11 +64,19 @@ import shlex
 import sys
 
 expected, effective = sys.argv[1:3]
+if "=" not in expected:
+    raise SystemExit(1)
+expected_key, expected_value = expected.split("=", 1)
 try:
     values = shlex.split(effective)
 except ValueError:
     raise SystemExit(1) from None
-raise SystemExit(0 if expected in values else 1)
+environment = {}
+for assignment in values:
+    if "=" in assignment:
+        key, value = assignment.split("=", 1)
+        environment[key] = value
+raise SystemExit(0 if environment.get(expected_key) == expected_value else 1)
 PY
   then
     die "systemd unit ${unit} must set ${expected}; reinstall the production backup timers"

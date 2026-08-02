@@ -150,7 +150,10 @@ if ! bash -c '
   set -euo pipefail
   source "$1"
   systemctl() {
-    printf "%s\n" "ENV_FILE=/opt/stuhelper/.env.prod.shared BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true"
+    case "$*" in
+      *--property=EnvironmentFiles*) printf "\n" ;;
+      *) printf "%s\n" "ENV_FILE=/opt/stuhelper/.env.prod.shared BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true" ;;
+    esac
   }
   require_systemd_unit_environment_value \
     stuhelper-postgres-backup-sync.service \
@@ -163,7 +166,10 @@ if bash -c '
   set -euo pipefail
   source "$1"
   systemctl() {
-    printf "%s\n" "ENV_FILE=/opt/stuhelper/.env.prod.shared BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=false"
+    case "$*" in
+      *--property=EnvironmentFiles*) printf "\n" ;;
+      *) printf "%s\n" "ENV_FILE=/opt/stuhelper/.env.prod.shared BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=false" ;;
+    esac
   }
   require_systemd_unit_environment_value \
     stuhelper-postgres-backup-sync.service \
@@ -173,6 +179,24 @@ if bash -c '
 fi
 grep -q 'reinstall the production backup timers' "${tmpdir}/stale-backup-unit.err" || \
   fail "the stale backup unit failure did not report the remediation"
+
+if bash -c '
+  set -euo pipefail
+  source "$1"
+  systemctl() {
+    case "$*" in
+      *--property=EnvironmentFiles*) printf "%s\n" "/opt/stuhelper/.env.prod.shared (ignore_errors=no)" ;;
+      *) printf "%s\n" "BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true" ;;
+    esac
+  }
+  require_systemd_unit_environment_value \
+    stuhelper-postgres-backup-sync.service \
+    BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true
+' bash "${COMMON_LIB_FILE}" >"${tmpdir}/backup-unit-env-file.out" 2>"${tmpdir}/backup-unit-env-file.err"; then
+  fail "the systemd environment validator accepted a backup unit with EnvironmentFile overrides"
+fi
+grep -q 'must not use EnvironmentFile' "${tmpdir}/backup-unit-env-file.err" || \
+  fail "the backup unit EnvironmentFile failure did not report the protected marker policy"
 
 fake_bin="${tmpdir}/bin"
 mkdir -p "${fake_bin}"
