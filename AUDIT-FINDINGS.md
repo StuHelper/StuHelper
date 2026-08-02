@@ -209,7 +209,7 @@ Required 与 Go/JavaScript CodeQL。bypass actor 只允许 GitHub 用户 `Xaurya
 | P2-8 | `implemented`：Admin 中英文补齐后端会返回的 `school_email_otp` / `school_sso` 学生认证方式，并用 locale 契约覆盖全部四种枚举。本条所在提交。 |
 | P2-11 | `implemented`：OpenAPI 明确 `form + explode=true`，Handler 读取全部重复 `courseIDs` 并兼容旧逗号格式；共享客户端真实 wire test 与 Go parser 回归锁定三端一致性，删除未使用且错误扁平化 grouped response 的 Web adapter。本条所在提交。 |
 | P2-17 | P3/P4 决策：preview knobs 是废弃还是受限恢复 |
-| P2-19 | P3：先拆共享 sentinel，再补精确 review code |
+| P2-19 | `implemented`：拆分评课正文、回复正文与举报说明的长度 sentinel；只有评课正文使用 `A0110003/A0110004`，回复和举报仍保持通用范围错误，同时为危险内容、缺少评分维度和非法评分补上已有专用码。评课包全量测试通过。本条所在提交。 |
 | P3-1 | `implemented`：`AdminContentLayout` 正式支持并显示可选页面说明，保留标题、总数和 action 布局；组件回归覆盖有/无说明。本条所在提交。 |
 | P3-2 | `implemented`：持久化表格列的显式 `defaultMinWidth` 优先，否则保留调用方透传的 `min-width`，不再被 `undefined` 覆盖；组件回归锁定属性合并顺序。本条所在提交。 |
 | P3-3 | `implemented`：只有 `pending` 新生申请显示审核控件，已处理行只显示状态；提交入口再次检查当前行状态并阻断陈旧动作。专项回归覆盖 pending/approved/rejected。本条所在提交。 |

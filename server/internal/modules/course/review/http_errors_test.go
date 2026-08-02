@@ -23,7 +23,11 @@ func TestRespondPostReviewError(t *testing.T) {
 	}{
 		{name: "already reviewed", err: ErrAlreadyReviewed, status: http.StatusConflict, code: errs.ErrReviewExists, contains: "already reviewed"},
 		{name: "invalid term", err: ErrInvalidTermID, status: http.StatusBadRequest, code: errs.ErrBadRequest, contains: "invalid term_id format"},
-		{name: "invalid rating", err: ErrInvalidRating, status: http.StatusBadRequest, code: errs.ErrBadRequest, contains: "rating must be between 1 and 5"},
+		{name: "invalid rating", err: ErrInvalidRating, status: http.StatusBadRequest, code: errs.ErrRatingInvalid, contains: "rating must be between 1 and 5"},
+		{name: "missing rating", err: ErrRatingRequired, status: http.StatusBadRequest, code: errs.ErrRatingDimensionMissing, contains: "at least one rating dimension"},
+		{name: "content too short", err: ErrContentTooShort, status: http.StatusBadRequest, code: errs.ErrReviewContentTooShort, contains: "content is too short"},
+		{name: "content too long", err: ErrContentTooLong, status: http.StatusBadRequest, code: errs.ErrReviewContentTooLong, contains: "content is too long"},
+		{name: "dangerous content", err: ErrDangerousContent, status: http.StatusBadRequest, code: errs.ErrDangerousContent, contains: "potentially dangerous"},
 		{name: "invalid grade", err: ErrInvalidGrade, status: http.StatusBadRequest, code: errs.ErrBadRequest, contains: "invalid grade"},
 		{name: "sensitive content", err: ErrSensitiveContent, status: http.StatusBadRequest, code: errs.ErrSensitiveContent, contains: "sensitive words"},
 	}
@@ -221,7 +225,7 @@ func TestRespondReportReviewErrorValidation(t *testing.T) {
 	}{
 		{name: "invalid reason", err: ErrInvalidAction, contains: "invalid report reason"},
 		{name: "dangerous description", err: ErrDangerousContent, contains: "potentially dangerous"},
-		{name: "description too long", err: ErrContentTooLong, contains: "content is too long"},
+		{name: "description too long", err: ErrReportDescriptionTooLong, contains: "report description is too long"},
 	}
 
 	for _, tt := range tests {
@@ -234,6 +238,33 @@ func TestRespondReportReviewErrorValidation(t *testing.T) {
 			assert.True(t, ok)
 			assert.Equal(t, http.StatusBadRequest, w.Code)
 			assert.Contains(t, w.Body.String(), tt.contains)
+		})
+	}
+}
+
+func TestNonReviewContentLimitsKeepGenericCodes(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tests := []struct {
+		name string
+		err  error
+		run  func(*gin.Context, error) bool
+	}{
+		{name: "reply", err: ErrReplyContentTooLong, run: respondCreateReplyError},
+		{name: "report", err: ErrReportDescriptionTooLong, run: respondReportReviewError},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+
+			ok := tt.run(c, tt.err)
+
+			assert.True(t, ok)
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+			assert.Contains(t, w.Body.String(), string(errs.ErrParamOutOfRange))
+			assert.NotContains(t, w.Body.String(), string(errs.ErrReviewContentTooLong))
 		})
 	}
 }

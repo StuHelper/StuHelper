@@ -18,9 +18,8 @@ const maxReplyContentRunes = 1000
 
 // 回复相关错误
 var (
-	ErrReplyNotFound  = errors.New("reply not found")
-	ErrNotReplyOwner  = errors.New("not the reply owner")
-	ErrContentTooLong = errors.New("content too long")
+	ErrReplyNotFound = errors.New("reply not found")
+	ErrNotReplyOwner = errors.New("not the reply owner")
 )
 
 // AddFavoriteParams 添加收藏参数
@@ -403,7 +402,7 @@ func validateAndSanitizeReplyContent(content string) (string, error) {
 		return "", ErrContentEmpty
 	}
 	if utf8.RuneCountInString(content) > maxReplyContentRunes {
-		return "", ErrContentTooLong
+		return "", ErrReplyContentTooLong
 	}
 	return content, nil
 }

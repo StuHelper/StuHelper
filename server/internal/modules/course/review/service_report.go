@@ -116,7 +116,7 @@ func (s *Service) ReportReview(ctx context.Context, params ReportReviewParams) (
 
 func validateAndSanitizeReportDescription(description string) (string, error) {
 	if utf8.RuneCountInString(description) > maxReportDescriptionRunes {
-		return "", ErrContentTooLong
+		return "", ErrReportDescriptionTooLong
 	}
 	if sanitizer.ContainsDangerousContent(description) {
 		return "", ErrDangerousContent

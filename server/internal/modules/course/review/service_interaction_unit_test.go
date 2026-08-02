@@ -25,7 +25,7 @@ func TestCreateReply_PreflightContentValidation(t *testing.T) {
 		Content:  strings.Repeat("字", maxReplyContentRunes+1),
 	})
 	require.Error(t, err)
-	assert.ErrorIs(t, err, ErrContentTooLong)
+	assert.ErrorIs(t, err, ErrReplyContentTooLong)
 }
 
 func TestSaveDraftPreflightValidation(t *testing.T) {

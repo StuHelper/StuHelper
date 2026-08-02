@@ -14,12 +14,12 @@ var (
 	reviewModerationErrorMappings = []response.ErrorMapping{
 		response.MatchError(ErrTitleEmpty, 400, "title cannot be empty"),
 		response.MatchError(ErrTitleTooLong, 400, "title is too long", errs.ErrParamOutOfRange),
-		response.MatchError(ErrDangerousContent, 400, "content contains potentially dangerous elements"),
+		response.MatchError(ErrDangerousContent, 400, "content contains potentially dangerous elements", errs.ErrDangerousContent),
 		response.MatchError(ErrSensitiveContent, 400, "content contains sensitive words", errs.ErrSensitiveContent),
 		response.MatchError(ErrModerationUnavailable, 503, "content moderation is temporarily unavailable"),
 		response.MatchError(ErrContentEmpty, 400, "content cannot be empty", errs.ErrContentEmpty),
-		response.MatchError(ErrContentTooShort, 400, "content is too short", errs.ErrParamOutOfRange),
-		response.MatchError(ErrContentTooLong, 400, "content is too long", errs.ErrParamOutOfRange),
+		response.MatchError(ErrContentTooShort, 400, "content is too short", errs.ErrReviewContentTooShort),
+		response.MatchError(ErrContentTooLong, 400, "content is too long", errs.ErrReviewContentTooLong),
 		response.MatchError(ErrReasonTooLong, 400, "reason is too long", errs.ErrParamOutOfRange),
 	}
 	reviewCourseLookupErrorMappings = []response.ErrorMapping{
@@ -53,8 +53,8 @@ var (
 	}
 	reviewWriteValidationErrorMappings = []response.ErrorMapping{
 		response.MatchError(ErrInvalidTermID, 400, "invalid term_id format, expected YYYY-S (e.g. 2024-1)"),
-		response.MatchError(ErrRatingRequired, 400, "at least one rating dimension is required"),
-		response.MatchError(ErrInvalidRating, 400, "rating must be between 1 and 5"),
+		response.MatchError(ErrRatingRequired, 400, "at least one rating dimension is required", errs.ErrRatingDimensionMissing),
+		response.MatchError(ErrInvalidRating, 400, "rating must be between 1 and 5", errs.ErrRatingInvalid),
 		response.MatchError(ErrInvalidGrade, 400, "invalid grade"),
 	}
 	reviewNotFoundErrorMappings = []response.ErrorMapping{
@@ -67,6 +67,12 @@ var (
 	reviewReportErrorMappings = []response.ErrorMapping{
 		response.MatchError(ErrAlreadyReported, 409, "you have already reported this review", errs.ErrAlreadyReported),
 		response.MatchError(ErrReportNotFound, 404, "report not found", errs.ErrReportNotFound),
+	}
+	reviewReportValidationErrorMappings = []response.ErrorMapping{
+		response.MatchError(ErrReportDescriptionTooLong, 400, "report description is too long", errs.ErrParamOutOfRange),
+	}
+	reviewReplyValidationErrorMappings = []response.ErrorMapping{
+		response.MatchError(ErrReplyContentTooLong, 400, "reply content is too long", errs.ErrParamOutOfRange),
 	}
 	reviewAdminActionErrorMappings = []response.ErrorMapping{
 		response.MatchError(ErrInvalidAction, 400, "invalid action"),
@@ -134,6 +140,7 @@ func respondReportReviewError(c *gin.Context, err error) bool {
 	return response.RespondMappedErrorGroups(c, err,
 		reviewUserIdentityErrorMappings,
 		reviewNotFoundErrorMappings,
+		reviewReportValidationErrorMappings,
 		reviewModerationErrorMappings,
 		[]response.ErrorMapping{
 			response.MatchError(ErrInvalidAction, 400, "invalid report reason"),
@@ -152,6 +159,7 @@ func respondCreateReplyError(c *gin.Context, err error) bool {
 	return response.RespondMappedErrorGroups(c, err,
 		reviewUserIdentityErrorMappings,
 		reviewNotFoundErrorMappings,
+		reviewReplyValidationErrorMappings,
 		reviewModerationErrorMappings,
 	)
 }
