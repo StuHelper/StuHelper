@@ -313,9 +313,7 @@ if address is None:
             "BACKUP_OBJECT_STORAGE_ENDPOINT must not use a legacy or abbreviated numeric IPv4 address"
         )
 
-if address is not None:
-    resolved_addresses = {address}
-elif (
+if address is None and (
     "." not in host
     or host == "host.docker.internal"
     or host.endswith(".localhost")
@@ -324,19 +322,24 @@ elif (
     raise SystemExit(
         "BACKUP_OBJECT_STORAGE_ENDPOINT must use an off-host fully-qualified hostname or a non-local IP address"
     )
+
+image_ref = os.environ.get(
+    "RCLONE_IMAGE_REF",
+    "rclone/rclone:beta@sha256:f52965eba611ba8984117638b2a0539dcce170731937f93fbace66897d102698",
+)
+if not re.fullmatch(r".+@sha256:[0-9a-f]{64}", image_ref):
+    raise SystemExit("RCLONE_IMAGE_REF must be a complete image@sha256 reference")
+docker_network = os.environ.get("BACKUP_OBJECT_STORAGE_DOCKER_NETWORK", "")
+if docker_network and not re.fullmatch(r"[A-Za-z0-9_.-]+", docker_network):
+    raise SystemExit(
+        "BACKUP_OBJECT_STORAGE_DOCKER_NETWORK contains unsupported characters"
+    )
+effective_docker_network = docker_network or "bridge"
+
+if address is not None:
+    resolved_addresses = {address}
 else:
     resolved_addresses = set()
-    image_ref = os.environ.get(
-        "RCLONE_IMAGE_REF",
-        "rclone/rclone:beta@sha256:f52965eba611ba8984117638b2a0539dcce170731937f93fbace66897d102698",
-    )
-    if not re.fullmatch(r".+@sha256:[0-9a-f]{64}", image_ref):
-        raise SystemExit("RCLONE_IMAGE_REF must be a complete image@sha256 reference")
-    docker_network = os.environ.get("BACKUP_OBJECT_STORAGE_DOCKER_NETWORK", "")
-    if docker_network and not re.fullmatch(r"[A-Za-z0-9_.-]+", docker_network):
-        raise SystemExit(
-            "BACKUP_OBJECT_STORAGE_DOCKER_NETWORK contains unsupported characters"
-        )
     resolver_command = [
         "docker",
         "run",
@@ -382,6 +385,45 @@ else:
         )
 
 try:
+    docker_network_result = subprocess.run(
+        ["docker", "network", "inspect", effective_docker_network],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    docker_networks = json.loads(docker_network_result.stdout)
+except FileNotFoundError:
+    raise SystemExit(
+        "docker is required to inspect the rclone network while verifying BACKUP_OBJECT_STORAGE_ENDPOINT"
+    ) from None
+except subprocess.TimeoutExpired:
+    raise SystemExit(
+        "rclone Docker network inspection timed out while verifying BACKUP_OBJECT_STORAGE_ENDPOINT"
+    ) from None
+except (subprocess.CalledProcessError, json.JSONDecodeError) as error:
+    raise SystemExit(
+        f"failed to inspect the rclone Docker network while verifying BACKUP_OBJECT_STORAGE_ENDPOINT: {error}"
+    ) from None
+
+local_docker_subnets = set()
+local_docker_addresses = set()
+for network in docker_networks:
+    for config in network.get("IPAM", {}).get("Config", []) or []:
+        subnet = str(config.get("Subnet", "")).split("%", 1)[0]
+        try:
+            local_docker_subnets.add(ipaddress.ip_network(subnet, strict=False))
+        except ValueError:
+            continue
+    for container in (network.get("Containers") or {}).values():
+        for key in ("IPv4Address", "IPv6Address"):
+            candidate = str(container.get(key, "")).split("/", 1)[0].split("%", 1)[0]
+            try:
+                local_docker_addresses.add(ipaddress.ip_address(candidate))
+            except ValueError:
+                continue
+
+try:
     local_result = subprocess.run(
         ["ip", "-j", "address", "show"],
         check=True,
@@ -413,6 +455,9 @@ def normalize(value):
     return value
 
 normalized_local_addresses = {normalize(value) for value in local_addresses}
+normalized_local_docker_addresses = {
+    normalize(value) for value in local_docker_addresses
+}
 for resolved_address in resolved_addresses:
     normalized_address = normalize(resolved_address)
     if (
@@ -427,6 +472,13 @@ for resolved_address in resolved_addresses:
     if normalized_address in normalized_local_addresses:
         raise SystemExit(
             "BACKUP_OBJECT_STORAGE_ENDPOINT must not resolve to an address assigned to the production host"
+        )
+    if normalized_address in normalized_local_docker_addresses or any(
+        normalized_address.version == subnet.version and normalized_address in subnet
+        for subnet in local_docker_subnets
+    ):
+        raise SystemExit(
+            "BACKUP_OBJECT_STORAGE_ENDPOINT must not resolve into a Docker network hosted on the production host"
         )
 PY
   )"; then

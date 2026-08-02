@@ -248,6 +248,49 @@ source "${REPO_ROOT}/infra/ops/lib/common.sh"
 # shellcheck disable=SC1090,SC1091
 source "${RCLONE_HELPER}"
 
+resolver_bin="${tmpdir}/resolver-bin"
+mkdir -p "${resolver_bin}"
+cat >"${resolver_bin}/docker" <<'DOCKER'
+#!/usr/bin/env bash
+set -euo pipefail
+
+printf '%s\n' "$@" >>"${RESOLVER_DOCKER_CAPTURE:?}"
+if [[ "${1:-}" == "network" && "${2:-}" == "inspect" ]]; then
+  printf '%s\n' '[{"Name":"contract-backup-network","IPAM":{"Config":[{"Subnet":"172.31.0.0/16"}]},"Containers":{}}]'
+  exit 0
+fi
+
+args=("$@")
+(( ${#args[@]} >= 2 )) || exit 2
+database="${args[${#args[@]} - 2]}"
+host="${args[${#args[@]} - 1]}"
+[[ "${database}" == "ahostsv4" || "${database}" == "ahostsv6" ]] || exit 2
+case "${database}:${host}" in
+  ahostsv4:backup-on-host.example.test)
+    printf '203.0.113.77 STREAM %s\n' "${host}"
+    ;;
+  ahostsv4:backup-local-container.example.test)
+    printf '172.31.0.9 STREAM %s\n' "${host}"
+    ;;
+  ahostsv4:backup-off-host.example.test)
+    printf '198.51.100.42 STREAM %s\n' "${host}"
+    ;;
+  *) exit 2 ;;
+esac
+DOCKER
+cat >"${resolver_bin}/ip" <<'IP'
+#!/usr/bin/env bash
+set -euo pipefail
+
+[[ "$*" == "-j address show" ]] || exit 2
+printf '%s\n' '[{"ifname":"eth0","addr_info":[{"family":"inet","local":"203.0.113.77","prefixlen":24}]}]'
+IP
+chmod +x "${resolver_bin}/docker" "${resolver_bin}/ip"
+resolver_docker_capture="${tmpdir}/resolver-docker-argv"
+: >"${resolver_docker_capture}"
+export PATH="${resolver_bin}:${PATH}"
+export RESOLVER_DOCKER_CAPTURE="${resolver_docker_capture}"
+
 if ! (
   export OBJECT_STORAGE_ENDPOINT="https://objects.example.test"
   export OBJECT_STORAGE_USE_SSL="true"
@@ -365,41 +408,7 @@ if (
 fi
 assert_contains "${tmpdir}/off-host-legacy-loopback.log" 'must not use a legacy or abbreviated numeric IPv4 address'
 
-resolver_bin="${tmpdir}/resolver-bin"
-mkdir -p "${resolver_bin}"
-cat >"${resolver_bin}/docker" <<'DOCKER'
-#!/usr/bin/env bash
-set -euo pipefail
-
-printf '%s\n' "$@" >"${RESOLVER_DOCKER_CAPTURE:?}"
-args=("$@")
-(( ${#args[@]} >= 2 )) || exit 2
-database="${args[${#args[@]} - 2]}"
-host="${args[${#args[@]} - 1]}"
-[[ "${database}" == "ahostsv4" || "${database}" == "ahostsv6" ]] || exit 2
-case "${database}:${host}" in
-  ahostsv4:backup-on-host.example.test)
-    printf '203.0.113.77 STREAM %s\n' "${host}"
-    ;;
-  ahostsv4:backup-off-host.example.test)
-    printf '198.51.100.42 STREAM %s\n' "${host}"
-    ;;
-  *) exit 2 ;;
-esac
-DOCKER
-cat >"${resolver_bin}/ip" <<'IP'
-#!/usr/bin/env bash
-set -euo pipefail
-
-[[ "$*" == "-j address show" ]] || exit 2
-printf '%s\n' '[{"ifname":"eth0","addr_info":[{"family":"inet","local":"203.0.113.77","prefixlen":24}]}]'
-IP
-chmod +x "${resolver_bin}/docker" "${resolver_bin}/ip"
-resolver_docker_capture="${tmpdir}/resolver-docker-argv"
-
 if (
-  export PATH="${resolver_bin}:${PATH}"
-  export RESOLVER_DOCKER_CAPTURE="${resolver_docker_capture}"
   export BACKUP_OBJECT_STORAGE_ENDPOINT="https://backup-on-host.example.test"
   export BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED="true"
   export BACKUP_OBJECT_STORAGE_DOCKER_NETWORK="contract-backup-network"
@@ -409,9 +418,17 @@ if (
 fi
 assert_contains "${tmpdir}/off-host-dns-local.log" 'must not resolve to an address assigned to the production host'
 
+if (
+  export BACKUP_OBJECT_STORAGE_ENDPOINT="https://backup-local-container.example.test"
+  export BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED="true"
+  export BACKUP_OBJECT_STORAGE_DOCKER_NETWORK="contract-backup-network"
+  require_off_host_backup_object_storage
+) >"${tmpdir}/off-host-dns-local-container.log" 2>&1; then
+  fail "a backup FQDN resolving into a same-host Docker network must be rejected"
+fi
+assert_contains "${tmpdir}/off-host-dns-local-container.log" 'must not resolve into a Docker network hosted on the production host'
+
 if ! (
-  export PATH="${resolver_bin}:${PATH}"
-  export RESOLVER_DOCKER_CAPTURE="${resolver_docker_capture}"
   export BACKUP_OBJECT_STORAGE_ENDPOINT="https://backup-off-host.example.test"
   export BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED="true"
   export BACKUP_OBJECT_STORAGE_DOCKER_NETWORK="contract-backup-network"
