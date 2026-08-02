@@ -233,7 +233,7 @@ Required 与 Go/JavaScript CodeQL。bypass actor 只允许 GitHub 用户 `Xaurya
 
 | 别名 | 最终处置 |
 |------|----------|
-| #33 | P3：UniAppX custom navigation 安全区与真机验收 |
+| #33 | `validated-no-change`：`navigationStyle=custom` 的状态栏/微信胶囊遮挡机制在 App/mp-weixin 成立，但仓库现行 UniAppX 发布契约是 H5-only，平台守卫明确禁止声明或构建 mp-weixin；H5 浏览器视口不包含原生状态栏/胶囊。删除 custom navigation 会无依据改变已验收 H5 布局，因此当前不改；将来新增 App/小程序正式目标时，必须随认证、构建、CI 和真机门禁一起重新选择原生导航或实现安全区。本条所在提交。 |
 | #40 | P3：SearchPage moderation 后局部同步 |
 | #41 | P3：teacher profile append error 保留已有列表 |
 | #58 | P3：moderation route 渐进使用现有 capability |
