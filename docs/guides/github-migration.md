@@ -3,7 +3,7 @@ type: guide
 audience: maintainers
 status: current
 authoritative-source: .github/workflows/ + GitHub repository settings
-last-verified: 2026-08-02
+last-verified: 2026-08-03
 ---
 
 # GitHub 仓库与 Actions 治理
@@ -53,7 +53,7 @@ last-verified: 2026-08-02
 | `CI` | PR、`develop`/`main` push、手工 | PR 只读；按路径选择 Go、契约、前端、E2E、Koishi、Infra、Semgrep、完整历史 secret scan、PR 新增依赖审查，以及 22 个受管运行时镜像的 `HIGH` / `CRITICAL` / `UNKNOWN` 策略扫描 |
 | `CodeQL` | PR、push、每周、手工 | Go 与 JavaScript/TypeScript 代码扫描 |
 | `Publish images` | 受信任 push 的 `Required` 与两项 CodeQL 成功后 | 再确认提交仍是实时 branch head，同一 commit 只构建一次、扫描同一镜像、发布不可变 SHA tag，并为最终 digest 签发 provenance 与 CycloneDX SBOM attestation |
-| `Deploy` | 手工；也可由 `main` CI 依次调用 staging / production | environment 审批前和 SSH 前两次验证当前 branch head、`Required`、双语言 CodeQL 与 staging gate，并校验发布工作流身份和镜像 digest；forward deploy 不接受历史 SHA |
+| `Deploy` | 手工；也可由 `main` CI 调用 staging 或 production | environment 审批前和 SSH 前两次验证当前 branch head、`Required`、双语言 CodeQL 与显式 promotion policy，并校验发布工作流身份、镜像 digest 与 provenance；forward deploy 不接受历史 SHA |
 | `Rollback` | 手工 | 当前可信 controller 使用同一 environment 锁，把经过 provenance 校验的历史 40 位 SHA 镜像集作为回滚目标 |
 
 所有外部 Action 必须固定到完整 commit SHA，并在注释中保留对应主版本。公开 fork 的 PR 不得使用 `pull_request_target` 检出或运行不受信任代码。
@@ -85,7 +85,8 @@ last-verified: 2026-08-02
 
 ### Environments
 
-创建 `staging` 和 `production` 两个 environment。两个 environment 使用相同 secret 名称、不同值：
+必须创建 `production` environment。启用 staging 时再创建隔离的 `staging` environment；两者使用
+相同 secret 名称但必须是不同值：
 
 - `DEPLOY_HOST`
 - `DEPLOY_PORT`
@@ -98,7 +99,8 @@ last-verified: 2026-08-02
 
 - `PUBLIC_URL`
 
-`production` 只允许 `main` 分支并要求 environment reviewer；`staging` 仅允许 `develop` 和 `main`。
+`production` 只允许 `main` 分支并要求 environment reviewer；启用后的 `staging` 仅允许 `develop` 和
+`main`。
 当前项目采用明确的单维护者例外：production reviewer 只配置 GitHub 用户 `Xauryan`，并保持
 `prevent_self_review=false`，允许该用户批准自己触发的部署。不创建第二个占位管理员，也不把这个
 例外描述成双人复核；风险由 branch ruleset、审批前 checks/provenance/digest 验证、environment
@@ -121,9 +123,11 @@ SSH known_hosts 必须预先固定真实 host public key，且条目必须与 `D
 - `ADMIN_VITE_BASE`
 - `STAGING_AUTO_DEPLOY_ENABLED`：默认不配置或设为 `false`；独立 staging 主机、secrets、公开运行时
   配置和真实 smoke 就绪后才设为 `true`
-- `PRODUCTION_AUTO_PROMOTION_ENABLED`：默认不配置或设为 `false`；只有自动 staging 已启用且同 SHA
-  smoke 成功、production 专用部署身份和 secrets 已验收后才设为 `true`；production environment
-  审批不会因此被跳过
+- `PRODUCTION_PROMOTION_MODE`：`direct` 表示 staging 暂缓期间从可信 `main` 制品直接创建 production
+  approval；`after-staging` 表示必须先有同 SHA staging success。不得配置为 `break-glass`
+- `PRODUCTION_AUTO_PROMOTION_ENABLED`：默认不配置或设为 `false`；只有 production 专用部署身份、
+  environment secrets、Vault、备份、远端预检和一次人工批准演练全部通过后才设为 `true`；production
+  environment 审批不会因此被跳过
 
 ### Branch protection
 
@@ -183,8 +187,10 @@ commit SHA 串行，首次构建使用 commit 时间固定镜像与文件元数�
 签名 attestation 绑定到同一 manifest digest。SBOM 是依赖清单和审计证据，不能替代 Trivy 漏洞
 门禁、provenance 或目标环境业务验收。
 
-远端部署脚本执行 registry login；远端 secret backend 必须配置独立、最小
-`read:packages` 读取凭据，不能复用个人日常登录凭据。
+GitHub 自动部署由 job 级 `packages: read` 权限签发短期 `github.token`，经 SSH 标准输入交给远端；
+`remote-ci-release.sh` 只在临时 `DOCKER_CONFIG` 中登录 `ghcr.io` 并在结束时删除。生产
+`.deploy/remote.env` 使用 `REGISTRY_AUTH_MODE=workflow-token`，不得保存个人 PAT 或把 token 放进 SSH
+命令参数。`persistent-secret` 只用于明确管理的非 GitHub 兼容链路。
 
 ## 仓库治理验收
 
@@ -192,8 +198,10 @@ commit SHA 串行，首次构建使用 commit 时间固定镜像与文件元数�
 2. 完整历史 Gitleaks 扫描为零未基线化发现；
 3. `CI / Required` 与 CodeQL 全部通过；
 4. 三个 GHCR 镜像均可按 digest 拉取，Trivy 和 provenance attestation 成功；
-5. 同一 `main` SHA 的 staging 部署、真实页面/E2E、服务健康和观测 smoke 全部通过；
-6. production environment 的 Xauryan 单人审批、默认 staging gate 和一次受控回滚演练通过；
+5. 当前采用 `direct` 时，production 预检、迁移前备份与取回、真实页面/E2E、服务健康和观测 smoke
+   全部通过；未来启用 staging 后补做同一 `main` SHA 的隔离环境验收；
+6. production environment 的 Xauryan 单人审批、审批后二次校验、短期 GHCR 凭据清理和一次受控
+   回滚演练通过；
 7. `SECURITY.md` 的私密报告入口可用，Secret scanning、Push protection 和 Dependabot alerts 已启用；
 8. 根目录许可证状态与项目对外表述一致；仅设为 public 不等于授予开源许可。
 

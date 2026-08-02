@@ -22,8 +22,8 @@ reason="${DEPLOY_REASON:-}"
 required_checks="${REQUIRED_RELEASE_CHECKS:-Required,go,javascript-typescript}"
 max_attempts="${RELEASE_CHECK_MAX_ATTEMPTS:-20}"
 poll_seconds="${RELEASE_CHECK_POLL_SECONDS:-15}"
-require_staging_success="${REQUIRE_STAGING_SUCCESS:-false}"
-staging_gate_bypassed="${STAGING_GATE_BYPASSED:-false}"
+release_operation="${RELEASE_OPERATION:-}"
+promotion_mode="${PRODUCTION_PROMOTION_MODE:-}"
 
 [[ "${target_sha}" =~ ^[0-9a-f]{40}$ ]] ||
   fail "TARGET_SHA must be a full lowercase 40-character Git commit SHA"
@@ -41,10 +41,31 @@ fi
 if [[ ! "${poll_seconds}" =~ ^[0-9]+$ ]] || ((poll_seconds > 60)); then
   fail "RELEASE_CHECK_POLL_SECONDS must be between 0 and 60"
 fi
-[[ "${require_staging_success}" == "true" || "${require_staging_success}" == "false" ]] ||
-  fail "REQUIRE_STAGING_SUCCESS must be true or false"
-[[ "${staging_gate_bypassed}" == "true" || "${staging_gate_bypassed}" == "false" ]] ||
-  fail "STAGING_GATE_BYPASSED must be true or false"
+
+case "${release_operation}" in
+  publish | forward | rollback) ;;
+  *) fail "RELEASE_OPERATION must be publish, forward, or rollback" ;;
+esac
+
+case "${release_operation}" in
+  publish | rollback)
+    [[ "${promotion_mode}" == "not-applicable" ]] ||
+      fail "${release_operation} requires PRODUCTION_PROMOTION_MODE=not-applicable"
+    ;;
+  forward)
+    if [[ "${environment}" == "staging" ]]; then
+      [[ "${promotion_mode}" == "staging" ]] ||
+        fail "staging deployment requires PRODUCTION_PROMOTION_MODE=staging"
+    else
+      case "${promotion_mode}" in
+        after-staging | direct | break-glass) ;;
+        *)
+          fail "production deployment requires PRODUCTION_PROMOTION_MODE=after-staging, direct, or break-glass"
+          ;;
+      esac
+    fi
+    ;;
+esac
 
 if ((${#reason} < 12 || ${#reason} > 500)); then
   fail "DEPLOY_REASON must contain 12-500 characters"
@@ -56,19 +77,22 @@ fi
 if [[ "${environment}" == "production" && "${source_ref}" != "refs/heads/main" ]]; then
   fail "production deployments must run from refs/heads/main"
 fi
-if [[ "${staging_gate_bypassed}" == "true" ]]; then
-  [[ "${environment}" == "production" ]] ||
-    fail "the staging gate can only be bypassed for production"
+if [[ "${release_operation}" == "forward" && "${promotion_mode}" == "direct" ]]; then
   ((${#reason} >= 24)) ||
-    fail "a staging-gate bypass requires at least 24 characters of incident context"
-  printf '[github-release][warning] staging success gate bypassed by an audited workflow input\n' >&2
+    fail "direct production promotion requires at least 24 characters of change context"
+  printf '[github-release][warning] direct production promotion selected; no same-SHA staging success is required\n' >&2
+fi
+if [[ "${release_operation}" == "forward" && "${promotion_mode}" == "break-glass" ]]; then
+  ((${#reason} >= 24)) ||
+    fail "break-glass production promotion requires at least 24 characters of incident context"
+  printf '[github-release][warning] break-glass production promotion selected; no same-SHA staging success is required\n' >&2
 fi
 
-# A forward deployment always executes the controller and payload from the
-# exact workflow commit. Older releases are handled only by rollback.yml,
-# whose current controller selects previously attested image digests.
+# Every release operation executes the controller from the exact live branch
+# head. rollback.yml keeps this controller current while selecting a previously
+# attested image set through a separate, validated input.
 [[ "${target_sha}" == "${workflow_sha}" ]] ||
-  fail "forward deployment target must equal the trusted workflow commit"
+  fail "release controller target must equal the trusted workflow commit"
 
 branch="${source_ref#refs/heads/}"
 branch_sha="$(
@@ -129,7 +153,7 @@ for attempt in $(seq 1 "${max_attempts}"); do
   sleep "${poll_seconds}"
 done
 
-if [[ "${environment}" == "production" && "${require_staging_success}" == "true" ]]; then
+if [[ "${release_operation}" == "forward" && "${environment}" == "production" && "${promotion_mode}" == "after-staging" ]]; then
   for attempt in $(seq 1 "${max_attempts}"); do
     deployments="$(
       gh api "repos/${repository}/deployments?sha=${target_sha}&environment=staging&per_page=100"

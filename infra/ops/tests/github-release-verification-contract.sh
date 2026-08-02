@@ -95,8 +95,8 @@ run_verifier() {
     DEPLOY_REASON="${DEPLOY_REASON_OVERRIDE:-Reviewed production release}" \
     RELEASE_CHECK_MAX_ATTEMPTS=1 \
     RELEASE_CHECK_POLL_SECONDS=0 \
-    REQUIRE_STAGING_SUCCESS="${REQUIRE_STAGING_SUCCESS_OVERRIDE:-false}" \
-    STAGING_GATE_BYPASSED="${STAGING_GATE_BYPASSED_OVERRIDE:-false}" \
+    RELEASE_OPERATION="${RELEASE_OPERATION_OVERRIDE:-forward}" \
+    PRODUCTION_PROMOTION_MODE="${PRODUCTION_PROMOTION_MODE_OVERRIDE:-direct}" \
     GH_BRANCH_SHA="${GH_BRANCH_SHA_OVERRIDE:-${VALID_SHA}}" \
     GH_CHECK_MODE="${GH_CHECK_MODE_OVERRIDE:-success}" \
     GH_STAGING_MODE="${GH_STAGING_MODE_OVERRIDE:-success}" \
@@ -126,23 +126,44 @@ expect_failure "required check missing" GH_CHECK_MODE_OVERRIDE=missing
 expect_failure "required check pending" GH_CHECK_MODE_OVERRIDE=pending
 expect_failure "reason too short" DEPLOY_REASON_OVERRIDE=short
 expect_failure "unknown environment" DEPLOY_ENVIRONMENT_OVERRIDE=preview
-REQUIRE_STAGING_SUCCESS_OVERRIDE=true run_verifier >/dev/null ||
+PRODUCTION_PROMOTION_MODE_OVERRIDE=after-staging run_verifier >/dev/null ||
   fail "successful staging promotion was not accepted"
 expect_failure "staging deployment missing" \
-  REQUIRE_STAGING_SUCCESS_OVERRIDE=true GH_STAGING_MODE_OVERRIDE=missing
+  PRODUCTION_PROMOTION_MODE_OVERRIDE=after-staging GH_STAGING_MODE_OVERRIDE=missing
 expect_failure "staging deployment failed" \
-  REQUIRE_STAGING_SUCCESS_OVERRIDE=true GH_STAGING_MODE_OVERRIDE=failed
+  PRODUCTION_PROMOTION_MODE_OVERRIDE=after-staging GH_STAGING_MODE_OVERRIDE=failed
 expect_failure "staging deployment remained pending" \
-  REQUIRE_STAGING_SUCCESS_OVERRIDE=true GH_STAGING_MODE_OVERRIDE=pending
-STAGING_GATE_BYPASSED_OVERRIDE=true \
+  PRODUCTION_PROMOTION_MODE_OVERRIDE=after-staging GH_STAGING_MODE_OVERRIDE=pending
+PRODUCTION_PROMOTION_MODE_OVERRIDE=break-glass \
   DEPLOY_REASON_OVERRIDE='Incident INC-123 requires an urgent controlled promotion' \
-  run_verifier >/dev/null || fail "audited staging bypass was not accepted"
-expect_failure "short staging bypass context" \
-  STAGING_GATE_BYPASSED_OVERRIDE=true DEPLOY_REASON_OVERRIDE='short bypass reason'
-expect_failure "staging target cannot bypass staging" \
-  STAGING_GATE_BYPASSED_OVERRIDE=true \
+  run_verifier >/dev/null || fail "audited break-glass promotion was not accepted"
+expect_failure "short direct-promotion context" \
+  PRODUCTION_PROMOTION_MODE_OVERRIDE=direct DEPLOY_REASON_OVERRIDE='short direct reason'
+expect_failure "short break-glass context" \
+  PRODUCTION_PROMOTION_MODE_OVERRIDE=break-glass DEPLOY_REASON_OVERRIDE='short incident reason'
+expect_failure "staging target cannot use direct mode" \
+  PRODUCTION_PROMOTION_MODE_OVERRIDE=direct \
   DEPLOY_ENVIRONMENT_OVERRIDE=staging \
   SOURCE_REF_OVERRIDE=refs/heads/develop \
   DEPLOY_REASON_OVERRIDE='Incident INC-123 requires an urgent controlled promotion'
+DEPLOY_ENVIRONMENT_OVERRIDE=staging \
+  SOURCE_REF_OVERRIDE=refs/heads/develop \
+  PRODUCTION_PROMOTION_MODE_OVERRIDE=staging \
+  DEPLOY_REASON_OVERRIDE='Reviewed staging release' \
+  run_verifier >/dev/null || fail "staging promotion mode was not accepted"
+RELEASE_OPERATION_OVERRIDE=publish \
+  PRODUCTION_PROMOTION_MODE_OVERRIDE=not-applicable \
+  DEPLOY_ENVIRONMENT_OVERRIDE=staging \
+  SOURCE_REF_OVERRIDE=refs/heads/develop \
+  DEPLOY_REASON_OVERRIDE='Trusted image publication' \
+  run_verifier >/dev/null || fail "trusted publication mode was not accepted"
+RELEASE_OPERATION_OVERRIDE=rollback \
+  PRODUCTION_PROMOTION_MODE_OVERRIDE=not-applicable \
+  DEPLOY_REASON_OVERRIDE='Reviewed production rollback' \
+  run_verifier >/dev/null || fail "rollback controller mode was not accepted"
+expect_failure "publish cannot claim direct promotion" \
+  RELEASE_OPERATION_OVERRIDE=publish PRODUCTION_PROMOTION_MODE_OVERRIDE=direct
+expect_failure "unknown release operation" RELEASE_OPERATION_OVERRIDE=invalid
+expect_failure "unknown production promotion mode" PRODUCTION_PROMOTION_MODE_OVERRIDE=invalid
 
 printf '[github-release-verification-contract] all assertions passed\n'

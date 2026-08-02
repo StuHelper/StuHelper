@@ -106,6 +106,7 @@ fi
 
 assert_contains "${COMMON_LIB_FILE}" 'SECRETS_ENV_FILE_PATH="\$\{SECRETS_ENV_FILE\}"'
 assert_contains "${COMMON_LIB_FILE}" 'GENERATED_SECRET_ENV_FILE_PATH="\$\{GENERATED_SECRET_ENV_FILE\}"'
+assert_contains "${COMPOSE_FILE}" '^name: \$\{STACK_NAME:-stuhelper\}$'
 assert_contains "${REPO_ROOT}/docker-compose.yml" 'CASDOOR_DB_PASSWORD: \$\{CASDOOR_DB_PASSWORD:-\}'
 assert_contains "${REPO_ROOT}/docker-compose.yml" 'password=\$\{CASDOOR_DB_PASSWORD:-\}'
 assert_not_contains "${REPO_ROOT}/docker-compose.yml" 'password=\$\{CASDOOR_DB_PASSWORD\}'

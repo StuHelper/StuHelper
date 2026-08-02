@@ -113,6 +113,7 @@ ensure_remote_deploy_config() {
       SECRETS_ENV_SECRET_REF='secret/stuhelper/prod/secrets-env' \
       GENERATED_ENV_SECRET_REF='secret/stuhelper/prod/generated-secrets-env' \
       REGISTRY='REPLACE_WITH_REGISTRY_HOST' \
+      REGISTRY_AUTH_MODE='workflow-token' \
       REGISTRY_USERNAME_SECRET_REF='secret/stuhelper/prod/registry-username' \
       REGISTRY_PASSWORD_SECRET_REF='secret/stuhelper/prod/registry-password' \
       VAULT_ADDR='REPLACE_WITH_VAULT_ADDR' \
@@ -126,6 +127,7 @@ ensure_remote_deploy_config() {
 # Remote-owned deploy control plane for StuHelper.
 # Manage this file on the target host; CI/Ansible no longer rewrite it per release.
 REGISTRY=REPLACE_WITH_REGISTRY_HOST
+REGISTRY_AUTH_MODE=workflow-token
 REGISTRY_USERNAME_SECRET_REF=secret/stuhelper/prod/registry-username
 REGISTRY_PASSWORD_SECRET_REF=secret/stuhelper/prod/registry-password
 ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.shared
@@ -336,9 +338,10 @@ Next steps:
 3. Put the Vault token into:
    - ${DEPLOY_APP_DIR}/.secrets/vault/token
 4. Review the remote deploy control plane in ${DEPLOY_APP_DIR}/.deploy/remote.env
-   - registry/shared/generated secret refs should point to your remote secret backend
+   - set REGISTRY=ghcr.io and REGISTRY_AUTH_MODE=workflow-token for GitHub Actions
+   - shared/generated secret refs should point to your remote secret backend
 5. Ensure the deploy bundle is synced to ${DEPLOY_APP_DIR}; re-run bootstrap or install-backup-timers.sh afterwards if you want systemd timers installed from the repo
-6. Configure the staging and production GitHub environment secrets:
+6. Configure the production GitHub environment secrets (and isolated staging secrets when staging is enabled):
    - DEPLOY_HOST / DEPLOY_PORT / DEPLOY_USER / DEPLOY_APP_DIR / DEPLOY_SSH_KEY
    - DEPLOY_SSH_KNOWN_HOSTS
 7. Publish a trusted main commit, then run the protected GitHub Deploy workflow for production

@@ -141,11 +141,24 @@ assert_contains "${GITHUB_CI_FILE}" '^  promote-staging:$'
 assert_contains "${GITHUB_CI_FILE}" "vars\.STAGING_AUTO_DEPLOY_ENABLED == 'true'"
 assert_contains "${GITHUB_CI_FILE}" 'uses: \./\.github/workflows/deploy\.yml'
 assert_contains "${GITHUB_CI_FILE}" '^      target: staging$'
+assert_contains "${GITHUB_CI_FILE}" '^      promotion_mode: staging$'
 assert_not_contains "${GITHUB_CI_FILE}" '^    secrets: inherit$'
-assert_contains "${GITHUB_CI_FILE}" '^  promote-production:$'
+assert_contains "${GITHUB_CI_FILE}" '^  promote-production-after-staging:$'
+assert_contains "${GITHUB_CI_FILE}" '^  promote-production-direct:$'
 assert_contains "${GITHUB_CI_FILE}" "vars\.PRODUCTION_AUTO_PROMOTION_ENABLED == 'true'"
 assert_contains "${GITHUB_CI_FILE}" "needs\.promote-staging\.result == 'success'"
+assert_contains "${GITHUB_CI_FILE}" "vars\.PRODUCTION_PROMOTION_MODE == 'after-staging'"
+assert_contains "${GITHUB_CI_FILE}" "vars\.PRODUCTION_PROMOTION_MODE == 'direct'"
+assert_contains "${GITHUB_CI_FILE}" '^      promotion_mode: after-staging$'
+assert_contains "${GITHUB_CI_FILE}" '^      promotion_mode: direct$'
 assert_contains "${GITHUB_CI_FILE}" '^      target: production$'
+
+direct_promotion_block="$(sed -n '/^  promote-production-direct:$/,$p' "${GITHUB_CI_FILE}")"
+assert_text_contains "${direct_promotion_block}" '^      - required$' "direct production promotion"
+assert_text_contains "${direct_promotion_block}" '^      - publish-images$' "direct production promotion"
+if grep -Eq '^      - promote-staging$' <<<"${direct_promotion_block}"; then
+  fail "direct production promotion must not depend on staging"
+fi
 
 assert_contains "${GITHUB_CI_FILE}" 'INSTALL_ADMIN: \$\{\{ matrix\.install_admin \}\}'
 assert_contains "${GITHUB_CI_FILE}" 'if \[ "\$\{INSTALL_ADMIN\}" = "true" \]; then'

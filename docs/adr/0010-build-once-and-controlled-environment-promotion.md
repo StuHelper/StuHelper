@@ -3,7 +3,7 @@ type: adr
 audience: maintainers, backend-dev, frontend-dev, ops
 status: current
 authoritative-source: .github/workflows/ci.yml + .github/workflows/publish-images.yml + .github/workflows/deploy.yml + .github/workflows/rollback.yml + infra/ops/verify-github-release.sh
-last-verified: 2026-08-02
+last-verified: 2026-08-03
 ---
 
 # ADR-0010: 构建一次、同制品晋级与受控生产发布
@@ -11,6 +11,11 @@ last-verified: 2026-08-02
 **Date**: 2026-08-02
 **Status**: accepted
 **Deciders**: 项目 owner
+
+> **部分修订**：ADR-0011 允许在 staging 暂缓期间使用显式 `direct` 模式把可信 `main` 制品直接晋级
+> production，并以受保护 environment 审批和部署后验证承接风险。本 ADR 的决策 3、6、10 以
+> ADR-0011 为准；其余关于构建一次、不可变 digest、来源证明、当前控制器、审批后复验和受控回滚的
+> 决策继续有效。
 
 ## Context
 
