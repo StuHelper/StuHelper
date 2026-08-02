@@ -34,7 +34,8 @@ load_env_line="$(line_number 'load_env')"
 remote_config_load_line="$(line_number 'load_remote_deploy_config')"
 generated_secret_ref_require_line="$(line_number 'GENERATED_ENV_SECRET_REF must be configured for production deploy')"
 secret_backend_require_line="$(line_number 'production deploy requires a non-file secret backend for generated secrets')"
-source_bootstrap_line="$(line_number 'source_casdoor_bootstrap_env # load bootstrap credential env')"
+bootstrap_validation_line="$(line_number 'validate_casdoor_bootstrap_env # validate bootstrap credential env in isolated process')"
+bootstrap_unset_line="$(line_number '  CASDOOR_BOOTSTRAP_CERTIFICATE')"
 postgres_ssl_line="$(line_number 'require_production_postgres_ssl')"
 external_student_source_security_line="$(line_number 'require_production_external_student_source_security')"
 object_storage_gate_line="$(line_number 'require_production_object_storage')"
@@ -59,6 +60,8 @@ public_web_auth_browser_smoke_line="$(line_number 'node "${SCRIPT_DIR}/public-we
 smoke_check_line="$(line_number '"${SCRIPT_DIR}/smoke-check.sh"')"
 observability_smoke_line="$(line_number 'OBS_SMOKE_STRICT=true "${SCRIPT_DIR}/observability-smoke-check.sh"')"
 bootstrap_require_line="$(line_number 'require_nonempty CASDOOR_BOOTSTRAP_CLIENT_SECRET')"
+grep -qF 'validate_casdoor_bootstrap_env() (' "${PROD_DEPLOY_FILE}" ||
+  fail "production deploy must validate Casdoor bootstrap credentials in a subshell"
 grep -qF 'source_casdoor_bootstrap_env_file "${file}"' "${PROD_DEPLOY_FILE}" ||
   fail "production deploy must parse the Casdoor bootstrap credential file through its allowlisted loader"
 if grep -qF 'source "${file}"' "${PROD_DEPLOY_FILE}"; then
@@ -129,8 +132,8 @@ assert_file_not_contains "${PROD_DEPLOY_FILE}" 'STUHELPER_INITIAL_SUPER_ADMINS'
 assert_file_not_contains "${PROD_DEPLOY_FILE}" 'authorization-bootstrap-super-admin.sh'
 assert_file_not_contains "${PROD_ENV_EXAMPLE_FILE}" 'STUHELPER_INITIAL_SUPER_ADMINS'
 
-if (( source_bootstrap_line <= load_env_line )); then
-  fail "Casdoor bootstrap env must be sourced after load_env"
+if (( bootstrap_validation_line <= load_env_line )); then
+  fail "Casdoor bootstrap env must be validated after load_env"
 fi
 if (( generated_secret_ref_require_line <= remote_config_load_line )); then
   fail "production deploy must load remote.env before requiring GENERATED_ENV_SECRET_REF"
@@ -138,10 +141,13 @@ fi
 if (( secret_backend_require_line <= remote_config_load_line )); then
   fail "production deploy must load remote.env before requiring SECRET_BACKEND"
 fi
-if (( bootstrap_require_line <= source_bootstrap_line )); then
-  fail "Casdoor bootstrap credentials must be validated after sourcing bootstrap env"
+if (( bootstrap_require_line >= bootstrap_validation_line )); then
+  fail "Casdoor bootstrap credential requirements must execute inside the isolated validator"
 fi
-if (( casdoor_public_auth_require_line <= source_bootstrap_line )); then
+if (( bootstrap_unset_line <= bootstrap_validation_line )); then
+  fail "Casdoor bootstrap credentials must be removed from the parent after validation"
+fi
+if (( casdoor_public_auth_require_line <= bootstrap_validation_line )); then
   fail "Casdoor public auth base URL must be validated with identity ingress settings"
 fi
 if (( casdoor_public_auth_reject_line <= casdoor_public_auth_require_line )); then
