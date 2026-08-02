@@ -78,6 +78,7 @@ assert_contains "${PARITY_COMPOSE}" 'name: \$\{EXTERNAL_DATASTORE_NETWORK:-stuhe
 assert_contains "${PARITY_COMPOSE}" 'aliases:'
 assert_contains "${PARITY_COMPOSE}" 'postgres'
 assert_not_contains "${PARITY_COMPOSE}" '^  redis:'
+assert_not_contains "${PARITY_COMPOSE}" '^[[:space:]]+entrypoint:'
 assert_contains "${REPO_ROOT}/docker-compose.prod.yml" 'APP_ENV: \$\{APP_ENV:-production\}'
 
 assert_contains "${INIT_SHARED_PG}" 'STUHELPER_APP_DB_PASSWORD'
