@@ -115,7 +115,7 @@ assert_file_contains "${REPO_ROOT}/.env.prod.example" '^BOT_SERVICE_TOKEN=REPLAC
 assert_file_not_contains "${REPO_ROOT}/.env.prod.example" 'init-prod-env/bootstrap 会创建真实 bot service credential'
 assert_file_not_contains "${REPO_ROOT}/docs/guides/production-go-live.md" 'bootstrap 出来的 bot service credential'
 assert_env_value "${fresh_env}" "CORS_ORIGINS" "https://stuhelper.com,https://join.stuhelper.com,https://sso.stuhelper.com"
-assert_env_value "${fresh_env}" "FRONTEND_METRICS_ALLOWED_ORIGINS" "https://stuhelper.com"
+assert_env_value "${fresh_env}" "FRONTEND_METRICS_ALLOWED_ORIGINS" "https://stuhelper.com,https://join.stuhelper.com"
 assert_env_value "${fresh_env}" "ADMISSION_PUBLIC_BASE_URL" "https://join.stuhelper.com"
 assert_env_value "${fresh_env}" "ADMISSION_PRODUCTION_READINESS_ENABLED" "true"
 assert_env_value "${fresh_env}" "ADMISSION_READINESS_REQUIRED_PLATFORM" "qq"
@@ -382,7 +382,7 @@ assert_env_value "${legacy_env}" "POSTGRES_INTERNAL_SSL_MODE" "verify-full"
 assert_env_value "${legacy_env}" "EXTERNAL_POSTGRES_ENABLED" "false"
 assert_env_value "${legacy_env}" "EXTERNAL_POSTGRES_ALLOW_PLAINTEXT" "false"
 assert_env_value "${legacy_env}" "CORS_ORIGINS" "https://stuhelper.com,https://join.stuhelper.com,https://sso.stuhelper.com"
-assert_env_value "${legacy_env}" "FRONTEND_METRICS_ALLOWED_ORIGINS" "https://stuhelper.com"
+assert_env_value "${legacy_env}" "FRONTEND_METRICS_ALLOWED_ORIGINS" "https://stuhelper.com,https://join.stuhelper.com"
 assert_env_value "${legacy_env}" "ADMISSION_PUBLIC_BASE_URL" "https://join.stuhelper.com"
 assert_env_value "${legacy_env}" "ADMISSION_PRODUCTION_READINESS_ENABLED" "true"
 assert_env_value "${legacy_env}" "ADMISSION_READINESS_REQUIRED_PLATFORM" "qq"
