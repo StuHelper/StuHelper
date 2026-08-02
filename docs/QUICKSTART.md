@@ -223,7 +223,12 @@ make e2e-koishi
 sudo bash infra/ops/bootstrap-ubuntu2404.sh
 ```
 
-这个脚本会一起装好 Docker / Compose、Go 1.26、部署目录、备份目录、`.deploy/remote.env`、Vault token 占位文件，以及 PostgreSQL 逻辑备份 / base backup / backup sync timer。GitHub 自动部署的 GHCR token 只在单次 job 中使用，不写入这些持久文件。
+这个脚本会一起装好 Docker / Compose、Go 1.26、部署目录、备份目录、`.deploy/remote.env`、Vault
+runtime token 占位文件，以及 PostgreSQL 逻辑备份 / base backup / backup sync timer。Vault 初始化、
+解封并 seed 三条生产 secret ref 后，还必须由 root 执行
+`VAULT_ROOT_INIT_FILE=/var/lib/stuhelper/vault-credentials/init.json ./infra/ops/vault-runtime-token.sh configure`，
+把占位文件替换成专用最小权限 periodic token 并安装自动续期 timer；禁止把初始化 root token 当作
+部署 token。GitHub 自动部署的 GHCR token 只在单次 job 中使用，不写入这些持久文件。
 
 仓库、Actions 权限、GHCR、environment secrets、发布和回滚治理见
 [GitHub 仓库与 Actions 治理](guides/github-migration.md)。

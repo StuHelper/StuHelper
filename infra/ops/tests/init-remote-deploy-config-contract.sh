@@ -35,6 +35,9 @@ assert_contains "${default_cfg}" "SECRETS_ENV_SECRET_REF=secret/stuhelper/prod/s
 assert_contains "${default_cfg}" "GENERATED_ENV_SECRET_REF=secret/stuhelper/prod/generated-secrets-env"
 assert_contains "${default_cfg}" "SECRET_FILE_ROOT=${tmpdir}/.secrets"
 assert_contains "${default_cfg}" "VAULT_TOKEN_FILE=${tmpdir}/.secrets/vault/token"
+assert_contains "${default_cfg}" "VAULT_RUNTIME_TOKEN_POLICY=stuhelper-production-deploy"
+assert_contains "${default_cfg}" "VAULT_RUNTIME_TOKEN_PERIOD_SECONDS=259200"
+assert_contains "${default_cfg}" "VAULT_RUNTIME_TOKEN_MIN_TTL_SECONDS=43200"
 
 override_cfg="${tmpdir}/override.remote.env"
 REMOTE_DEPLOY_CONFIG_FILE="${override_cfg}" \
@@ -52,6 +55,9 @@ VAULT_ADDR="https://vault.example.com" \
 VAULT_NAMESPACE="platform/prod" \
 VAULT_TOKEN_FILE="/srv/stuhelper/.secrets/vault/token" \
 VAULT_KV_MOUNT="platform" \
+VAULT_RUNTIME_TOKEN_POLICY="custom-prod-deploy" \
+VAULT_RUNTIME_TOKEN_PERIOD_SECONDS="345600" \
+VAULT_RUNTIME_TOKEN_MIN_TTL_SECONDS="86400" \
 bash "${TARGET_SCRIPT}" >/dev/null
 
 assert_contains "${override_cfg}" "ENV_FILE=/srv/stuhelper/shared.env"
@@ -68,5 +74,8 @@ assert_contains "${override_cfg}" "VAULT_ADDR=https://vault.example.com"
 assert_contains "${override_cfg}" "VAULT_NAMESPACE=platform/prod"
 assert_contains "${override_cfg}" "VAULT_TOKEN_FILE=/srv/stuhelper/.secrets/vault/token"
 assert_contains "${override_cfg}" "VAULT_KV_MOUNT=platform"
+assert_contains "${override_cfg}" "VAULT_RUNTIME_TOKEN_POLICY=custom-prod-deploy"
+assert_contains "${override_cfg}" "VAULT_RUNTIME_TOKEN_PERIOD_SECONDS=345600"
+assert_contains "${override_cfg}" "VAULT_RUNTIME_TOKEN_MIN_TTL_SECONDS=86400"
 
 echo "[init-remote-deploy-config-contract] all assertions passed"
