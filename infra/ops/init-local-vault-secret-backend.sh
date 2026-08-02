@@ -266,7 +266,12 @@ write_unseal_and_token_files_from_init_json() {
   [[ -f "${vault_init_file}" ]] || return 0
   install -d -m 0700 "$(dirname "${vault_unseal_key_file}")" "$(dirname "${vault_token_file}")"
   jq -r '.unseal_keys_b64[0]' "${vault_init_file}" >"${vault_unseal_key_file}"
-  jq -r '.root_token' "${vault_init_file}" >"${vault_token_file}"
+  # The runtime token may already have been replaced by a scoped periodic token.
+  # Never regress it back to the initialization root token on an idempotent rerun.
+  if [[ ! -s "${vault_token_file}" ]]; then
+    jq -er '.root_token | strings | select(length > 0)' "${vault_init_file}" >"${vault_token_file}" ||
+      die "Vault runtime token is missing and init material has no active root token"
+  fi
   chmod 600 "${vault_init_file}" "${vault_unseal_key_file}" "${vault_token_file}"
 }
 
@@ -453,4 +458,4 @@ echo "  Vault: ${vault_addr}"
 echo "  Remote config: ${remote_config_file}"
 echo "  Token file: ${vault_token_file}"
 echo "  Generated secret ref: ${generated_secret_ref}"
-warn "keep ${vault_init_file}, ${vault_unseal_key_file}, and ${vault_token_file} secret and backed up"
+warn "keep ${vault_init_file} and ${vault_unseal_key_file} root-only and backed up; use a scoped runtime token at ${vault_token_file} for deployment"

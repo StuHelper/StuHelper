@@ -126,7 +126,8 @@ SSH known_hosts 必须预先固定真实 host public key，且条目必须与 `D
 - `PRODUCTION_PROMOTION_MODE`：`direct` 表示 staging 暂缓期间从可信 `main` 制品直接创建 production
   approval；`after-staging` 表示必须先有同 SHA staging success。不得配置为 `break-glass`
 - `PRODUCTION_AUTO_PROMOTION_ENABLED`：默认不配置或设为 `false`；只有 production 专用部署身份、
-  environment secrets、Vault、备份、远端预检和一次人工批准演练全部通过后才设为 `true`；production
+  environment secrets、Vault 最小权限 periodic runtime token 及续期 timer、异机备份与取回、远端
+  预检和一次人工批准演练全部通过后才设为 `true`；production
   environment 审批不会因此被跳过
 
 ### Branch protection
