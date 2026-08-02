@@ -622,7 +622,10 @@ assert_contains "${SYNC_BACKUPS}" 'load_env_preserving BACKUP_OBJECT_STORAGE_OFF
 assert_contains "${SYNC_BACKUPS}" 'require_off_host_backup_object_storage'
 assert_contains "${SYNC_BACKUPS}" 'APP_ENV:-.*production'
 assert_contains "${SYNC_BACKUPS}" 'unset BACKUP_OBJECT_STORAGE_PINNED_HOSTS'
+assert_contains "${FETCH_BACKUPS}" 'load_env_preserving BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED'
 assert_contains "${FETCH_BACKUPS}" 'unset BACKUP_OBJECT_STORAGE_PINNED_HOSTS'
+assert_contains "${FETCH_BACKUPS}" 'require_off_host_backup_object_storage'
+assert_contains "${FETCH_BACKUPS}" 'APP_ENV:-.*production'
 assert_contains "${SCHEDULED_BACKUP}" 'load_env_preserving BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED'
 assert_contains "${SCHEDULED_BACKUP}" 'true\) require_off_host_backup_object_storage'
 assert_contains "${SCHEDULED_BACKUP}" "-path '/wal/quarantine-incomplete-\\*' -prune"
@@ -631,6 +634,21 @@ assert_not_contains "${SYNC_BACKUPS}" '(^|[[:space:]])sync([[:space:]]|$)'
 assert_not_contains "${FETCH_BACKUPS}" '(^|[[:space:]])sync([[:space:]]|$)'
 assert_not_contains "${SYNC_BACKUPS}" 'minio|MC_HOST|mc mirror'
 assert_not_contains "${FETCH_BACKUPS}" 'minio|MC_HOST|mc mirror'
+
+if ! python3 - "${FETCH_BACKUPS}" <<'PY'
+from pathlib import Path
+import sys
+
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+clear = source.index("unset BACKUP_OBJECT_STORAGE_PINNED_HOSTS")
+gate = source.index("true) require_off_host_backup_object_storage")
+transfer = source.index("run_backup_object_storage_rclone")
+if not clear < gate < transfer:
+    raise SystemExit("production restore must refresh address pins before rclone")
+PY
+then
+  fail "production restore does not refresh its off-host gate after loading environment files"
+fi
 
 if ! python3 - "${SCHEDULED_BACKUP}" <<'PY'
 from pathlib import Path

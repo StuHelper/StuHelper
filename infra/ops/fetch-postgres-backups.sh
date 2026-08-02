@@ -10,8 +10,18 @@ source "${SCRIPT_DIR}/lib/rclone-object-storage.sh"
 MODE="${1:-all}"
 
 require_cmd docker
-load_env
+load_env_preserving BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED
 unset BACKUP_OBJECT_STORAGE_PINNED_HOSTS
+
+case "${BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED:-false}" in
+  true) require_off_host_backup_object_storage ;;
+  false|"")
+    if [[ "${APP_ENV:-}" == "production" ]]; then
+      require_off_host_backup_object_storage
+    fi
+    ;;
+  *) die "BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED must be true or false" ;;
+esac
 
 [[ -n "${BACKUP_OBJECT_STORAGE_ENDPOINT:-}" ]] || die "BACKUP_OBJECT_STORAGE_ENDPOINT is required"
 [[ -n "${BACKUP_OBJECT_STORAGE_BUCKET:-}" ]] || die "BACKUP_OBJECT_STORAGE_BUCKET is required"
