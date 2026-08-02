@@ -1,3 +1,5 @@
+import { normalizeConfiguredHTTPOrigin } from '@/utils/redirect'
+
 export const DEFAULT_SSO_ISSUER = 'https://sso.stuhelper.com'
 
 export type ConnectEndpointKey =
@@ -30,14 +32,8 @@ const connectEndpointPaths: Array<{
   { key: 'logout', path: '/logout' },
 ]
 
-export function normalizeSsoIssuer(configuredOrigin?: string | null, currentOrigin?: string | null) {
-  const candidate = configuredOrigin?.trim() || currentOrigin?.trim() || DEFAULT_SSO_ISSUER
-  try {
-    const url = new URL(candidate)
-    return url.origin
-  } catch {
-    return DEFAULT_SSO_ISSUER
-  }
+export function normalizeSsoIssuer(configuredOrigin?: string | null) {
+  return normalizeConfiguredHTTPOrigin(configuredOrigin ?? undefined) ?? DEFAULT_SSO_ISSUER
 }
 
 export function buildConnectEndpoints(issuer: string): ConnectEndpoint[] {
