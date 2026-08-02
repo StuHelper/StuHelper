@@ -137,6 +137,7 @@ ensure_file_value "${ENV_FILE}" "REDIS_PORT" "6379"
 ensure_file_value "${ENV_FILE}" "REDIS_EXTERNAL_PORT" "26379"
 ensure_file_value "${ENV_FILE}" "REDIS_USERNAME" "stuhelper_app"
 ensure_file_value "${ENV_FILE}" "REDIS_EXPORTER_USERNAME" "stuhelper_metrics"
+ensure_file_value "${ENV_FILE}" "REDIS_PROD_PARITY_MAINTENANCE_USERNAME" "stuhelper_parity_maintenance"
 ensure_file_value "${ENV_FILE}" "REDIS_TLS_ENABLED" "true"
 ensure_file_value "${ENV_FILE}" "REDIS_TLS_CA" "/redis-tls/ca.crt"
 ensure_file_value "${ENV_FILE}" "WEB_PUBLIC_URL" "https://stuhelper.com"
@@ -275,6 +276,7 @@ ensure_file_secret "${SECRETS_ENV_FILE}" "OPENFGA_DB_PASSWORD" "prod-parity-open
 ensure_file_secret "${SECRETS_ENV_FILE}" "CASDOOR_DB_PASSWORD" "prod-parity-casdoor-db"
 ensure_file_secret "${SECRETS_ENV_FILE}" "REDIS_PASSWORD" "prod-parity-redis"
 ensure_file_secret "${SECRETS_ENV_FILE}" "REDIS_EXPORTER_PASSWORD" "prod-parity-redis-metrics"
+ensure_file_secret "${SECRETS_ENV_FILE}" "REDIS_PROD_PARITY_MAINTENANCE_PASSWORD" "prod-parity-redis-maintenance"
 ensure_file_secret "${SECRETS_ENV_FILE}" "METRICS_PASSWORD" "prod-parity-metrics"
 ensure_file_secret "${SECRETS_ENV_FILE}" "HMAC_SECRET" "prod-parity-hmac"
 if ! grep -Eq '^DOC_AES_KEYS=' "${SECRETS_ENV_FILE}"; then
@@ -380,6 +382,7 @@ infra_services=(
 )
 
 log "starting local production-parity infrastructure services"
+compose --profile prod up -d --no-deps --force-recreate --wait redis
 compose --profile prod up -d --wait "${infra_services[@]}"
 
 log "running local production-parity database migrations"

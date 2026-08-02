@@ -34,12 +34,12 @@ load_env
 
 clear_rate_limit_keys() {
   local redis_container="${REDIS_CONTAINER_NAME:-${STACK_NAME:-stuhelper-prod-parity}-redis}"
-  local redis_username="${REDIS_USERNAME:-stuhelper_app}"
+  local redis_username="${REDIS_PROD_PARITY_MAINTENANCE_USERNAME:?REDIS_PROD_PARITY_MAINTENANCE_USERNAME is required}"
   local key_output
   local keys=()
   local redis_cli=(
     docker exec
-    -e "REDISCLI_AUTH=${REDIS_PASSWORD:?REDIS_PASSWORD is required}"
+    -e "REDISCLI_AUTH=${REDIS_PROD_PARITY_MAINTENANCE_PASSWORD:?REDIS_PROD_PARITY_MAINTENANCE_PASSWORD is required}"
     "${redis_container}"
     redis-cli
     --user "${redis_username}"

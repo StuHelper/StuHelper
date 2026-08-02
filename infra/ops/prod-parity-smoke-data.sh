@@ -36,7 +36,7 @@ stuhelper_db="${STUHELPER_APP_DB_NAME:-${POSTGRES_DB:-stuhelper}}"
 casdoor_db="${CASDOOR_DB_NAME:-casdoor}"
 app_user="${STUHELPER_APP_DB_USER:-stuhelper_app}"
 redis_container="${REDIS_CONTAINER_NAME:-${STACK_NAME:-stuhelper-prod-parity}-redis}"
-redis_username="${REDIS_USERNAME:-stuhelper_app}"
+redis_maintenance_username="${REDIS_PROD_PARITY_MAINTENANCE_USERNAME:-}"
 evidence_file="${PROD_PARITY_SMOKE_DATA_EVIDENCE_FILE:-${PARITY_DIR}/smoke-data-evidence.json}"
 admission_token="${PROD_PARITY_ADMISSION_TOKEN:-PROD-PARITY-ADMIT-LOGIN}"
 admission_qq="${PROD_PARITY_ADMISSION_QQ:-990001}"
@@ -47,7 +47,8 @@ casdoor_login_user_id="${PROD_PARITY_CASDOOR_LOGIN_USER_ID:-prod-parity-admissio
 casdoor_login_email="${PROD_PARITY_CASDOOR_LOGIN_EMAIL:-admission-e2e@prod-parity.local}"
 
 [[ -n "${STUHELPER_APP_DB_PASSWORD:-}" ]] || die "STUHELPER_APP_DB_PASSWORD is required for prod-parity smoke data"
-[[ -n "${REDIS_PASSWORD:-}" ]] || die "REDIS_PASSWORD is required for prod-parity smoke data cache invalidation"
+[[ -n "${redis_maintenance_username}" ]] || die "REDIS_PROD_PARITY_MAINTENANCE_USERNAME is required for prod-parity smoke data cache invalidation"
+[[ -n "${REDIS_PROD_PARITY_MAINTENANCE_PASSWORD:-}" ]] || die "REDIS_PROD_PARITY_MAINTENANCE_PASSWORD is required for prod-parity smoke data cache invalidation"
 [[ -n "${HMAC_SECRET:-}" ]] || die "HMAC_SECRET is required for prod-parity admission smoke data"
 
 case "${postgres_container}" in
@@ -537,10 +538,10 @@ clear_cache_keys() {
   local keys=()
   local redis_cli=(
     docker exec
-    -e "REDISCLI_AUTH=${REDIS_PASSWORD}"
+    -e "REDISCLI_AUTH=${REDIS_PROD_PARITY_MAINTENANCE_PASSWORD}"
     "${redis_container}"
     redis-cli
-    --user "${redis_username}"
+    --user "${redis_maintenance_username}"
   )
 
   if [[ "${REDIS_TLS_ENABLED:-true}" == "true" ]]; then
