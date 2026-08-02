@@ -40,11 +40,13 @@ const mockToastError = vi.hoisted(() => vi.fn())
 
 const translations: Record<string, string> = {
   'common.actions.loading': '加载中...',
+  'common.actions.loadMore': '加载更多',
   'common.actions.retry': '重试',
   'common.loadFailed': '加载失败',
   'review.course.notFound': '课程不存在或已被移除。',
   'review.courseDetail': '课程详情',
   'teaching.profile.notFound': '未找到教师信息',
+  'teaching.profile.reviewsLoadFailed': '评课加载失败',
 }
 
 vi.mock('@/api', () => ({
@@ -246,7 +248,8 @@ vi.mock('@/components/common/RatingCircle.vue', () => ({
 vi.mock('@/components/business/review/ReviewCard.vue', () => ({
   default: {
     name: 'ReviewCard',
-    template: '<div data-stubbed-child />',
+    props: ['review'],
+    template: '<div data-review-card>{{ review.title }}</div>',
   },
 }))
 
@@ -403,5 +406,54 @@ describe('public detail not-found states', () => {
 
     expect(wrapper.get('[role="alert"]').text()).toContain('加载失败')
     expect(wrapper.get('[data-teacher-profile-retry-button]').text()).toContain('重试')
+  })
+
+  it('keeps loaded teacher reviews visible when loading the next page fails', async () => {
+    setRoute('/teachers/42', '42')
+    mockRatingApi.getTeacherStats.mockResolvedValueOnce({
+      data: {
+        data: {
+          teacherID: 42,
+          teacherName: '测试教师',
+          departmentName: '测试学院',
+          avgRating: 4.5,
+          courseCount: 0,
+          reviewCount: 2,
+          courses: [],
+          ratingTrend: [],
+        },
+      },
+    })
+    mockReviewApi.getLatestReviewsPage
+      .mockResolvedValueOnce({ list: [{ id: 'review-1', title: '已加载评课' }], total: 2 })
+      .mockRejectedValueOnce(new Error('temporary outage'))
+
+    const wrapper = mountPage(TeacherProfilePage)
+    await flushPromises()
+    expect(wrapper.get('[data-review-card]').text()).toBe('已加载评课')
+
+    const loadMore = wrapper.findAll('button').find(button => button.text().includes('加载更多'))
+    expect(loadMore).toBeDefined()
+    await loadMore!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[data-review-card]').text()).toBe('已加载评课')
+    expect(wrapper.get('[role="alert"]').text()).toContain('评课加载失败')
+    expect(mockReviewApi.getLatestReviewsPage).toHaveBeenCalledTimes(2)
+
+    mockReviewApi.getLatestReviewsPage.mockResolvedValueOnce({
+      list: [{ id: 'review-2', title: '重试加载的评课' }],
+      total: 2,
+    })
+    const retry = wrapper.findAll('button').find(button => button.text().includes('重试'))
+    expect(retry).toBeDefined()
+    await retry!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.findAll('[data-review-card]').map(card => card.text())).toEqual([
+      '已加载评课',
+      '重试加载的评课',
+    ])
+    expect(mockReviewApi.getLatestReviewsPage).toHaveBeenCalledTimes(3)
   })
 })

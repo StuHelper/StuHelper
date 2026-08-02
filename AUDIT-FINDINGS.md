@@ -235,7 +235,7 @@ Required 与 Go/JavaScript CodeQL。bypass actor 只允许 GitHub 用户 `Xaurya
 |------|----------|
 | #33 | `validated-no-change`：`navigationStyle=custom` 的状态栏/微信胶囊遮挡机制在 App/mp-weixin 成立，但仓库现行 UniAppX 发布契约是 H5-only，平台守卫明确禁止声明或构建 mp-weixin；H5 浏览器视口不包含原生状态栏/胶囊。删除 custom navigation 会无依据改变已验收 H5 布局，因此当前不改；将来新增 App/小程序正式目标时，必须随认证、构建、CI 和真机门禁一起重新选择原生导航或实现安全区。本条所在提交。 |
 | #40 | `implemented`：SearchPage 订阅 ReviewCard 的 `moderated` 事件后，只重新读取用户已经加载的 review 页，不重跑 course 搜索、不清空结果也不滚回页首；多页结果按 ID 去重并更新真实 total，进行中的刷新 single-flight，新搜索会通过既有 AbortSignal 取消旧刷新。组件回归锁定审核后卡片更新、course 请求数与滚动位置。本条所在提交。 |
-| #41 | P3：teacher profile append error 保留已有列表 |
+| #41 | `implemented`：教师主页把首屏错误与追加页错误拆开；page N 失败时保留已加载 ReviewCard、在列表底部显示可重试错误，并继续请求同一页，不清空列表或重置滚动位置。组件回归覆盖第一页成功、第二页失败后列表仍可见。本条所在提交。 |
 | #58 | P3：moderation route 渐进使用现有 capability |
 | #66 | P3：OIDC ES256/RS256 配置与 verifier 行为对齐 |
 | #69 | P3：Native SSO 保存经校验的登录前 redirect |
