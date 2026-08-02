@@ -191,6 +191,27 @@ describe("auth authorize flow", () => {
         expect(sessionStorage.getItem("oauth_state")).toBe("login-state");
     });
 
+    it("reuses one pending authorization request for repeated login calls", async () => {
+        const loginResponse = createDeferred<{
+            data: { data: { state: string; url: string } };
+        }>();
+        mockLogin.mockReturnValueOnce(loginResponse.promise);
+
+        const { useAuthStore } = await import("../auth");
+        const store = useAuthStore();
+
+        const first = store.login("https://join.stuhelper.com/verify/token");
+        const second = store.login("https://join.stuhelper.com/verify/token");
+
+        expect(mockLogin).toHaveBeenCalledTimes(1);
+        loginResponse.resolve({
+            data: { data: { state: "single-state", url: "#single" } },
+        });
+        await Promise.all([first, second]);
+
+        expect(sessionStorage.getItem("oauth_state")).toBe("single-state");
+    });
+
     it("uses the signup authorization endpoint for signup", async () => {
         mockSignup.mockResolvedValue({
             data: { data: { state: "signup-state", url: "#signup" } },
@@ -373,3 +394,13 @@ describe("auth authorize flow", () => {
         expect(window.location.href).not.toContain("/api/sso-logout");
     });
 });
+
+function createDeferred<T>() {
+    let resolve!: (value: T) => void;
+    let reject!: (reason?: unknown) => void;
+    const promise = new Promise<T>((promiseResolve, promiseReject) => {
+        resolve = promiseResolve;
+        reject = promiseReject;
+    });
+    return { promise, reject, resolve };
+}

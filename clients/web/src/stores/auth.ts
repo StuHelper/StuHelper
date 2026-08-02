@@ -294,6 +294,7 @@ export const useAuthStore = defineStore("auth", () => {
     const bootstrapPending = ref(false);
     const bootstrapCompleted = ref(false);
     let bootstrapPromise: Promise<boolean> | null = null;
+    let authRedirectPromise: Promise<void> | null = null;
 
     // 计算属性
     const isAuthenticated = computed(() => !!user.value);
@@ -383,24 +384,37 @@ export const useAuthStore = defineStore("auth", () => {
         }
     };
 
-    // 登录
+    const runAuthRedirectOnce = (start: () => Promise<void>): Promise<void> => {
+        if (authRedirectPromise) return authRedirectPromise;
+
+        const pending = start();
+        authRedirectPromise = pending;
+        void pending.catch(() => {
+            if (authRedirectPromise === pending) {
+                authRedirectPromise = null;
+            }
+        });
+        return pending;
+    };
+
+    // 授权跳转采用 store 级 single-flight，避免不同页面或重复点击轮换 OIDC state。
     const login = (redirect?: string) =>
-        startLoginFlow(redirect);
+        runAuthRedirectOnce(() => startLoginFlow(redirect));
 
     const upstreamLogin = (redirect?: string) =>
-        startLoginFlow(redirect);
+        runAuthRedirectOnce(() => startLoginFlow(redirect));
 
     const reauthenticate = (redirect?: string) =>
-        startLoginFlow(redirect, {
+        runAuthRedirectOnce(() => startLoginFlow(redirect, {
             prompt: "login",
             maxAge: 0,
-        });
+        }));
 
     const upstreamReauthenticate = (redirect?: string) =>
-        startLoginFlow(redirect, {
+        runAuthRedirectOnce(() => startLoginFlow(redirect, {
             prompt: "login",
             maxAge: 0,
-        });
+        }));
 
     const logoutUpstreamSSOWithFetch = async () => {
         if (typeof window === "undefined" || typeof window.fetch !== "function") {
@@ -479,7 +493,7 @@ export const useAuthStore = defineStore("auth", () => {
         }
     };
 
-    const switchAccount = async (redirect?: string) => {
+    const switchAccountFlow = async (redirect?: string) => {
         clearError();
         loading.value = true;
         try {
@@ -507,12 +521,15 @@ export const useAuthStore = defineStore("auth", () => {
         }
     };
 
+    const switchAccount = (redirect?: string) =>
+        runAuthRedirectOnce(() => switchAccountFlow(redirect));
+
     // 注册
     const signup = (redirect?: string) =>
-        startSignupFlow(redirect);
+        runAuthRedirectOnce(() => startSignupFlow(redirect));
 
     const upstreamSignup = (redirect?: string) =>
-        startSignupFlow(redirect);
+        runAuthRedirectOnce(() => startSignupFlow(redirect));
 
     // 获取当前用户
     const fetchUser = async () => {
