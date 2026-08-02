@@ -210,7 +210,7 @@ Required 与 Go/JavaScript CodeQL。bypass actor 只允许 GitHub 用户 `Xaurya
 | P2-11 | P3：query array 契约与默认客户端对齐 |
 | P2-17 | P3/P4 决策：preview knobs 是废弃还是受限恢复 |
 | P2-19 | P3：先拆共享 sentinel，再补精确 review code |
-| P3-1 | 可选：AdminContentLayout 无效 description 调用 |
+| P3-1 | `implemented`：`AdminContentLayout` 正式支持并显示可选页面说明，保留标题、总数和 action 布局；组件回归覆盖有/无说明。本条所在提交。 |
 | P3-2 | P3：min-width attrs/default 合并顺序 |
 | P3-3 | P3：已审核行的 stale action 防护 |
 | P3-4 | 可选：成员黑名单文档时态 |
