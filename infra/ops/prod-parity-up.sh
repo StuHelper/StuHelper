@@ -58,6 +58,22 @@ ensure_bootstrap_value() {
   upsert_env_file "${CASDOOR_BOOTSTRAP_ENV_FILE}" "${key}" "${value}"
 }
 
+append_local_no_proxy() {
+  local hosts="127.0.0.1,localhost,::1,stuhelper.com,www.stuhelper.com,join.stuhelper.com,sso.stuhelper.com,.stuhelper.com"
+  if [[ -n "${NO_PROXY:-}" ]]; then
+    export NO_PROXY="${NO_PROXY},${hosts}"
+  else
+    export NO_PROXY="${hosts}"
+  fi
+  if [[ -n "${no_proxy:-}" ]]; then
+    export no_proxy="${no_proxy},${hosts}"
+  else
+    export no_proxy="${hosts}"
+  fi
+}
+
+append_local_no_proxy
+
 sync_casdoor_builtin_bootstrap_credentials() {
   local postgres_container="${SHARED_POSTGRES_CONTAINER:-${PROD_PARITY_POSTGRES_CONTAINER:-stuhelper-prod-parity-postgres}}"
   local superuser="${SHARED_POSTGRES_SUPERUSER:-postgres}"
