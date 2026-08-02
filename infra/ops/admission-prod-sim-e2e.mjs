@@ -492,7 +492,7 @@ async function readAdmissionOTP(userID, schoolIDValue) {
     redisUsername,
   ];
   if ((process.env.REDIS_TLS_ENABLED || 'true') === 'true') {
-    args.push('--tls', '--cacert', '/tls/ca.crt');
+    args.push('--tls', '--cacert', '/redis-runtime/ca.crt');
   }
   args.push('GET', `admission:email_otp:${userID}:${schoolIDValue}`);
   const raw = run('docker', args, { secretCommand: 'docker exec redis-cli GET admission OTP' }).trim();

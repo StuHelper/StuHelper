@@ -541,6 +541,8 @@ assert_contains "${ADMISSION_PROD_SIM_E2E_NODE}" '4111010006'
 assert_contains "${ADMISSION_PROD_SIM_E2E_NODE}" 'data-admission-bind-confirmation-input'
 assert_contains "${ADMISSION_PROD_SIM_E2E_NODE}" 'data-admission-bind-confirmation-submit'
 assert_contains "${ADMISSION_PROD_SIM_E2E_NODE}" "getByRole\\('tab', \{ name: '老生认证' \}\)"
+assert_contains "${ADMISSION_PROD_SIM_E2E_NODE}" '/redis-runtime/ca\.crt'
+assert_not_contains "${ADMISSION_PROD_SIM_E2E_NODE}" 'cacert.*, */tls/ca\.crt'
 assert_contains "${ADMISSION_PROD_SIM_E2E_NODE}" 'admission:email_otp:'
 assert_contains "${ADMISSION_PROD_SIM_E2E_NODE}" 'credentialKind'
 assert_contains "${ADMISSION_PROD_SIM_E2E_NODE}" 'school_email_otp'
