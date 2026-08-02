@@ -17,7 +17,9 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Trusted-branch runs may already be publishing or deploying. Never interrupt
+  # those remote mutations; stale candidates fail the deployment revalidation.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   changes:

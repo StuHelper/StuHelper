@@ -66,7 +66,8 @@ last-verified: 2026-08-02
    运行 `Deploy` 并显式
    选择 `skip_staging_gate=true`、填写至少 24 字符上下文，并留下 production approval 审计。
 6. 验证完成后 environment 再校验允许分支、审批者和 secrets；production 当前唯一 reviewer 为
-   `Xauryan` 且允许该用户自批。
+   `Xauryan` 且允许该用户自批。审批后、任何 SSH 前再次校验实时 branch head、checks 和 staging
+   gate，等待期间已经过期的候选会失败关闭。
 7. 远端实际执行 `./infra/ops/remote-preflight.sh` 和
    `./infra/ops/remote-prod-deploy.sh`。
 8. 自动运行业务与严格可观测性 smoke；任何 smoke 失败，本次发布即失败并进入回滚判断。

@@ -135,6 +135,16 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      - name: Revalidate the release after environment approval
+        env:
+          DEPLOY_REASON: ${{ inputs.reason }}
+          GH_TOKEN: ${{ github.token }}
+          REQUIRE_STAGING_SUCCESS: ${{ inputs.target == 'production' && !inputs.skip_staging_gate }}
+          SOURCE_REF: ${{ github.ref }}
+          STAGING_GATE_BYPASSED: ${{ inputs.skip_staging_gate }}
+          WORKFLOW_SHA: ${{ fromJSON(toJSON(job)).workflow_sha }}
+        run: ./infra/ops/verify-github-release.sh
+
       - name: Validate deployment inputs
         run: ./infra/ops/validate-ci-deploy-inputs.sh
 

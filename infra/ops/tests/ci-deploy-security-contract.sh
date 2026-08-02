@@ -164,6 +164,12 @@ assert_contains "${ROLLBACK_WORKFLOW}" 'checks: read'
 assert_contains "${DEPLOY_WORKFLOW}" 'workflow_call:'
 assert_contains "${DEPLOY_WORKFLOW}" 'verify-github-release\.sh'
 assert_contains "${ROLLBACK_WORKFLOW}" 'verify-github-release\.sh'
+[[ "$(grep -c 'verify-github-release\.sh' "${DEPLOY_WORKFLOW}")" -eq 2 ]] ||
+  fail "deploy workflow must verify before approval and revalidate before SSH"
+[[ "$(grep -c 'verify-github-release\.sh' "${ROLLBACK_WORKFLOW}")" -eq 2 ]] ||
+  fail "rollback workflow must verify before approval and revalidate before SSH"
+assert_contains "${DEPLOY_WORKFLOW}" 'Revalidate the release after environment approval'
+assert_contains "${ROLLBACK_WORKFLOW}" 'Revalidate the rollback controller after environment approval'
 assert_contains "${DEPLOY_WORKFLOW}" 'validate-ci-deploy-inputs\.sh'
 assert_contains "${ROLLBACK_WORKFLOW}" 'validate-ci-deploy-inputs\.sh'
 assert_contains "${DEPLOY_WORKFLOW}" 'resolve-attested-release-images\.sh'

@@ -243,7 +243,8 @@ Forward Deploy 不接受
 人工 commit SHA；候选固定为当前 workflow ref 的 `github.sha`。工作流先在不绑定 environment、
 不读取部署 secrets 的 job 中验证：实时 branch head、`Required`、Go 与 JavaScript/TypeScript
 CodeQL、镜像所属仓库、签发工作流、源分支、源提交和 digest。验证通过后才进入 environment，
-通过固定 SSH host key 上传带 SHA-256 传输校验的唯一 bundle，在远端执行
+审批完成后、任何 SSH 前再次校验实时 branch head、checks 和 staging gate，再通过固定 SSH host
+key 上传带 SHA-256 传输校验的唯一 bundle，在远端执行
 `infra/ops/remote-preflight.sh`、`infra/ops/remote-prod-deploy.sh`、业务 smoke 和严格可观测性 smoke。
 
 仓库变量 `STAGING_AUTO_DEPLOY_ENABLED=true` 时，`main` 的 CI 和三个镜像发布成功后自动部署同一
@@ -253,6 +254,9 @@ staging、production 专用部署身份和环境 secrets 就绪。production 必
 reviewer `Xauryan` 审批，并默认要求同一 SHA 的最新 staging deployment 成功。事故 break-glass
 只能通过手工 `Deploy` 显式选择 `skip_staging_gate=true`、填写足够的事故上下文并留下 production
 approval；它不绕过 checks、provenance、digest 或分支校验。
+
+PR 的旧 run 会在新 push 后自动取消；`develop` / `main` 的可信 push run 不会相互取消，避免镜像发布
+或远端部署半途终止。若分支在排队或等待 environment 审批期间前移，部署前二次校验会拒绝旧候选。
 
 生产分支真正部署到线上之前，打包阶段和 `remote-preflight.sh` 会共同避免：
 
