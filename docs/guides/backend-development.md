@@ -66,7 +66,9 @@ server/
 └── scripts/              # schema 快照、seed
 ```
 
-`modules/rbac/` 仅保留 `middleware.go`（capability 中间件），不再是完整 RBAC 模块。
+`modules/rbac/` 只承载 HTTP capability/MFA 中间件、Authorization Service 注入和 Gin subject
+适配；角色、scope 与资源授权规则仍由 `pkg/capability/`、`platform/authorization/`、
+`modules/authorization/` 和 OpenFGA 模型负责，不在该目录建立第二套 RBAC 真源。
 
 ## 数据库规则
 

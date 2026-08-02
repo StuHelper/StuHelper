@@ -14,7 +14,10 @@ import (
 
 var defaultAuthorizer authorization.AuthorizationService = authorization.NewService()
 
-const mfaStepUpAuditType audit.EventType = "iam.mfa.step_up"
+const (
+	mfaProofAuditType  audit.EventType = "iam.mfa.proof"
+	mfaStepUpAuditType audit.EventType = "iam.mfa.step_up"
+)
 
 // RequireCapability 检查当前用户是否持有指定能力。
 // 能力入口统一委托 Authorization Service，保持业务 PDP 单一。
@@ -82,6 +85,17 @@ func RequirePrivilegedMFA() gin.HandlerFunc {
 	return RequirePrivilegedMFAWithAuthorizer(defaultAuthorizer)
 }
 
+// RequireMFAProof requires an active enrollment and proof that the current
+// authentication session used MFA. It intentionally does not impose the
+// short freshness window reserved for sensitive operations.
+func RequireMFAProof() gin.HandlerFunc {
+	return RequireMFAProofWithAuthorizer(defaultAuthorizer)
+}
+
+func RequireMFAProofWithAuthorizer(authorizer authorization.AuthorizationService) gin.HandlerFunc {
+	return requireMFAWithAuthorizer(authorizer, authorization.ActionMFAProofRequire, authorization.MFAProofResource())
+}
+
 func RequirePrivilegedMFAWithAuthorizer(authorizer authorization.AuthorizationService) gin.HandlerFunc {
 	return requireMFAWithAuthorizer(
 		authorizer,
@@ -147,6 +161,8 @@ func shouldAuditMFAGate(subject authorization.Subject, action authorization.Acti
 	switch action {
 	case authorization.ActionStepUpMFARequire:
 		return true
+	case authorization.ActionMFAProofRequire:
+		return subjectHasPrivilegedRole(subject)
 	case authorization.ActionPrivilegedMFARequire:
 		return subjectHasPrivilegedRole(subject)
 	default:
@@ -169,11 +185,11 @@ func mfaGateAuditEvent(c *gin.Context, action authorization.Action, decision aut
 		result = "success"
 	}
 	return audit.Event{
-		Type:         mfaStepUpAuditType,
+		Type:         mfaGateAuditType(action),
 		Category:     "audit",
 		ResourceType: "iam.mfa",
 		ResourceID:   string(action),
-		Action:       "step_up",
+		Action:       mfaGateAuditAction(action),
 		Result:       result,
 		Reason:       mfaGateReason(decision),
 		Details: map[string]any{
@@ -182,6 +198,20 @@ func mfaGateAuditEvent(c *gin.Context, action authorization.Action, decision aut
 			"route":                c.FullPath(),
 		},
 	}
+}
+
+func mfaGateAuditType(action authorization.Action) audit.EventType {
+	if action == authorization.ActionMFAProofRequire {
+		return mfaProofAuditType
+	}
+	return mfaStepUpAuditType
+}
+
+func mfaGateAuditAction(action authorization.Action) string {
+	if action == authorization.ActionMFAProofRequire {
+		return "verify"
+	}
+	return "step_up"
 }
 
 func mfaGateReason(decision authorization.Decision) string {

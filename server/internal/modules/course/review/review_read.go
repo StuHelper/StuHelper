@@ -2,6 +2,7 @@ package review
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -175,34 +176,9 @@ func (h *Handler) SearchReviews(c *gin.Context) {
 
 // GetBatchCourseReviews 批量获取多个课程的测评列表
 func (h *Handler) GetBatchCourseReviews(c *gin.Context) {
-	idsStr := c.Query("courseIDs")
-	if idsStr == "" {
-		response.BadRequest(c, "courseIDs is required")
-		return
-	}
-
-	parts := strings.Split(idsStr, ",")
-	if len(parts) > 20 {
-		response.BadRequest(c, "maximum 20 course IDs allowed")
-		return
-	}
-
-	courseIDs := make([]int64, 0, len(parts))
-	for _, p := range parts {
-		p = strings.TrimSpace(p)
-		if p == "" {
-			continue
-		}
-		id, err := strconv.ParseInt(p, 10, 64)
-		if err != nil || id <= 0 {
-			response.BadRequest(c, "invalid course ID: "+p)
-			return
-		}
-		courseIDs = append(courseIDs, id)
-	}
-
-	if len(courseIDs) == 0 {
-		response.BadRequest(c, "at least one valid course ID is required")
+	courseIDs, err := parseBatchCourseIDs(c.QueryArray("courseIDs"))
+	if err != nil {
+		response.BadRequest(c, err.Error())
 		return
 	}
 
@@ -233,6 +209,37 @@ func (h *Handler) GetBatchCourseReviews(c *gin.Context) {
 		return
 	}
 	response.Success(c, buildGroupedReviewListData(courseIDs, result, facts, pageSize))
+}
+
+func parseBatchCourseIDs(rawValues []string) ([]int64, error) {
+	if len(rawValues) == 0 {
+		return nil, fmt.Errorf("courseIDs is required")
+	}
+
+	parts := make([]string, 0, len(rawValues))
+	for _, rawValue := range rawValues {
+		parts = append(parts, strings.Split(rawValue, ",")...)
+	}
+	if len(parts) > maxBatchCourseIDs {
+		return nil, fmt.Errorf("maximum %d course IDs allowed", maxBatchCourseIDs)
+	}
+
+	courseIDs := make([]int64, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		id, err := strconv.ParseInt(part, 10, 64)
+		if err != nil || id <= 0 {
+			return nil, fmt.Errorf("invalid course ID: %s", part)
+		}
+		courseIDs = append(courseIDs, id)
+	}
+	if len(courseIDs) == 0 {
+		return nil, fmt.Errorf("at least one valid course ID is required")
+	}
+	return courseIDs, nil
 }
 
 // GetStats 获取评课统计数据

@@ -81,7 +81,7 @@ func (h *Handler) RemoveFavorite(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, gin.H{"message": "favorite removed successfully"})
+	response.NoContent(c)
 }
 
 // GetUserFavorites 获取用户收藏列表

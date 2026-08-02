@@ -49,7 +49,7 @@ func TestReportReview_PreflightValidation(t *testing.T) {
 		Description:            strings.Repeat("界", maxReportDescriptionRunes+1),
 	})
 	require.Error(t, err)
-	assert.ErrorIs(t, err, ErrContentTooLong)
+	assert.ErrorIs(t, err, ErrReportDescriptionTooLong)
 }
 
 func TestReportReviewRejectsMissingUserIdentityBeforeDependencies(t *testing.T) {

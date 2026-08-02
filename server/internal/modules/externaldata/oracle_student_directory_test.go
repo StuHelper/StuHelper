@@ -34,6 +34,7 @@ func TestNormalizeOracleStudentDirectoryConfig(t *testing.T) {
 		Port:              1521,
 		ServiceName:       "ORCLPDB1",
 		Username:          "stuhelper_academic_ro",
+		ExpectedUsername:  "stuhelper_academic_ro",
 		Password:          "secret",
 		TLSMode:           "disable",
 		Schema:            "usr_jwbiz",
@@ -44,6 +45,7 @@ func TestNormalizeOracleStudentDirectoryConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "USR_JWBIZ", cfg.Schema)
+	assert.Equal(t, "STUHELPER_ACADEMIC_RO", cfg.ExpectedUsername)
 	assert.Equal(t, "T_XS_JBXX", cfg.Table)
 	assert.Equal(t, "XH", cfg.StudentIDColumn)
 	assert.Equal(t, "XM", cfg.StudentNameColumn)
@@ -53,6 +55,26 @@ func TestNormalizeOracleStudentDirectoryConfig(t *testing.T) {
 	assert.Equal(t, defaultOracleBreakerFailureThreshold, cfg.BreakerFailureThreshold)
 	assert.Equal(t, defaultOracleBreakerSuccessThreshold, cfg.BreakerSuccessThreshold)
 	assert.Equal(t, defaultOracleBreakerOpenTimeout, cfg.BreakerOpenTimeout)
+}
+
+func TestNormalizeOracleStudentDirectoryConfigRejectsUnexpectedRuntimeAccount(t *testing.T) {
+	_, err := normalizeOracleStudentDirectoryConfig(OracleStudentDirectoryConfig{
+		SchoolCode:        "4111010006",
+		Host:              "oracle.example.test",
+		Port:              2484,
+		ServiceName:       "ORCLPDB1",
+		Username:          "unexpected_ro",
+		ExpectedUsername:  "stuhelper_academic_ro",
+		Password:          "secret",
+		TLSMode:           "disable",
+		Schema:            "USR_JWBIZ",
+		Table:             "T_XS_JBXX",
+		StudentIDColumn:   "XH",
+		StudentNameColumn: "XM",
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "must match the configured readonly username")
 }
 
 func TestNormalizeOracleStudentDirectoryConfigRejectsAdministrativeAccounts(t *testing.T) {
@@ -164,6 +186,82 @@ func TestBuildOracleStudentProbeQuery(t *testing.T) {
 		"SELECT 1 FROM USR_JWBIZ.T_XS_JBXX WHERE TRIM(XH) IS NOT NULL AND TRIM(XM) IS NOT NULL FETCH FIRST 1 ROWS ONLY",
 		query,
 	)
+}
+
+func TestOracleStudentDirectoryProbeRuntimeSecurity(t *testing.T) {
+	connector := &scriptedOracleConnector{
+		query: func(_ context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
+			assert.Equal(t, oracleRuntimeSecurityProbeQuery, query)
+			require.Len(t, args, 2)
+			assert.Equal(t, "USR_JWBIZ", args[0].Value)
+			assert.Equal(t, "T_XS_JBXX", args[1].Value)
+			return &scriptedOracleRows{
+				columns: []string{
+					"SESSION_USER", "ROLE_GRANTS", "SYSTEM_GRANTS", "APPROVED_SYSTEM_GRANTS",
+					"OBJECT_GRANTS", "APPROVED_OBJECT_GRANTS", "COLUMN_GRANTS",
+				},
+				values: [][]driver.Value{{
+					"STUHELPER_ACADEMIC_RO", int64(0), int64(1), int64(1), int64(1), int64(1), int64(0),
+				}},
+			}, nil
+		},
+	}
+	directory := newScriptedOracleTestDirectory(t, connector, time.Second, 1, time.Hour)
+
+	probe, err := directory.ProbeRuntimeSecurity(context.Background())
+	require.NoError(t, err)
+	assert.True(t, probe.IdentityMatched)
+	assert.True(t, probe.LeastPrivilegeVerified)
+	assert.Equal(t, 0, probe.RoleGrantCount)
+	assert.Equal(t, 1, probe.SystemGrantCount)
+	assert.Equal(t, 1, probe.ObjectGrantCount)
+	assert.Equal(t, 0, probe.ColumnGrantCount)
+}
+
+func TestOracleStudentDirectoryProbeRuntimeSecurityRejectsPrivilegeExpansion(t *testing.T) {
+	connector := &scriptedOracleConnector{
+		query: func(context.Context, string, []driver.NamedValue) (driver.Rows, error) {
+			return &scriptedOracleRows{
+				columns: []string{
+					"SESSION_USER", "ROLE_GRANTS", "SYSTEM_GRANTS", "APPROVED_SYSTEM_GRANTS",
+					"OBJECT_GRANTS", "APPROVED_OBJECT_GRANTS", "COLUMN_GRANTS",
+				},
+				values: [][]driver.Value{{
+					"STUHELPER_ACADEMIC_RO", int64(0), int64(2), int64(1), int64(1), int64(1), int64(0),
+				}},
+			}, nil
+		},
+	}
+	directory := newScriptedOracleTestDirectory(t, connector, time.Second, 1, time.Hour)
+
+	probe, err := directory.ProbeRuntimeSecurity(context.Background())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "grants exceed")
+	assert.True(t, probe.IdentityMatched)
+	assert.False(t, probe.LeastPrivilegeVerified)
+}
+
+func TestOracleStudentDirectoryProbeRuntimeSecurityRejectsIdentityDrift(t *testing.T) {
+	connector := &scriptedOracleConnector{
+		query: func(context.Context, string, []driver.NamedValue) (driver.Rows, error) {
+			return &scriptedOracleRows{
+				columns: []string{
+					"SESSION_USER", "ROLE_GRANTS", "SYSTEM_GRANTS", "APPROVED_SYSTEM_GRANTS",
+					"OBJECT_GRANTS", "APPROVED_OBJECT_GRANTS", "COLUMN_GRANTS",
+				},
+				values: [][]driver.Value{{
+					"ANOTHER_RO", int64(0), int64(1), int64(1), int64(1), int64(1), int64(0),
+				}},
+			}, nil
+		},
+	}
+	directory := newScriptedOracleTestDirectory(t, connector, time.Second, 1, time.Hour)
+
+	probe, err := directory.ProbeRuntimeSecurity(context.Background())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "identity does not match")
+	assert.False(t, probe.IdentityMatched)
+	assert.True(t, probe.LeastPrivilegeVerified)
 }
 
 func TestNormalizeOracleLookupStudentID(t *testing.T) {
@@ -652,6 +750,7 @@ func newScriptedOracleTestDirectory(
 	t.Cleanup(func() { require.NoError(t, db.Close()) })
 	return newOracleStudentDirectoryWithDB(OracleStudentDirectoryConfig{
 		SchoolCode:              "4111010006",
+		ExpectedUsername:        "STUHELPER_ACADEMIC_RO",
 		Schema:                  "USR_JWBIZ",
 		Table:                   "T_XS_JBXX",
 		StudentIDColumn:         "XH",

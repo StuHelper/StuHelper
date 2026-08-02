@@ -41,7 +41,7 @@ func TestReviewHandler_InteractionErrorPaths(t *testing.T) {
 		schools: []reviewaccess.SchoolConfig{{SchoolID: schoolID}},
 		subject: &reviewaccess.Subject{InternalUserID: selfInternalID, SchoolID: &schoolID, StudentVerified: true, IdentityVerified: true},
 	}
-	seedReviewWithRatings(t, fixture, reviewID, courseID, teacherID, selfHash, 4.5, StatusPublished, ReviewRatings{"teaching": 5}, "已存在评论", "已存在评论内容")
+	seedReviewWithRatings(t, fixture, reviewID, courseID, teacherID, "other-review-owner-hash", 4.5, StatusPublished, ReviewRatings{"teaching": 5}, "已存在评论", "已存在评论内容")
 	_, err = fixture.Pool.Exec(ctx, `UPDATE courses SET review_count = 1 WHERE id = $1`, courseID)
 	require.NoError(t, err)
 

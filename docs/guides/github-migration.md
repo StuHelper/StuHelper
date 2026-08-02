@@ -3,7 +3,7 @@ type: guide
 audience: maintainers
 status: current
 authoritative-source: .github/workflows/ + GitHub repository settings
-last-verified: 2026-08-01
+last-verified: 2026-08-02
 ---
 
 # GitHub 仓库与 Actions 治理
@@ -37,10 +37,10 @@ last-verified: 2026-08-01
 所有可达提交都必须持续满足完整历史 Gitleaks 门禁，不得包含：
 
 - 历史私钥和配套生成证书；
-- 曾提交的真实部署环境文件；
+- 真实部署环境文件，包括历史误提交；
 - `infra/generated/` 下的 PostgreSQL WAL、证书和运行时派生配置；
 - 误提交的本地构建二进制；
-- 已删除的内部工具缓存和内部安全审查导出。
+- 内部工具缓存和内部安全审查导出，包括历史已删除对象。
 
 经人工确认的假阳性使用根目录 `.gitleaksignore` 中的 commit-scoped fingerprint 精确基线化；禁止按整个仓库、整个规则或宽泛正则关闭检测。CI 必须以 `fetch-depth: 0` 检出并扫描所有可达提交。
 
@@ -164,7 +164,8 @@ GitHub 原生检测不能替代仓库内的完整历史 Gitleaks 门禁：两者
 
 `develop-latest` 和 `latest` 只用于人类识别。部署与回滚输入必须是完整 commit SHA；同一 commit 的发布任务以 commit SHA 串行，首次构建使用 commit 时间固定镜像与文件元数据。若 SHA tag 已存在，工作流必须先验证仓库、签发工作流、源 commit、受信任源 branch 和 GitHub-hosted runner 身份，随后直接复用原 digest，禁止覆盖该 tag。部署工作流把 tag 解析为 manifest digest，重复执行相同 provenance 校验，最终只向远端传递 `image@sha256:...`。首次推送后确认三个 package 都关联到 `StuHelper/StuHelper`，并根据公开部署策略设置 package visibility。
 
-远端部署脚本当前仍执行 registry login。迁移 GHCR 时，需要在远端 secret backend 中配置独立、最小 `read:packages` 读取凭据，不能复用个人日常登录凭据。
+远端部署脚本执行 registry login；远端 secret backend 必须配置独立、最小
+`read:packages` 读取凭据，不能复用个人日常登录凭据。
 
 ## 仓库治理验收
 
@@ -177,24 +178,12 @@ GitHub 原生检测不能替代仓库内的完整历史 Gitleaks 门禁：两者
 7. `SECURITY.md` 的私密报告入口可用，Secret scanning、Push protection 和 Dependabot alerts 已启用；
 8. 根目录许可证状态与项目对外表述一致；仅设为 public 不等于授予开源许可。
 
-## 当前就绪状态
+## 时点证据
 
-以下状态于 2026-08-01 通过 GitHub API 和受保护工作流重新核验：
-
-| 项目 | 状态 | 当前事实 |
-|------|------|----------|
-| 仓库与分支 | 已验证 | `StuHelper/StuHelper` 为 public，默认分支为 `main`；人类长期分支只有 `main` / `develop`，二者受同一 ruleset 保护并保持相同提交。Dependabot 为开放依赖更新 PR 创建的临时 head branch 不属于长期分支，关闭或合并对应 PR 后删除 |
-| 合并门禁 | 已验证 | 默认要求 PR、1 个 approval、CODEOWNERS、撤销旧审批、最后推送者之外的批准、解决 review thread、线性历史和 squash merge；Required、Go CodeQL、JavaScript/TypeScript CodeQL 为必需检查。唯一例外是 `Xauryan` 的 `pull_request`-only ruleset bypass；它仍要求 PR 和审计轨迹，不产生作者自审记录，也不允许直接推送 |
-| Actions 供应链 | 已验证 | Actions 已启用 selected-actions 策略，外部 action 固定完整 commit SHA，默认 `GITHUB_TOKEN` 只读且不能批准 PR |
-| Code security | 已验证 | Secret scanning、push protection、Dependabot alerts/security updates 和 private vulnerability reporting 已启用；当前 CodeQL、Dependabot、secret-scanning alert 均为 0 |
-| Environments | 部分验证 | `staging` 与 `production` 分支策略存在；production 当前只有一名 reviewer 且允许自批，不构成双人复核 |
-| 部署凭据 | 未就绪 | 两个 environment 的 secrets 和 variables 都为空，仓库级 Actions secrets/variables 也为空 |
-| GHCR | 部分验证 | `backend`、`frontend`、`admin` container package 已由受保护 `main` / `develop` 工作流发布 full-SHA immutable tag、branch alias 和 provenance；当前 visibility 为 private。实际部署前仍须验证目标主机能以最小 `read:packages` 凭据按 digest 拉取 |
-| 真实部署与回滚 | 未验证 | environment secrets/variables 仍未配置，production 尚无第二名独立 reviewer，private GHCR 镜像的目标主机拉取链路也未验收；尚未执行 staging/production 部署或回滚演练 |
-
-因此，代码、仓库治理和镜像发布控制面已经建立；真实 staging、production 和 rollback 必须在
-environment 配置、GHCR 拉取凭据与独立生产审批条件补齐后单独验收，不能用本地 smoke、
-镜像发布成功或 workflow 静态检查替代。
+GitHub API、分支、ruleset、environment、package 和安全开关都可能在仓库外变化，不能把一次
+查询结果长期写成当前事实。2026-08-01 的核验结果保存在
+[GitHub 交付就绪快照](../internal/github-readiness-2026-08-01.md)；执行发布或治理变更时，必须按
+“仓库治理验收”重新查询实际状态。
 
 ## 许可证状态
 

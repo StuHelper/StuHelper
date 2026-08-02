@@ -18,9 +18,8 @@ const maxReplyContentRunes = 1000
 
 // 回复相关错误
 var (
-	ErrReplyNotFound  = errors.New("reply not found")
-	ErrNotReplyOwner  = errors.New("not the reply owner")
-	ErrContentTooLong = errors.New("content too long")
+	ErrReplyNotFound = errors.New("reply not found")
+	ErrNotReplyOwner = errors.New("not the reply owner")
 )
 
 // AddFavoriteParams 添加收藏参数
@@ -126,7 +125,7 @@ func (s *Service) GetUserReviews(ctx context.Context, params GetUserReviewsParam
 	if err != nil {
 		return nil, err
 	}
-	if err := s.populateUserVotes(ctx, params.UserHash, list); err != nil {
+	if err := s.populateUserReviewState(ctx, params.UserHash, list); err != nil {
 		return nil, err
 	}
 
@@ -159,6 +158,7 @@ func (s *Service) GetUserVotes(ctx context.Context, params GetUserVotesParams) (
 		return nil, err
 	}
 	setKnownUserVote(list, params.VoteType)
+	populateReviewOwnership(params.UserHash, list)
 
 	return &GetCourseReviewsResult{List: list, Total: total}, nil
 }
@@ -403,7 +403,7 @@ func validateAndSanitizeReplyContent(content string) (string, error) {
 		return "", ErrContentEmpty
 	}
 	if utf8.RuneCountInString(content) > maxReplyContentRunes {
-		return "", ErrContentTooLong
+		return "", ErrReplyContentTooLong
 	}
 	return content, nil
 }

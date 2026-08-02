@@ -18,6 +18,7 @@ HOSTS_START="# StuHelper prod-parity local ingress BEGIN"
 HOSTS_END="# StuHelper prod-parity local ingress END"
 HOSTS_LINE="127.0.0.1 stuhelper.com www.stuhelper.com join.stuhelper.com sso.stuhelper.com"
 PROXY_BYPASS_HOSTS=(stuhelper.com www.stuhelper.com join.stuhelper.com sso.stuhelper.com "*.stuhelper.com")
+PROXY_BYPASS_STATE_FILE="${PROD_PARITY_LOCAL_PROXY_STATE_FILE:-${REPO_ROOT}/.run/prod-parity/local-ingress-proxy-ignore-hosts.before}"
 DEFAULT_BAOTA_TLS_CERT="/www/server/panel/vhost/cert/panel212.stuhelper.com/fullchain.pem"
 DEFAULT_BAOTA_TLS_KEY="/www/server/panel/vhost/cert/panel212.stuhelper.com/privkey.pem"
 DEFAULT_GENERATED_TLS_DIR="${PROD_PARITY_LOCAL_TLS_DIR:-${REPO_ROOT}/.run/prod-parity/local-tls}"
@@ -40,8 +41,29 @@ root_test() {
   sudo -n test "$@"
 }
 
+validate_hosts_markers() {
+  awk -v start="${HOSTS_START}" -v end="${HOSTS_END}" '
+    $0 == start {
+      starts++
+      if (starts > 1 || open) exit 1
+      open = 1
+      next
+    }
+    $0 == end {
+      ends++
+      if (ends > 1 || !open) exit 1
+      open = 0
+      next
+    }
+    END {
+      if (open || starts != ends) exit 1
+    }
+  ' /etc/hosts || die "malformed prod-parity marker block in /etc/hosts"
+}
+
 install_hosts() {
   local tmp
+  validate_hosts_markers
   tmp="$(mktemp)"
   {
     printf '%s\n' "${HOSTS_START}"
@@ -65,6 +87,13 @@ install_proxy_bypass() {
     return
   fi
 
+  local raw
+  raw="$(gsettings get org.gnome.system.proxy ignore-hosts)"
+  if [[ ! -e "${PROXY_BYPASS_STATE_FILE}" ]]; then
+    mkdir -p "$(dirname "${PROXY_BYPASS_STATE_FILE}")"
+    (umask 077 && printf '%s\n' "${raw}" >"${PROXY_BYPASS_STATE_FILE}")
+  fi
+
   python3 - "${PROXY_BYPASS_HOSTS[@]}" <<'PY'
 import ast
 import subprocess
@@ -75,12 +104,14 @@ raw = subprocess.check_output(
     ["gsettings", "get", "org.gnome.system.proxy", "ignore-hosts"],
     text=True,
 ).strip()
+if raw.startswith("@as "):
+    raw = raw[4:]
 try:
     values = ast.literal_eval(raw)
-except Exception:
-    values = []
-if not isinstance(values, list):
-    values = []
+except Exception as exc:
+    raise SystemExit(f"cannot parse GNOME proxy ignore-hosts: {exc}") from exc
+if not isinstance(values, list) or not all(isinstance(value, str) for value in values):
+    raise SystemExit("GNOME proxy ignore-hosts is not a string list")
 
 changed = False
 for host in hosts:

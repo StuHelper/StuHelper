@@ -28,3 +28,9 @@ c5cdf62808b15d093365d5eb09ac02ebebeb986c:server/internal/api/gen/server.gen.go:g
 df695f30669f4e8d13f21c4b2e0df720afd54d20:server/internal/api/gen/server.gen.go:generic-api-key:2966
 e3dee3ecf6bdce67aa3d995c8b7453dd46b0e8ab:server/internal/api/gen/server.gen.go:generic-api-key:6924
 f7f7efd1e571da84eef864dae33599eb7938ca08:server/internal/api/gen/server.gen.go:generic-api-key:10888
+
+# Reviewed generated OpenAPI gzip/base64 chunks; no credential material.
+14fc095fe691a5033349bb947167b715bd59db3d:server/internal/api/gen/server.gen.go:generic-api-key:11315
+38a88873488a9ec4174c6526873774d7be9fde0d:server/internal/api/gen/server.gen.go:generic-api-key:11452
+a6ead805595c9fded08078bc53018575e8dca555:server/internal/api/gen/server.gen.go:generic-api-key:11324
+bc650b373b1716863b7db5163d1a46e16b66fa0a:server/internal/api/gen/server.gen.go:generic-api-key:10994

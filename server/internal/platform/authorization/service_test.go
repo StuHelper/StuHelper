@@ -118,6 +118,46 @@ func TestAuthorizePrivilegedMFARequiresEnrollmentAndFreshProof(t *testing.T) {
 	assert.True(t, decision.Allow)
 }
 
+func TestAuthorizeMFAProofRequiresEnrollmentAndProofButNotFreshness(t *testing.T) {
+	now := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
+	service := newServiceWithClock(func() time.Time { return now })
+	resource := MFAProofResource()
+
+	withoutEnrollment := Subject{
+		UserID:             "user-1",
+		MFAProofVerifiedAt: now,
+	}
+	decision := service.Authorize(context.Background(), withoutEnrollment, ActionMFAProofRequire, resource)
+	require.ErrorIs(t, decision.Error, ErrMFAEnrollmentRequired)
+	assert.False(t, decision.Allow)
+
+	withoutProof := Subject{
+		UserID:              "user-1",
+		MFAEnrollmentActive: true,
+	}
+	decision = service.Authorize(context.Background(), withoutProof, ActionMFAProofRequire, resource)
+	require.ErrorIs(t, decision.Error, ErrStepUpRequired)
+	assert.False(t, decision.Allow)
+
+	withFutureProof := Subject{
+		UserID:              "user-1",
+		MFAEnrollmentActive: true,
+		MFAProofVerifiedAt:  now.Add(time.Second),
+	}
+	decision = service.Authorize(context.Background(), withFutureProof, ActionMFAProofRequire, resource)
+	require.ErrorIs(t, decision.Error, ErrStepUpRequired)
+	assert.False(t, decision.Allow)
+
+	withStaleProof := Subject{
+		UserID:              "user-1",
+		MFAEnrollmentActive: true,
+		MFAProofVerifiedAt:  now.Add(-24 * time.Hour),
+	}
+	decision = service.Authorize(context.Background(), withStaleProof, ActionMFAProofRequire, resource)
+	assert.True(t, decision.Allow)
+	assert.NoError(t, decision.Error)
+}
+
 func TestAuthorizeStepUpMFARequiresEnrollmentAndFreshProof(t *testing.T) {
 	now := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
 	service := newServiceWithClock(func() time.Time { return now })

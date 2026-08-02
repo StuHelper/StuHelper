@@ -98,6 +98,7 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 	}
 
 	adminMFA := adminMFAMiddlewares(rt.cfg.App.Env, userRepo)
+	adminReviewSecurity := adminReviewRouteSecurity(rt.cfg.App.Env, userRepo)
 	notifHub := notification.NewHub()
 	notifRealtime := notification.NewRealtime(rt.redisClient.GetClient(), notifHub)
 	notifRepo := notification.NewRepository(rt.database)
@@ -109,7 +110,7 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 	rt.addCleanup(notifRealtime.Stop)
 
 	courseModule := rt.initCourseModule(bgCtx, fgaClient, notifService, userRepo)
-	courseModule.RegisterRoutes(api, authMW, optionalAuthMW, adminMFA...)
+	courseModule.RegisterRoutes(api, authMW, optionalAuthMW, adminReviewSecurity)
 
 	storageService := storage.NewService(storage.NewRepository(rt.database), rt.cfg.ObjectStorage)
 	if err := storageService.EnsureDefaultMount(bgCtx); err != nil {

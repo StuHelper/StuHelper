@@ -103,7 +103,6 @@ export function captureFrameAsBase64(
   return {
     contentType,
     imageBase64,
-    capturedAt: new Date().toISOString(),
   }
 }
 

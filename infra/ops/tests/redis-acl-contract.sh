@@ -39,6 +39,17 @@ write_env() {
   } >"${path}"
 }
 
+append_parity_maintenance_env() {
+  local path="$1"
+  local maintenance_user="$2"
+  local maintenance_password="$3"
+  {
+    printf 'APP_ENV=prod-parity\n'
+    printf 'REDIS_PROD_PARITY_MAINTENANCE_USERNAME=%s\n' "${maintenance_user}"
+    printf 'REDIS_PROD_PARITY_MAINTENANCE_PASSWORD=%s\n' "${maintenance_password}"
+  } >>"${path}"
+}
+
 valid_env="${tmpdir}/valid.env"
 valid_acl_dir="${tmpdir}/valid-acl"
 app_password="app-secret-with-special-safe-text"
@@ -84,6 +95,53 @@ app_hash="$(printf '%s' "${app_password}" | openssl dgst -sha256 -r | awk '{prin
 metrics_hash="$(printf '%s' "${metrics_password}" | openssl dgst -sha256 -r | awk '{print $1}')"
 grep -Fq "#${app_hash}" "${acl_file}" || fail "application password verifier is incorrect"
 grep -Fq "#${metrics_hash}" "${acl_file}" || fail "metrics password verifier is incorrect"
+
+parity_env="${tmpdir}/parity.env"
+parity_acl_dir="${tmpdir}/parity-acl"
+maintenance_password="maintenance-secret-with-third-text"
+write_env "${parity_env}" "stuhelper_app" "${app_password}" "stuhelper_metrics" "${metrics_password}"
+append_parity_maintenance_env "${parity_env}" "stuhelper_parity_maintenance" "${maintenance_password}"
+run_renderer "${parity_env}" "${parity_acl_dir}" >"${tmpdir}/parity.stdout" 2>"${tmpdir}/parity.stderr"
+
+parity_acl_file="${parity_acl_dir}/users.acl"
+maintenance_rule="$(grep '^user stuhelper_parity_maintenance ' "${parity_acl_file}")"
+[[ -n "${maintenance_rule}" ]] || fail "prod-parity maintenance user was not rendered"
+for required_rule in '~course:*' '~review:*' '~cache:version:course*' '~cache:version:review*' '~rl:*' '-@all' '+scan' '+del' '+client|setname'; do
+  if [[ " ${maintenance_rule} " != *" ${required_rule} "* ]]; then
+    fail "prod-parity maintenance user is missing required rule: ${required_rule}"
+  fi
+done
+for forbidden_rule in '~*' '+get' '+set' '+eval' '+info' '+config|get' '+@all'; do
+  if [[ " ${maintenance_rule} " == *" ${forbidden_rule} "* ]]; then
+    fail "prod-parity maintenance user contains an overbroad rule: ${forbidden_rule}"
+  fi
+done
+maintenance_hash="$(printf '%s' "${maintenance_password}" | openssl dgst -sha256 -r | awk '{print $1}')"
+grep -Fq "#${maintenance_hash}" "${parity_acl_file}" || fail "maintenance password verifier is incorrect"
+if grep -Fq "${maintenance_password}" "${parity_acl_file}" ||
+   grep -Fq "${maintenance_password}" "${tmpdir}/parity.stdout" ||
+   grep -Fq "${maintenance_password}" "${tmpdir}/parity.stderr"; then
+  fail "renderer must not disclose the prod-parity maintenance password"
+fi
+
+production_maintenance_env="${tmpdir}/production-maintenance.env"
+write_env "${production_maintenance_env}" "stuhelper_app" "${app_password}" "stuhelper_metrics" "${metrics_password}"
+append_parity_maintenance_env "${production_maintenance_env}" "stuhelper_parity_maintenance" "${maintenance_password}"
+sed -i 's/^APP_ENV=prod-parity$/APP_ENV=production/' "${production_maintenance_env}"
+if run_renderer "${production_maintenance_env}" "${tmpdir}/production-maintenance-acl" >"${tmpdir}/production-maintenance.stdout" 2>"${tmpdir}/production-maintenance.stderr"; then
+  fail "renderer enabled the local maintenance identity in production"
+fi
+grep -Fq 'only allowed in APP_ENV=prod-parity' "${tmpdir}/production-maintenance.stderr" ||
+  fail "production maintenance identity rejection must be explicit"
+
+incomplete_maintenance_env="${tmpdir}/incomplete-maintenance.env"
+write_env "${incomplete_maintenance_env}" "stuhelper_app" "${app_password}" "stuhelper_metrics" "${metrics_password}"
+printf 'APP_ENV=prod-parity\nREDIS_PROD_PARITY_MAINTENANCE_USERNAME=stuhelper_parity_maintenance\n' >>"${incomplete_maintenance_env}"
+if run_renderer "${incomplete_maintenance_env}" "${tmpdir}/incomplete-maintenance-acl" >"${tmpdir}/incomplete-maintenance.stdout" 2>"${tmpdir}/incomplete-maintenance.stderr"; then
+  fail "renderer accepted an incomplete prod-parity maintenance identity"
+fi
+grep -Fq 'REDIS_PROD_PARITY_MAINTENANCE_PASSWORD is required' "${tmpdir}/incomplete-maintenance.stderr" ||
+  fail "incomplete maintenance identity rejection must be explicit"
 
 same_password_env="${tmpdir}/same-password.env"
 write_env "${same_password_env}" "stuhelper_app" "shared-secret" "stuhelper_metrics" "shared-secret"

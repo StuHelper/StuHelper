@@ -165,6 +165,8 @@ try {
     await waitForLocationPrefix(page, `${admissionBaseURL}/verify/`);
     await expectText(page, '开始认证');
     await page.getByRole('button', { name: '开始认证' }).click();
+    await page.locator('[data-admission-bind-confirmation-input]').fill(qqID);
+    await page.locator('[data-admission-bind-confirmation-submit]').click();
     await expectText(page, '选择认证方式');
     const userID = await waitForSessionUserID(created.sessionID);
     return { linked: true, userIDPresent: userID > 0 };
@@ -173,7 +175,7 @@ try {
   const userID = await waitForSessionUserID(created.sessionID);
 
   await step('browser completes BUAA academic email OTP verification', async () => {
-    await page.getByRole('button', { name: '老生认证' }).click();
+    await page.getByRole('tab', { name: '老生认证' }).click();
     await page.locator('[data-school-select]').selectOption(schoolCode);
     await page.locator('[data-academic-student-id-input]').fill(studentID);
     await page.locator('[data-academic-student-name-input]').fill(studentName);
@@ -490,7 +492,7 @@ async function readAdmissionOTP(userID, schoolIDValue) {
     redisUsername,
   ];
   if ((process.env.REDIS_TLS_ENABLED || 'true') === 'true') {
-    args.push('--tls', '--cacert', '/tls/ca.crt');
+    args.push('--tls', '--cacert', '/redis-runtime/ca.crt');
   }
   args.push('GET', `admission:email_otp:${userID}:${schoolIDValue}`);
   const raw = run('docker', args, { secretCommand: 'docker exec redis-cli GET admission OTP' }).trim();

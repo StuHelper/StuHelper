@@ -244,6 +244,7 @@ test.describe("Review actions", () => {
     test("user edits and deletes their own review from user center", async ({
         page,
     }) => {
+        const updatedContent = "编辑后的课程评价内容符合最低长度";
         let updateBody: unknown = null;
         let deleteCalled = false;
 
@@ -262,7 +263,7 @@ test.describe("Review actions", () => {
                 if (route.request().method() === "PUT") {
                     updateBody = route.request().postDataJSON();
                     await route.fulfill(
-                        ok({ ...ownReview, content: "编辑后的评价内容" }),
+                        ok({ ...ownReview, content: updatedContent }),
                     );
                     return;
                 }
@@ -281,16 +282,16 @@ test.describe("Review actions", () => {
             timeout: 10_000,
         });
         await page.getByRole("button", { name: "编辑我的评价" }).click();
-        await page.locator("textarea").fill("编辑后的评价内容");
+        await page.locator("textarea").fill(updatedContent);
         await page.getByRole("button", { name: "保存" }).click();
 
         await expect
             .poll(() => updateBody)
             .toMatchObject({
-                content: "编辑后的评价内容",
+                content: updatedContent,
                 ratings: { recommendation: 4, content_quality: 4 },
             });
-        await expect(page.getByText("编辑后的评价内容")).toBeVisible();
+        await expect(page.getByText(updatedContent)).toBeVisible();
         await expect(page.getByText("评价已更新")).toBeVisible();
 
         await page.getByRole("button", { name: "删除我的评价" }).click();

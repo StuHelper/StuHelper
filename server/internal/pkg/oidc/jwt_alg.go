@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -31,12 +32,11 @@ func validateJWTSigningAlgorithm(rawJWT string) error {
 }
 
 func isAllowedJWTSigningAlgorithm(algorithm string) bool {
-	switch algorithm {
-	case "RS256", "ES256":
-		return true
-	default:
-		return false
-	}
+	return slices.Contains(allowedJWTSigningAlgorithms(), algorithm)
+}
+
+func allowedJWTSigningAlgorithms() []string {
+	return []string{"RS256", "ES256"}
 }
 
 func decodeJWTHeader(encoded string) (jwtHeader, error) {

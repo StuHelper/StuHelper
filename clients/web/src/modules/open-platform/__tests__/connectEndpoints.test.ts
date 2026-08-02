@@ -10,11 +10,11 @@ describe('StuHelper Connect endpoint helpers', () => {
     expect(normalizeSsoIssuer(' http://sso.stuhelper.com ')).toBe('http://sso.stuhelper.com')
   })
 
-  it('falls back to the current origin and then the production SSO issuer', () => {
-    expect(normalizeSsoIssuer('', 'https://local-sso.stuhelper.test/login')).toBe(
-      'https://local-sso.stuhelper.test',
-    )
-    expect(normalizeSsoIssuer('not a url', 'also bad')).toBe(DEFAULT_SSO_ISSUER)
+  it('never guesses the SSO issuer from the Web origin', () => {
+    expect(normalizeSsoIssuer('')).toBe(DEFAULT_SSO_ISSUER)
+    expect(normalizeSsoIssuer('not a url')).toBe(DEFAULT_SSO_ISSUER)
+    expect(normalizeSsoIssuer('javascript:alert(1)')).toBe(DEFAULT_SSO_ISSUER)
+    expect(normalizeSsoIssuer('/sso')).toBe(DEFAULT_SSO_ISSUER)
   })
 
   it('builds the public OIDC and OAuth endpoint baseline from the issuer', () => {

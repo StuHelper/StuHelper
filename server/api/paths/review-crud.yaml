@@ -42,7 +42,7 @@
                   properties:
                     data:
                       type: object
-                      required: [list, total]
+                      required: [list, total, page, pageSize]
                       properties:
                         list:
                           type: array
@@ -50,6 +50,12 @@
                             $ref: '../components/schemas/review.yaml#/Review'
                         total:
                           type: integer
+                        page:
+                          type: integer
+                          minimum: 1
+                        pageSize:
+                          type: integer
+                          minimum: 1
       '400':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '500':
@@ -92,7 +98,7 @@
                   properties:
                     data:
                       type: object
-                      required: [list, total]
+                      required: [list, total, page, pageSize]
                       properties:
                         list:
                           type: array
@@ -100,6 +106,12 @@
                             $ref: '../components/schemas/review.yaml#/Review'
                         total:
                           type: integer
+                        page:
+                          type: integer
+                          minimum: 1
+                        pageSize:
+                          type: integer
+                          minimum: 1
       '400':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '500':
@@ -158,7 +170,7 @@
                   properties:
                     data:
                       type: object
-                      required: [list, total]
+                      required: [list, total, page, pageSize]
                       properties:
                         list:
                           type: array
@@ -166,7 +178,17 @@
                             $ref: '../components/schemas/review.yaml#/Review'
                         total:
                           type: integer
+                        page:
+                          type: integer
+                          minimum: 1
+                        pageSize:
+                          type: integer
+                          minimum: 1
       '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '429':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '503':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '500':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
@@ -176,7 +198,7 @@
     tags: [Review]
     operationId: getBatchCourseReviews
     summary: 批量获取多个课程的测评列表（支持可选认证）
-    description: 通过逗号分隔的课程ID列表批量获取测评，避免N+1查询
+    description: 通过重复的 courseIDs 查询参数批量获取测评，避免N+1查询；服务端兼容旧逗号格式
     security:
       - {}
       - cookieAuth: []
@@ -192,7 +214,7 @@
             format: int64
           maxItems: 20
         style: form
-        explode: false
+        explode: true
         description: 课程ID列表（最多20个）
       - $ref: '../components/parameters/common.yaml#/PageSizeParam'
       - name: sort
@@ -216,7 +238,7 @@
                       type: object
                       additionalProperties:
                         type: object
-                        required: [list, total]
+                        required: [list, total, page, pageSize]
                         properties:
                           list:
                             type: array
@@ -224,7 +246,17 @@
                               $ref: '../components/schemas/review.yaml#/Review'
                           total:
                             type: integer
+                          page:
+                            type: integer
+                            minimum: 1
+                          pageSize:
+                            type: integer
+                            minimum: 1
       '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '429':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '503':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '500':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
@@ -346,6 +378,8 @@
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '429':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '503':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
       '500':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
 
@@ -429,6 +463,8 @@
       '409':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '429':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '503':
         $ref: '../components/responses/common.yaml#/ErrorResponse'
       '500':
         $ref: '../components/responses/common.yaml#/ErrorResponse'

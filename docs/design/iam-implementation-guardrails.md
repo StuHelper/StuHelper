@@ -3,7 +3,7 @@ type: design
 audience: backend-dev, ops
 status: current
 authoritative-source: server/internal/modules/auth/ + server/internal/modules/authorization/ + server/internal/modules/user/ + server/internal/platform/authorization/ + server/internal/pkg/fga/ + server/internal/pkg/outbox/ + server/internal/pkg/audit/ + server/migrations/000024_authorization_authority_cutover.*.sql + infra/ops/authorization-ledger-cutover.sh
-last-verified: 2026-08-01
+last-verified: 2026-08-02
 ---
 
 # IAM 实施守卫
@@ -108,6 +108,12 @@ last-verified: 2026-08-01
   覆盖 owner 在身份平面的明确决定；恢复路径是在 Casdoor 中重新设置组织管理员后登录/refresh。
 
 ## 特权 MFA 管理
+
+管理端按风险分层执行认证强度策略：只读 dashboard 可以免除 5 分钟 freshness，但不能免除
+MFA 本身。生产与 prod-parity 的 `/course/review/admin/stats` 必须同时满足活动 enrollment 和
+当前认证会话携带的有效 MFA proof；proof 可以早于 5 分钟，但不得为空或来自未来。其余受保护
+管理路由继续要求活动 enrollment 与最近 5 分钟的 step-up proof。路由注册必须显式区分
+dashboard 与 privileged middleware，不能依赖 Gin group 注册顺序形成隐式例外。
 
 `super_admin` 的 MFA reset 是单人授权操作，不是双人审批流程。实现中不得重新引入第二名
 `super_admin`、reviewer user ID、reviewer role 或“至少两个管理员”作为 reset 前置条件。

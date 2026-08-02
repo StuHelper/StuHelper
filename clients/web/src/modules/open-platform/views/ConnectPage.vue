@@ -44,10 +44,5 @@ import { normalizeSsoIssuer } from '../connectEndpoints'
 
 const { t } = useI18n()
 
-const identityIssuer = computed(() =>
-  normalizeSsoIssuer(
-    import.meta.env.VITE_SSO_URL,
-    typeof window === 'undefined' ? undefined : window.location.origin,
-  ),
-)
+const identityIssuer = computed(() => normalizeSsoIssuer(import.meta.env.VITE_SSO_URL))
 </script>

@@ -329,6 +329,30 @@ export default {
             studentIds: "Bound Student IDs",
             method: "Verification Method",
             verifiedAt: "Verified At",
+            academicEmail: {
+                studentName: "Name on Academic Record",
+                studentNamePlaceholder:
+                    "Enter the name in your academic record",
+                schoolEmail: "Student Email",
+                schoolEmailPlaceholder:
+                    "Filled after your student ID and name match",
+                emailCode: "Email Verification Code",
+                emailCodePlaceholder: "Enter the verification code",
+                sendCode: "Send Code",
+                codeSent: "Verification code sent",
+                sendFailed:
+                    "Failed to send the verification code. Please try again.",
+                enterIdentity: "Enter your student ID and name first.",
+                checking: "Matching your student ID and name...",
+                matched: "Your student ID and name match.",
+                mismatch:
+                    "Your student ID and name do not match. Check them before requesting a code.",
+                unavailable:
+                    "Academic record matching is temporarily unavailable. Please try again later.",
+                waitForMatch:
+                    "Wait for student ID and name matching to finish.",
+                matchRequired: "Complete student ID and name matching first.",
+            },
             methods: {
                 ldap: "Unified School Login",
                 manual: "Manual Review",
@@ -372,6 +396,7 @@ export default {
             regenerateCode: "Regenerate Binding Code",
             creating: "Creating...",
             codeCreated: "Binding code created",
+            codeExpired: "The binding code has expired. Create a new one.",
             refreshStatus: "Refresh Status",
             checkingStatus: "Checking...",
             statusUpdated: "QQ binding status updated",

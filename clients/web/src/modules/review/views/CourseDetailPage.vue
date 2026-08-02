@@ -237,6 +237,7 @@
                     <Eye :size="16" />
                   </button>
                   <button
+                    v-if="canEditReviewContent"
                     type="button"
                     class="p-1.5 rounded-lg text-text-muted transition-colors duration-fast hover:text-text-primary hover:bg-bg-elevated"
                     :title="t('review.admin.edit')"
@@ -521,6 +522,7 @@ import {
 
 import type { Course, CourseRatingStatsResponse, TeacherStats } from '@stuhelper/shared/course'
 import type { Review } from '@stuhelper/shared/review'
+import { isNonArrayRecord as isRecord } from '@stuhelper/shared/utils'
 
 type RatingTrendPoint = {
   termName: string
@@ -640,6 +642,7 @@ const {
 // ── Admin tools ──
 const {
   canManageReviews,
+  canEditReviewContent,
   showModerationDialog,
   showEditDialog,
   editingReview,
@@ -675,10 +678,6 @@ function dimensionRatingBarAriaLabel(
     avgRating: dimension.avgRating,
     t,
   })
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
 function readArray(payload: unknown, message: string): unknown[] {

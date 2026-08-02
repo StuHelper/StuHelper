@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  canEditReviewContent,
   canListFullReviews,
   canManageReviews,
   canShowAdminEntry,
@@ -16,6 +17,17 @@ describe('admin access helpers', () => {
 
     expect(canShowAdminEntry(user)).toBe(true)
     expect(canManageReviews(user)).toBe(true)
+    expect(canEditReviewContent(user)).toBe(false)
+  })
+
+  it('uses a separate capability for privileged content editing', () => {
+    const user = {
+      capabilities: ['admin:reviews:manage', 'admin:reviews:edit_content'],
+      canAccessAdmin: true,
+    }
+
+    expect(canManageReviews(user)).toBe(true)
+    expect(canEditReviewContent(user)).toBe(true)
   })
 
   it('detects full review list capability from scoped capabilities', () => {
@@ -37,5 +49,6 @@ describe('admin access helpers', () => {
 
     expect(canShowAdminEntry(user)).toBe(false)
     expect(canManageReviews(user)).toBe(false)
+    expect(canEditReviewContent(user)).toBe(false)
   })
 })

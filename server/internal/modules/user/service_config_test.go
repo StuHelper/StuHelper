@@ -341,6 +341,14 @@ func TestUpdateSystemConfig_RejectsInvalidReviewPreviewPercent(t *testing.T) {
 	assert.ErrorIs(t, err, ErrInvalidSystemConfigValue)
 }
 
+func TestUpdateSystemConfig_RejectsInvalidGuestReviewPreviewLength(t *testing.T) {
+	svc, err := NewService(&mockRepo{}, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+	require.NoError(t, err)
+
+	err = svc.UpdateSystemConfig(context.Background(), systemconfig.ReviewGuestPreviewContentCharsKey, "201")
+	assert.ErrorIs(t, err, ErrInvalidSystemConfigValue)
+}
+
 func TestUpdateSystemConfig_RejectsUnknownReviewAccessSchoolIDs(t *testing.T) {
 	repo := &mockRepo{
 		onListAllSchoolConfigs: func(_ context.Context) ([]SchoolConfig, error) {

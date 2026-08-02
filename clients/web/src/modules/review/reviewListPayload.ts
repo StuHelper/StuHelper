@@ -1,4 +1,5 @@
 import type { Review, ReviewRatings } from '@stuhelper/shared/review'
+import { isNonArrayRecord as isRecord } from '@stuhelper/shared/utils'
 
 const REVIEW_STATUS_VALUES = new Set([
   'published',
@@ -21,10 +22,6 @@ const REVIEW_GRADE_VALUES = new Set([
 ])
 const CONTENT_FLAG_VALUES = new Set(['warn', 'review', 'cleared'])
 const REVIEW_VOTE_VALUES = new Set(['like', 'dislike'])
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
-}
 
 function readString(record: Record<string, unknown>, key: string, message: string): string {
   const value = record[key]

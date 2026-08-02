@@ -177,7 +177,64 @@ describe('OldStudentVerificationFlow', () => {
     })
     expect(emailInput.element.value).toBe('20250001@buaa.edu.cn')
     expect(wrapper.findAll('[role="status"]')).toHaveLength(2)
+    wrapper.unmount()
     vi.useRealTimers()
+  })
+
+  it('keeps resend disabled for the server-provided OTP cooldown', async () => {
+    vi.useFakeTimers()
+    mockAdmissionApi.requestSchoolEmailOTP.mockResolvedValueOnce({
+      email: 'student@example.edu',
+      cooldownSeconds: 60,
+    })
+    const wrapper = mount(OldStudentVerificationFlow, {
+      props: {
+        currentReturnUrl: 'https://join.stuhelper.com/verify/ABCD',
+        linked: true,
+        schools,
+      },
+    })
+
+    await wrapper.find('[data-academic-email-input]').setValue('student@example.edu')
+    const requestButton = wrapper.get<HTMLButtonElement>('[data-school-email-otp-request]')
+    await requestButton.trigger('click')
+    await flushPromises()
+
+    expect(requestButton.element.disabled).toBe(true)
+    expect(requestButton.text()).toBe('重新发送（60s）')
+
+    await vi.advanceTimersByTimeAsync(59_000)
+    expect(requestButton.element.disabled).toBe(true)
+    expect(requestButton.text()).toBe('重新发送（1s）')
+
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(requestButton.element.disabled).toBe(false)
+    expect(requestButton.text()).toBe('发送验证码')
+    wrapper.unmount()
+  })
+
+  it('localizes structured OTP cooldown errors instead of echoing server English', async () => {
+    mockAdmissionApi.requestSchoolEmailOTP.mockRejectedValueOnce(
+      new ApiError({
+        code: 'A0000429',
+        message: 'please wait before requesting a new code',
+        status: 429,
+      }),
+    )
+    const wrapper = mount(OldStudentVerificationFlow, {
+      props: {
+        currentReturnUrl: 'https://join.stuhelper.com/verify/ABCD',
+        linked: true,
+        schools,
+      },
+    })
+
+    await wrapper.find('[data-academic-email-input]').setValue('student@example.edu')
+    await wrapper.find('[data-school-email-otp-request]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[role="alert"]').text()).toBe('请求过于频繁，请稍后重试')
+    expect(wrapper.text()).not.toContain('please wait before requesting a new code')
   })
 
   it('requires academic match before sending BUAA student email OTP', async () => {
@@ -244,8 +301,8 @@ describe('OldStudentVerificationFlow', () => {
     await flushPromises()
 
     expect(wrapper.emitted('expired')).toBeUndefined()
-    expect(wrapper.text()).toContain('consumed')
-    expect(wrapper.get('[role="alert"]').text()).toContain('consumed')
+    expect(wrapper.text()).not.toContain('consumed')
+    expect(wrapper.get('[role="alert"]').text()).toBe('验证码发送失败。')
   })
 
   it('keeps email OTP verification disabled until email and code are ready', async () => {

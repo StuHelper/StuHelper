@@ -18,6 +18,7 @@ valid_env=(
   EXTERNAL_STUDENT_SOURCE_ORACLE_PORT=2484
   EXTERNAL_STUDENT_SOURCE_ORACLE_SERVICE_NAME=ORCLPDB1
   EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME=stuhelper_ro
+  EXTERNAL_STUDENT_SOURCE_ORACLE_READONLY_USERNAME=stuhelper_ro
   EXTERNAL_STUDENT_SOURCE_ORACLE_PASSWORD=contract-only-password
   EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_MODE=verify-full
   EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_FILE=/external-student-source-tls/ca.crt
@@ -57,6 +58,9 @@ if run_gate "${valid_env[@]}" EXTERNAL_STUDENT_SOURCE_ORACLE_TABLE='T_XS_JBXX;DR
 fi
 if run_gate "${valid_env[@]}" EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME=usr_jwbiz >/dev/null 2>&1; then
   fail "Oracle source schema owner must not be accepted as the runtime account"
+fi
+if run_gate "${valid_env[@]}" EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME=another_ro >/dev/null 2>&1; then
+  fail "runtime Oracle account must match the provisioned readonly account"
 fi
 if run_gate "${valid_env[@]}" EXTERNAL_STUDENT_SOURCE_ORACLE_MAX_IDLE_CONNS=5 >/dev/null 2>&1; then
   fail "Oracle idle connections above max open connections must fail"

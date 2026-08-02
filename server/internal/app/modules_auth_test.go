@@ -41,6 +41,34 @@ func TestAdminMFAMiddlewaresRequireRepositoryOutsideDevelopment(t *testing.T) {
 	})
 }
 
+func TestAdminReviewDashboardMFAGateRequiresProofWithoutFreshness(t *testing.T) {
+	configureRBACAuthorizer(config.EnvProduction)
+	t.Cleanup(func() {
+		configureRBACAuthorizer(config.EnvProduction)
+	})
+
+	repo := &adminMFAContextRepo{
+		userID:     42,
+		enrollment: &user.MFAEnrollment{Active: true, Methods: []string{user.MFAMethodTOTP}},
+	}
+
+	t.Run("missing proof", func(t *testing.T) {
+		security := adminReviewRouteSecurity(config.EnvProduction, repo)
+		w, called := exerciseMFAHandlers(t, security.Dashboard, time.Time{})
+
+		assert.Equal(t, http.StatusPreconditionFailed, w.Code)
+		assert.False(t, called)
+	})
+
+	t.Run("stale session proof", func(t *testing.T) {
+		security := adminReviewRouteSecurity(config.EnvProduction, repo)
+		w, called := exerciseMFAHandlers(t, security.Dashboard, time.Now().Add(-24*time.Hour))
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.True(t, called)
+	})
+}
+
 func TestAdminMFAMiddlewaresEnforcePrivilegedEnrollmentAndFreshProof(t *testing.T) {
 	configureRBACAuthorizer(config.EnvProduction)
 	t.Cleanup(func() {
@@ -92,6 +120,14 @@ func exerciseAdminMFAMiddlewares(
 	repo *adminMFAContextRepo,
 	proofAt time.Time,
 ) (*httptest.ResponseRecorder, bool) {
+	return exerciseMFAHandlers(t, adminMFAMiddlewares(config.EnvProduction, repo), proofAt)
+}
+
+func exerciseMFAHandlers(
+	t *testing.T,
+	mfaHandlers []gin.HandlerFunc,
+	proofAt time.Time,
+) (*httptest.ResponseRecorder, bool) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
@@ -103,7 +139,8 @@ func exerciseAdminMFAMiddlewares(
 	})
 
 	called := false
-	handlers := append(adminMFAMiddlewares(config.EnvProduction, repo), func(c *gin.Context) {
+	handlers := append([]gin.HandlerFunc(nil), mfaHandlers...)
+	handlers = append(handlers, func(c *gin.Context) {
 		called = true
 		c.Status(http.StatusOK)
 	})

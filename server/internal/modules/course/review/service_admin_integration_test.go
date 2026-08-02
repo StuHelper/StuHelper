@@ -306,9 +306,7 @@ func TestReviewService_AdminAndExportIntegration(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "课程名称")
 	assert.Contains(t, w.Body.String(), "# EXPORT_COMPLETE")
 
-	w = httptest.NewRecorder()
-	c, _ = gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, "/admin/content-flags", nil)
+	w, c = withAdminContext(http.MethodGet, "/admin/content-flags", "")
 	h.ListFlaggedReviews(c)
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), warnFlaggedID)

@@ -101,7 +101,7 @@ make prod-deploy
 - `OTEL_ENABLED=true`
 - `OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318`
 - `OTEL_TRACE_SAMPLE_RATIO=0.2`（可按流量调整）
-- `FRONTEND_METRICS_ALLOWED_ORIGINS=https://stuhelper.com`
+- `FRONTEND_METRICS_ALLOWED_ORIGINS=https://stuhelper.com,https://join.stuhelper.com`（只允许实际承载 Web 与入群页面的两个来源）
 - `ALLOY_DOCKER_LOG_MAX_AGE=1h`（首次启动或中断恢复时允许回补的日志窗口）
 - `ALLOY_DOCKER_STREAM_TIMEOUT=24h`（Docker 日志长连接重连周期）
 

@@ -201,6 +201,7 @@ func (s *Service) PostReview(ctx context.Context, params PostReviewParams) (*Pos
 	}); err != nil {
 		return nil, err
 	}
+	review.IsOwner = true
 
 	audit.LogContext(ctx, audit.Event{
 		Type:         audit.EventDataCreate,

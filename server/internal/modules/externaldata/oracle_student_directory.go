@@ -59,6 +59,7 @@ type OracleStudentDirectoryConfig struct {
 	Port                    int
 	ServiceName             string
 	Username                string
+	ExpectedUsername        string
 	Password                string
 	TLSMode                 string
 	TLSCAFile               string
@@ -78,16 +79,31 @@ type OracleStudentDirectoryConfig struct {
 }
 
 type OracleStudentDirectory struct {
-	db           *sql.DB
-	schoolCode   string
-	query        string
-	probeQuery   string
-	queryTimeout time.Duration
-	breaker      *circuitbreaker.CircuitBreaker
+	db               *sql.DB
+	schoolCode       string
+	schema           string
+	table            string
+	expectedUsername string
+	query            string
+	probeQuery       string
+	queryTimeout     time.Duration
+	breaker          *circuitbreaker.CircuitBreaker
 }
 
 type OracleStudentDirectoryProbe struct {
 	ReadableRecordPresent bool
+}
+
+type OracleRuntimeSecurityProbe struct {
+	SessionUsername          string
+	IdentityMatched          bool
+	RoleGrantCount           int
+	SystemGrantCount         int
+	ApprovedSystemGrantCount int
+	ObjectGrantCount         int
+	ApprovedObjectGrantCount int
+	ColumnGrantCount         int
+	LeastPrivilegeVerified   bool
 }
 
 func NewOracleStudentDirectory(cfg OracleStudentDirectoryConfig) (*OracleStudentDirectory, error) {
@@ -155,11 +171,14 @@ func newOracleStudentDirectoryWithDB(
 		timeout = defaultOracleQueryTimeout
 	}
 	return &OracleStudentDirectory{
-		db:           db,
-		schoolCode:   cfg.SchoolCode,
-		query:        buildOracleStudentLookupQuery(cfg),
-		probeQuery:   buildOracleStudentProbeQuery(cfg),
-		queryTimeout: timeout,
+		db:               db,
+		schoolCode:       cfg.SchoolCode,
+		schema:           cfg.Schema,
+		table:            cfg.Table,
+		expectedUsername: cfg.ExpectedUsername,
+		query:            buildOracleStudentLookupQuery(cfg),
+		probeQuery:       buildOracleStudentProbeQuery(cfg),
+		queryTimeout:     timeout,
 		breaker: circuitbreaker.NewNamed(
 			"external_student_source_oracle_"+cfg.SchoolCode,
 			circuitbreaker.Config{
@@ -169,6 +188,48 @@ func newOracleStudentDirectoryWithDB(
 			},
 		),
 	}
+}
+
+func (d *OracleStudentDirectory) ProbeRuntimeSecurity(
+	ctx context.Context,
+) (OracleRuntimeSecurityProbe, error) {
+	if d == nil || d.db == nil || strings.TrimSpace(d.expectedUsername) == "" {
+		return OracleRuntimeSecurityProbe{}, ErrStudentSourceNotConfigured
+	}
+
+	queryCtx, cancel := withOptionalTimeout(ctx, d.queryTimeout)
+	defer cancel()
+	var probe OracleRuntimeSecurityProbe
+	err := d.db.QueryRowContext(queryCtx, oracleRuntimeSecurityProbeQuery, d.schema, d.table).Scan(
+		&probe.SessionUsername,
+		&probe.RoleGrantCount,
+		&probe.SystemGrantCount,
+		&probe.ApprovedSystemGrantCount,
+		&probe.ObjectGrantCount,
+		&probe.ApprovedObjectGrantCount,
+		&probe.ColumnGrantCount,
+	)
+	if err != nil {
+		return OracleRuntimeSecurityProbe{}, fmt.Errorf("probe oracle runtime grants: %w", err)
+	}
+
+	probe.IdentityMatched = strings.EqualFold(
+		strings.TrimSpace(probe.SessionUsername),
+		strings.TrimSpace(d.expectedUsername),
+	)
+	probe.LeastPrivilegeVerified = probe.RoleGrantCount == 0 &&
+		probe.SystemGrantCount == 1 &&
+		probe.ApprovedSystemGrantCount == 1 &&
+		probe.ObjectGrantCount == 1 &&
+		probe.ApprovedObjectGrantCount == 1 &&
+		probe.ColumnGrantCount == 0
+	if !probe.IdentityMatched {
+		return probe, fmt.Errorf("oracle runtime identity does not match the configured readonly identity")
+	}
+	if !probe.LeastPrivilegeVerified {
+		return probe, fmt.Errorf("oracle runtime grants exceed the approved readonly boundary")
+	}
+	return probe, nil
 }
 
 func (d *OracleStudentDirectory) Probe(ctx context.Context) (probe OracleStudentDirectoryProbe, err error) {
@@ -346,11 +407,21 @@ func normalizeOracleStudentDirectoryConfig(cfg OracleStudentDirectoryConfig) (Or
 	cfg.Host = strings.TrimSpace(cfg.Host)
 	cfg.ServiceName = strings.TrimSpace(cfg.ServiceName)
 	cfg.Username = strings.TrimSpace(cfg.Username)
+	cfg.ExpectedUsername = strings.TrimSpace(cfg.ExpectedUsername)
 	if cfg.Host == "" || cfg.ServiceName == "" || cfg.Username == "" || cfg.Password == "" {
 		return cfg, fmt.Errorf("oracle host, service name, username and password are required")
 	}
 	if isDisallowedOracleRuntimeUsername(cfg.Username) {
 		return cfg, fmt.Errorf("oracle runtime username must be a dedicated non-administrative account")
+	}
+	if cfg.ExpectedUsername != "" {
+		if _, err := normalizeOracleIdentifier(cfg.ExpectedUsername, "expected username"); err != nil {
+			return cfg, err
+		}
+		if !strings.EqualFold(cfg.Username, cfg.ExpectedUsername) {
+			return cfg, fmt.Errorf("oracle runtime username must match the configured readonly username")
+		}
+		cfg.ExpectedUsername = strings.ToUpper(cfg.ExpectedUsername)
 	}
 	if cfg.Port <= 0 || cfg.Port > 65535 {
 		return cfg, fmt.Errorf("oracle port must be between 1 and 65535")
@@ -489,6 +560,20 @@ func buildOracleStudentProbeQuery(cfg OracleStudentDirectoryConfig) string {
 		cfg.StudentNameColumn,
 	)
 }
+
+const oracleRuntimeSecurityProbeQuery = `
+SELECT
+    SYS_CONTEXT('USERENV', 'SESSION_USER'),
+    (SELECT COUNT(*) FROM USER_ROLE_PRIVS),
+    (SELECT COUNT(*) FROM USER_SYS_PRIVS),
+    (SELECT COUNT(*) FROM USER_SYS_PRIVS
+      WHERE PRIVILEGE = 'CREATE SESSION' AND ADMIN_OPTION = 'NO'),
+    (SELECT COUNT(*) FROM USER_TAB_PRIVS),
+    (SELECT COUNT(*) FROM USER_TAB_PRIVS
+      WHERE OWNER = :1 AND TABLE_NAME = :2 AND PRIVILEGE = 'SELECT'
+        AND GRANTABLE = 'NO' AND HIERARCHY = 'NO'),
+    (SELECT COUNT(*) FROM USER_COL_PRIVS)
+FROM DUAL`
 
 func normalizeOracleIdentifier(value string, label string) (string, error) {
 	identifier := strings.ToUpper(strings.TrimSpace(value))

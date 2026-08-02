@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, inject } from 'vue';
+import { computed, inject, useAttrs } from 'vue';
 
 import { ElTableColumn } from 'element-plus';
 
@@ -27,8 +27,19 @@ defineSlots<{
 }>();
 
 const table = inject(persistentAdminTableKey, null);
+const attrs = useAttrs();
 const width = computed(() => {
   return table?.columnWidth(props.columnKey) ?? props.defaultWidth;
+});
+const minWidth = computed(() => {
+  if (props.defaultMinWidth !== undefined) {
+    return props.defaultMinWidth;
+  }
+  const inheritedMinWidth = attrs['min-width'];
+  return typeof inheritedMinWidth === 'number' ||
+    typeof inheritedMinWidth === 'string'
+    ? inheritedMinWidth
+    : undefined;
 });
 
 function normalizeSlotProps(slotProps: unknown): TableColumnSlotProps {
@@ -61,7 +72,7 @@ function shouldRenderSlot(slotName: string, slotProps: unknown) {
   <ElTableColumn
     v-bind="$attrs"
     :column-key="columnKey"
-    :min-width="defaultMinWidth"
+    :min-width="minWidth"
     resizable
     :width="width"
   >

@@ -214,7 +214,7 @@ func (r *Repository) ListLatest(ctx context.Context, p ListLatestParams) ([]Revi
 
 	rows, err := r.db.Query(ctx, `
 		SELECT r.id, r.course_id, COALESCE(c.name, ''), r.teacher_id, COALESCE(t.name, ''), r.term_id,
-		       r.title, r.content, r.grade, r.ratings,
+		       r.user_hash, r.title, r.content, r.grade, r.ratings,
 		       r.like_count, r.dislike_count,
 		       r.reply_count,
 		       r.status, r.moderation_reason, r.created_at, r.updated_at
@@ -379,7 +379,7 @@ func scanReviews(rows interface {
 		var item Review
 		if err := rows.Scan(
 			&item.ID, &item.CourseID, &item.CourseName, &item.TeacherID, &item.TeacherName,
-			&item.TermID, &item.Title, &item.Content, &item.Grade, &item.Ratings,
+			&item.TermID, &item.UserHash, &item.Title, &item.Content, &item.Grade, &item.Ratings,
 			&item.LikeCount, &item.DislikeCount, &item.ReplyCount,
 			&item.Status, &item.ModerationReason, &item.CreatedAt, &item.UpdatedAt,
 		); err != nil {
@@ -405,7 +405,7 @@ func scanReviewsWithTotal(rows interface {
 		var item Review
 		if err := rows.Scan(
 			&item.ID, &item.CourseID, &item.CourseName, &item.TeacherID, &item.TeacherName,
-			&item.TermID, &item.Title, &item.Content, &item.Grade, &item.Ratings,
+			&item.TermID, &item.UserHash, &item.Title, &item.Content, &item.Grade, &item.Ratings,
 			&item.LikeCount, &item.DislikeCount, &item.ReplyCount,
 			&item.Status, &item.ModerationReason, &item.CreatedAt, &item.UpdatedAt,
 			&total,

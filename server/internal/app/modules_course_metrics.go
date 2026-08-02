@@ -73,10 +73,10 @@ func (m courseModule) RegisterRoutes(
 	api *gin.RouterGroup,
 	authMiddleware gin.HandlerFunc,
 	optionalAuthMiddleware gin.HandlerFunc,
-	adminMiddlewares ...gin.HandlerFunc,
+	adminRouteSecurity review.AdminRouteSecurity,
 ) {
 	m.courseHandler.RegisterRoutes(api, authMiddleware, optionalAuthMiddleware)
-	m.reviewHandler.RegisterRoutes(api.Group("/course/review"), authMiddleware, optionalAuthMiddleware, adminMiddlewares...)
+	m.reviewHandler.RegisterRoutes(api.Group("/course/review"), authMiddleware, optionalAuthMiddleware, adminRouteSecurity)
 }
 
 func (m courseModule) StartBackgroundJobs(ctx context.Context, start func(string, func(context.Context))) {

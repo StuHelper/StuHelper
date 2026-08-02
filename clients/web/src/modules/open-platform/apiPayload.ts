@@ -12,6 +12,7 @@ import type {
   OpenPlatformUserConsentScope,
   OpenPlatformUserConsentsResponse,
 } from '@stuhelper/shared/api'
+import { isNonArrayRecord as isRecord } from '@stuhelper/shared/utils'
 
 type OpenPlatformApp = OpenPlatformAppWithScopes['app']
 
@@ -32,10 +33,6 @@ const SCOPE_VALUES = new Set([
   'resource.write',
   'offline_access',
 ])
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
-}
 
 function readString(record: Record<string, unknown>, key: string, message: string): string {
   const value = record[key]

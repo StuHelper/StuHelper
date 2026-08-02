@@ -83,6 +83,9 @@ func (r *Repository) ReportExistsTx(ctx context.Context, tx pgx.Tx, reviewID, us
 // 当 reviewID 为 nil（评论已被物理删除）时，跳过 Review 对象赋值，标记为已删除
 func (r *Repository) ListReports(ctx context.Context, status string, limit, offset int, schoolIDs []int64) ([]ReviewReport, int, error) {
 	ctx = withDBTable(ctx, "review_reports")
+	if schoolIDs != nil && len(schoolIDs) == 0 {
+		return []ReviewReport{}, 0, nil
+	}
 	var qb strings.Builder
 	qb.WriteString(`
 		SELECT rr.id, rr.review_id, rr.reason, rr.description, rr.status,

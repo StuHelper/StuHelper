@@ -1,5 +1,6 @@
 <script setup lang="ts">
 defineProps<{
+  description?: string;
   title: string;
   total?: number;
 }>();
@@ -9,13 +10,18 @@ defineProps<{
   <section class="admin-content-page">
     <header class="admin-content-page__header">
       <div class="admin-content-page__heading">
-        <h1>{{ title }}</h1>
-        <span
-          v-if="typeof total === 'number'"
-          class="admin-content-page__total"
-        >
-          {{ total }}
-        </span>
+        <div class="admin-content-page__title-row">
+          <h1>{{ title }}</h1>
+          <span
+            v-if="typeof total === 'number'"
+            class="admin-content-page__total"
+          >
+            {{ total }}
+          </span>
+        </div>
+        <p v-if="description" class="admin-content-page__description">
+          {{ description }}
+        </p>
       </div>
       <div v-if="$slots.actions" class="admin-content-page__actions">
         <slot name="actions"></slot>
@@ -62,9 +68,16 @@ defineProps<{
 
 .admin-content-page__heading {
   display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.admin-content-page__title-row {
+  display: flex;
   gap: 10px;
   align-items: center;
-  min-width: 0;
 }
 
 .admin-content-page__heading h1 {
@@ -72,6 +85,13 @@ defineProps<{
   font-size: 18px;
   font-weight: 650;
   line-height: 1.3;
+}
+
+.admin-content-page__description {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--el-text-color-secondary);
 }
 
 .admin-content-page__total {

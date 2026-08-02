@@ -63,7 +63,10 @@ function registerEventModel(ctx: Context) {
     payload: { type: 'json', initial: null },
     createdAt: 'timestamp',
     updatedAt: 'timestamp',
-  }, { primary: 'id' })
+  }, {
+    primary: 'id',
+    indexes: [{ keys: { createdAt: 'desc' } }],
+  })
 }
 
 function registerReviewModel(ctx: Context) {

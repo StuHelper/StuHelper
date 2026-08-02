@@ -21,6 +21,7 @@ PARITY_BROWSER_SMOKE_NODE="${REPO_ROOT}/infra/ops/prod-parity-browser-smoke.mjs"
 ADMISSION_PROD_SIM_E2E="${REPO_ROOT}/infra/ops/admission-prod-sim-e2e.sh"
 ADMISSION_PROD_SIM_E2E_NODE="${REPO_ROOT}/infra/ops/admission-prod-sim-e2e.mjs"
 PARITY_LOCAL_INGRESS="${REPO_ROOT}/infra/ops/install-local-prod-parity-ingress.sh"
+PARITY_LOCAL_INGRESS_REMOVE="${REPO_ROOT}/infra/ops/remove-local-prod-parity-ingress.sh"
 PARITY_LOCAL_INGRESS_NGINX="${REPO_ROOT}/infra/nginx/prod-parity-local-ingress.conf"
 COMMON_LIB="${REPO_ROOT}/infra/ops/lib/common.sh"
 ADMIN_INDEX_HTML="${REPO_ROOT}/clients/admin/apps/web-ele/index.html"
@@ -48,11 +49,11 @@ assert_not_contains() {
   fi
 }
 
-for file in "${PARITY_COMPOSE}" "${INIT_SHARED_PG}" "${PARITY_UP}" "${PARITY_DOWN}" "${PARITY_SMOKE}" "${SMOKE_CHECK}" "${SSO_PUBLIC_SMOKE}" "${ADMISSION_PUBLIC_SMOKE}" "${PARITY_SMOKE_DATA}" "${OBJECT_STORAGE_TLS_RENDER}" "${OBJECT_STORAGE_CONFIG_RENDER}" "${ADMISSION_READINESS}" "${PARITY_DATASTORE_SMOKE}" "${PARITY_BROWSER_SMOKE}" "${PARITY_BROWSER_SMOKE_NODE}" "${ADMISSION_PROD_SIM_E2E}" "${ADMISSION_PROD_SIM_E2E_NODE}" "${PARITY_LOCAL_INGRESS}" "${PARITY_LOCAL_INGRESS_NGINX}" "${COMMON_LIB}" "${ADMIN_INDEX_HTML}" "${WEB_NGINX}"; do
+for file in "${PARITY_COMPOSE}" "${INIT_SHARED_PG}" "${PARITY_UP}" "${PARITY_DOWN}" "${PARITY_SMOKE}" "${SMOKE_CHECK}" "${SSO_PUBLIC_SMOKE}" "${ADMISSION_PUBLIC_SMOKE}" "${PARITY_SMOKE_DATA}" "${OBJECT_STORAGE_TLS_RENDER}" "${OBJECT_STORAGE_CONFIG_RENDER}" "${ADMISSION_READINESS}" "${PARITY_DATASTORE_SMOKE}" "${PARITY_BROWSER_SMOKE}" "${PARITY_BROWSER_SMOKE_NODE}" "${ADMISSION_PROD_SIM_E2E}" "${ADMISSION_PROD_SIM_E2E_NODE}" "${PARITY_LOCAL_INGRESS}" "${PARITY_LOCAL_INGRESS_REMOVE}" "${PARITY_LOCAL_INGRESS_NGINX}" "${COMMON_LIB}" "${ADMIN_INDEX_HTML}" "${WEB_NGINX}"; do
   [[ -f "${file}" ]] || fail "missing file: ${file}"
 done
 
-bash -n "${INIT_SHARED_PG}" "${PARITY_UP}" "${PARITY_DOWN}" "${PARITY_SMOKE}" "${SMOKE_CHECK}" "${SSO_PUBLIC_SMOKE}" "${ADMISSION_PUBLIC_SMOKE}" "${PARITY_SMOKE_DATA}" "${OBJECT_STORAGE_TLS_RENDER}" "${OBJECT_STORAGE_CONFIG_RENDER}" "${ADMISSION_READINESS}" "${PARITY_DATASTORE_SMOKE}" "${PARITY_BROWSER_SMOKE}" "${ADMISSION_PROD_SIM_E2E}" "${PARITY_LOCAL_INGRESS}"
+bash -n "${INIT_SHARED_PG}" "${PARITY_UP}" "${PARITY_DOWN}" "${PARITY_SMOKE}" "${SMOKE_CHECK}" "${SSO_PUBLIC_SMOKE}" "${ADMISSION_PUBLIC_SMOKE}" "${PARITY_SMOKE_DATA}" "${OBJECT_STORAGE_TLS_RENDER}" "${OBJECT_STORAGE_CONFIG_RENDER}" "${ADMISSION_READINESS}" "${PARITY_DATASTORE_SMOKE}" "${PARITY_BROWSER_SMOKE}" "${ADMISSION_PROD_SIM_E2E}" "${PARITY_LOCAL_INGRESS}" "${PARITY_LOCAL_INGRESS_REMOVE}"
 
 for default_path in ".env" "./.env" ".env.generated" "./.env.generated" ".env.generated.secrets" "./.env.generated.secrets" ".deploy" "./.deploy"; do
   case "${default_path}" in
@@ -78,6 +79,7 @@ assert_contains "${PARITY_COMPOSE}" 'name: \$\{EXTERNAL_DATASTORE_NETWORK:-stuhe
 assert_contains "${PARITY_COMPOSE}" 'aliases:'
 assert_contains "${PARITY_COMPOSE}" 'postgres'
 assert_not_contains "${PARITY_COMPOSE}" '^  redis:'
+assert_not_contains "${PARITY_COMPOSE}" '^[[:space:]]+entrypoint:'
 assert_contains "${REPO_ROOT}/docker-compose.prod.yml" 'APP_ENV: \$\{APP_ENV:-production\}'
 
 assert_contains "${INIT_SHARED_PG}" 'STUHELPER_APP_DB_PASSWORD'
@@ -97,6 +99,8 @@ assert_contains "${PARITY_UP}" 'EXTERNAL_POSTGRES_ENABLED.*true'
 assert_contains "${PARITY_UP}" 'EXTERNAL_POSTGRES_ALLOW_PLAINTEXT.*true'
 assert_contains "${PARITY_UP}" 'EXTERNAL_DATASTORE_NETWORK.*stuhelper-prod-parity-baota-net'
 assert_contains "${PARITY_UP}" 'APP_ENV.*prod-parity'
+assert_contains "${PARITY_UP}" 'POSTGRES_EXPORTER_DATA_SOURCE_URI.*postgres:5432/postgres\?sslmode=disable'
+assert_contains "${PARITY_UP}" 'OPENFGA_DATASTORE_URI.*postgresql://openfga:\$\{OPENFGA_DB_PASSWORD\}@postgres:5432/openfga\?sslmode=disable'
 assert_contains "${PARITY_UP}" 'REDIS_EXTERNAL_PORT.*26379'
 assert_contains "${PARITY_UP}" 'OPENFGA_HTTP_EXTERNAL_PORT.*8081'
 assert_contains "${PARITY_UP}" 'OPENFGA_GRPC_EXTERNAL_PORT.*8082'
@@ -118,7 +122,7 @@ assert_contains "${PARITY_UP}" 'ADMISSION_READINESS_REQUIRED_PLATFORM.*qq'
 assert_contains "${PARITY_UP}" 'ADMISSION_READINESS_REQUIRED_GUILD_IDS.*prod-parity-guild'
 assert_contains "${PARITY_UP}" 'ADMISSION_READINESS_REQUIRED_SCHOOL_CODES.*4111010006'
 assert_contains "${PARITY_UP}" 'CORS_ORIGINS.*https://stuhelper\.com,https://join\.stuhelper\.com,https://sso\.stuhelper\.com'
-assert_contains "${PARITY_UP}" 'FRONTEND_METRICS_ALLOWED_ORIGINS.*https://stuhelper\.com'
+assert_contains "${PARITY_UP}" 'FRONTEND_METRICS_ALLOWED_ORIGINS.*https://stuhelper\.com,https://join\.stuhelper\.com'
 assert_contains "${PARITY_UP}" 'OPEN_PLATFORM_CONSENT_BASE_URL.*https://stuhelper\.com'
 assert_contains "${PARITY_UP}" 'OPEN_PLATFORM_ACCOUNT_BASE_URL.*https://stuhelper\.com'
 assert_contains "${PARITY_UP}" 'STUHELPER_FRESHMAN_MATERIAL_HOSTS.*stuhelper\.com,join\.stuhelper\.com'
@@ -155,6 +159,8 @@ assert_contains "${PARITY_UP}" 'CASDOOR_DB_PASSWORD'
 assert_contains "${PARITY_UP}" 'POSTGRES_EXPORTER_DB_PASSWORD'
 assert_contains "${PARITY_UP}" 'REDIS_EXPORTER_PASSWORD'
 assert_contains "${PARITY_UP}" 'REDIS_EXPORTER_USERNAME'
+assert_contains "${PARITY_UP}" 'REDIS_PROD_PARITY_MAINTENANCE_USERNAME.*stuhelper_parity_maintenance'
+assert_contains "${PARITY_UP}" 'REDIS_PROD_PARITY_MAINTENANCE_PASSWORD.*prod-parity-redis-maintenance'
 assert_contains "${PARITY_UP}" 'CASDOOR_BOOTSTRAP_CLIENT_ID'
 assert_contains "${PARITY_UP}" 'CASDOOR_BOOTSTRAP_CLIENT_SECRET'
 assert_contains "${PARITY_UP}" 'CASDOOR_BOOTSTRAP_ORGANIZATION'
@@ -164,9 +170,15 @@ assert_contains "${PARITY_UP}" 'SELECT client_id, client_secret FROM application
 assert_contains "${PARITY_UP}" 'compose --profile prod --profile local-sso up -d --wait casdoor'
 assert_contains "${PARITY_UP}" 'parity_default_path'
 assert_contains "${PARITY_UP}" '\.run/prod-parity'
+assert_contains "${PARITY_UP}" '^append_local_no_proxy\(\) \{'
+assert_contains "${PARITY_UP}" 'export NO_PROXY='
+assert_contains "${PARITY_UP}" 'export no_proxy='
+assert_contains "${PARITY_UP}" 'sso\.stuhelper\.com,\.stuhelper\.com'
+assert_contains "${PARITY_UP}" '^append_local_no_proxy$'
 assert_contains "${PARITY_UP}" 'init-shared-postgres.sh'
 assert_contains "${PARITY_UP}" 'render-redis-tls.sh'
 assert_contains "${PARITY_UP}" 'render-redis-acl.sh'
+assert_contains "${PARITY_UP}" 'compose --profile prod up -d --no-deps --force-recreate --wait redis'
 assert_contains "${PARITY_UP}" 'render-observability.sh.*prod'
 assert_contains "${PARITY_UP}" 'docker build'
 assert_contains "${PARITY_UP}" '.*-f "\$\{REPO_ROOT\}/clients/web/Dockerfile"'
@@ -186,6 +198,8 @@ assert_not_contains "${PARITY_UP}" 'prod-deploy.sh'
 
 assert_contains "${PARITY_LOCAL_INGRESS}" 'stuhelper\.com www\.stuhelper\.com join\.stuhelper\.com sso\.stuhelper\.com'
 assert_contains "${PARITY_LOCAL_INGRESS}" 'PROXY_BYPASS_HOSTS'
+assert_contains "${PARITY_LOCAL_INGRESS}" 'PROXY_BYPASS_STATE_FILE'
+assert_contains "${PARITY_LOCAL_INGRESS}" 'validate_hosts_markers'
 assert_contains "${PARITY_LOCAL_INGRESS}" 'gsettings.*org\.gnome\.system\.proxy'
 assert_contains "${PARITY_LOCAL_INGRESS}" '\*\.stuhelper\.com'
 assert_contains "${PARITY_LOCAL_INGRESS}" 'DEFAULT_BAOTA_TLS_CERT'
@@ -212,6 +226,14 @@ assert_not_contains "${PARITY_LOCAL_INGRESS}" 'location = /favicon\.ico'
 assert_not_contains "${PARITY_LOCAL_INGRESS}" 'location = /site\.webmanifest'
 assert_contains "${PARITY_LOCAL_INGRESS}" 'nginx -t'
 assert_contains "${PARITY_LOCAL_INGRESS}" 'nginx -s reload'
+assert_contains "${PARITY_LOCAL_INGRESS_REMOVE}" 'StuHelper prod-parity local ingress BEGIN'
+assert_contains "${PARITY_LOCAL_INGRESS_REMOVE}" 'validate_hosts_markers'
+assert_contains "${PARITY_LOCAL_INGRESS_REMOVE}" 'PROXY_BYPASS_STATE_FILE'
+assert_contains "${PARITY_LOCAL_INGRESS_REMOVE}" 'parity_hosts - original_hosts'
+assert_contains "${PARITY_LOCAL_INGRESS_REMOVE}" '/www/server/panel/vhost/nginx/stuhelper-prod-parity-local\.conf'
+assert_contains "${PARITY_LOCAL_INGRESS_REMOVE}" '/etc/nginx/conf\.d/stuhelper-prod-parity-local\.conf'
+assert_contains "${PARITY_LOCAL_INGRESS_REMOVE}" 'nginx -t'
+assert_contains "${PARITY_LOCAL_INGRESS_REMOVE}" 'pgrep -x nginx'
 assert_contains "${PARITY_LOCAL_INGRESS_NGINX}" 'server_name stuhelper\.com www\.stuhelper\.com'
 assert_contains "${PARITY_LOCAL_INGRESS_NGINX}" 'server_name join\.stuhelper\.com'
 assert_contains "${PARITY_LOCAL_INGRESS_NGINX}" 'server_name sso\.stuhelper\.com'
@@ -279,6 +301,11 @@ assert_contains "${WEB_NGINX}" 'location @spa_default'
 
 assert_contains "${PARITY_DOWN}" 'parity_default_path'
 assert_contains "${PARITY_DOWN}" 'repo_default_path_matches'
+assert_contains "${PARITY_DOWN}" 'cleanup_remaining_parity_resources'
+assert_contains "${PARITY_DOWN}" 'label=com\.docker\.compose\.project='
+assert_contains "${PARITY_DOWN}" 'docker volume rm'
+assert_contains "${PARITY_DOWN}" 'docker network rm'
+assert_contains "${PARITY_DOWN}" 'remove-local-prod-parity-ingress\.sh'
 assert_contains "${PARITY_SMOKE}" 'prod-parity-datastore-smoke.sh'
 assert_contains "${PARITY_SMOKE}" 'prod-parity-smoke-data.sh'
 assert_contains "${PARITY_SMOKE}" 'admission-production-readiness.sh'
@@ -360,6 +387,11 @@ assert_contains "${PARITY_SMOKE_DATA}" 'hmac\.new'
 assert_contains "${PARITY_SMOKE_DATA}" 'REFRESH MATERIALIZED VIEW public\.mv_teacher_public_stats'
 assert_contains "${PARITY_SMOKE_DATA}" "course:\\*"
 assert_contains "${PARITY_SMOKE_DATA}" "review:\\*"
+assert_contains "${PARITY_SMOKE_DATA}" 'REDIS_PROD_PARITY_MAINTENANCE_USERNAME'
+assert_contains "${PARITY_SMOKE_DATA}" 'REDIS_PROD_PARITY_MAINTENANCE_PASSWORD'
+assert_not_contains "${PARITY_SMOKE_DATA}" 'REDISCLI_AUTH=\$\{REDIS_PASSWORD\}'
+assert_contains "${PARITY_SMOKE_DATA}" '/redis-runtime/ca\.crt'
+assert_not_contains "${PARITY_SMOKE_DATA}" 'cacert /tls/ca\.crt'
 assert_contains "${PARITY_SMOKE_DATA}" 'courseRatingStatsCount'
 assert_contains "${PARITY_SMOKE_DATA}" 'teacherPublicStatsCount'
 
@@ -372,6 +404,10 @@ assert_contains "${PARITY_BROWSER_SMOKE}" 'clear_rate_limit_keys'
 assert_contains "${PARITY_BROWSER_SMOKE}" 'append_no_proxy'
 assert_contains "${PARITY_BROWSER_SMOKE}" 'prod-parity-smoke-data.sh'
 assert_contains "${PARITY_BROWSER_SMOKE}" "scan --pattern 'rl:\*'"
+assert_contains "${PARITY_BROWSER_SMOKE}" 'REDIS_PROD_PARITY_MAINTENANCE_USERNAME'
+assert_contains "${PARITY_BROWSER_SMOKE}" 'REDIS_PROD_PARITY_MAINTENANCE_PASSWORD'
+assert_contains "${PARITY_BROWSER_SMOKE}" '/redis-runtime/ca\.crt'
+assert_not_contains "${PARITY_BROWSER_SMOKE}" 'cacert /tls/ca\.crt'
 assert_contains "${PARITY_BROWSER_SMOKE}" 'prod-parity-browser-smoke\.mjs'
 assert_contains "${PARITY_UP}" 'API_IP_RATE_LIMIT'
 assert_contains "${PARITY_UP}" 'API_GLOBAL_RATE_LIMIT'
@@ -467,6 +503,11 @@ assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'finalURL'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'matchedText'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'requiredTexts'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'missingRequiredTexts'
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'requiredTabTexts'
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'missingRequiredTabTexts'
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'forbiddenTabTexts'
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'presentForbiddenTabTexts'
+assert_contains "${PARITY_BROWSER_SMOKE_NODE}" "getByRole\\('tab'\\)"
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'admission-e2e'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'fillCasdoorPasswordLogin'
 assert_contains "${PARITY_BROWSER_SMOKE_NODE}" 'forbiddenTexts'
@@ -497,6 +538,10 @@ assert_contains "${ADMISSION_PROD_SIM_E2E}" 'ADMISSION_PROD_SIM_SSO_BASE_URL'
 assert_contains "${ADMISSION_PROD_SIM_E2E}" 'append_no_proxy'
 assert_contains "${ADMISSION_PROD_SIM_E2E}" 'admission-prod-sim-e2e\.mjs'
 assert_contains "${ADMISSION_PROD_SIM_E2E}" "scan --pattern 'rl:\*'"
+assert_contains "${ADMISSION_PROD_SIM_E2E}" 'REDIS_PROD_PARITY_MAINTENANCE_USERNAME'
+assert_contains "${ADMISSION_PROD_SIM_E2E}" 'REDIS_PROD_PARITY_MAINTENANCE_PASSWORD'
+assert_contains "${ADMISSION_PROD_SIM_E2E}" '/redis-runtime/ca\.crt'
+assert_not_contains "${ADMISSION_PROD_SIM_E2E}" 'cacert /tls/ca\.crt'
 assert_contains "${ADMISSION_PROD_SIM_E2E_NODE}" '@playwright/test'
 assert_contains "${ADMISSION_PROD_SIM_E2E_NODE}" 'BOT_SERVICE_TOKEN'
 assert_contains "${ADMISSION_PROD_SIM_E2E_NODE}" 'backend previews just-created admission token'
@@ -509,6 +554,11 @@ assert_contains "${ADMISSION_PROD_SIM_E2E_NODE}" 'https://sso\.stuhelper\.com'
 assert_contains "${ADMISSION_PROD_SIM_E2E_NODE}" 'prod-parity-guild'
 assert_contains "${ADMISSION_PROD_SIM_E2E_NODE}" '20259901'
 assert_contains "${ADMISSION_PROD_SIM_E2E_NODE}" '4111010006'
+assert_contains "${ADMISSION_PROD_SIM_E2E_NODE}" 'data-admission-bind-confirmation-input'
+assert_contains "${ADMISSION_PROD_SIM_E2E_NODE}" 'data-admission-bind-confirmation-submit'
+assert_contains "${ADMISSION_PROD_SIM_E2E_NODE}" "getByRole\\('tab', \{ name: '老生认证' \}\)"
+assert_contains "${ADMISSION_PROD_SIM_E2E_NODE}" '/redis-runtime/ca\.crt'
+assert_not_contains "${ADMISSION_PROD_SIM_E2E_NODE}" 'cacert.*, */tls/ca\.crt'
 assert_contains "${ADMISSION_PROD_SIM_E2E_NODE}" 'admission:email_otp:'
 assert_contains "${ADMISSION_PROD_SIM_E2E_NODE}" 'credentialKind'
 assert_contains "${ADMISSION_PROD_SIM_E2E_NODE}" 'school_email_otp'
@@ -537,6 +587,7 @@ assert_contains "${WEB_NGINX}" 'add_header Cache-Control "public, immutable";'
 
 assert_contains "${MAKEFILE}" 'prod-parity-up'
 assert_contains "${MAKEFILE}" 'prod-parity-ingress'
+assert_contains "${MAKEFILE}" 'prod-parity-ingress-down'
 assert_contains "${MAKEFILE}" 'prod-parity-down'
 assert_contains "${MAKEFILE}" 'prod-parity-smoke'
 assert_contains "${MAKEFILE}" 'prod-parity-datastore-smoke'

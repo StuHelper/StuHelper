@@ -335,6 +335,7 @@
                 :review="review"
                 class="stagger-item"
                 :style="{ animationDelay: `${Math.min(idx, 8) * 60}ms` }"
+                @moderated="refreshLoadedReviewsAfterModeration"
               />
             </div>
             <div
@@ -427,6 +428,7 @@ const referenceError = ref('')
 const SEARCH_PAGE_SIZE = 50
 
 let abortController: AbortController | null = null
+let moderatedReviewRefresh: Promise<void> | null = null
 
 // --- Computed ---
 
@@ -633,6 +635,40 @@ async function fetchReviewResults(nextPage: number, signal?: AbortSignal) {
     },
     { signal },
   )
+}
+
+async function refreshLoadedReviewsAfterModeration() {
+  if (moderatedReviewRefresh) return moderatedReviewRefresh
+
+  const loadedPages = Math.max(1, reviewPage.value)
+  const signal = abortController?.signal
+  moderatedReviewRefresh = (async () => {
+    try {
+      const pages = await Promise.all(
+        Array.from({ length: loadedPages }, (_, index) => fetchReviewResults(index + 1, signal)),
+      )
+      if (signal?.aborted) return
+
+      const reviewsByID = new Map<string, Review>()
+      for (const page of pages) {
+        for (const review of page.list) reviewsByID.set(review.id, review)
+      }
+      resultReviews.value = Array.from(reviewsByID.values())
+      reviewTotal.value = pages[0]?.total ?? 0
+      reviewPage.value = Math.max(1, Math.ceil(resultReviews.value.length / SEARCH_PAGE_SIZE))
+      reviewsLoadMoreError.value = ''
+    } catch (error) {
+      if (!signal?.aborted) {
+        toast.error(getErrorMessage(error, t('common.loadFailed')))
+      }
+    }
+  })()
+
+  try {
+    await moderatedReviewRefresh
+  } finally {
+    moderatedReviewRefresh = null
+  }
 }
 
 async function handleSearch(options: { restart?: boolean } = {}) {

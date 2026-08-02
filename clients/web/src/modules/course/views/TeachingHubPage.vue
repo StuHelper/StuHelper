@@ -224,6 +224,7 @@ import { readCourseListPayload, readCoursePagePayload, readTermArrayPayload } fr
 import { usePinyinSearch, type PinyinSearchItem } from '@/composables/usePinyinSearch'
 import ScrollReveal from '@/components/animated/ScrollReveal.vue'
 import type { Course } from '@stuhelper/shared/course'
+import { isNonArrayRecord as isRecord } from '@stuhelper/shared/utils'
 
 interface CourseItem extends PinyinSearchItem {
   id: number
@@ -374,10 +375,6 @@ function handleClickOutside(e: MouseEvent) {
 
 function isNonNegativeNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
 function mapCourseItem(raw: Course): CourseItem {

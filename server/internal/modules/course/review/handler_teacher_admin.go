@@ -119,5 +119,5 @@ func (h *Handler) DeleteTeacher(c *gin.Context) {
 
 	h.logAdminOp(c, "delete_teacher", "teacher", strconv.FormatInt(id, 10), nil, nil)
 
-	response.Success(c, gin.H{"message": "teacher deleted successfully"})
+	response.NoContent(c)
 }

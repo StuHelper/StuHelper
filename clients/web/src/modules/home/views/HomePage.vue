@@ -3,6 +3,7 @@ import { computed, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/api'
+import { isNonArrayRecord as isRecord } from '@stuhelper/shared/utils'
 import HeroSection from '@/components/business/HeroSection.vue'
 import FeatureCard from '@/components/business/FeatureCard.vue'
 import CountUp from '@/components/animated/CountUp.vue'
@@ -23,10 +24,6 @@ const statsLoadError = ref('')
 
 function isNonNegativeNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
 function readCourseStatsPayload(payload: unknown): { courseCount: number } {

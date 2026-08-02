@@ -5,6 +5,9 @@ import { createPinia, setActivePinia } from "pinia";
 import type { Pinia } from "pinia";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import enUSUser from "@/i18n/locales/en-US/user";
+import zhCNUser from "@/i18n/locales/zh-CN/user";
+
 const mockRouterPush = vi.fn();
 const mockToastSuccess = vi.fn();
 const mockToastError = vi.fn();
@@ -127,6 +130,17 @@ describe("StudentVerificationPage", () => {
 
     afterEach(() => {
         vi.useRealTimers();
+    });
+
+    it("keeps academic email workflow copy complete in Chinese and English", () => {
+        const zhCopy = zhCNUser.verification.student.academicEmail;
+        const enCopy = enUSUser.verification.student.academicEmail;
+
+        expect(Object.keys(enCopy).sort()).toEqual(Object.keys(zhCopy).sort());
+        for (const key of Object.keys(zhCopy) as Array<keyof typeof zhCopy>) {
+            expect(zhCopy[key], `zh-CN ${key}`).toEqual(expect.any(String));
+            expect(enCopy[key], `en-US ${key}`).toEqual(expect.any(String));
+        }
     });
 
     it("shows bound student information when verification is already complete", async () => {
@@ -402,7 +416,9 @@ describe("StudentVerificationPage", () => {
         await wrapper.find("[data-student-email-otp-request]").trigger("click");
         await flushPromises();
 
-        expect(mockToastError).toHaveBeenCalledWith("请先输入学号和姓名。");
+        expect(mockToastError).toHaveBeenCalledWith(
+            "user.verification.student.academicEmail.enterIdentity",
+        );
         expect(
             mockIdentityApi.matchStudentEmailAcademicStudent,
         ).not.toHaveBeenCalled();

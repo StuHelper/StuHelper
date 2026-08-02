@@ -66,20 +66,20 @@ func TestBuildReviewAccessPolicy(t *testing.T) {
 		[]reviewaccess.SchoolConfig{{SchoolID: 4111010001}, {SchoolID: 4111010002}},
 		[]reviewaccess.SystemConfig{
 			{Key: systemconfig.ReviewAccessSchoolIDsKey, Value: `4111010002,4111010003`},
-			{Key: systemconfig.ReviewPreviewTitleCharsKey, Value: `12`},
+			{Key: systemconfig.ReviewGuestPreviewContentCharsKey, Value: `12`},
 			{Key: systemconfig.ReviewPreviewContentCharsKey, Value: `80`},
 			{Key: systemconfig.ReviewPreviewContentPercentKey, Value: `60`},
 		},
 	)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"4111010002", "4111010003"}, policy.AllowedSchoolIDs)
-	assert.Equal(t, 12, policy.PreviewTitleRunes)
+	assert.Equal(t, 12, policy.GuestPreviewContentRunes)
 	assert.Equal(t, 80, policy.PreviewContentRunes)
 	assert.Equal(t, 60, policy.PreviewContentPct)
 
-	_, err = buildReviewAccessPolicy(nil, []reviewaccess.SystemConfig{{Key: systemconfig.ReviewPreviewTitleCharsKey, Value: `999`}})
+	_, err = buildReviewAccessPolicy(nil, []reviewaccess.SystemConfig{{Key: systemconfig.ReviewGuestPreviewContentCharsKey, Value: `999`}})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), systemconfig.ReviewPreviewTitleCharsKey)
+	assert.Contains(t, err.Error(), systemconfig.ReviewGuestPreviewContentCharsKey)
 }
 
 func TestParseReviewAccessSchoolIDs(t *testing.T) {
@@ -118,7 +118,7 @@ func TestResolveAccessFacts(t *testing.T) {
 	schoolID := int64(4111010001)
 	svc := &Service{accessReader: fakeAccessReader{
 		schools: []reviewaccess.SchoolConfig{{SchoolID: 4111010001}},
-		configs: []reviewaccess.SystemConfig{{Key: systemconfig.ReviewPreviewTitleCharsKey, Value: `16`}},
+		configs: []reviewaccess.SystemConfig{{Key: systemconfig.ReviewGuestPreviewContentCharsKey, Value: `16`}},
 		subject: &reviewaccess.Subject{InternalUserID: 42, SchoolID: &schoolID, StudentVerified: true, IdentityVerified: true},
 	}}
 
@@ -137,18 +137,18 @@ func TestResolveAccessFacts(t *testing.T) {
 	assert.True(t, facts.CanEditOwn)
 	assert.True(t, facts.CanDeleteOwn)
 	assert.Equal(t, int64(42), facts.InternalUserID)
-	assert.Equal(t, 16, facts.PreviewTitleRunes)
+	assert.Equal(t, 16, facts.GuestPreviewContentRunes)
 	require.NotNil(t, facts.SchoolID)
 	assert.Equal(t, "4111010001", *facts.SchoolID)
 }
 
 func TestResolveAccessFacts_AnonymousAndCacheFresh(t *testing.T) {
 	systemconfig.SetReviewAccessPolicySnapshot(systemconfig.ReviewAccessPolicySnapshot{
-		AllowedSchoolIDs:    []string{"4111010001"},
-		PreviewTitleRunes:   18,
-		PreviewContentRunes: 90,
-		PreviewContentPct:   75,
-		LoadedAt:            time.Now(),
+		AllowedSchoolIDs:         []string{"4111010001"},
+		GuestPreviewContentRunes: 18,
+		PreviewContentRunes:      90,
+		PreviewContentPct:        75,
+		LoadedAt:                 time.Now(),
 	})
 	t.Cleanup(systemconfig.InvalidateReviewAccessPolicySnapshot)
 
@@ -156,7 +156,7 @@ func TestResolveAccessFacts_AnonymousAndCacheFresh(t *testing.T) {
 	facts, err := svc.ResolveAccessFacts(context.Background(), "", nil, nil)
 	require.NoError(t, err)
 	assert.False(t, facts.Authenticated)
-	assert.Equal(t, 18, facts.PreviewTitleRunes)
+	assert.Equal(t, 18, facts.GuestPreviewContentRunes)
 	assert.Equal(t, 90, facts.PreviewContentRunes)
 	assert.Equal(t, 75, facts.PreviewContentPct)
 }
@@ -180,10 +180,10 @@ func TestResolveAccessFacts_UsesServiceLifecycleForPolicyRefresh(t *testing.T) {
 func TestResolveReviewAccessFactsForRequestRequiresGlobalManageCapability(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	systemconfig.SetReviewAccessPolicySnapshot(systemconfig.ReviewAccessPolicySnapshot{
-		PreviewTitleRunes:   8,
-		PreviewContentRunes: 80,
-		PreviewContentPct:   100,
-		LoadedAt:            time.Now(),
+		GuestPreviewContentRunes: 8,
+		PreviewContentRunes:      80,
+		PreviewContentPct:        100,
+		LoadedAt:                 time.Now(),
 	})
 	t.Cleanup(systemconfig.InvalidateReviewAccessPolicySnapshot)
 
