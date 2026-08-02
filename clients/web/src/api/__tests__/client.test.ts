@@ -206,6 +206,14 @@ describe("browser API client", () => {
         ).toBe("https://api.example.com");
     });
 
+    it("resolves relative API configuration without accessing window outside a browser", async () => {
+        vi.stubEnv("VITE_API_URL", "https://api.example.com/api");
+        const { __testing__ } = await import("../client");
+        Reflect.deleteProperty(globalThis, "window");
+
+        expect(__testing__.resolveApiBaseUrl("/api")).toBe("");
+    });
+
     it("injects CSRF header for unsafe requests", async () => {
         const { __testing__ } = await import("../client");
 

@@ -51,12 +51,14 @@ export function resolveApiBaseUrl(rawBaseUrl: string = RAW_API_BASE_URL): string
     return normalizedBaseUrl
   }
 
-  if (window.location?.origin) {
+  const browserOrigin =
+    typeof window === 'undefined' ? undefined : window.location?.origin
+  if (browserOrigin) {
     if (import.meta.env.DEV && trimmedBaseUrl === '' && !didWarnMissingApiBaseUrl) {
       didWarnMissingApiBaseUrl = true
       console.warn('[api] VITE_API_URL not set, falling back to window.location.origin')
     }
-    return window.location.origin
+    return browserOrigin
   }
 
   return normalizedBaseUrl
