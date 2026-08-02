@@ -37,7 +37,7 @@ help:
 	@echo ""
 	@echo "Production:"
 	@echo "  make prod-init   - generate production shared/secrets env skeletons with required placeholders"
-	@echo "  make prod-vault-init - start/init local Vault and write .deploy/remote.env for generated secrets"
+	@echo "  make prod-vault-init - start/init local Vault in the OS state dir and link .deploy/remote.env"
 	@echo "  make prod-render - render generated observability configs"
 	@echo "  make prod-deploy - pull pinned production images, bootstrap, deploy, and smoke-check prod stack"
 	@echo "  make prod-rollback - rollback to the previous successful production tag"

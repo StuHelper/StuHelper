@@ -3,7 +3,7 @@ type: guide
 audience: ops
 status: current
 authoritative-source: infra/ops/*.sh + infra/ansible/
-last-verified: 2026-07-31
+last-verified: 2026-08-02
 ---
 
 # 发布运行手册
@@ -89,6 +89,39 @@ export TAG=<release-id>
 # 生产发布
 make prod-deploy
 ```
+
+### 本机 Vault 控制面与稳定状态目录
+
+`make prod-vault-init` 是维护者工作站上的本地 Vault 辅助入口，不改变下文生产目标机自持
+`${DEPLOY_APP_DIR}/.deploy` / `${DEPLOY_APP_DIR}/.secrets` 的规则。未显式覆盖路径时，本机入口把
+可持久状态放在操作系统 state 目录，而不是 Git worktree：
+
+| 内容 | Linux 默认路径 |
+|------|----------------|
+| Vault 配置与 file storage | `${XDG_STATE_HOME:-$HOME/.local/state}/stuhelper/vault/` |
+| init / unseal 材料 | `${XDG_STATE_HOME:-$HOME/.local/state}/stuhelper/vault-credentials/` |
+| Vault token | `${XDG_STATE_HOME:-$HOME/.local/state}/stuhelper/secrets/vault/token` |
+| 本机 remote deploy config | `${XDG_STATE_HOME:-$HOME/.local/state}/stuhelper/deploy/remote.env` |
+
+macOS 使用 `$HOME/Library/Application Support/StuHelper/`。这些目录必须保持 `0700`，凭据与配置
+文件保持 `0600`。仓库内 `.deploy/remote.env` 只是在默认本机场景下指向稳定配置的兼容符号链接；
+Vault 容器的 bind mount 不得指向该链接或 worktree 内的 `.deploy/vault`。删除、移动或重新克隆
+仓库不能改变正在运行的 Vault 数据源。未启用 file audit sink 的 `/vault/logs` 使用受限的 16 MiB
+tmpfs，避免每次受控重建遗留新的匿名 Docker volume；正式审计日志应输出到明确配置的持久审计
+后端，而不是依赖镜像声明的匿名 volume。
+
+可用 `LOCAL_VAULT_PRINT_PATHS_ONLY=true ./infra/ops/init-local-vault-secret-backend.sh` 只打印将要
+使用的路径，不启动或修改容器。`LOCAL_VAULT_STATE_DIR`、`LOCAL_VAULT_CREDENTIALS_DIR`、
+`SECRET_FILE_ROOT`、`VAULT_TOKEN_FILE`、`REMOTE_DEPLOY_CONFIG_FILE` 可用于受控覆盖；显式传入
+`DEPLOY_STATE_DIR` 时仍使用该隔离目录，供测试或专用环境使用。
+
+脚本会核对现有 `stuhelper-vault` 的配置/data bind source、镜像、仅本机端口和 restart policy。
+任何漂移都默认失败关闭，不会启动、重启或自动初始化空 Vault。只有在旧 Vault API 可访问、目标
+配置和非空数据已经按字节核验、unseal/token 材料已经安全落盘后，运维人员才能显式设置
+`LOCAL_VAULT_RECREATE_CONTAINER=true` 做一次容器重建。恢复隔离目录不是长期运行路径；迁移成功后
+同时设置 `LOCAL_VAULT_REQUIRE_EXISTING_DATA=true`，会在任何 KV enable/seed 操作之前要求原 token、
+KV mount 和既有 `GENERATED_ENV_SECRET_REF` 全部可读。恢复隔离目录应保留为只读恢复锚点，直到完成
+重启、解封和已知 KV 读取验证；不能让 Docker 继续依赖已移动目录的存活 inode。
 
 ### 宝塔 Compose 源码包应急发布
 
