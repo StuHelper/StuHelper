@@ -507,9 +507,6 @@ CameraCaptureRequest:
       enum: [image/jpeg, image/png, image/webp]
     imageBase64:
       type: string
-    capturedAt:
-      type: string
-      format: date-time
 
 FreshmanCameraHandoff:
   type: object

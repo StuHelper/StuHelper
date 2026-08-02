@@ -4899,8 +4899,6 @@ export interface components {
             /** @enum {string} */
             contentType: "image/jpeg" | "image/png" | "image/webp";
             imageBase64: string;
-            /** Format: date-time */
-            capturedAt?: string;
         };
         FreshmanCameraHandoff: {
             id: string;
