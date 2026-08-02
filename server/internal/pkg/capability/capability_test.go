@@ -1,6 +1,9 @@
 package capability
 
 import (
+	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -66,6 +69,18 @@ func TestRoleCapabilities_UsesCasdoorV2RoleCatalog(t *testing.T) {
 		"freshman_provisional",
 		"user",
 	}, roles)
+}
+
+func TestAuthorizationModelDocumentsEveryCatalogRole(t *testing.T) {
+	_, filename, _, ok := runtime.Caller(0)
+	require.True(t, ok)
+	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(filename), "..", "..", "..", ".."))
+	document, err := os.ReadFile(filepath.Join(repoRoot, "docs", "design", "authorization-model.md"))
+	require.NoError(t, err)
+
+	for role := range GetRoleCapabilities() {
+		assert.Contains(t, string(document), "`"+role+"`", "authorization model must document role %q", role)
+	}
 }
 
 func TestHas(t *testing.T) {

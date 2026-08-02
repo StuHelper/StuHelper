@@ -25,7 +25,18 @@ Casdoor management API 读取目标 organization 用户对象的 `IsAdmin`：它
 
 ## 角色到能力
 
-代码：`server/internal/pkg/capability/capability.go`
+角色到能力的权威表位于 `server/internal/pkg/capability/catalog.go`；scope 归一化与展开逻辑位于
+`server/internal/pkg/capability/capability.go`。
+
+当前角色目录完整包含：`super_admin`、`school_admin`、`section_admin`、
+`section_moderator`、`section_reviewer`、`verified_student`、`freshman_provisional` 与 `user`。
+其中 `freshman_provisional` 是有失效时间的新生临时角色，未过期时的能力集合与
+`verified_student` 相同（`review:list:full` / `review:create` / `review:edit:own` /
+`review:delete:own`），凭据过期后由授权快照撤销。
+
+`section_reviewer` 当前展开为空能力集合；即使存在 section scope 也不授予功能权限。它只作为
+Casdoor/授权投影中的预留角色，未来若赋予能力，必须同时更新 capability catalog、路由门禁、
+scope 测试和本文档。
 
 `school_admin` 展开为 school-scoped grants，`section_*` 展开为 section-scoped grants；
 缺少 DB active grant 时不授予对应 capability，避免把 scoped admin 误放大为全局权限。
@@ -112,7 +123,8 @@ fail-closed；若已被降权，先写 DB revoke 围栏并重载快照，再异�
 
 | 组件 | 位置 |
 |------|------|
-| 能力常量与展开 | `server/internal/pkg/capability/capability.go` |
+| 角色到能力目录 | `server/internal/pkg/capability/catalog.go` |
+| Scope 归一化与能力展开 | `server/internal/pkg/capability/capability.go` |
 | 认证中间件 | `server/internal/pkg/middleware/auth.go` |
 | 授权账本与管理面 | `server/internal/modules/authorization/` |
 | 统一授权服务 | `server/internal/platform/authorization/` |
