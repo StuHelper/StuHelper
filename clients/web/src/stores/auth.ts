@@ -26,6 +26,7 @@ import {
 } from "@/api/errors";
 import i18n from "@/i18n";
 import { runSessionReset } from "@/stores/sessionOrchestrator";
+import { reportFrontendError } from "@/utils/observability";
 import type { components } from "@stuhelper/shared/types";
 
 // 认证错误类型
@@ -339,7 +340,9 @@ export const useAuthStore = defineStore("auth", () => {
             });
             const data = readLoginURLPayload(res.data?.data);
             if (!storeOAuthState(data.state)) {
-                throw new Error("OAuth state storage unavailable");
+                // 权威 state 校验在后端 Redis + HttpOnly oidc_state cookie；
+                // sessionStorage 只是 SPA 回调的防御性副本，浏览器禁用存储时不能阻断登录。
+                reportFrontendError("error", "auth.oauth_state_storage_unavailable");
             }
             window.location.href = data.url;
             setTimeout(() => {
@@ -367,7 +370,7 @@ export const useAuthStore = defineStore("auth", () => {
             const res = await api.auth.signup(redirectTarget, "web", "web");
             const data = readLoginURLPayload(res.data?.data);
             if (!storeOAuthState(data.state)) {
-                throw new Error("OAuth state storage unavailable");
+                reportFrontendError("error", "auth.oauth_state_storage_unavailable");
             }
             window.location.href = data.url;
             setTimeout(() => {
