@@ -24,6 +24,15 @@ for key in BASH_ENV ENV; do
     fail "${key} rejection did not explain the protected boundary"
 done
 
+printf 'STACK_NAME=source-env-contract\n' >"${tmpdir}/safe.env"
+export BASH_ENV=/dev/null
+export ENV=/dev/null
+source_env_file "${tmpdir}/safe.env"
+[[ "${STACK_NAME}" == "source-env-contract" ]] ||
+  fail "source_env_file did not export a validated assignment"
+[[ ! -v BASH_ENV && ! -v ENV ]] ||
+  fail "source_env_file allowed inherited shell startup hooks to survive"
+
 : >"${tmpdir}/shared.env"
 : >"${tmpdir}/generated.env"
 : >"${tmpdir}/generated-secrets.env"

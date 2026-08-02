@@ -55,7 +55,8 @@ assert_contains "${BOOTSTRAP_SCRIPT}" 'OPENFGA_BOOTSTRAP_API_URL:-\$\{OPENFGA_AP
 assert_contains "${BOOTSTRAP_SCRIPT}" 'DATABASE_URL="\$\{OPENFGA_BOOTSTRAP_DATABASE_URL:-\$\{DATABASE_URL:-\}\}"'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'reject_placeholder_if_set OPENFGA_STORE_ID "\$\{OPENFGA_STORE_ID:-\}" "REPLACE_WITH_OPENFGA_STORE_ID"'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'reject_placeholder_if_set OPENFGA_MODEL_ID "\$\{OPENFGA_MODEL_ID:-\}" "REPLACE_WITH_OPENFGA_MODEL_ID"'
-assert_contains "${BOOTSTRAP_SCRIPT}" 'set -a'
+assert_contains "${BOOTSTRAP_SCRIPT}" 'source_env_file "\$\{file\}"'
+assert_not_contains "${BOOTSTRAP_SCRIPT}" 'source "\$\{file\}"'
 casdoor_required_line="$(line_number '^if casdoor_bootstrap_required; then$')"
 casdoor_wait_line="$(line_number '^[[:space:]]+wait_for_casdoor$')"
 openfga_store_placeholder_line="$(line_number 'reject_placeholder_if_set OPENFGA_STORE_ID')"
