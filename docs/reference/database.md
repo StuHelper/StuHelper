@@ -3,7 +3,7 @@ type: reference
 audience: backend-dev, ops
 status: current
 authoritative-source: server/migrations/
-last-verified: 2026-08-01
+last-verified: 2026-08-02
 ---
 
 # 数据库导航摘要
@@ -48,6 +48,10 @@ last-verified: 2026-08-01
 - `teacher_public_stats` 的固定 dedupe key 是有意的跨事务合并点，因此两个并发 source write 会在该 outbox 行上出现可观测的 PostgreSQL `wait_event_type=Lock`，但昂贵的物化视图刷新不在锁内。生产以 `StuHelperReviewProjectionSourceWriteLatency` 观察 `reviews` / `teachers` / `departments` 写入 p95；只有在持续告警、`pg_stat_activity` 的 Lock wait 与该 key 明确关联且影响业务 SLO 时，才重新设计合并粒度。不能仅因存在一次锁等待就分片 dedupe key，否则会破坏单任务合并与 supersession fence。
 - 评课点赞与回复通知在业务写事务内写入 `review_notification` outbox。worker 可重试投递，`notifications.idempotency_key` 的 partial unique index 保证重复消费只产生一条持久通知；实时 SSE 只在首次插入时发送，不能把连接在线状态当作持久投递保证。
 - `audit_events.category = 'admin_operation'` 收口所有管理员操作的审计留痕。
+- `academics.ReplaceSnapshot` 把 connector snapshot 作为一个原子版本写入：各实体及关系通过
+  `jsonb_to_recordset` 做 set-based upsert/insert，数据库语句数量不随 snapshot 行数线性增长；
+  任一映射、约束或写入失败都会回滚，只有完整写入后才裁剪同 source 的旧行。真实 connector
+  上线必须保留该批量边界并以生产量级数据验证默认事务预算，禁止退回逐行 SQL 或仅放大超时。
 - `authorization_authority_cutover` 是 singleton 发布门禁，不是第二套授权账本。首次生产升级只有在
   经 Casdoor/OpenFGA 交叉验证的存量授权、对应 audit/outbox 与 marker 在同一事务提交后才从
   `pending` 变为 `completed`；production-like 应用启动必须检查该状态。重复发布只读取已完成

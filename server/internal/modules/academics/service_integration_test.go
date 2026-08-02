@@ -2,6 +2,7 @@ package academics
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -133,4 +134,98 @@ func TestReplaceSnapshotRemovesStaleReadModelRows(t *testing.T) {
 	myCourses, err := repo.ListMyCourses(ctx, "oidc-user-1", "2026-SPRING")
 	require.NoError(t, err)
 	assert.Len(t, myCourses, 1)
+}
+
+func TestReplaceSnapshotLoadsLargeSnapshotSetWise(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	repo := NewRepository(fixture.DB)
+	ctx := context.Background()
+
+	source, err := repo.GetSourceByKey(ctx, "buaa-fixture")
+	require.NoError(t, err)
+	jobID, err := repo.CreateImportJob(ctx, *source, "oidc-user-bulk")
+	require.NoError(t, err)
+
+	const itemCount = 1000
+	snapshot := Snapshot{
+		Terms: []ImportTerm{{
+			ExternalID: "term-bulk",
+			Code:       "2099-SPRING",
+			Name:       "批量导入学期",
+			IsCurrent:  true,
+		}},
+		Courses:     make([]ImportCourse, 0, itemCount),
+		Teachers:    make([]ImportTeacher, 0, itemCount),
+		Offerings:   make([]ImportOffering, 0, itemCount),
+		Memberships: make([]ImportMembership, 0, itemCount),
+	}
+	for index := range itemCount {
+		externalID := fmt.Sprintf("bulk-%04d", index)
+		courseID := "course-" + externalID
+		teacherID := "teacher-" + externalID
+		offeringID := "offering-" + externalID
+		snapshot.Courses = append(snapshot.Courses, ImportCourse{
+			ExternalID: courseID,
+			Code:       fmt.Sprintf("C%04d", index),
+			Name:       "批量课程 " + externalID,
+		})
+		snapshot.Teachers = append(snapshot.Teachers, ImportTeacher{
+			ExternalID: teacherID,
+			Name:       "批量教师 " + externalID,
+		})
+		snapshot.Offerings = append(snapshot.Offerings, ImportOffering{
+			ExternalID:         offeringID,
+			TermExternalID:     "term-bulk",
+			CourseExternalID:   courseID,
+			SectionCode:        fmt.Sprintf("S%04d", index),
+			TeacherExternalIDs: []string{teacherID},
+			Schedules: []ScheduleSlot{{
+				Weekday:     int16(index%7 + 1),
+				StartPeriod: 1,
+				EndPeriod:   2,
+				Location:    "批量教室",
+				WeeksText:   "1-16",
+			}},
+		})
+		snapshot.Memberships = append(snapshot.Memberships, ImportMembership{
+			OfferingExternalID: offeringID,
+			ExternalUserID:     fmt.Sprintf("bulk-user-%04d", index),
+			Role:               "student",
+		})
+	}
+
+	require.NoError(t, repo.ReplaceSnapshot(ctx, jobID, source.ID, snapshot))
+
+	var termCount, courseCount, teacherCount, offeringCount int
+	var offeringTeacherCount, scheduleCount, membershipCount int
+	err = fixture.DB.QueryRow(ctx, `
+		SELECT
+			(SELECT COUNT(*) FROM academic_terms WHERE source_id = $1),
+			(SELECT COUNT(*) FROM academic_courses WHERE source_id = $1),
+			(SELECT COUNT(*) FROM academic_teachers WHERE source_id = $1),
+			(SELECT COUNT(*) FROM academic_offerings WHERE source_id = $1),
+			(SELECT COUNT(*) FROM academic_offering_teachers relation
+			 JOIN academic_offerings offering ON offering.id = relation.offering_id
+			 WHERE offering.source_id = $1),
+			(SELECT COUNT(*) FROM academic_schedules schedule
+			 JOIN academic_offerings offering ON offering.id = schedule.offering_id
+			 WHERE offering.source_id = $1),
+			(SELECT COUNT(*) FROM academic_memberships WHERE source_id = $1)
+	`, source.ID).Scan(
+		&termCount,
+		&courseCount,
+		&teacherCount,
+		&offeringCount,
+		&offeringTeacherCount,
+		&scheduleCount,
+		&membershipCount,
+	)
+	require.NoError(t, err)
+	assert.Equal(t, 1, termCount)
+	assert.Equal(t, itemCount, courseCount)
+	assert.Equal(t, itemCount, teacherCount)
+	assert.Equal(t, itemCount, offeringCount)
+	assert.Equal(t, itemCount, offeringTeacherCount)
+	assert.Equal(t, itemCount, scheduleCount)
+	assert.Equal(t, itemCount, membershipCount)
 }

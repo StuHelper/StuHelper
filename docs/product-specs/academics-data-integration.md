@@ -3,7 +3,7 @@ type: product-spec
 audience: product, backend-dev
 status: current
 authoritative-source: server/api/openapi.yaml
-last-verified: 2026-04-19
+last-verified: 2026-08-02
 ---
 
 # 教务数据接入与展示
@@ -49,6 +49,13 @@ last-verified: 2026-04-19
 - 健康检查
 
 真实学校连接器后续补充，不阻塞当前读模型闭环。
+
+连接器返回完整 snapshot，Repository 在一个事务内完成原子替换。terms、courses、teachers、
+offerings、offering-teacher relations、schedules 与 memberships 均通过 PostgreSQL
+`jsonb_to_recordset` 做 set-based upsert/insert；数据库往返次数不得随 snapshot 行数线性增长。
+任何实体或关系写入失败都回滚整个 snapshot，成功后才裁剪该 source 的旧读模型行并把 import job
+标记为成功。真实学校连接器上线前必须用接近生产规模的 snapshot 回归该事务预算，不能恢复逐行
+SQL 循环，也不能通过无限放大 `DB_QUERY_TIMEOUT` 掩盖导入算法退化。
 
 ## 最小 API
 

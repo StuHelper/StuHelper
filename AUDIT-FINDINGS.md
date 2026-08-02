@@ -226,7 +226,7 @@ Required 与 Go/JavaScript CodeQL。bypass actor 只允许 GitHub 用户 `Xaurya
 | R-13 | `implemented`、`production-pending`：配置门禁要求应用 username 与 DBA provisioning 的 expected readonly username 相等；真实 smoke 从同一 Oracle 会话读取 `SESSION_USER` 和 `USER_*_PRIVS`，仅接受身份匹配、零 role、一个无 admin option 的 `CREATE SESSION`、目标表上一个无 grant/hierarchy option 的 `SELECT`、零列级授权。Evidence 只落身份哈希前缀、布尔值与授权计数。Go、配置、shell/readiness/init 合约均通过；本机没有真实 Oracle，生产 grant evidence 仍待发布验收。本条所在提交。 |
 | R-14 | `implemented`：删除未启用且会与现行 Dependabot 更新策略形成双重权威的 `renovate.json`；依赖更新继续由 `.github/dependabot.yml` 单一治理。本条所在提交。 |
 | R-15 | `implemented`：`IdentityPhotoUploadResult` 收敛为 Handler 实际且唯一返回的 `key`，删除永不返回的 `rejectionReason` / `createdAt` / `updatedAt` 可选字段，避免生成客户端承诺虚假能力。本条所在提交。 |
-| R-16 | 条件性：真实 academics connector 上线前再做 batching |
+| R-16 | `implemented`：原风险在仅有 1/2/2/2/3 行内置 fixture 时不可达，但逐行 SQL 机制真实且不适合作为长期 connector 架构；现已把 terms/courses/teachers/offerings、教师关系、课表和成员关系改为事务内 `jsonb_to_recordset` set-based upsert/insert，往返次数不再随行数线性增长，同时保留引用校验、原子回滚与旧 snapshot 裁剪。1000 门课程/教师/开课/关系/课表/成员的 PostgreSQL 集成回归通过。本条所在提交。 |
 | R-17 | `implemented`：四类 review list/grouped response 均在 OpenAPI 中把运行时已返回的 `page` / `pageSize` 声明为必填正整数；生成 Go/TS 契约不再把分页元数据隐藏成额外属性。本条所在提交。 |
 
 ### 第二轮长尾（17 个唯一根因）
