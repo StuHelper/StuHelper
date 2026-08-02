@@ -3,7 +3,7 @@ type: guide
 audience: ops
 status: current
 authoritative-source: this file
-last-verified: 2026-07-31
+last-verified: 2026-08-03
 ---
 
 # 一键启动与部署
@@ -169,9 +169,14 @@ make prod-deploy
 - 运行时派生 secrets 通过 `GENERATED_ENV_SECRET_REF` 写入远端 secret backend；`${DEPLOY_APP_DIR}/.env.prod.generated.secrets` 仅保留空占位文件
 - 目标机自持 Vault token 文件：
   - `${DEPLOY_APP_DIR}/.secrets/vault/token`
-- registry / shared env / generated env secrets 都由 `${DEPLOY_APP_DIR}/.deploy/remote.env` 中的 secret ref 决定（默认 `SECRET_BACKEND=vault-kv-v2`）
-- CI / Ansible 仅传发布标识与镜像引用；GitHub Actions 传完整 commit SHA 和三个
-  `image@sha256:...` 引用，仓库本地/Ansible 兼容链路仍可使用 `TAG` / `ROLLBACK_TAG`
+- shared env / generated env secrets 由 `${DEPLOY_APP_DIR}/.deploy/remote.env` 中的 secret ref 决定
+  （默认 `SECRET_BACKEND=vault-kv-v2`）
+- GitHub Actions 远端发布使用 `REGISTRY_AUTH_MODE=workflow-token`：每个 job 的短期
+  `github.token` 经 SSH 标准输入传递，只写入远端临时 `DOCKER_CONFIG` 并在结束时删除；目标机不保存
+  个人 PAT 或长期 GHCR pull token。`persistent-secret` 只用于明确管理的非 GitHub 兼容链路
+- CI / Ansible 仅传发布标识与镜像引用；GitHub Actions 传完整 commit SHA、三个
+  `image@sha256:...` 引用和一次性 registry token，仓库本地/Ansible 兼容链路仍可使用
+  `TAG` / `ROLLBACK_TAG`
 
 如果远端部署控制面变更，直接在目标机执行：
 
@@ -239,22 +244,29 @@ head 后，才调用
    Actions evidence 保留 30 天；
 5. 更新仅供人类识别的 `develop-latest` 或 `latest` alias。
 
-`.github/workflows/deploy.yml` 同时支持手工晋级，以及由 `main` CI 依次调用 staging / production。
-Forward Deploy 不接受
-人工 commit SHA；候选固定为当前 workflow ref 的 `github.sha`。工作流先在不绑定 environment、
+`.github/workflows/deploy.yml` 同时支持手工晋级，以及由 `main` CI 调用 staging 或 production。
+Forward Deploy 不接受人工 commit SHA；候选固定为当前 workflow ref 的 `github.sha`，并要求显式
+选择 `staging`、`after-staging`、`direct` 或 `break-glass` promotion mode。工作流先在不绑定 environment、
 不读取部署 secrets 的 job 中验证：实时 branch head、`Required`、Go 与 JavaScript/TypeScript
 CodeQL、镜像所属仓库、签发工作流、源分支、源提交和 digest。验证通过后才进入 environment，
-审批完成后、任何 SSH 前再次校验实时 branch head、checks 和 staging gate，再通过固定 SSH host
-key 上传带 SHA-256 传输校验的唯一 bundle，在远端执行
-`infra/ops/remote-preflight.sh`、`infra/ops/remote-prod-deploy.sh`、业务 smoke 和严格可观测性 smoke。
+审批完成后、任何 SSH 前再次校验实时 branch head、checks 和所选 promotion policy，再通过固定 SSH
+host key 上传带 SHA-256 传输校验的唯一 bundle。远端 `infra/ops/remote-ci-release.sh` 使用短期 GHCR
+token 完成 registry 登录，并依次执行 preflight、deploy、业务 smoke 和严格可观测性 smoke。
 
 仓库变量 `STAGING_AUTO_DEPLOY_ENABLED=true` 时，`main` 的 CI 和三个镜像发布成功后自动部署同一
-SHA 到 staging；再设置 `PRODUCTION_AUTO_PROMOTION_ENABLED=true` 后，staging 成功会自动创建同
-SHA production deployment 并等待审批，批准后才执行部署。两个开关默认保持关闭，直到隔离
-staging、production 专用部署身份和环境 secrets 就绪。production 必须由受保护 environment 的唯一
-reviewer `Xauryan` 审批，并默认要求同一 SHA 的最新 staging deployment 成功。事故 break-glass
-只能通过手工 `Deploy` 显式选择 `skip_staging_gate=true`、填写足够的事故上下文并留下 production
-approval；它不绕过 checks、provenance、digest 或分支校验。
+SHA 到 staging。production 自动路径由两个变量共同控制：
+
+- `PRODUCTION_AUTO_PROMOTION_ENABLED=true` 且 `PRODUCTION_PROMOTION_MODE=after-staging`：只在同
+  SHA staging 成功后创建 production deployment；
+- `PRODUCTION_AUTO_PROMOTION_ENABLED=true` 且 `PRODUCTION_PROMOTION_MODE=direct`：不依赖
+  staging，三个镜像发布成功后直接创建 production deployment。
+
+production 必须由受保护 environment 的唯一 reviewer `Xauryan` 审批，批准后才真正连接目标机。
+`direct` 至少需要 24 个字符的变更上下文；`break-glass` 是独立的手工事故模式，不能配置成自动
+promotion。两种模式都不绕过 checks、provenance、digest、当前 `main` head、审批后复验、远端预检、
+备份或 smoke。自动开关默认保持关闭，直到 production 专用部署身份、环境 secrets、Vault、备份和
+一次受控发布演练全部就绪；staging 暂缓期间采用 `direct`，未来隔离 staging 就绪后切换为
+`after-staging`。
 
 PR 的旧 run 会在新 push 后自动取消；`develop` / `main` 的可信 push 使用独立 run，不会相互取消，
 也不会让旧 production approval 阻塞新 head 的 CI。registry mutation 全局串行，staging / production
@@ -287,7 +299,8 @@ sudo bash infra/ops/bootstrap-ubuntu2404.sh
 - PostgreSQL backup sync timer
 - WAL 归档目录
 
-`staging` 和 `production` GitHub environment 都使用以下 secrets，值按环境隔离：
+`production` GitHub environment 必须使用以下 secrets；启用 staging 时创建同名、不同值的
+`staging` environment，禁止与生产复用部署身份或目标：
 
 - `DEPLOY_HOST`
 - `DEPLOY_PORT`
@@ -307,6 +320,7 @@ variables、workflow YAML 或构建参数中。
 远端主机自身还必须提前准备：
 
 - `${DEPLOY_APP_DIR}/.deploy/remote.env`
+- `REGISTRY=ghcr.io` 与 `REGISTRY_AUTH_MODE=workflow-token`
 - `${DEPLOY_APP_DIR}/.env.prod.shared`
 - `${DEPLOY_APP_DIR}/.env.prod.secrets`
 - `${DEPLOY_APP_DIR}/.env.prod.generated.secrets`（应为空占位）
@@ -322,8 +336,9 @@ GitHub `Rollback` 手工作业选择 `staging` 或 `production` environment，�
 1. GitHub Actions 先验证当前 workflow controller 的 branch head、`Required` 和双语言 CodeQL
 2. 把三个历史完整 SHA tag 解析为 digest，并验证 provenance
 3. environment 审批后上传当前可信 controller bundle；不 checkout 或执行历史运维脚本
-4. 远端读取 `.deploy/remote.env`，按三个 digest 拉取 backend / frontend / admin 镜像
-5. 重新执行当前 `infra/ops/remote-prod-rollback.sh`，并再次跑业务与严格可观测性 smoke check
+4. 远端 `remote-ci-release.sh rollback` 使用本次 job 的短期 GHCR token，按三个 digest 拉取
+   backend / frontend / admin 镜像
+5. 重新执行当前 rollback controller，并再次跑业务与严格可观测性 smoke check
 
 本地应急入口仍保留；未传 `ROLLBACK_TAG` 时会尝试读取 `.deploy/releases.log` 的上一条成功版本：
 
@@ -339,6 +354,10 @@ make prod-rollback
 ```bash
 # 项目根目录下运行
 make ansible-bootstrap
+
+# 发布/回滚前提供一次性或短期的 GHCR 只读凭据；不得写进 inventory
+export REGISTRY_USERNAME=<ghcr-user>
+export REGISTRY_PULL_TOKEN=<short-lived-read-packages-token>
 make ansible-deploy-staging
 make ansible-deploy-prod
 make ansible-rollback-staging
@@ -351,6 +370,12 @@ make ansible-rollback-prod
 - `infra/ansible/inventory/production.ini`
 
 仓库里已经给了同目录示例文件，可以直接改。
+
+Ansible release playbook 与 GitHub Actions 使用同一个 `remote-ci-release.sh` 包装器，把
+`REGISTRY_PULL_TOKEN` 作为 stdin 传给远端并设置 `no_log: true`；token 不进入远端 environment、
+inventory、命令参数或持久 Docker config。目标机仍应配置
+`REGISTRY_AUTH_MODE=workflow-token`。控制端应使用可撤销、最小 `read:packages` 且尽可能短期的凭据，
+运行结束立即从当前 shell 清除；不要复用个人日常登录 token。
 
 控制端使用仓库固定的 Ansible Core 版本；建议安装到项目内的忽略目录，避免污染系统 Python：
 

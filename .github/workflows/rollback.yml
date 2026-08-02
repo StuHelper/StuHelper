@@ -42,6 +42,8 @@ jobs:
     env:
       DEPLOY_ENVIRONMENT: ${{ inputs.target }}
       DEPLOY_REASON: ${{ inputs.reason }}
+      PRODUCTION_PROMOTION_MODE: not-applicable
+      RELEASE_OPERATION: rollback
       SOURCE_REF: ${{ github.ref }}
       TARGET_SHA: ${{ github.sha }}
     steps:
@@ -151,6 +153,8 @@ jobs:
         env:
           DEPLOY_REASON: ${{ inputs.reason }}
           GH_TOKEN: ${{ github.token }}
+          PRODUCTION_PROMOTION_MODE: not-applicable
+          RELEASE_OPERATION: rollback
           SOURCE_REF: ${{ github.ref }}
           TARGET_SHA: ${{ github.sha }}
           WORKFLOW_SHA: ${{ fromJSON(toJSON(job)).workflow_sha }}
@@ -164,12 +168,15 @@ jobs:
 
       - name: Upload, roll back, and verify
         env:
+          CI_REGISTRY_USERNAME: ${{ github.actor }}
           DEPLOY_RUN_ATTEMPT: ${{ github.run_attempt }}
           DEPLOY_RUN_ID: ${{ github.run_id }}
+          GHCR_PULL_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           [[ "${DEPLOY_RUN_ID}" =~ ^[1-9][0-9]*$ ]]
           [[ "${DEPLOY_RUN_ATTEMPT}" =~ ^[1-9][0-9]*$ ]]
+          [[ "${CI_REGISTRY_USERNAME}" =~ ^([A-Za-z0-9][A-Za-z0-9_.-]{0,127}|[A-Za-z0-9][A-Za-z0-9_.-]{0,121}\[bot\])$ ]]
           [[ "${ROLLBACK_REVIEW_ACTOR}" =~ ^[A-Za-z0-9][A-Za-z0-9_.@-]{0,127}$ ]]
           [[ "${ROLLBACK_REVIEW_REASON_B64}" =~ ^[A-Za-z0-9+/=]+$ ]]
           port="${DEPLOY_TARGET_PORT:-22}"
@@ -227,7 +234,7 @@ jobs:
 
           # The current controller applies the selected, provenance-verified old image set.
           # shellcheck disable=SC2029
-          ssh "${ssh_args[@]}" \
+          printf '%s\n' "${GHCR_PULL_TOKEN}" | ssh "${ssh_args[@]}" \
             "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}" \
             "set -euo pipefail &&
              printf '%s  %s\n' '${bundle_sha256}' '${incoming_path}' | sha256sum -c - &&
@@ -241,9 +248,8 @@ jobs:
              ROLLBACK_ADMIN_IMAGE_REF='${ROLLBACK_ADMIN_IMAGE_REF}' \
              ROLLBACK_REVIEW_ACTOR='${ROLLBACK_REVIEW_ACTOR}' \
              ROLLBACK_REVIEW_REASON_B64='${ROLLBACK_REVIEW_REASON_B64}' \
-             ./infra/ops/remote-prod-rollback.sh &&
-             ./infra/ops/smoke-check.sh &&
-             OBS_SMOKE_STRICT=true ./infra/ops/observability-smoke-check.sh"
+             CI_REGISTRY_USERNAME='${CI_REGISTRY_USERNAME}' \
+             ./infra/ops/remote-ci-release.sh rollback"
 
       - name: Record rollback result
         if: always()

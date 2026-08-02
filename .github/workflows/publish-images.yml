@@ -32,6 +32,8 @@ jobs:
     env:
       DEPLOY_ENVIRONMENT: staging
       DEPLOY_REASON: Trusted image publication after CI and CodeQL verification
+      PRODUCTION_PROMOTION_MODE: not-applicable
+      RELEASE_OPERATION: publish
       SOURCE_REF: ${{ github.ref }}
       TARGET_SHA: ${{ inputs.commit_sha }}
     steps:

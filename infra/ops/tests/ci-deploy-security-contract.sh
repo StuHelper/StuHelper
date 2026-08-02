@@ -6,6 +6,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 VALIDATOR="${REPO_ROOT}/infra/ops/validate-ci-deploy-inputs.sh"
 RESOLVER="${REPO_ROOT}/infra/ops/resolve-attested-release-images.sh"
 RELEASE_VERIFIER="${REPO_ROOT}/infra/ops/verify-github-release.sh"
+REMOTE_CI_RELEASE="${REPO_ROOT}/infra/ops/remote-ci-release.sh"
 DEPLOY_WORKFLOW="${REPO_ROOT}/.github/workflows/deploy.yml"
 ROLLBACK_WORKFLOW="${REPO_ROOT}/.github/workflows/rollback.yml"
 PUBLISH_WORKFLOW="${REPO_ROOT}/.github/workflows/publish-images.yml"
@@ -65,6 +66,7 @@ expect_validator_failure() {
 bash -n "${VALIDATOR}"
 bash -n "${RESOLVER}"
 bash -n "${RELEASE_VERIFIER}"
+bash -n "${REMOTE_CI_RELEASE}"
 
 validator_output="$(run_validator)"
 [[ "${validator_output}" == *"deployment inputs validated"* ]] ||
@@ -162,6 +164,10 @@ assert_contains "${ROLLBACK_WORKFLOW}" 'attestations: read'
 assert_contains "${DEPLOY_WORKFLOW}" 'checks: read'
 assert_contains "${ROLLBACK_WORKFLOW}" 'checks: read'
 assert_contains "${DEPLOY_WORKFLOW}" 'workflow_call:'
+assert_contains "${DEPLOY_WORKFLOW}" 'promotion_mode:'
+assert_contains "${DEPLOY_WORKFLOW}" 'PRODUCTION_PROMOTION_MODE: \$\{\{ inputs\.promotion_mode \}\}'
+assert_contains "${DEPLOY_WORKFLOW}" 'RELEASE_OPERATION: forward'
+assert_not_contains "${DEPLOY_WORKFLOW}" 'skip_staging_gate'
 assert_contains "${DEPLOY_WORKFLOW}" 'verify-github-release\.sh'
 assert_contains "${ROLLBACK_WORKFLOW}" 'verify-github-release\.sh'
 [[ "$(grep -c 'verify-github-release\.sh' "${DEPLOY_WORKFLOW}")" -eq 2 ]] ||
@@ -188,12 +194,34 @@ assert_not_contains "${ROLLBACK_WORKFLOW}" 'github\.workflow_sha'
 assert_not_contains "${ROLLBACK_WORKFLOW}" 'path: rollback-release'
 assert_not_contains "${ROLLBACK_WORKFLOW}" '"\$\{GITHUB_WORKSPACE\}/rollback-release"'
 assert_contains "${ROLLBACK_WORKFLOW}" 'Build the trusted rollback-controller bundle'
-assert_contains "${ROLLBACK_WORKFLOW}" 'remote-prod-rollback\.sh'
+assert_contains "${DEPLOY_WORKFLOW}" 'remote-ci-release\.sh deploy'
+assert_contains "${ROLLBACK_WORKFLOW}" 'remote-ci-release\.sh rollback'
+assert_contains "${DEPLOY_WORKFLOW}" 'GHCR_PULL_TOKEN: \$\{\{ github\.token \}\}'
+assert_contains "${ROLLBACK_WORKFLOW}" 'GHCR_PULL_TOKEN: \$\{\{ github\.token \}\}'
+assert_contains "${DEPLOY_WORKFLOW}" 'printf .%s\\n. "\$\{GHCR_PULL_TOKEN\}" \| ssh'
+assert_contains "${ROLLBACK_WORKFLOW}" 'printf .%s\\n. "\$\{GHCR_PULL_TOKEN\}" \| ssh'
+[[ "$(grep -c 'printf .%s\\n. "\${GHCR_PULL_TOKEN}" | ssh' "${DEPLOY_WORKFLOW}")" -eq 1 ]] ||
+  fail "deploy workflow must pass the short-lived registry token to exactly one SSH process"
+[[ "$(grep -c 'printf .%s\\n. "\${GHCR_PULL_TOKEN}" | ssh' "${ROLLBACK_WORKFLOW}")" -eq 1 ]] ||
+  fail "rollback workflow must pass the short-lived registry token to exactly one SSH process"
+deploy_execution_block="$(sed -n '/# Release identifiers, digest references/,/name: Record deployment result/p' "${DEPLOY_WORKFLOW}")"
+rollback_execution_block="$(sed -n '/# The current controller applies/,/name: Record rollback result/p' "${ROLLBACK_WORKFLOW}")"
+grep -Eq 'printf .%s\\n. "\$\{GHCR_PULL_TOKEN\}" \| ssh' <<<"${deploy_execution_block}" ||
+  fail "deploy must pipe the short-lived registry token to the SSH process that runs remote-ci-release"
+grep -Eq 'printf .%s\\n. "\$\{GHCR_PULL_TOKEN\}" \| ssh' <<<"${rollback_execution_block}" ||
+  fail "rollback must pipe the short-lived registry token to the SSH process that runs remote-ci-release"
+assert_not_contains "${DEPLOY_WORKFLOW}" "GHCR_PULL_TOKEN='"
+assert_not_contains "${ROLLBACK_WORKFLOW}" "GHCR_PULL_TOKEN='"
+assert_contains "${REMOTE_CI_RELEASE}" 'REGISTRY_AUTH_MODE:-.*workflow-token'
+assert_contains "${REMOTE_CI_RELEASE}" 'docker login "\$\{REGISTRY\}" --username "\$\{registry_username\}" --password-stdin'
+assert_not_contains "${REMOTE_CI_RELEASE}" 'password[^-].*registry_token'
 assert_contains "${ROLLBACK_WORKFLOW}" 'ROLLBACK_REVIEW_ACTOR'
 assert_contains "${ROLLBACK_WORKFLOW}" 'ROLLBACK_REVIEW_REASON_B64'
 assert_contains "${PUBLISH_WORKFLOW}" '^  verify-release:$'
 assert_contains "${PUBLISH_WORKFLOW}" 'name: Verify trusted release checks'
 assert_contains "${PUBLISH_WORKFLOW}" 'verify-github-release\.sh'
+assert_contains "${PUBLISH_WORKFLOW}" 'RELEASE_OPERATION: publish'
+assert_contains "${PUBLISH_WORKFLOW}" 'PRODUCTION_PROMOTION_MODE: not-applicable'
 assert_contains "${PUBLISH_WORKFLOW}" '^    needs: verify-release$'
 assert_contains "${PUBLISH_WORKFLOW}" 'checks: read'
 assert_contains "${PUBLISH_WORKFLOW}" 'name: Scan the candidate image'

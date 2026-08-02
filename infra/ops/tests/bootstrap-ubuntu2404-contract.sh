@@ -57,6 +57,7 @@ assert_contains "${BOOTSTRAP_SCRIPT}" 'SHARED_ENV_SECRET_REF=secret/stuhelper/pr
 assert_contains "${BOOTSTRAP_SCRIPT}" 'SECRETS_ENV_SECRET_REF=secret/stuhelper/prod/secrets-env'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'GENERATED_ENV_SECRET_REF=secret/stuhelper/prod/generated-secrets-env'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'VAULT_TOKEN_FILE=\$\{DEPLOY_APP_DIR\}/\.secrets/vault/token'
+assert_contains "${BOOTSTRAP_SCRIPT}" 'REGISTRY_AUTH_MODE=.workflow-token.'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'REGISTRY_USERNAME_SECRET_REF=secret/stuhelper/prod/registry-username'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'REGISTRY_PASSWORD_SECRET_REF=secret/stuhelper/prod/registry-password'
 

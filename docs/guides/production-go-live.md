@@ -3,7 +3,7 @@ type: guide
 audience: ops
 status: current
 authoritative-source: docker-compose.prod.yml + infra/ops/*.sh + infra/nginx/baota-stuhelper.conf + server/migrations/ + server/internal/app/modules.go
-last-verified: 2026-08-01
+last-verified: 2026-08-03
 ---
 
 # 生产上线缺漏清单与执行指导
@@ -297,16 +297,20 @@ worker 收敛结果，以及预期管理员的实际登录/降权验证；不得
    cd bots/koishi && corepack yarn test && corepack yarn build
    ```
 
-4. 远端发布：
+4. 首选 GitHub `Deploy` 受保护工作流。`main` 的可信镜像发布完成后，确认
+   `PRODUCTION_PROMOTION_MODE=direct`，等待 production environment 显示候选 SHA、digest 和预验证
+   结果，再由 `Xauryan` 审批。Actions 会用短期 GHCR token 调用：
+
+   ```bash
+   ./infra/ops/remote-ci-release.sh deploy
+   ```
+
+   上述脚本要求 token 从 SSH 标准输入进入，只应由工作流调用，不能把 token 写进命令、shell history
+   或 `.deploy/remote.env`。必须脱离 GitHub 手工应急时，先把远端明确切换为
+   `REGISTRY_AUTH_MODE=persistent-secret` 并配置独立最小读取凭据，才可在生产机执行：
 
    ```bash
    ./infra/ops/remote-prod-deploy.sh
-   ```
-
-   或在生产机已加载 `.deploy/remote.env` 后：
-
-   ```bash
-   make prod-deploy
    ```
 
 5. 发布后执行 smoke 和日志确认。
