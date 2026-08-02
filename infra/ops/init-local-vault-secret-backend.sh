@@ -281,6 +281,10 @@ initialize_vault_if_needed() {
     return 0
   fi
 
+  if [[ "${LOCAL_VAULT_REQUIRE_EXISTING_DATA:-false}" == "true" ]]; then
+    die "refusing to initialize an uninitialized Vault while LOCAL_VAULT_REQUIRE_EXISTING_DATA=true"
+  fi
+
   install -d -m 0700 "$(dirname "${vault_init_file}")"
   docker exec \
     -e "VAULT_ADDR=${vault_addr}" \
