@@ -212,7 +212,7 @@ Required 与 Go/JavaScript CodeQL。bypass actor 只允许 GitHub 用户 `Xaurya
 | P2-19 | P3：先拆共享 sentinel，再补精确 review code |
 | P3-1 | `implemented`：`AdminContentLayout` 正式支持并显示可选页面说明，保留标题、总数和 action 布局；组件回归覆盖有/无说明。本条所在提交。 |
 | P3-2 | `implemented`：持久化表格列的显式 `defaultMinWidth` 优先，否则保留调用方透传的 `min-width`，不再被 `undefined` 覆盖；组件回归锁定属性合并顺序。本条所在提交。 |
-| P3-3 | P3：已审核行的 stale action 防护 |
+| P3-3 | `implemented`：只有 `pending` 新生申请显示审核控件，已处理行只显示状态；提交入口再次检查当前行状态并阻断陈旧动作。专项回归覆盖 pending/approved/rejected。本条所在提交。 |
 | P3-4 | 可选：成员黑名单文档时态 |
 | P3-5 | 可选：开发指南目录和入口校正 |
 | P3-6 | P3：school SSO/mobile handoff OpenAPI security 与错误契约 |
