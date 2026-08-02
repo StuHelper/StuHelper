@@ -205,7 +205,7 @@ Required 与 Go/JavaScript CodeQL。bypass actor 只允许 GitHub 用户 `Xaurya
 | 别名 | 最终处置 |
 |------|----------|
 | P2-4 | P3 先测：只优化仍可达的 dashboard 全扫，不重写聚合 API |
-| P2-5 | P3 correctness：修空格 ID parsing 和真实命令名 |
+| P2-5 | `implemented`：批量禁言只在第一个空白处分隔秒数，后续成员 ID 继续按空白/中英文逗号解析；格式提示改为真实命令 `群审禁言`。管理员命令专项 11/11 通过。本条所在提交。 |
 | P2-8 | P4 可选：后台 i18n 标签 |
 | P2-11 | P3：query array 契约与默认客户端对齐 |
 | P2-17 | P3/P4 决策：preview knobs 是废弃还是受限恢复 |

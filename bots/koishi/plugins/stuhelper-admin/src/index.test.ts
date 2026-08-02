@@ -386,7 +386,7 @@ test('管理员可以批量禁言待认证成员', async () => {
     }
 
     const client = root.mock.client('20014', 'group-1')
-    await client.shouldReply('群审禁言 120 10011,10012', '已批量禁言 2 名成员。')
+    await client.shouldReply('群审禁言 120 10011 10012', '已批量禁言 2 名成员。')
 
     assert.deepEqual(muteActions, [
       { guildId: 'group-1', memberId: '10011', duration: 120000 },
