@@ -367,12 +367,15 @@ assert_contains "${tmpdir}/off-host-legacy-loopback.log" 'must not use a legacy 
 
 resolver_bin="${tmpdir}/resolver-bin"
 mkdir -p "${resolver_bin}"
-cat >"${resolver_bin}/getent" <<'GETENT'
+cat >"${resolver_bin}/docker" <<'DOCKER'
 #!/usr/bin/env bash
 set -euo pipefail
 
-database="${1:-}"
-host="${2:-}"
+printf '%s\n' "$@" >"${RESOLVER_DOCKER_CAPTURE:?}"
+args=("$@")
+(( ${#args[@]} >= 2 )) || exit 2
+database="${args[${#args[@]} - 2]}"
+host="${args[${#args[@]} - 1]}"
 [[ "${database}" == "ahostsv4" || "${database}" == "ahostsv6" ]] || exit 2
 case "${database}:${host}" in
   ahostsv4:backup-on-host.example.test)
@@ -383,7 +386,7 @@ case "${database}:${host}" in
     ;;
   *) exit 2 ;;
 esac
-GETENT
+DOCKER
 cat >"${resolver_bin}/ip" <<'IP'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -391,12 +394,15 @@ set -euo pipefail
 [[ "$*" == "-j address show" ]] || exit 2
 printf '%s\n' '[{"ifname":"eth0","addr_info":[{"family":"inet","local":"203.0.113.77","prefixlen":24}]}]'
 IP
-chmod +x "${resolver_bin}/getent" "${resolver_bin}/ip"
+chmod +x "${resolver_bin}/docker" "${resolver_bin}/ip"
+resolver_docker_capture="${tmpdir}/resolver-docker-argv"
 
 if (
   export PATH="${resolver_bin}:${PATH}"
+  export RESOLVER_DOCKER_CAPTURE="${resolver_docker_capture}"
   export BACKUP_OBJECT_STORAGE_ENDPOINT="https://backup-on-host.example.test"
   export BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED="true"
+  export BACKUP_OBJECT_STORAGE_DOCKER_NETWORK="contract-backup-network"
   require_off_host_backup_object_storage
 ) >"${tmpdir}/off-host-dns-local.log" 2>&1; then
   fail "a backup FQDN resolving to the production host must be rejected"
@@ -405,12 +411,17 @@ assert_contains "${tmpdir}/off-host-dns-local.log" 'must not resolve to an addre
 
 if ! (
   export PATH="${resolver_bin}:${PATH}"
+  export RESOLVER_DOCKER_CAPTURE="${resolver_docker_capture}"
   export BACKUP_OBJECT_STORAGE_ENDPOINT="https://backup-off-host.example.test"
   export BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED="true"
+  export BACKUP_OBJECT_STORAGE_DOCKER_NETWORK="contract-backup-network"
   require_off_host_backup_object_storage
 ); then
   fail "an asserted backup FQDN resolving only to a non-local address was rejected"
 fi
+assert_contains "${resolver_docker_capture}" '^--network$'
+assert_contains "${resolver_docker_capture}" '^contract-backup-network$'
+assert_contains "${resolver_docker_capture}" '^/usr/bin/getent$'
 
 export BACKUP_OBJECT_STORAGE_ENDPOINT="https://objects.example.test"
 export BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID="contract-runtime-key"
