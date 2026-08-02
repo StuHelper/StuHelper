@@ -24,21 +24,23 @@ describe('createReviewApi.updateReview', () => {
 
 describe('createReviewApi.getBatchCourseReviews', () => {
   it('serializes course IDs as repeated form query parameters', async () => {
-    const fetchMock = vi.fn(async () =>
-      new Response(JSON.stringify({ data: {}, success: true }), {
+    let capturedRequest: Request | undefined
+    const fetchMock: typeof fetch = async (input, init) => {
+      capturedRequest = input instanceof Request ? input : new Request(input, init)
+      return new Response(JSON.stringify({ data: {}, success: true }), {
         headers: { 'content-type': 'application/json' },
         status: 200,
-      }),
-    )
+      })
+    }
     const client = createApiClient({
       baseUrl: 'https://stuhelper.test',
-      fetch: fetchMock as typeof fetch,
+      fetch: fetchMock,
     })
 
     await createReviewApi(client).getBatchCourseReviews([11, 12, 13])
 
-    const request = fetchMock.mock.calls[0]?.[0] as Request
-    const url = new URL(request.url)
+    expect(capturedRequest).toBeInstanceOf(Request)
+    const url = new URL(capturedRequest?.url ?? '')
     expect(url.searchParams.getAll('courseIDs')).toEqual(['11', '12', '13'])
   })
 })
