@@ -5,8 +5,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 TARGET_SCRIPT="${REPO_ROOT}/infra/ops/init-remote-deploy-config.sh"
 
-grep -qF 'source_env_file "${config_file}"' "${TARGET_SCRIPT}" || {
-  echo "[init-remote-deploy-config-contract][error] remote deploy config must use source_env_file" >&2
+grep -qF 'source_remote_deploy_config_env_file "${config_file}"' "${TARGET_SCRIPT}" || {
+  echo "[init-remote-deploy-config-contract][error] remote deploy config must use its allowlisted loader" >&2
   exit 1
 }
 if grep -qF 'source "${config_file}"' "${TARGET_SCRIPT}"; then

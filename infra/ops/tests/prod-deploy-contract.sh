@@ -59,8 +59,8 @@ public_web_auth_browser_smoke_line="$(line_number 'node "${SCRIPT_DIR}/public-we
 smoke_check_line="$(line_number '"${SCRIPT_DIR}/smoke-check.sh"')"
 observability_smoke_line="$(line_number 'OBS_SMOKE_STRICT=true "${SCRIPT_DIR}/observability-smoke-check.sh"')"
 bootstrap_require_line="$(line_number 'require_nonempty CASDOOR_BOOTSTRAP_CLIENT_SECRET')"
-grep -qF 'source_env_file "${file}"' "${PROD_DEPLOY_FILE}" ||
-  fail "production deploy must parse the Casdoor bootstrap credential file through source_env_file"
+grep -qF 'source_casdoor_bootstrap_env_file "${file}"' "${PROD_DEPLOY_FILE}" ||
+  fail "production deploy must parse the Casdoor bootstrap credential file through its allowlisted loader"
 if grep -qF 'source "${file}"' "${PROD_DEPLOY_FILE}"; then
   fail "production deploy must not raw-source the Casdoor bootstrap credential file"
 fi

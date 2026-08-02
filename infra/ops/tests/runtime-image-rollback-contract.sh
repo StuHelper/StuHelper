@@ -51,7 +51,7 @@ load_env() {
   export FRONTEND_IMAGE_REF=ghcr.io/stuhelper/frontend@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
   export ADMIN_IMAGE_REF=ghcr.io/stuhelper/admin@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 }
-source_env_file() {
+source_release_record_env_file() {
   local file="$1"
   local key value
   while IFS='=' read -r key value; do
@@ -65,8 +65,8 @@ resolve_previous_release_tag() {
 }
 EOF
 
-grep -qF 'source_env_file "${release_file}"' "${ROLLBACK_SCRIPT}" ||
-  fail "rollback release records must use source_env_file"
+grep -qF 'source_release_record_env_file "${release_file}"' "${ROLLBACK_SCRIPT}" ||
+  fail "rollback release records must use their allowlisted loader"
 if grep -qF 'source "${release_file}"' "${ROLLBACK_SCRIPT}"; then
   fail "rollback release records must not be raw-sourced"
 fi

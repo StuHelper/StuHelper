@@ -147,16 +147,18 @@ require_integer_range() {
 
 source_env_file() {
   local file="$1"
+  shift
   [[ -f "${file}" ]] || return 0
 
   local rendered
-  if ! rendered="$(python3 - "${file}" 2>&1 <<'PY'
+  if ! rendered="$(python3 - "${file}" "$@" 2>&1 <<'PY'
 import re
 import shlex
 import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
+allowed_keys = set(sys.argv[2:])
 key_pattern = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
 for lineno, line in enumerate(path.read_text().splitlines(), 1):
@@ -174,6 +176,10 @@ for lineno, line in enumerate(path.read_text().splitlines(), 1):
     if key in {"BASH_ENV", "ENV"}:
         raise SystemExit(
             f"{path}:{lineno}: shell startup variable {key} is not allowed in StuHelper environment files"
+        )
+    if allowed_keys and key not in allowed_keys:
+        raise SystemExit(
+            f"{path}:{lineno}: environment key {key} is not allowed in this file"
         )
 
     raw_value = raw_value.strip()
@@ -198,6 +204,50 @@ PY
   # shellcheck disable=SC1091
   source /dev/stdin <<<"${rendered}"
   unset BASH_ENV ENV
+}
+
+source_casdoor_bootstrap_env_file() {
+  source_env_file \
+    "$1" \
+    CASDOOR_BOOTSTRAP_CLIENT_ID \
+    CASDOOR_BOOTSTRAP_CLIENT_SECRET \
+    CASDOOR_BOOTSTRAP_APPLICATION \
+    CASDOOR_BOOTSTRAP_CERTIFICATE
+}
+
+source_remote_deploy_config_env_file() {
+  source_env_file \
+    "$1" \
+    REGISTRY \
+    REGISTRY_AUTH_MODE \
+    REGISTRY_USERNAME_SECRET_REF \
+    REGISTRY_PASSWORD_SECRET_REF \
+    ENV_FILE \
+    SECRETS_ENV_FILE \
+    GENERATED_ENV_FILE \
+    GENERATED_SECRET_ENV_FILE \
+    SECRET_BACKEND \
+    SHARED_ENV_SECRET_REF \
+    SECRETS_ENV_SECRET_REF \
+    GENERATED_ENV_SECRET_REF \
+    SECRET_FILE_ROOT \
+    VAULT_ADDR \
+    VAULT_NAMESPACE \
+    VAULT_TOKEN_FILE \
+    VAULT_KV_MOUNT \
+    VAULT_RUNTIME_TOKEN_POLICY \
+    VAULT_RUNTIME_TOKEN_PERIOD_SECONDS \
+    VAULT_RUNTIME_TOKEN_MIN_TTL_SECONDS
+}
+
+source_release_record_env_file() {
+  source_env_file \
+    "$1" \
+    TAG \
+    DEPLOYED_AT \
+    BACKEND_IMAGE_REF \
+    FRONTEND_IMAGE_REF \
+    ADMIN_IMAGE_REF
 }
 
 default_local_state_dir() {
@@ -1330,7 +1380,7 @@ load_remote_deploy_config() {
   local preserved_registry_password="${REGISTRY_PASSWORD-__STUHELPER_UNSET__}"
 
   set -a
-  source_env_file "${config_file}"
+  source_remote_deploy_config_env_file "${config_file}"
   if [[ "${preserved_tag}" != "__STUHELPER_UNSET__" ]]; then export TAG="${preserved_tag}"; fi
   if [[ "${preserved_rollback_tag}" != "__STUHELPER_UNSET__" ]]; then export ROLLBACK_TAG="${preserved_rollback_tag}"; fi
   if [[ "${preserved_backend_image_ref}" != "__STUHELPER_UNSET__" ]]; then export BACKEND_IMAGE_REF="${preserved_backend_image_ref}"; fi

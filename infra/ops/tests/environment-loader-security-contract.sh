@@ -33,6 +33,36 @@ source_env_file "${tmpdir}/safe.env"
 [[ ! -v BASH_ENV && ! -v ENV ]] ||
   fail "source_env_file allowed inherited shell startup hooks to survive"
 
+printf 'CASDOOR_BOOTSTRAP_CLIENT_ID=contract-client\n' >"${tmpdir}/bootstrap-safe.env"
+source_casdoor_bootstrap_env_file "${tmpdir}/bootstrap-safe.env"
+[[ "${CASDOOR_BOOTSTRAP_CLIENT_ID}" == "contract-client" ]] ||
+  fail "Casdoor bootstrap loader rejected or changed an allowed key"
+
+cat >"${tmpdir}/bootstrap.env" <<'EOF'
+CASDOOR_BOOTSTRAP_CLIENT_ID=contract-client
+SCRIPT_DIR=/tmp/payload
+EOF
+if (source_casdoor_bootstrap_env_file "${tmpdir}/bootstrap.env") >"${tmpdir}/bootstrap.log" 2>&1; then
+  fail "Casdoor bootstrap loader accepted a non-bootstrap key"
+fi
+grep -q 'environment key SCRIPT_DIR is not allowed in this file' "${tmpdir}/bootstrap.log" ||
+  fail "Casdoor bootstrap allowlist rejection was not explicit"
+
+cat >"${tmpdir}/release.env" <<'EOF'
+TAG=contract-release
+PATH=/tmp/payload
+EOF
+if (source_release_record_env_file "${tmpdir}/release.env") >"${tmpdir}/release.log" 2>&1; then
+  fail "release record loader accepted a process-control key"
+fi
+grep -q 'environment key PATH is not allowed in this file' "${tmpdir}/release.log" ||
+  fail "release record allowlist rejection was not explicit"
+
+printf 'TAG=contract-release\n' >"${tmpdir}/release-safe.env"
+source_release_record_env_file "${tmpdir}/release-safe.env"
+[[ "${TAG}" == "contract-release" ]] ||
+  fail "release record loader rejected or changed an allowed key"
+
 : >"${tmpdir}/shared.env"
 : >"${tmpdir}/generated.env"
 : >"${tmpdir}/generated-secrets.env"
@@ -46,10 +76,12 @@ load_env_preserving BASH_ENV ENV
 [[ ! -v BASH_ENV && ! -v ENV ]] ||
   fail "load_env_preserving allowed shell startup hooks to survive"
 
-printf 'STACK_NAME=environment-loader-contract\n' >"${tmpdir}/remote.env"
+printf 'REGISTRY=ghcr.io\n' >"${tmpdir}/remote.env"
 export BASH_ENV=/dev/null
 export ENV=/dev/null
 load_remote_deploy_config "${tmpdir}/remote.env"
+[[ "${REGISTRY}" == "ghcr.io" ]] ||
+  fail "load_remote_deploy_config did not load an allowed control-plane key"
 [[ ! -v BASH_ENV && ! -v ENV ]] ||
   fail "load_remote_deploy_config allowed shell startup hooks to survive"
 

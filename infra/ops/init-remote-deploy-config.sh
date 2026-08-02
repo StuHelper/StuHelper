@@ -115,7 +115,7 @@ path.write_text(
 path.chmod(0o600)
 PY
 
-source_env_file "${config_file}"
+source_remote_deploy_config_env_file "${config_file}"
 if [[ "${SECRET_BACKEND:-}" == "file" && "${REGISTRY_AUTH_MODE:-persistent-secret}" == "persistent-secret" ]]; then
   registry_username_path="$(secret_file_path "${REGISTRY_USERNAME_SECRET_REF}")"
   registry_password_path="$(secret_file_path "${REGISTRY_PASSWORD_SECRET_REF}")"

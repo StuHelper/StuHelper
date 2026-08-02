@@ -44,7 +44,7 @@ source_casdoor_bootstrap_env() {
   local file
   file="$(resolve_env_path "${CASDOOR_BOOTSTRAP_ENV_FILE:-.env.casdoor-bootstrap.local}")"
   [[ -f "${file}" ]] || die "missing Casdoor bootstrap env file: ${file}"
-  source_env_file "${file}"
+  source_casdoor_bootstrap_env_file "${file}"
 }
 
 require_nonempty() {
