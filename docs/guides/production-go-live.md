@@ -86,6 +86,10 @@ OPENFGA_STORE_ID=
 OPENFGA_MODEL_ID=
 ```
 
+`OPENFGA_RESOURCE_SMOKE_MODE=container` 会直接运行 `BACKEND_IMAGE_REF` 发布镜像内的
+`/app/openfga-resource-smoke`。生产验收不得临时拉取 Go 工具链、下载模块或现场编译，确保
+验证对象就是已经发布的固定制品。
+
 OpenFGA 生产 `STORE_ID` / `MODEL_ID` 不在共享样例中手填占位符，必须保持为空。`bootstrap-platform.sh` / OpenFGA bootstrap 创建 store 和 authorization model 后，把真实 `OPENFGA_STORE_ID`、`OPENFGA_MODEL_ID` 写入 `GENERATED_ENV_FILE`；`GENERATED_ENV_SECRET_REF` 只承载 generated secret env，不承载这两个非 secret runtime ID。生产部署脚本允许空值等待 bootstrap 写入，但会拒绝 `REPLACE_WITH_OPENFGA_*` 这类共享样例占位符进入部署。
 
 `CASDOOR_INTERNAL_ADDRESS` 生产默认必须为空，让后端按公开 issuer / public auth base URL 校验 OIDC 行为；不要沿用本地开发的 `host.docker.internal:8085` 或旧 Compose 内网地址。只有在有明确同机内网反代设计、并完成 SSO public smoke 验证 issuer 仍为 `https://sso.stuhelper.com` 时，才允许在非 repo secret/env 中覆盖。

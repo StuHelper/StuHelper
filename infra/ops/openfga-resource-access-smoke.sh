@@ -26,7 +26,7 @@ Optional env:
   OPENFGA_RESOURCE_SMOKE_RESOURCE_ID
   OPENFGA_RESOURCE_SMOKE_TIMEOUT   Go duration, defaults to 20s
   OPENFGA_RESOURCE_SMOKE_MODE      host or container; defaults to container in production, otherwise host when Go is available
-  OPENFGA_RESOURCE_SMOKE_GO_IMAGE  container-mode Go image; defaults to GOLANG_IMAGE_REF
+  OPENFGA_RESOURCE_SMOKE_IMAGE     container-mode backend release image; defaults to BACKEND_IMAGE_REF
   OPENFGA_RESOURCE_SMOKE_EVIDENCE_FILE
 USAGE
 }
@@ -69,28 +69,26 @@ run_smoke_with_docker() {
   require_cmd docker
   local stack_name_value="${STACK_NAME:-${COMPOSE_PROJECT_NAME:-stuhelper}}"
   local docker_network_name="${DOCKER_NETWORK_NAME:-${stack_name_value}-backend}"
-  local go_image_ref="${OPENFGA_RESOURCE_SMOKE_GO_IMAGE:-${GOLANG_IMAGE_REF:-cgr.dev/chainguard/go:latest@sha256:b116b5f2d3f5e7556b66252f9ee7ef9988b84c2139c89d824efcebd6cadbf436}}"
-  docker run --rm \
+  local smoke_image_ref="${OPENFGA_RESOURCE_SMOKE_IMAGE:-${BACKEND_IMAGE_REF:-}}"
+  [[ -n "${smoke_image_ref}" && "${smoke_image_ref}" != "REPLACE_WITH_BACKEND_IMAGE_REF" ]] ||
+    die "BACKEND_IMAGE_REF or OPENFGA_RESOURCE_SMOKE_IMAGE is required in container mode"
+  docker image inspect "${smoke_image_ref}" >/dev/null 2>&1 ||
+    die "OpenFGA smoke release image is not present locally: ${smoke_image_ref}"
+
+  docker run --rm --pull never \
     --read-only \
     --cap-drop ALL \
     --security-opt no-new-privileges \
-    --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m \
-    --tmpfs /go-cache:rw,nosuid,nodev,size=512m \
+    --tmpfs /app/tmp:rw,nosuid,nodev,noexec,size=16m,uid=1000,gid=1000 \
     --network "${docker_network_name}" \
-    -v "${REPO_ROOT}:/workspace:ro" \
-    -w /workspace/server \
-    -e "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
-    -e GOCACHE=/go-cache/build \
-    -e GOMODCACHE=/go-cache/mod \
     -e OPENFGA_API_URL="${OPENFGA_API_URL}" \
     -e OPENFGA_STORE_ID="${OPENFGA_STORE_ID}" \
     -e OPENFGA_MODEL_ID="${OPENFGA_MODEL_ID}" \
     -e OPENFGA_RESOURCE_SMOKE_APP_ID="${OPENFGA_RESOURCE_SMOKE_APP_ID:-}" \
     -e OPENFGA_RESOURCE_SMOKE_RESOURCE_ID="${OPENFGA_RESOURCE_SMOKE_RESOURCE_ID:-}" \
     -e OPENFGA_RESOURCE_SMOKE_TIMEOUT="${OPENFGA_RESOURCE_SMOKE_TIMEOUT:-}" \
-    --entrypoint /usr/bin/go \
-    "${go_image_ref}" \
-    run ./cmd/openfga-resource-smoke
+    --entrypoint /app/openfga-resource-smoke \
+    "${smoke_image_ref}"
 }
 
 smoke_mode() {
