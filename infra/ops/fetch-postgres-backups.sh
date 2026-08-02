@@ -11,7 +11,7 @@ MODE="${1:-all}"
 
 require_cmd docker
 load_env
-unset BACKUP_OBJECT_STORAGE_PINNED_IPS
+unset BACKUP_OBJECT_STORAGE_PINNED_HOSTS
 
 [[ -n "${BACKUP_OBJECT_STORAGE_ENDPOINT:-}" ]] || die "BACKUP_OBJECT_STORAGE_ENDPOINT is required"
 [[ -n "${BACKUP_OBJECT_STORAGE_BUCKET:-}" ]] || die "BACKUP_OBJECT_STORAGE_BUCKET is required"

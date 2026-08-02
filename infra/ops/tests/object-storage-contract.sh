@@ -280,6 +280,15 @@ case "${database}:${host}" in
   ahostsv4:backup-off-host.example.test)
     printf '198.51.100.42 STREAM %s\n' "${host}"
     ;;
+  ahostsv4:contract-backup.backup-off-host.example.test)
+    printf '198.51.100.43 STREAM %s\n' "${host}"
+    ;;
+  ahostsv4:backup-virtual-local.example.test)
+    printf '198.51.100.42 STREAM %s\n' "${host}"
+    ;;
+  ahostsv4:contract-backup.backup-virtual-local.example.test)
+    printf '203.0.113.77 STREAM %s\n' "${host}"
+    ;;
   ahostsv6:backup-mapped-identity.example.test)
     printf '::ffff:198.51.100.42 STREAM %s\n' "${host}"
     ;;
@@ -299,6 +308,7 @@ resolver_docker_capture="${tmpdir}/resolver-docker-argv"
 export PATH="${resolver_bin}:${PATH}"
 export RESOLVER_DOCKER_CAPTURE="${resolver_docker_capture}"
 export BACKUP_OBJECT_STORAGE_LOCAL_IDENTITY_CIDRS="none"
+export BACKUP_OBJECT_STORAGE_FORCE_PATH_STYLE="true"
 
 if ! (
   export OBJECT_STORAGE_ENDPOINT="https://objects.example.test"
@@ -315,7 +325,7 @@ if ! (
   export BACKUP_OBJECT_STORAGE_TLS_CA="${distinct_dir}/ca.crt"
   export BACKUP_OBJECT_STORAGE_TLS_INSECURE="false"
   require_production_object_storage
-  [[ -z "${BACKUP_OBJECT_STORAGE_PINNED_IPS:-}" ]]
+  [[ -z "${BACKUP_OBJECT_STORAGE_PINNED_HOSTS:-}" ]]
 ); then
   fail "valid HTTPS production object-storage configuration was rejected"
 fi
@@ -499,6 +509,18 @@ fi
 assert_contains "${tmpdir}/off-host-dns-mapped-nat-identity.log" 'must not resolve to a configured public/NAT/LB identity'
 
 if (
+  export BACKUP_OBJECT_STORAGE_ENDPOINT="https://backup-virtual-local.example.test"
+  export BACKUP_OBJECT_STORAGE_BUCKET="contract-backup"
+  export BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED="true"
+  export BACKUP_OBJECT_STORAGE_FORCE_PATH_STYLE="false"
+  export BACKUP_OBJECT_STORAGE_DOCKER_NETWORK="contract-backup-network"
+  require_off_host_backup_object_storage
+) >"${tmpdir}/off-host-virtual-local.log" 2>&1; then
+  fail "a virtual-hosted S3 transfer hostname resolving to the production host must be rejected"
+fi
+assert_contains "${tmpdir}/off-host-virtual-local.log" 'must not resolve to an address assigned to the production host'
+
+if (
   export BACKUP_OBJECT_STORAGE_ENDPOINT="https://backup-local-container.example.test"
   export BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED="true"
   export BACKUP_OBJECT_STORAGE_DOCKER_NETWORK="contract-backup-network"
@@ -531,24 +553,38 @@ fi
 
 if ! (
   export BACKUP_OBJECT_STORAGE_ENDPOINT="https://backup-off-host.example.test"
+  export BACKUP_OBJECT_STORAGE_BUCKET="contract-backup"
   export BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED="true"
+  export BACKUP_OBJECT_STORAGE_FORCE_PATH_STYLE="false"
   export BACKUP_OBJECT_STORAGE_DOCKER_NETWORK="contract-backup-network"
   require_off_host_backup_object_storage
-  [[ "${BACKUP_OBJECT_STORAGE_PINNED_IPS:-}" == "198.51.100.42" ]]
+  [[ "${BACKUP_OBJECT_STORAGE_PINNED_HOSTS:-}" == $'backup-off-host.example.test=198.51.100.42\ncontract-backup.backup-off-host.example.test=198.51.100.43' ]]
 ); then
-  fail "an asserted backup FQDN did not export its validated non-local address set"
+  fail "an asserted virtual-hosted backup FQDN did not export every validated transfer hostname and address"
 fi
 assert_contains "${resolver_docker_capture}" '^--network$'
 assert_contains "${resolver_docker_capture}" '^contract-backup-network$'
 assert_contains "${resolver_docker_capture}" '^/usr/bin/getent$'
 
 export BACKUP_OBJECT_STORAGE_ENDPOINT="https://BACKUP-OFF-HOST.EXAMPLE.TEST"
+export BACKUP_OBJECT_STORAGE_BUCKET="contract-backup"
 export BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID="contract-runtime-key"
 export BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY="contract-runtime-secret"
 export BACKUP_OBJECT_STORAGE_FORCE_PATH_STYLE="false"
 export BACKUP_OBJECT_STORAGE_TLS_INSECURE="false"
-export BACKUP_OBJECT_STORAGE_PINNED_IPS=$'198.51.100.42\n2001:db8::42'
 export RCLONE_IMAGE_REF="rclone/rclone:beta@sha256:f52965eba611ba8984117638b2a0539dcce170731937f93fbace66897d102698"
+if (
+  export BACKUP_OBJECT_STORAGE_PINNED_HOSTS="backup-off-host.example.test=198.51.100.42"
+  run_backup_object_storage_rclone \
+    "1000:1000" \
+    "type=bind,src=${tmpdir},dst=/source,readonly" \
+    copy /source target:contract-backup/audit
+) >"${tmpdir}/missing-virtual-host-pin.log" 2>&1; then
+  fail "a virtual-hosted transfer without a validated bucket hostname pin must be rejected"
+fi
+assert_contains "${tmpdir}/missing-virtual-host-pin.log" 'is missing validated addresses for: contract-backup\.backup-off-host\.example\.test'
+
+export BACKUP_OBJECT_STORAGE_PINNED_HOSTS=$'backup-off-host.example.test=198.51.100.42\nbackup-off-host.example.test=2001:db8::42\ncontract-backup.backup-off-host.example.test=198.51.100.43\ncontract-backup.backup-off-host.example.test=2001:db8::43'
 run_backup_object_storage_rclone \
   "1000:1000" \
   "type=bind,src=${tmpdir},dst=/source,readonly" \
@@ -563,6 +599,8 @@ assert_contains "${capture_file}" '^no-new-privileges$'
 assert_contains "${capture_file}" '^--add-host$'
 assert_contains "${capture_file}" '^backup-off-host\.example\.test=198\.51\.100\.42$'
 assert_contains "${capture_file}" '^backup-off-host\.example\.test=2001:db8::42$'
+assert_contains "${capture_file}" '^contract-backup\.backup-off-host\.example\.test=198\.51\.100\.43$'
+assert_contains "${capture_file}" '^contract-backup\.backup-off-host\.example\.test=2001:db8::43$'
 assert_contains "${capture_file}" '^copy$'
 assert_contains "${capture_file}" '@sha256:[0-9a-f]{64}$'
 
@@ -583,8 +621,8 @@ assert_contains "${SYNC_BACKUPS}" 'target:\$\{BACKUP_OBJECT_STORAGE_BUCKET\}/\$\
 assert_contains "${SYNC_BACKUPS}" 'load_env_preserving BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED'
 assert_contains "${SYNC_BACKUPS}" 'require_off_host_backup_object_storage'
 assert_contains "${SYNC_BACKUPS}" 'APP_ENV:-.*production'
-assert_contains "${SYNC_BACKUPS}" 'unset BACKUP_OBJECT_STORAGE_PINNED_IPS'
-assert_contains "${FETCH_BACKUPS}" 'unset BACKUP_OBJECT_STORAGE_PINNED_IPS'
+assert_contains "${SYNC_BACKUPS}" 'unset BACKUP_OBJECT_STORAGE_PINNED_HOSTS'
+assert_contains "${FETCH_BACKUPS}" 'unset BACKUP_OBJECT_STORAGE_PINNED_HOSTS'
 assert_contains "${SCHEDULED_BACKUP}" 'load_env_preserving BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED'
 assert_contains "${SCHEDULED_BACKUP}" 'true\) require_off_host_backup_object_storage'
 assert_contains "${SCHEDULED_BACKUP}" "-path '/wal/quarantine-incomplete-\\*' -prune"

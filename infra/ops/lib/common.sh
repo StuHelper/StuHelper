@@ -336,7 +336,7 @@ require_off_host_backup_object_storage() {
   require_https_object_storage_endpoint \
     "BACKUP_OBJECT_STORAGE_ENDPOINT" \
     "${BACKUP_OBJECT_STORAGE_ENDPOINT:-}"
-  unset BACKUP_OBJECT_STORAGE_PINNED_IPS
+  unset BACKUP_OBJECT_STORAGE_PINNED_HOSTS
   if ! output="$(python3 - "${BACKUP_OBJECT_STORAGE_ENDPOINT:-}" 2>&1 <<'PY'
 import ipaddress
 import json
@@ -418,6 +418,32 @@ if address is None:
             "BACKUP_OBJECT_STORAGE_ENDPOINT must use a valid ASCII DNS hostname"
         )
 
+force_path_style = os.environ.get(
+    "BACKUP_OBJECT_STORAGE_FORCE_PATH_STYLE",
+    os.environ.get("OBJECT_STORAGE_FORCE_PATH_STYLE", "true"),
+)
+if force_path_style not in {"true", "false"}:
+    raise SystemExit(
+        "BACKUP_OBJECT_STORAGE_FORCE_PATH_STYLE must be true or false"
+    )
+transfer_hosts = [host]
+if address is None and force_path_style == "false":
+    bucket = os.environ.get("BACKUP_OBJECT_STORAGE_BUCKET", "").strip()
+    if not bucket:
+        raise SystemExit(
+            "BACKUP_OBJECT_STORAGE_BUCKET is required for virtual-hosted backup transfers"
+        )
+    virtual_host = f"{bucket}.{host}"
+    virtual_labels = virtual_host.split(".")
+    if len(virtual_host) > 253 or any(
+        not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", label)
+        for label in virtual_labels
+    ):
+        raise SystemExit(
+            "BACKUP_OBJECT_STORAGE_BUCKET must form a valid lowercase ASCII virtual-hosted S3 hostname"
+        )
+    transfer_hosts.append(virtual_host)
+
 image_ref = os.environ.get(
     "RCLONE_IMAGE_REF",
     "rclone/rclone:beta@sha256:f52965eba611ba8984117638b2a0539dcce170731937f93fbace66897d102698",
@@ -436,9 +462,9 @@ if docker_network in {"host", "none"}:
 effective_docker_network = docker_network or "bridge"
 
 if address is not None:
-    resolved_addresses = {address}
+    resolved_addresses_by_host = {host: {address}}
 else:
-    resolved_addresses = set()
+    resolved_addresses_by_host = {}
     resolver_command = [
         "docker",
         "run",
@@ -452,36 +478,39 @@ else:
     if docker_network:
         resolver_command.extend(["--network", docker_network])
     resolver_command.extend(["--entrypoint", "/usr/bin/getent", image_ref])
-    for database in ("ahostsv4", "ahostsv6"):
-        try:
-            result = subprocess.run(
-                [*resolver_command, database, host],
-                check=False,
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
-        except FileNotFoundError:
-            raise SystemExit(
-                "docker is required to resolve BACKUP_OBJECT_STORAGE_ENDPOINT in the rclone network namespace"
-            ) from None
-        except subprocess.TimeoutExpired:
-            raise SystemExit(
-                "BACKUP_OBJECT_STORAGE_ENDPOINT resolution timed out in the rclone network namespace"
-            ) from None
-        for line in result.stdout.splitlines():
-            fields = line.split()
-            if not fields:
-                continue
-            candidate = fields[0].split("%", 1)[0]
+    for transfer_host in transfer_hosts:
+        resolved_addresses = set()
+        for database in ("ahostsv4", "ahostsv6"):
             try:
-                resolved_addresses.add(ipaddress.ip_address(candidate))
-            except ValueError:
-                continue
-    if not resolved_addresses:
-        raise SystemExit(
-            "BACKUP_OBJECT_STORAGE_ENDPOINT must resolve to at least one A or AAAA address in the rclone network namespace"
-        )
+                result = subprocess.run(
+                    [*resolver_command, database, transfer_host],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+            except FileNotFoundError:
+                raise SystemExit(
+                    "docker is required to resolve BACKUP_OBJECT_STORAGE_ENDPOINT in the rclone network namespace"
+                ) from None
+            except subprocess.TimeoutExpired:
+                raise SystemExit(
+                    f"backup transfer hostname {transfer_host} resolution timed out in the rclone network namespace"
+                ) from None
+            for line in result.stdout.splitlines():
+                fields = line.split()
+                if not fields:
+                    continue
+                candidate = fields[0].split("%", 1)[0]
+                try:
+                    resolved_addresses.add(ipaddress.ip_address(candidate))
+                except ValueError:
+                    continue
+        if not resolved_addresses:
+            raise SystemExit(
+                f"backup transfer hostname {transfer_host} must resolve to at least one A or AAAA address in the rclone network namespace"
+            )
+        resolved_addresses_by_host[transfer_host] = resolved_addresses
 
 try:
     docker_network_result = subprocess.run(
@@ -570,7 +599,11 @@ normalized_local_addresses = {normalize(value) for value in local_addresses}
 normalized_local_docker_addresses = {
     normalize(value) for value in local_docker_addresses
 }
-for resolved_address in resolved_addresses:
+for resolved_address in {
+    value
+    for values in resolved_addresses_by_host.values()
+    for value in values
+}:
     normalized_address = normalize(resolved_address)
     comparable_addresses = equivalent_addresses(resolved_address)
     if (
@@ -603,16 +636,20 @@ for resolved_address in resolved_addresses:
         )
 
 if address is None:
-    pinned_addresses = {normalize(value) for value in resolved_addresses}
-    for pinned_address in sorted(
-        pinned_addresses, key=lambda value: (value.version, int(value))
-    ):
-        print(pinned_address.compressed)
+    for transfer_host in transfer_hosts:
+        pinned_addresses = {
+            normalize(value)
+            for value in resolved_addresses_by_host[transfer_host]
+        }
+        for pinned_address in sorted(
+            pinned_addresses, key=lambda value: (value.version, int(value))
+        ):
+            print(f"{transfer_host}={pinned_address.compressed}")
 PY
   )"; then
     die "${output}"
   fi
-  export BACKUP_OBJECT_STORAGE_PINNED_IPS="${output}"
+  export BACKUP_OBJECT_STORAGE_PINNED_HOSTS="${output}"
 }
 
 require_production_object_storage() {
