@@ -533,12 +533,40 @@ assert_contains "${SYNC_BACKUPS}" 'target:\$\{BACKUP_OBJECT_STORAGE_BUCKET\}/\$\
 assert_contains "${SYNC_BACKUPS}" 'load_env_preserving BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED'
 assert_contains "${SYNC_BACKUPS}" 'require_off_host_backup_object_storage'
 assert_contains "${SCHEDULED_BACKUP}" 'load_env_preserving BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED'
+assert_contains "${SCHEDULED_BACKUP}" 'true\) require_off_host_backup_object_storage'
 assert_contains "${SCHEDULED_BACKUP}" "-path '/wal/quarantine-incomplete-\\*' -prune"
 assert_contains "${FETCH_BACKUPS}" 'copy "target:'
 assert_not_contains "${SYNC_BACKUPS}" '(^|[[:space:]])sync([[:space:]]|$)'
 assert_not_contains "${FETCH_BACKUPS}" '(^|[[:space:]])sync([[:space:]]|$)'
 assert_not_contains "${SYNC_BACKUPS}" 'minio|MC_HOST|mc mirror'
 assert_not_contains "${FETCH_BACKUPS}" 'minio|MC_HOST|mc mirror'
+
+if ! python3 - "${SCHEDULED_BACKUP}" <<'PY'
+from pathlib import Path
+import sys
+
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+gate = source.index("true) require_off_host_backup_object_storage")
+mutations = (
+    'mkdir -p "${logical_dir}"',
+    'BACKUP_MODE=dump "${SCRIPT_DIR}/backup-postgres.sh"',
+    'prune_old_backups "${logical_dir}"',
+    'mkdir -p "${base_dir}"',
+    'BACKUP_MODE=basebackup "${SCRIPT_DIR}/backup-postgres.sh"',
+    'prune_old_backups "${base_dir}"',
+    "docker run --rm",
+    './infra/ops/sync-postgres-backups.sh',
+)
+for mutation in mutations:
+    position = source.index(mutation)
+    if gate >= position:
+        raise SystemExit(
+            f"required off-host gate must precede scheduled-backup mutation: {mutation}"
+        )
+PY
+then
+  fail "scheduled backup can mutate or prune local artifacts before its required off-host gate"
+fi
 
 assert_contains "${BASE_COMPOSE}" '^  object-storage:'
 assert_contains "${BASE_COMPOSE}" 'profiles: \[dev-full, prod-parity\]'
