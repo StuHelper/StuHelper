@@ -90,11 +90,11 @@
             :class="{ 'button-disabled': selectedSchoolRequiresAcademicEmail && !canRequestEmailOTP }"
             data-school-email-otp-request
             type="button"
-            :aria-disabled="selectedSchoolRequiresAcademicEmail && !canRequestEmailOTP ? 'true' : undefined"
-            :disabled="requestingOTP || (!selectedSchoolRequiresAcademicEmail && !canRequestEmailOTP)"
+            :aria-disabled="otpCooldownSeconds > 0 || (selectedSchoolRequiresAcademicEmail && !canRequestEmailOTP) ? 'true' : undefined"
+            :disabled="requestingOTP || otpCooldownSeconds > 0 || (!selectedSchoolRequiresAcademicEmail && !canRequestEmailOTP)"
             @click="requestEmailOTP"
           >
-            {{ selectedSchoolRequiresAcademicEmail ? '校验并发送验证码' : '发送验证码' }}
+            {{ requestEmailOTPLabel }}
           </button>
         </div>
         <p
@@ -149,6 +149,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 
 import type { AdmissionMe } from '@stuhelper/shared/api'
+import { getErrorMessage } from '@/api/errors'
 
 import { admissionApi } from '../api'
 import { isAdmissionSessionExpiredError } from '../admissionToken'
@@ -178,12 +179,14 @@ const studentName = ref('')
 const code = ref('')
 const submitting = ref(false)
 const requestingOTP = ref(false)
+const otpCooldownSeconds = ref(0)
 const errorMessage = ref('')
 const successMessage = ref('')
 const academicMatchState = ref<'idle' | 'waiting' | 'checking' | 'matched' | 'mismatch' | 'error'>('idle')
 const academicMatchMessage = ref('')
 let academicMatchTimer: ReturnType<typeof setTimeout> | undefined
 let academicMatchRunID = 0
+let otpCooldownTimer: ReturnType<typeof setInterval> | undefined
 
 const selectedSchool = computed(() => {
   return props.schools.find((school) => school.schoolCode === selectedSchoolCode.value)
@@ -203,6 +206,12 @@ const canRequestEmailOTP = computed(() => {
 })
 const canVerifyEmailOTP = computed(() => {
   return !submitting.value && email.value.trim() !== '' && code.value.trim() !== ''
+})
+const requestEmailOTPLabel = computed(() => {
+  if (otpCooldownSeconds.value > 0) {
+    return `重新发送（${otpCooldownSeconds.value}s）`
+  }
+  return selectedSchoolRequiresAcademicEmail.value ? '校验并发送验证码' : '发送验证码'
 })
 const academicMatchMessageClass = computed(() => {
   if (academicMatchState.value === 'matched') return 'text-sm text-green-700'
@@ -277,12 +286,13 @@ async function requestEmailOTP(): Promise<void> {
     successMessage.value = selectedSchoolRequiresAcademicEmail.value
       ? '学号和姓名已匹配，验证码已发送到学号邮箱。'
       : '验证码已发送。'
+    startOTPCooldown(result.cooldownSeconds)
   } catch (error) {
     if (isAdmissionSessionExpiredError(error)) {
       emit('expired')
       return
     }
-    errorMessage.value = readErrorMessage(error, '验证码发送失败。')
+    errorMessage.value = getErrorMessage(error, '验证码发送失败。')
   } finally {
     requestingOTP.value = false
   }
@@ -305,7 +315,7 @@ async function verifyEmailOTP(): Promise<void> {
       emit('expired')
       return
     }
-    errorMessage.value = readErrorMessage(error, '邮箱验证失败。')
+    errorMessage.value = getErrorMessage(error, '邮箱验证失败。')
   } finally {
     submitting.value = false
   }
@@ -371,6 +381,7 @@ watch(
 
 onBeforeUnmount(() => {
   clearAcademicMatchTimer()
+  clearOTPCooldownTimer()
   academicMatchRunID += 1
 })
 
@@ -431,7 +442,7 @@ async function runAcademicMatch(
       return
     }
     academicMatchState.value = 'error'
-    academicMatchMessage.value = readErrorMessage(error, '学籍匹配暂时不可用，请稍后重试。')
+    academicMatchMessage.value = getErrorMessage(error, '学籍匹配暂时不可用，请稍后重试。')
     email.value = ''
   }
 }
@@ -447,6 +458,27 @@ function clearAcademicMatchTimer(): void {
   if (academicMatchTimer === undefined) return
   clearTimeout(academicMatchTimer)
   academicMatchTimer = undefined
+}
+
+function startOTPCooldown(seconds: number): void {
+  clearOTPCooldownTimer()
+  otpCooldownSeconds.value = Number.isFinite(seconds) && seconds > 0
+    ? Math.ceil(seconds)
+    : 60
+  otpCooldownTimer = setInterval(() => {
+    if (otpCooldownSeconds.value <= 1) {
+      otpCooldownSeconds.value = 0
+      clearOTPCooldownTimer()
+      return
+    }
+    otpCooldownSeconds.value -= 1
+  }, 1000)
+}
+
+function clearOTPCooldownTimer(): void {
+  if (otpCooldownTimer === undefined) return
+  clearInterval(otpCooldownTimer)
+  otpCooldownTimer = undefined
 }
 
 function academicRequestBlockedMessage(): string {
@@ -470,9 +502,6 @@ function readControlValue(event: Event): string {
   throw new Error('Admission form event target is invalid')
 }
 
-function readErrorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error && error.message ? error.message : fallback
-}
 </script>
 
 <style scoped>
