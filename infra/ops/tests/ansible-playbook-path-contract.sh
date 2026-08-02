@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 PLAYBOOK_DIR="${REPO_ROOT}/infra/ansible/playbooks"
 DEPLOY_PLAYBOOK="${PLAYBOOK_DIR}/deploy.yml"
+ROLLBACK_PLAYBOOK="${PLAYBOOK_DIR}/rollback.yml"
 ANSIBLE_CONFIG="${REPO_ROOT}/infra/ansible/ansible.cfg"
 ANSIBLE_REQUIREMENTS="${REPO_ROOT}/infra/ansible/requirements.txt"
 CI_WORKFLOW="${REPO_ROOT}/.github/workflows/ci.yml"
@@ -45,6 +46,7 @@ upload_task="$(
 [[ -n "${upload_task}" ]] || fail "missing deploy bundle upload task"
 
 assert_contains "${DEPLOY_PLAYBOOK}" '^  gather_facts: false$'
+assert_contains "${ROLLBACK_PLAYBOOK}" '^  gather_facts: false$'
 grep -Eq '^[[:space:]]+argv:$' <<<"${build_task}" ||
   fail "deploy bundle build must use argv"
 grep -Eq '^[[:space:]]+- "\{\{ playbook_dir \}\}/../../ops/build-deploy-bundle\.sh"$' <<<"${build_task}" ||
@@ -67,6 +69,16 @@ resolved_bundle="$(realpath -m "${PLAYBOOK_DIR}/../../generated/deploy/stuhelper
 [[ -x "${resolved_script}" ]] || fail "resolved deploy bundle script is not executable"
 [[ "${resolved_bundle}" == "${REPO_ROOT}/infra/generated/deploy/stuhelper-deploy-bundle.tar.gz" ]] ||
   fail "playbook upload path does not match the bundle script default: ${resolved_bundle}"
+
+for release_playbook in "${DEPLOY_PLAYBOOK}" "${ROLLBACK_PLAYBOOK}"; do
+  assert_contains "${release_playbook}" "lookup\('env', 'REGISTRY_PULL_TOKEN'\)"
+  assert_contains "${release_playbook}" "lookup\('env', 'REGISTRY_USERNAME'\)"
+  assert_contains "${release_playbook}" 'stdin: "\{\{ registry_pull_token \}\}\\n"'
+  assert_contains "${release_playbook}" '^      no_log: true$'
+  assert_contains "${release_playbook}" 'CI_REGISTRY_USERNAME: "\{\{ registry_username \}\}"'
+  assert_contains "${release_playbook}" 'remote-ci-release\.sh (deploy|rollback)'
+  assert_not_contains "${release_playbook}" 'remote-prod-(deploy|rollback)\.sh'
+done
 
 assert_contains "${ANSIBLE_REQUIREMENTS}" '^ansible-core==2\.20\.7$'
 assert_contains "${ANSIBLE_CONFIG}" '^stdout_callback = default$'

@@ -1,17 +1,33 @@
 ---
 - name: Roll back StuHelper release
   hosts: stuhelper
+  gather_facts: false
   vars:
     deploy_app_dir: "{{ deploy_app_dir | default('/opt/stuhelper') }}"
     rollback_tag: "{{ lookup('env', 'ROLLBACK_TAG') }}"
+    registry_pull_token: "{{ lookup('env', 'REGISTRY_PULL_TOKEN') }}"
+    registry_username: "{{ lookup('env', 'REGISTRY_USERNAME') }}"
   tasks:
+    - name: Require short-lived registry authentication for remote rollback
+      ansible.builtin.assert:
+        that:
+          - rollback_tag | length > 0
+          - registry_pull_token | length > 0
+          - registry_username | length > 0
+        fail_msg: >-
+          ROLLBACK_TAG / REGISTRY_PULL_TOKEN / REGISTRY_USERNAME must be
+          provided for rollback.yml
+
     - name: Run remote rollback
       ansible.builtin.shell: |
         set -euo pipefail
         cd "{{ deploy_app_dir }}"
-        ./infra/ops/remote-prod-rollback.sh
+        ./infra/ops/remote-ci-release.sh rollback
       args:
         executable: /bin/bash
+        stdin: "{{ registry_pull_token }}\n"
+      no_log: true
       environment:
+        CI_REGISTRY_USERNAME: "{{ registry_username }}"
         TAG: "{{ rollback_tag }}"
         ROLLBACK_TAG: "{{ rollback_tag }}"

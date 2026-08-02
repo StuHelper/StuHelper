@@ -232,6 +232,8 @@ Ansible 入口：
 
 ```bash
 make ansible-bootstrap
+export REGISTRY_USERNAME=<ghcr-user>
+export REGISTRY_PULL_TOKEN=<short-lived-read-packages-token>
 make ansible-deploy-staging
 make ansible-deploy-prod
 ```

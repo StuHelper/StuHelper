@@ -354,6 +354,10 @@ make prod-rollback
 ```bash
 # 项目根目录下运行
 make ansible-bootstrap
+
+# 发布/回滚前提供一次性或短期的 GHCR 只读凭据；不得写进 inventory
+export REGISTRY_USERNAME=<ghcr-user>
+export REGISTRY_PULL_TOKEN=<short-lived-read-packages-token>
 make ansible-deploy-staging
 make ansible-deploy-prod
 make ansible-rollback-staging
@@ -366,6 +370,12 @@ make ansible-rollback-prod
 - `infra/ansible/inventory/production.ini`
 
 仓库里已经给了同目录示例文件，可以直接改。
+
+Ansible release playbook 与 GitHub Actions 使用同一个 `remote-ci-release.sh` 包装器，把
+`REGISTRY_PULL_TOKEN` 作为 stdin 传给远端并设置 `no_log: true`；token 不进入远端 environment、
+inventory、命令参数或持久 Docker config。目标机仍应配置
+`REGISTRY_AUTH_MODE=workflow-token`。控制端应使用可撤销、最小 `read:packages` 且尽可能短期的凭据，
+运行结束立即从当前 shell 清除；不要复用个人日常登录 token。
 
 控制端使用仓库固定的 Ansible Core 版本；建议安装到项目内的忽略目录，避免污染系统 Python：
 

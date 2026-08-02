@@ -76,6 +76,8 @@ Actions 权限、branch ruleset、environment secrets 和回滚约束见 [GitHub
 
 ```bash
 make prod-rollback              # 本地回滚
+export REGISTRY_USERNAME=<ghcr-user>
+export REGISTRY_PULL_TOKEN=<short-lived-read-packages-token>
 make ansible-deploy-staging     # Ansible 发布
 make ansible-rollback-prod      # Ansible 回滚
 ```
