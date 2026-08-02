@@ -280,6 +280,9 @@ case "${database}:${host}" in
   ahostsv4:backup-off-host.example.test)
     printf '198.51.100.42 STREAM %s\n' "${host}"
     ;;
+  ahostsv6:backup-mapped-identity.example.test)
+    printf '::ffff:198.51.100.42 STREAM %s\n' "${host}"
+    ;;
   *) exit 2 ;;
 esac
 DOCKER
@@ -474,6 +477,17 @@ if (
   fail "a backup FQDN resolving to a configured production NAT identity must be rejected"
 fi
 assert_contains "${tmpdir}/off-host-dns-nat-identity.log" 'must not resolve to a configured public/NAT/LB identity'
+
+if (
+  export BACKUP_OBJECT_STORAGE_LOCAL_IDENTITY_CIDRS="::ffff:198.51.100.42/128"
+  export BACKUP_OBJECT_STORAGE_ENDPOINT="https://backup-mapped-identity.example.test"
+  export BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED="true"
+  export BACKUP_OBJECT_STORAGE_DOCKER_NETWORK="contract-backup-network"
+  require_off_host_backup_object_storage
+) >"${tmpdir}/off-host-dns-mapped-nat-identity.log" 2>&1; then
+  fail "an IPv4-mapped production identity must reject the equivalent resolved endpoint address"
+fi
+assert_contains "${tmpdir}/off-host-dns-mapped-nat-identity.log" 'must not resolve to a configured public/NAT/LB identity'
 
 if (
   export BACKUP_OBJECT_STORAGE_ENDPOINT="https://backup-local-container.example.test"

@@ -555,12 +555,20 @@ def normalize(value):
         return value.ipv4_mapped
     return value
 
+def equivalent_addresses(value):
+    normalized = normalize(value)
+    values = {value, normalized}
+    if isinstance(normalized, ipaddress.IPv4Address):
+        values.add(ipaddress.IPv6Address(f"::ffff:{normalized}"))
+    return values
+
 normalized_local_addresses = {normalize(value) for value in local_addresses}
 normalized_local_docker_addresses = {
     normalize(value) for value in local_docker_addresses
 }
 for resolved_address in resolved_addresses:
     normalized_address = normalize(resolved_address)
+    comparable_addresses = equivalent_addresses(resolved_address)
     if (
         normalized_address.is_loopback
         or normalized_address.is_unspecified
@@ -575,9 +583,9 @@ for resolved_address in resolved_addresses:
             "BACKUP_OBJECT_STORAGE_ENDPOINT must not resolve to an address assigned to the production host"
         )
     if any(
-        normalized_address.version == identity.version
-        and normalized_address in identity
+        candidate.version == identity.version and candidate in identity
         for identity in local_identity_networks
+        for candidate in comparable_addresses
     ):
         raise SystemExit(
             "BACKUP_OBJECT_STORAGE_ENDPOINT must not resolve to a configured public/NAT/LB identity of the production host"
