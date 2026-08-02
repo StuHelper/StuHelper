@@ -34,6 +34,9 @@ func validateStatus(status, fallback string) string {
 func (r *Repository) ListAllReviews(ctx context.Context, status string, limit, offset int, schoolIDs []int64) ([]Review, int, error) {
 	ctx = withDBTable(ctx, "reviews")
 	status = validateStatus(status, "all")
+	if schoolIDs != nil && len(schoolIDs) == 0 {
+		return []Review{}, 0, nil
+	}
 
 	var qb strings.Builder
 	qb.WriteString(`

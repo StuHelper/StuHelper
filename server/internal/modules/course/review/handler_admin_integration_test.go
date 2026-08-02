@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/StuHelper/StuHelper/server/internal/pkg/cache"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/capability"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/config"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/middleware"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/response"
@@ -81,6 +82,18 @@ func staticInternalUserID(userID int64) middleware.InternalUserIDResolver {
 	}
 }
 
+func setSectionModeratorAccess(c *gin.Context, userID string, schoolID int64) {
+	roles := []string{"section_moderator"}
+	scopes := map[string][]string{"section_moderator": {reviewModerationSectionID(schoolID)}}
+	snapshot := capability.BuildUserAccessSnapshot(capability.ExpandRoleGrants(roles, scopes))
+	c.Set(middleware.CtxKeyUserID, userID)
+	c.Set(middleware.CtxKeyRoles, roles)
+	c.Set(middleware.CtxKeyScopedRoleGrants, scopes)
+	c.Set(middleware.CtxKeyCapabilities, snapshot.Capabilities)
+	c.Set(middleware.CtxKeyGlobalCapabilities, snapshot.GlobalCapabilities)
+	c.Set(middleware.CtxKeyCapabilityGrants, snapshot.CapabilityGrants)
+}
+
 func withAdminContext(method, target, body string) (*httptest.ResponseRecorder, *gin.Context) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -96,8 +109,14 @@ func withAdminContext(method, target, body string) (*httptest.ResponseRecorder, 
 	}
 	c.Set(middleware.CtxKeyUserID, "admin-user-1")
 	c.Set(middleware.CtxKeyUsername, "admin-root")
-	c.Set(middleware.CtxKeyRoles, []string{"super_admin"})
-	c.Set(middleware.CtxKeyScopedRoleGrants, map[string][]string{})
+	roles := []string{"super_admin"}
+	scopes := map[string][]string{}
+	snapshot := capability.BuildUserAccessSnapshot(capability.ExpandRoleGrants(roles, scopes))
+	c.Set(middleware.CtxKeyRoles, roles)
+	c.Set(middleware.CtxKeyScopedRoleGrants, scopes)
+	c.Set(middleware.CtxKeyCapabilities, snapshot.Capabilities)
+	c.Set(middleware.CtxKeyGlobalCapabilities, snapshot.GlobalCapabilities)
+	c.Set(middleware.CtxKeyCapabilityGrants, snapshot.CapabilityGrants)
 	return w, c
 }
 
@@ -591,6 +610,21 @@ func TestReviewHandler_ReportModerationRespectsScopedRolesAndListScope(t *testin
 		Description:            "学校B举报",
 	})
 	require.NoError(t, err)
+
+	emptyScope := []int64{}
+	reports, total, err := repo.ListReports(ctx, ReportStatusPending, 20, 0, emptyScope)
+	require.NoError(t, err)
+	assert.Empty(t, reports)
+	assert.Zero(t, total)
+	reviews, total, err := repo.ListAllReviews(ctx, StatusAll, 20, 0, emptyScope)
+	require.NoError(t, err)
+	assert.Empty(t, reviews)
+	assert.Zero(t, total)
+	flagged, total, err := repo.ListFlaggedReviews(ctx, 20, 0, emptyScope)
+	require.NoError(t, err)
+	assert.Empty(t, flagged)
+	assert.Zero(t, total)
+
 	authorizer := &selectiveAuthorizationProvider{
 		allowed: map[checkedRelation]bool{
 			{User: "user:777", Relation: reportRelationCanProcess, Object: "report:" + reportA}: true,
@@ -599,8 +633,7 @@ func TestReviewHandler_ReportModerationRespectsScopedRolesAndListScope(t *testin
 	h := newReviewAdminHandlerWithAuthorizer(t, svc, authorizer)
 
 	w, c := withAdminContext(http.MethodGet, "/admin/reports?status=pending", "")
-	c.Set(middleware.CtxKeyRoles, []string{"section_moderator"})
-	c.Set(middleware.CtxKeyScopedRoleGrants, map[string][]string{"section_moderator": {reviewModerationSectionID(4111010006)}})
+	setSectionModeratorAccess(c, "section-moderator", 4111010006)
 	h.ListReports(c)
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 
@@ -617,15 +650,13 @@ func TestReviewHandler_ReportModerationRespectsScopedRolesAndListScope(t *testin
 
 	w, c = withAdminContext(http.MethodPut, "/admin/reports/"+reportA, `{"action":"reject","note":"handled"}`)
 	c.Params = gin.Params{{Key: "reportID", Value: reportA}}
-	c.Set(middleware.CtxKeyRoles, []string{"section_moderator"})
-	c.Set(middleware.CtxKeyScopedRoleGrants, map[string][]string{"section_moderator": {reviewModerationSectionID(4111010006)}})
+	setSectionModeratorAccess(c, "section-moderator", 4111010006)
 	h.ProcessReport(c)
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 
 	w, c = withAdminContext(http.MethodPut, "/admin/reports/"+reportB, `{"action":"reject","note":"handled"}`)
 	c.Params = gin.Params{{Key: "reportID", Value: reportB}}
-	c.Set(middleware.CtxKeyRoles, []string{"section_moderator"})
-	c.Set(middleware.CtxKeyScopedRoleGrants, map[string][]string{"section_moderator": {reviewModerationSectionID(4111010006)}})
+	setSectionModeratorAccess(c, "section-moderator", 4111010006)
 	h.ProcessReport(c)
 	require.Equal(t, http.StatusForbidden, w.Code, w.Body.String())
 }
