@@ -28,7 +28,7 @@ bash -n "${CUTOVER_SCRIPT}"
 
 assert_contains "${CUTOVER_SCRIPT}" '^load_env$'
 assert_contains "${CUTOVER_SCRIPT}" '^source_casdoor_bootstrap_env$'
-assert_contains "${CUTOVER_SCRIPT}" 'source_env_file "\$\{file\}"'
+assert_contains "${CUTOVER_SCRIPT}" 'source_casdoor_bootstrap_env_file "\$\{file\}"'
 if grep -qF 'source "${file}"' "${CUTOVER_SCRIPT}"; then
   fail "authorization cutover must not raw-source the Casdoor bootstrap credential file"
 fi

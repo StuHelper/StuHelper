@@ -64,7 +64,7 @@ source_casdoor_bootstrap_env() {
     *) file="$(dirname "${ENV_FILE}")/${CASDOOR_BOOTSTRAP_ENV_FILE}" ;;
   esac
   if [[ -f "${file}" ]]; then
-    source_env_file "${file}"
+    source_casdoor_bootstrap_env_file "${file}"
   fi
 }
 
