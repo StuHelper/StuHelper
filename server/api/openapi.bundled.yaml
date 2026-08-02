@@ -3740,6 +3740,8 @@ paths:
                         required:
                           - list
                           - total
+                          - page
+                          - pageSize
                         properties:
                           list:
                             type: array
@@ -3747,6 +3749,12 @@ paths:
                               $ref: '#/components/schemas/Review'
                           total:
                             type: integer
+                          page:
+                            type: integer
+                            minimum: 1
+                          pageSize:
+                            type: integer
+                            minimum: 1
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '500':
@@ -3796,6 +3804,8 @@ paths:
                         required:
                           - list
                           - total
+                          - page
+                          - pageSize
                         properties:
                           list:
                             type: array
@@ -3803,6 +3813,12 @@ paths:
                               $ref: '#/components/schemas/Review'
                           total:
                             type: integer
+                          page:
+                            type: integer
+                            minimum: 1
+                          pageSize:
+                            type: integer
+                            minimum: 1
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '500':
@@ -3868,6 +3884,8 @@ paths:
                         required:
                           - list
                           - total
+                          - page
+                          - pageSize
                         properties:
                           list:
                             type: array
@@ -3875,6 +3893,12 @@ paths:
                               $ref: '#/components/schemas/Review'
                           total:
                             type: integer
+                          page:
+                            type: integer
+                            minimum: 1
+                          pageSize:
+                            type: integer
+                            minimum: 1
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '429':
@@ -3936,6 +3960,8 @@ paths:
                           required:
                             - list
                             - total
+                            - page
+                            - pageSize
                           properties:
                             list:
                               type: array
@@ -3943,6 +3969,12 @@ paths:
                                 $ref: '#/components/schemas/Review'
                             total:
                               type: integer
+                            page:
+                              type: integer
+                              minimum: 1
+                            pageSize:
+                              type: integer
+                              minimum: 1
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '429':

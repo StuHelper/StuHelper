@@ -8523,6 +8523,8 @@ export interface operations {
                         data: {
                             list: components["schemas"]["Review"][];
                             total: number;
+                            page: number;
+                            pageSize: number;
                         };
                     };
                 };
@@ -8558,6 +8560,8 @@ export interface operations {
                         data: {
                             list: components["schemas"]["Review"][];
                             total: number;
+                            page: number;
+                            pageSize: number;
                         };
                     };
                 };
@@ -8599,6 +8603,8 @@ export interface operations {
                         data: {
                             list: components["schemas"]["Review"][];
                             total: number;
+                            page: number;
+                            pageSize: number;
                         };
                     };
                 };
@@ -8635,6 +8641,8 @@ export interface operations {
                             [key: string]: {
                                 list: components["schemas"]["Review"][];
                                 total: number;
+                                page: number;
+                                pageSize: number;
                             };
                         };
                     };

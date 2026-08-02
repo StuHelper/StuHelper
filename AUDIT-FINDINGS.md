@@ -227,7 +227,7 @@ Required 与 Go/JavaScript CodeQL。bypass actor 只允许 GitHub 用户 `Xaurya
 | R-14 | `implemented`：删除未启用且会与现行 Dependabot 更新策略形成双重权威的 `renovate.json`；依赖更新继续由 `.github/dependabot.yml` 单一治理。本条所在提交。 |
 | R-15 | `implemented`：`IdentityPhotoUploadResult` 收敛为 Handler 实际且唯一返回的 `key`，删除永不返回的 `rejectionReason` / `createdAt` / `updatedAt` 可选字段，避免生成客户端承诺虚假能力。本条所在提交。 |
 | R-16 | 条件性：真实 academics connector 上线前再做 batching |
-| R-17 | P3：review list page/pageSize 契约 |
+| R-17 | `implemented`：四类 review list/grouped response 均在 OpenAPI 中把运行时已返回的 `page` / `pageSize` 声明为必填正整数；生成 Go/TS 契约不再把分页元数据隐藏成额外属性。本条所在提交。 |
 
 ### 第二轮长尾（17 个唯一根因）
 
