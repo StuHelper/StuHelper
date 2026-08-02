@@ -7,9 +7,21 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 
 	"github.com/StuHelper/StuHelper/server/internal/testutil/routeassert"
 )
+
+type admissionOpenAPIOperation struct {
+	Security  *[]map[string][]string `yaml:"security"`
+	Responses map[string]any         `yaml:"responses"`
+}
+
+type admissionOpenAPIPath struct {
+	Get  *admissionOpenAPIOperation `yaml:"get"`
+	Post *admissionOpenAPIOperation `yaml:"post"`
+}
 
 func TestAdmissionRoutes(t *testing.T) {
 	gin.SetMode(gin.TestMode)
@@ -42,6 +54,37 @@ func TestAdmissionErrorCodes(t *testing.T) {
 	assertSchemaContains(t, schema, "admission.token_expired")
 	assertSchemaContains(t, schema, "admission.token_not_found")
 	assertSchemaContains(t, schema, "admission.session_not_found")
+}
+
+func TestAdmissionOpenAPISecurityContract(t *testing.T) {
+	raw, err := os.ReadFile("../../../api/paths/admission.yaml")
+	require.NoError(t, err)
+
+	paths := map[string]admissionOpenAPIPath{}
+	require.NoError(t, yaml.Unmarshal(raw, &paths))
+
+	anonymousOperations := []*admissionOpenAPIOperation{
+		paths["/api/v1/admission/freshman/mobile-camera-handoffs/{token}"].Get,
+		paths["/api/v1/admission/freshman/mobile-camera-handoffs/{token}/camera-capture"].Post,
+		paths["/api/v1/admission/freshman/mobile-camera-handoffs/{token}/continue"].Post,
+	}
+	for _, operation := range anonymousOperations {
+		require.NotNil(t, operation)
+		require.NotNil(t, operation.Security, "token handoff operations must override global authentication")
+		require.Empty(t, *operation.Security)
+	}
+
+	authenticatedOperations := []*admissionOpenAPIOperation{
+		paths["/api/v1/admission/school-sso/{schoolCode}/login"].Get,
+		paths["/api/v1/admission/school-sso/{schoolCode}/callback"].Get,
+	}
+	for _, operation := range authenticatedOperations {
+		require.NotNil(t, operation)
+		require.Nil(t, operation.Security, "school SSO operations must inherit global authentication")
+		for _, status := range []string{"400", "401", "403", "404", "409", "503"} {
+			require.Contains(t, operation.Responses, status)
+		}
+	}
 }
 
 func assertSchemaContains(t *testing.T, schema string, code string) {

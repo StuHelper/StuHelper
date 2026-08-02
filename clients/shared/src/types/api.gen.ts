@@ -10936,6 +10936,11 @@ export interface operations {
                 content?: never;
             };
             400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     completeAdmissionSchoolSSO: {
@@ -10961,6 +10966,9 @@ export interface operations {
             };
             400: components["responses"]["ErrorResponse"];
             401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
             503: components["responses"]["ErrorResponse"];
         };
     };
