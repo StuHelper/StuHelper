@@ -130,23 +130,38 @@ for attempt in $(seq 1 "${max_attempts}"); do
 done
 
 if [[ "${environment}" == "production" && "${require_staging_success}" == "true" ]]; then
-  deployments="$(
-    gh api "repos/${repository}/deployments?sha=${target_sha}&environment=staging&per_page=100"
-  )" || fail "unable to read staging deployments for ${target_sha}"
-  staging_deployment_id="$(
-    jq -er 'sort_by(.id) | last | .id' <<<"${deployments}" 2>/dev/null || true
-  )"
-  [[ -n "${staging_deployment_id}" ]] ||
-    fail "production requires a successful staging deployment of the same commit"
+  for attempt in $(seq 1 "${max_attempts}"); do
+    deployments="$(
+      gh api "repos/${repository}/deployments?sha=${target_sha}&environment=staging&per_page=100"
+    )" || fail "unable to read staging deployments for ${target_sha}"
+    staging_deployment_id="$(
+      jq -er 'sort_by(.id) | last | .id' <<<"${deployments}" 2>/dev/null || true
+    )"
+    staging_state=""
+    if [[ -n "${staging_deployment_id}" ]]; then
+      deployment_statuses="$(
+        gh api "repos/${repository}/deployments/${staging_deployment_id}/statuses?per_page=100"
+      )" || fail "unable to read staging deployment status"
+      staging_state="$(
+        jq -er 'sort_by(.id) | last | .state' <<<"${deployment_statuses}" 2>/dev/null || true
+      )"
+    fi
 
-  deployment_statuses="$(
-    gh api "repos/${repository}/deployments/${staging_deployment_id}/statuses?per_page=100"
-  )" || fail "unable to read staging deployment status"
-  staging_state="$(
-    jq -er 'sort_by(.id) | last | .state' <<<"${deployment_statuses}" 2>/dev/null || true
-  )"
-  [[ "${staging_state}" == "success" ]] ||
-    fail "latest staging deployment for ${target_sha} is ${staging_state:-missing}, not success"
+    case "${staging_state}" in
+      success)
+        break
+        ;;
+      error | failure | inactive)
+        fail "latest staging deployment for ${target_sha} is ${staging_state}, not success"
+        ;;
+    esac
+    if ((attempt == max_attempts)); then
+      fail "production requires a successful staging deployment of the same commit; latest state is ${staging_state:-missing}"
+    fi
+    printf '[github-release] waiting for same-SHA staging success (%s/%s): %s\n' \
+      "${attempt}" "${max_attempts}" "${staging_state:-missing}"
+    sleep "${poll_seconds}"
+  done
 fi
 
 printf '[github-release] branch head, required checks, and promotion policy verified for %s\n' \
