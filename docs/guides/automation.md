@@ -228,7 +228,8 @@ Pull Request、`develop` 和 `main` push 会触发 `.github/workflows/ci.yml`。
 - npm/Yarn 依赖审计、Semgrep、CodeQL、完整 Git 历史 Gitleaks；
 - 应用候选镜像的 `HIGH` / `CRITICAL` Trivy 门禁，以及 22 个受管运行时镜像额外 `UNKNOWN` 策略、限时例外和 VEX 校验。
 
-受信任的 `develop` / `main` push 只有在 `CI / Required` 成功后，才调用
+受信任的 `develop` / `main` push 只有在 `CI / Required` 和两项 CodeQL 都成功、提交仍是实时 branch
+head 后，才调用
 `.github/workflows/publish-images.yml`：
 
 1. 使用完整 commit SHA 构建 backend / frontend / admin；
@@ -238,18 +239,26 @@ Pull Request、`develop` 和 `main` push 会触发 `.github/workflows/ci.yml`。
    Actions evidence 保留 30 天；
 5. 更新仅供人类识别的 `develop-latest` 或 `latest` alias。
 
-`.github/workflows/deploy.yml` 同时支持手工晋级和由 `main` CI 调用 staging。Forward Deploy 不接受
+`.github/workflows/deploy.yml` 同时支持手工晋级，以及由 `main` CI 依次调用 staging / production。
+Forward Deploy 不接受
 人工 commit SHA；候选固定为当前 workflow ref 的 `github.sha`。工作流先在不绑定 environment、
 不读取部署 secrets 的 job 中验证：实时 branch head、`Required`、Go 与 JavaScript/TypeScript
 CodeQL、镜像所属仓库、签发工作流、源分支、源提交和 digest。验证通过后才进入 environment，
-通过固定 SSH host key 上传带 SHA-256 传输校验的唯一 bundle，在远端执行
+审批完成后、任何 SSH 前再次校验实时 branch head、checks 和 staging gate，再通过固定 SSH host
+key 上传带 SHA-256 传输校验的唯一 bundle，在远端执行
 `infra/ops/remote-preflight.sh`、`infra/ops/remote-prod-deploy.sh`、业务 smoke 和严格可观测性 smoke。
 
 仓库变量 `STAGING_AUTO_DEPLOY_ENABLED=true` 时，`main` 的 CI 和三个镜像发布成功后自动部署同一
-SHA 到 staging；默认保持关闭，直到隔离 staging 和 secrets 就绪。production 必须由受保护
-environment 的唯一 reviewer `Xauryan` 审批，并默认要求同一 SHA 的最新 staging deployment
-成功。事故 break-glass 只能显式选择 `skip_staging_gate=true`、填写足够的事故上下文并留下
-production approval；它不绕过 checks、provenance、digest 或分支校验。
+SHA 到 staging；再设置 `PRODUCTION_AUTO_PROMOTION_ENABLED=true` 后，staging 成功会自动创建同
+SHA production deployment 并等待审批，批准后才执行部署。两个开关默认保持关闭，直到隔离
+staging、production 专用部署身份和环境 secrets 就绪。production 必须由受保护 environment 的唯一
+reviewer `Xauryan` 审批，并默认要求同一 SHA 的最新 staging deployment 成功。事故 break-glass
+只能通过手工 `Deploy` 显式选择 `skip_staging_gate=true`、填写足够的事故上下文并留下 production
+approval；它不绕过 checks、provenance、digest 或分支校验。
+
+PR 的旧 run 会在新 push 后自动取消；`develop` / `main` 的可信 push 使用独立 run，不会相互取消，
+也不会让旧 production approval 阻塞新 head 的 CI。registry mutation 全局串行，staging / production
+mutation 分环境串行。若分支在排队或等待 environment 审批期间前移，部署前二次校验会拒绝旧候选。
 
 生产分支真正部署到线上之前，打包阶段和 `remote-preflight.sh` 会共同避免：
 

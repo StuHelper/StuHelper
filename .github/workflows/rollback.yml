@@ -147,6 +147,15 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      - name: Revalidate the rollback controller after environment approval
+        env:
+          DEPLOY_REASON: ${{ inputs.reason }}
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_REF: ${{ github.ref }}
+          TARGET_SHA: ${{ github.sha }}
+          WORKFLOW_SHA: ${{ fromJSON(toJSON(job)).workflow_sha }}
+        run: ./infra/ops/verify-github-release.sh
+
       - name: Validate deployment inputs
         run: ./infra/ops/validate-ci-deploy-inputs.sh
 

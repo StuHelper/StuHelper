@@ -16,12 +16,41 @@ permissions:
   contents: read
 
 concurrency:
-  group: publish-images-${{ inputs.commit_sha }}
+  # Serialize every registry mutation so immutable tags and human-readable
+  # aliases cannot race across develop/main or rapid consecutive pushes.
+  group: publish-images
   cancel-in-progress: false
 
 jobs:
+  verify-release:
+    name: Verify trusted release checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      checks: read
+      contents: read
+    env:
+      DEPLOY_ENVIRONMENT: staging
+      DEPLOY_REASON: Trusted image publication after CI and CodeQL verification
+      SOURCE_REF: ${{ github.ref }}
+      TARGET_SHA: ${{ inputs.commit_sha }}
+    steps:
+      - name: Check out the trusted publication controller
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ fromJSON(toJSON(job)).workflow_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Require the live branch head, Required, and both CodeQL checks
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WORKFLOW_SHA: ${{ fromJSON(toJSON(job)).workflow_sha }}
+        run: ./infra/ops/verify-github-release.sh
+
   publish:
     name: ${{ matrix.name }}
+    needs: verify-release
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:

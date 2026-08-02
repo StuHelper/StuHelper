@@ -16,8 +16,14 @@ permissions:
   pull-requests: read # Required by paths-filter for fork PR metadata
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Collapse only superseded PR runs. Trusted pushes use a unique group so a
+  # pending production approval never blocks CI for a newer branch head.
+  group: >-
+    ${{ github.workflow }}-${{
+    github.event_name == 'pull_request' && github.ref || github.run_id }}
+  # Trusted-branch runs may already be publishing or deploying. Never interrupt
+  # those remote mutations; stale candidates fail the deployment revalidation.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   changes:
@@ -752,6 +758,7 @@ jobs:
       github.event_name == 'push' &&
       (github.ref_name == 'develop' || github.ref_name == 'main')
     permissions:
+      checks: read # Publish only after Required and both CodeQL jobs succeed
       contents: read
       packages: write # Publish scanned images after every CI gate succeeds
       attestations: write # Attach provenance to each immutable image digest
@@ -784,3 +791,25 @@ jobs:
     with:
       target: staging
       reason: Automated staging promotion after trusted main CI and image publication
+
+  promote-production:
+    name: Promote to production
+    needs:
+      - promote-staging
+    if: >-
+      always() &&
+      !cancelled() &&
+      needs.promote-staging.result == 'success' &&
+      github.event_name == 'push' &&
+      github.ref_name == 'main' &&
+      vars.STAGING_AUTO_DEPLOY_ENABLED == 'true' &&
+      vars.PRODUCTION_AUTO_PROMOTION_ENABLED == 'true'
+    permissions:
+      attestations: read
+      checks: read
+      contents: read
+      packages: read
+    uses: ./.github/workflows/deploy.yml
+    with:
+      target: production
+      reason: Automated production promotion after successful same-SHA staging deployment

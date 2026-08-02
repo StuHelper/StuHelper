@@ -164,6 +164,12 @@ assert_contains "${ROLLBACK_WORKFLOW}" 'checks: read'
 assert_contains "${DEPLOY_WORKFLOW}" 'workflow_call:'
 assert_contains "${DEPLOY_WORKFLOW}" 'verify-github-release\.sh'
 assert_contains "${ROLLBACK_WORKFLOW}" 'verify-github-release\.sh'
+[[ "$(grep -c 'verify-github-release\.sh' "${DEPLOY_WORKFLOW}")" -eq 2 ]] ||
+  fail "deploy workflow must verify before approval and revalidate before SSH"
+[[ "$(grep -c 'verify-github-release\.sh' "${ROLLBACK_WORKFLOW}")" -eq 2 ]] ||
+  fail "rollback workflow must verify before approval and revalidate before SSH"
+assert_contains "${DEPLOY_WORKFLOW}" 'Revalidate the release after environment approval'
+assert_contains "${ROLLBACK_WORKFLOW}" 'Revalidate the rollback controller after environment approval'
 assert_contains "${DEPLOY_WORKFLOW}" 'validate-ci-deploy-inputs\.sh'
 assert_contains "${ROLLBACK_WORKFLOW}" 'validate-ci-deploy-inputs\.sh'
 assert_contains "${DEPLOY_WORKFLOW}" 'resolve-attested-release-images\.sh'
@@ -185,6 +191,11 @@ assert_contains "${ROLLBACK_WORKFLOW}" 'Build the trusted rollback-controller bu
 assert_contains "${ROLLBACK_WORKFLOW}" 'remote-prod-rollback\.sh'
 assert_contains "${ROLLBACK_WORKFLOW}" 'ROLLBACK_REVIEW_ACTOR'
 assert_contains "${ROLLBACK_WORKFLOW}" 'ROLLBACK_REVIEW_REASON_B64'
+assert_contains "${PUBLISH_WORKFLOW}" '^  verify-release:$'
+assert_contains "${PUBLISH_WORKFLOW}" 'name: Verify trusted release checks'
+assert_contains "${PUBLISH_WORKFLOW}" 'verify-github-release\.sh'
+assert_contains "${PUBLISH_WORKFLOW}" '^    needs: verify-release$'
+assert_contains "${PUBLISH_WORKFLOW}" 'checks: read'
 assert_contains "${PUBLISH_WORKFLOW}" 'name: Scan the candidate image'
 assert_contains "${PUBLISH_WORKFLOW}" 'name: Generate the candidate SBOM'
 assert_contains "${PUBLISH_WORKFLOW}" 'format: cyclonedx'
@@ -192,7 +203,7 @@ assert_contains "${PUBLISH_WORKFLOW}" "steps\.existing\.outputs\.found == 'true'
 assert_contains "${PUBLISH_WORKFLOW}" "format\('\{0\}@\{1\}', matrix\.image, steps\.existing\.outputs\.digest\)"
 assert_contains "${PUBLISH_WORKFLOW}" 'sbom-path: sbom-\$\{\{ matrix\.name \}\}\.cdx\.json'
 assert_contains "${PUBLISH_WORKFLOW}" 'name: Upload the SBOM evidence'
-assert_contains "${PUBLISH_WORKFLOW}" 'group: publish-images-\$\{\{ inputs\.commit_sha \}\}'
+assert_contains "${PUBLISH_WORKFLOW}" '^  group: publish-images$'
 assert_contains "${PUBLISH_WORKFLOW}" 'cancel-in-progress: false'
 assert_contains "${PUBLISH_WORKFLOW}" 'SOURCE_DATE_EPOCH: \$\{\{ steps\.build-meta\.outputs\.commit_epoch \}\}'
 assert_contains "${PUBLISH_WORKFLOW}" 'org\.opencontainers\.image\.created=\$\{\{ steps\.build-meta\.outputs\.build_time \}\}'
