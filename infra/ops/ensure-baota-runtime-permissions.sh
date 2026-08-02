@@ -148,6 +148,7 @@ generated_observability_dir="${source_dir}/infra/generated/observability"
 
 chmod_if_exists 755 "${source_dir}/infra"
 chmod_if_exists 755 "${source_dir}/infra/generated"
+chmod_if_exists 755 "${generated_observability_dir}"
 
 if [[ -d "${postgres_tls_dir}" ]]; then
   log "normalizing PostgreSQL TLS permissions: ${postgres_tls_dir}"
