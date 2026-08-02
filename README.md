@@ -68,19 +68,21 @@ make prod-deploy  # 配置校验 → 镜像构建 → 启动 → Smoke Check
 
 ## CI/CD
 
-GitHub Actions 是仓库唯一的 CI/CD 通道：PR 和 `develop` / `main` push 运行按路径裁剪的质量门禁；受信任分支的质量门禁通过后发布带完整 commit SHA 的 GHCR 镜像。staging 与 production 部署使用受保护 GitHub environment 和手工作流，production 必须经过审批。
+GitHub Actions 是仓库唯一的 CI/CD 通道：PR 和 `develop` / `main` push 运行按路径裁剪的质量门禁；受信任分支的质量门禁通过后发布带完整 commit SHA 的 GHCR 镜像。production 使用受保护 GitHub environment 并必须经过审批；staging 暂缓期间可用显式 `direct` 模式，未来可切换为同 SHA staging 后晋级。
 
 质量门禁：Go lint/test/build、OpenAPI lint/drift、gosec、govulncheck、pnpm audit、Trivy、Web/Admin lint/type-check/test/build/Playwright、Koishi 单元 / 启动 / Console Playwright smoke。
 
-Actions 权限、branch ruleset、environment secrets 和回滚约束见 [GitHub 仓库与 Actions 治理](docs/guides/github-migration.md)。仓库不保存真实部署 secrets；真实 staging / production 发布仍须按该文档配置环境秘密并单独验收。
+Actions 权限、branch ruleset、environment secrets 和回滚约束见 [GitHub 仓库与 Actions 治理](docs/guides/github-migration.md)。仓库不保存真实部署 secrets；真实 production 发布仍须按该文档配置环境秘密并单独验收，启用 staging 时必须使用隔离配置。
 
 ```bash
 make prod-rollback              # 本地回滚
+export REGISTRY_USERNAME=<ghcr-user>
+export REGISTRY_PULL_TOKEN=<short-lived-read-packages-token>
 make ansible-deploy-staging     # Ansible 发布
 make ansible-rollback-prod      # Ansible 回滚
 ```
 
-生产主机首次 bootstrap 会安装 PostgreSQL 逻辑备份 / base backup / backup sync 定时任务，并配好 WAL 归档目录、`.deploy/remote.env` 与远端 registry 凭据占位文件。
+生产主机首次 bootstrap 会安装 PostgreSQL 逻辑备份 / base backup / backup sync 定时任务，并配好 WAL 归档目录与 `.deploy/remote.env`；GitHub 自动部署使用按 job 下发且用后即删的短期 GHCR token，不在主机保存个人 PAT。
 
 ## 技术栈
 
