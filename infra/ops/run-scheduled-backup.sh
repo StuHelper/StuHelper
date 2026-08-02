@@ -9,6 +9,14 @@ MODE="${1:-dump}"
 
 load_env_preserving BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED
 require_cmd docker
+protected_bash=(
+  /usr/bin/env
+  --unset=BASH_ENV
+  --unset=ENV
+  /bin/bash
+  --noprofile
+  --norc
+)
 
 case "${BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED:-false}" in
   true) require_off_host_backup_object_storage ;;
@@ -50,12 +58,13 @@ esac
 
 mkdir -p "${backup_dir}"
 BACKUP_MODE="${MODE}" \
+  "${protected_bash[@]}" \
   "${SCRIPT_DIR}/backup-postgres.sh" \
   "${backup_dir}/stuhelper-${timestamp}.${backup_extension}"
 
 # Never delete a local recovery artifact until rclone has confirmed that the
 # complete logical/base/WAL set is present in the independent backup target.
-"${SCRIPT_DIR}/sync-postgres-backups.sh"
+"${protected_bash[@]}" "${SCRIPT_DIR}/sync-postgres-backups.sh"
 
 prune_old_backups "${backup_dir}" "${retention_days}"
 
