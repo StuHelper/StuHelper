@@ -3,7 +3,7 @@ type: reference
 audience: all
 status: current
 authoritative-source: this file
-last-verified: 2026-08-01
+last-verified: 2026-08-02
 ---
 
 # 架构决策记录
@@ -24,3 +24,4 @@ last-verified: 2026-08-01
 | [0007](0007-casdoor-as-sole-identity-provider.md) | Casdoor 作为唯一身份提供方，不采用 Zitadel / Keycloak | 已采纳 | 2026-05-01 |
 | [0008](0008-postgresql-authorization-control-plane.md) | PostgreSQL 授权控制面与 OpenFGA 运行时判定面 | 已采纳；部分由 0009 修订 | 2026-07-31 |
 | [0009](0009-casdoor-organization-admin-super-admin-authority.md) | Casdoor 组织管理员作为 StuHelper `super_admin` 权威 | 已采纳 | 2026-08-01 |
+| [0010](0010-build-once-and-controlled-environment-promotion.md) | 构建一次、同制品晋级与受控生产发布 | 已采纳 | 2026-08-02 |
