@@ -10,6 +10,12 @@ MODE="${1:-dump}"
 load_env_preserving BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED
 require_cmd docker
 
+case "${BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED:-false}" in
+  true) require_off_host_backup_object_storage ;;
+  false|"") ;;
+  *) die "BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED must be true or false" ;;
+esac
+
 [[ -n "${BACKUP_DATABASE_URL:-}" ]] || die "BACKUP_DATABASE_URL is required"
 [[ -n "${REPLICATION_DATABASE_URL:-}" ]] || die "REPLICATION_DATABASE_URL is required"
 
