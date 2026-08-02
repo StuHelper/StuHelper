@@ -6137,6 +6137,7 @@ export interface operations {
             400: components["responses"]["ErrorResponse"];
             401: components["responses"]["ErrorResponse"];
             403: components["responses"]["ErrorResponse"];
+            429: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
             503: components["responses"]["ErrorResponse"];
         };
@@ -6283,6 +6284,7 @@ export interface operations {
             400: components["responses"]["ErrorResponse"];
             401: components["responses"]["ErrorResponse"];
             429: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     openPlatformAuthorize: {
@@ -8609,7 +8611,9 @@ export interface operations {
                 };
             };
             400: components["responses"]["ErrorResponse"];
+            429: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     getBatchCourseReviews: {
@@ -8644,7 +8648,9 @@ export interface operations {
                 };
             };
             400: components["responses"]["ErrorResponse"];
+            429: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     postReview: {
@@ -8745,6 +8751,7 @@ export interface operations {
             404: components["responses"]["ErrorResponse"];
             429: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     voteReview: {
@@ -8815,6 +8822,7 @@ export interface operations {
             409: components["responses"]["ErrorResponse"];
             429: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     getReplies: {
@@ -8917,6 +8925,7 @@ export interface operations {
             404: components["responses"]["ErrorResponse"];
             429: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     getReviewStats: {
@@ -10170,7 +10179,9 @@ export interface operations {
             };
             400: components["responses"]["ErrorResponse"];
             401: components["responses"]["ErrorResponse"];
+            429: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     getUserQQBinding: {
@@ -10274,7 +10285,9 @@ export interface operations {
             401: components["responses"]["ErrorResponse"];
             403: components["responses"]["ErrorResponse"];
             409: components["responses"]["ErrorResponse"];
+            429: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     matchStudentEmailAcademicStudent: {
@@ -10304,6 +10317,7 @@ export interface operations {
             400: components["responses"]["ErrorResponse"];
             401: components["responses"]["ErrorResponse"];
             409: components["responses"]["ErrorResponse"];
+            429: components["responses"]["ErrorResponse"];
             503: components["responses"]["ErrorResponse"];
         };
     };
@@ -10402,6 +10416,7 @@ export interface operations {
             401: components["responses"]["ErrorResponse"];
             429: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     bindPhone: {

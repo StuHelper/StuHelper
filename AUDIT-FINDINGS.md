@@ -220,7 +220,7 @@ Required 与 Go/JavaScript CodeQL。bypass actor 只允许 GitHub 用户 `Xaurya
 | R-3 | P3 UX：签名图片 URL 过期后的刷新/禁用 |
 | R-4 | 可选：区分 array 的 payload guard 去重 |
 | R-5 | `implemented`：错误码参考明确八位码与六个已发布 `admission.*` 兼容码的双真源边界，禁止继续扩展 dotted code；补齐 OpenAPI 遗漏的 `member_blacklisted` 并以契约测试覆盖全部六项。本条所在提交。 |
-| R-6 | P3：四个限流端点补 429/503 契约 |
+| R-6 | `implemented`：复核所有 19 个挂载 endpoint/user/progressive limiter 的操作，不只修原报告少算的四项；每个 OpenAPI operation 现在都声明 limiter 可达的 429 与 Redis fail-closed 503，并由生成契约测试统一锁定。本条所在提交。 |
 | R-7 | P4 hygiene：删除无业务语义的 `capturedAt`，不持久化客户端时间 |
 | R-11 | P3 先测：outbox 固定 dedupe row lock-wait |
 | R-13 | P3 hardening：Oracle expected identity 与 grant evidence |
