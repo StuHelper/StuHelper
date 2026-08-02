@@ -78,13 +78,16 @@ func TestReviewHandler_UserInteractionSuccessPaths(t *testing.T) {
 	w, c = withUserContext(http.MethodDelete, "/courses/1/favorites", "", selfUserID)
 	c.Params = gin.Params{{Key: "courseID", Value: strconv.FormatInt(courseID, 10)}}
 	h.RemoveFavorite(c)
-	assert.Equal(t, http.StatusOK, w.Code)
+	c.Writer.WriteHeaderNow()
+	assert.Equal(t, http.StatusNoContent, w.Code)
+	assert.Empty(t, w.Body.String())
 
 	// user reviews list
 	w, c = withUserContext(http.MethodGet, "/user/reviews", "", selfUserID)
 	h.GetUserReviews(c)
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), reviewID)
+	assert.Contains(t, w.Body.String(), `"isOwner":true`)
 
 	// latest reviews
 	w, c = withUserContext(http.MethodGet, "/reviews/latest", "", selfUserID)
@@ -92,9 +95,21 @@ func TestReviewHandler_UserInteractionSuccessPaths(t *testing.T) {
 	h.GetLatestReviews(c)
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), reviewID)
+	assert.Contains(t, w.Body.String(), `"isOwner":true`)
 
-	// report review
+	// self-reporting is rejected at the service boundary
 	w, c = withUserContext(http.MethodPost, "/reviews/report", `{"reason":"spam","description":"需要处理"}`, selfUserID)
+	c.Params = gin.Params{{Key: "reviewID", Value: reviewID}}
+	h.ReportReview(c)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "you cannot report your own review")
+
+	// another user can still report the published review
+	reporterUserID := "user-reporter-1"
+	reporterHash, err := httputil.HashUserID(reporterUserID)
+	require.NoError(t, err)
+	seedUser(t, fixture, seedUserParams{CasdoorSubject: reporterUserID, UserHash: reporterHash})
+	w, c = withUserContext(http.MethodPost, "/reviews/report", `{"reason":"spam","description":"需要处理"}`, reporterUserID)
 	c.Params = gin.Params{{Key: "reviewID", Value: reviewID}}
 	h.ReportReview(c)
 	assert.Equal(t, http.StatusOK, w.Code)
@@ -117,6 +132,7 @@ func TestReviewHandler_UserInteractionSuccessPaths(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), reviewID)
 	assert.Contains(t, w.Body.String(), `"userVote":"like"`)
+	assert.Contains(t, w.Body.String(), `"isOwner":true`)
 
 	w, c = withUserContext(http.MethodGet, "/reviews/latest", "", selfUserID)
 	c.Set(middleware.CtxKeyCapabilities, []string{"review.list.full"})

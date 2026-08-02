@@ -29,9 +29,20 @@ type AdminAuthorizers struct {
 	DashboardView        gin.HandlerFunc
 	LogsView             gin.HandlerFunc
 	ReviewsManage        gin.HandlerFunc
+	ReviewsModerate      gin.HandlerFunc
+	ReviewsEditContent   gin.HandlerFunc
+	ReportsManage        gin.HandlerFunc
 	TeachersManage       gin.HandlerFunc
 	SensitiveWordsManage gin.HandlerFunc
 	StepUpVerified       StepUpVerifier
+}
+
+// AdminRouteSecurity separates the authentication-strength policy for the
+// read-only dashboard from the short-lived step-up gate on privileged routes.
+// Capability authorizers remain route-specific and are configured separately.
+type AdminRouteSecurity struct {
+	Dashboard  []gin.HandlerFunc
+	Privileged []gin.HandlerFunc
 }
 
 // Handler 评课社区处理器
@@ -79,8 +90,9 @@ func (h *Handler) RegisterRoutes(
 	r *gin.RouterGroup,
 	authMiddleware gin.HandlerFunc,
 	optionalAuthMiddleware gin.HandlerFunc,
-	adminMiddlewares ...gin.HandlerFunc,
+	adminRouteSecurity ...AdminRouteSecurity,
 ) {
+	security := resolveAdminRouteSecurity(adminRouteSecurity)
 	// 评分维度配置
 	r.GET("/rating-dimensions", h.GetRatingDimensions)
 
@@ -151,26 +163,27 @@ func (h *Handler) RegisterRoutes(
 
 	// 管理员路由组
 	admin := r.Group("/admin")
+	statsMiddlewares := append([]gin.HandlerFunc{authMiddleware}, security.Dashboard...)
+	statsMiddlewares = httputil.AppendRouteMiddlewares(
+		statsMiddlewares,
+		h.adminAuthorizers.Entry,
+		h.adminAuthorizers.DashboardView,
+	)
 	admin.GET(
 		"/stats",
-		httputil.RouteHandlers(
-			h.GetAdminStats,
-			authMiddleware,
-			h.adminAuthorizers.Entry,
-			h.adminAuthorizers.DashboardView,
-		)...,
+		httputil.RouteHandlers(h.GetAdminStats, statsMiddlewares...)...,
 	)
 
-	adminRouteMiddlewares := append([]gin.HandlerFunc{authMiddleware}, adminMiddlewares...)
+	adminRouteMiddlewares := append([]gin.HandlerFunc{authMiddleware}, security.Privileged...)
 	adminRouteMiddlewares = httputil.AppendRouteMiddlewares(adminRouteMiddlewares, h.adminAuthorizers.Entry)
 	admin.Use(adminRouteMiddlewares...)
 	{
-		admin.GET("/reports", requireModerationRole(), h.ListReports)
-		admin.PUT("/reports/:reportID", requireModerationRole(), h.ProcessReport)
-		admin.GET("/reviews", requireModerationRole(), h.ListAllReviews)
-		admin.PUT("/reviews/:reviewID", requireModerationRole(), h.AdminUpdateReview)
-		admin.POST("/reviews/:reviewID/edit", requireSchoolAdminRole(), h.AdminEditReviewContent)
-		admin.PATCH("/reviews/batch", requireModerationRole(), h.BatchUpdateReviews)
+		admin.GET("/reports", httputil.RouteHandlers(h.ListReports, h.adminAuthorizers.ReportsManage)...)
+		admin.PUT("/reports/:reportID", httputil.RouteHandlers(h.ProcessReport, h.adminAuthorizers.ReportsManage)...)
+		admin.GET("/reviews", httputil.RouteHandlers(h.ListAllReviews, h.adminAuthorizers.ReviewsModerate)...)
+		admin.PUT("/reviews/:reviewID", httputil.RouteHandlers(h.AdminUpdateReview, h.adminAuthorizers.ReviewsModerate)...)
+		admin.POST("/reviews/:reviewID/edit", httputil.RouteHandlers(h.AdminEditReviewContent, h.adminAuthorizers.ReviewsEditContent)...)
+		admin.PATCH("/reviews/batch", httputil.RouteHandlers(h.BatchUpdateReviews, h.adminAuthorizers.ReviewsModerate)...)
 		admin.GET("/logs", httputil.RouteHandlers(h.GetOperationLogs, h.adminAuthorizers.LogsView)...)
 		admin.GET("/export", httputil.RouteHandlers(h.ExportReviews, h.adminAuthorizers.ReviewsManage)...)
 
@@ -184,8 +197,19 @@ func (h *Handler) RegisterRoutes(
 		admin.PUT("/sensitive-words/:sensitiveWordID", httputil.RouteHandlers(h.UpdateSensitiveWord, h.adminAuthorizers.SensitiveWordsManage)...)
 		admin.DELETE("/sensitive-words/:sensitiveWordID", httputil.RouteHandlers(h.DeleteSensitiveWord, h.adminAuthorizers.SensitiveWordsManage)...)
 
-		admin.GET("/content-flags", requireModerationRole(), h.ListFlaggedReviews)
-		admin.PUT("/content-flags/:reviewID/clear", requireModerationRole(), h.ClearContentFlag)
+		admin.GET("/content-flags", httputil.RouteHandlers(h.ListFlaggedReviews, h.adminAuthorizers.ReviewsModerate)...)
+		admin.PUT("/content-flags/:reviewID/clear", httputil.RouteHandlers(h.ClearContentFlag, h.adminAuthorizers.ReviewsModerate)...)
+	}
+}
+
+func resolveAdminRouteSecurity(configs []AdminRouteSecurity) AdminRouteSecurity {
+	switch len(configs) {
+	case 0:
+		return AdminRouteSecurity{}
+	case 1:
+		return configs[0]
+	default:
+		panic("review.RegisterRoutes: at most one admin route security config is allowed")
 	}
 }
 

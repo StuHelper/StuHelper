@@ -827,6 +827,7 @@ func validateExternalOracleStudentSource(cfg ExternalOracleStudentSourceConfig, 
 		"EXTERNAL_STUDENT_SOURCE_ORACLE_HOST":                cfg.Host,
 		"EXTERNAL_STUDENT_SOURCE_ORACLE_SERVICE_NAME":        cfg.ServiceName,
 		"EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME":            cfg.Username,
+		"EXTERNAL_STUDENT_SOURCE_ORACLE_READONLY_USERNAME":   cfg.ExpectedUsername,
 		"EXTERNAL_STUDENT_SOURCE_ORACLE_PASSWORD":            cfg.Password,
 		"EXTERNAL_STUDENT_SOURCE_ORACLE_SCHEMA":              cfg.Schema,
 		"EXTERNAL_STUDENT_SOURCE_ORACLE_TABLE":               cfg.Table,
@@ -840,6 +841,13 @@ func validateExternalOracleStudentSource(cfg ExternalOracleStudentSourceConfig, 
 	}
 	if isDisallowedExternalOracleRuntimeUsername(cfg.Username) {
 		errs = append(errs, "EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME must be a dedicated non-administrative account")
+	}
+	if strings.TrimSpace(cfg.ExpectedUsername) != "" && !isSafeExternalOracleIdentifier(cfg.ExpectedUsername) {
+		errs = append(errs, "EXTERNAL_STUDENT_SOURCE_ORACLE_READONLY_USERNAME must be a safe Oracle identifier")
+	}
+	if strings.TrimSpace(cfg.Username) != "" && strings.TrimSpace(cfg.ExpectedUsername) != "" &&
+		!strings.EqualFold(strings.TrimSpace(cfg.Username), strings.TrimSpace(cfg.ExpectedUsername)) {
+		errs = append(errs, "EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME must match EXTERNAL_STUDENT_SOURCE_ORACLE_READONLY_USERNAME")
 	}
 	if strings.EqualFold(strings.TrimSpace(cfg.Username), strings.TrimSpace(cfg.Schema)) {
 		errs = append(errs, "EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME must not own the source schema")
@@ -897,6 +905,26 @@ func isDisallowedExternalOracleRuntimeUsername(username string) bool {
 	default:
 		return false
 	}
+}
+
+func isSafeExternalOracleIdentifier(value string) bool {
+	value = strings.TrimSpace(value)
+	if value == "" || len(value) > 128 {
+		return false
+	}
+	for index, ch := range value {
+		if index == 0 {
+			if (ch < 'A' || ch > 'Z') && (ch < 'a' || ch > 'z') {
+				return false
+			}
+			continue
+		}
+		if (ch < 'A' || ch > 'Z') && (ch < 'a' || ch > 'z') &&
+			(ch < '0' || ch > '9') && ch != '_' {
+			return false
+		}
+	}
+	return true
 }
 
 func isTenDigitCode(value string) bool {

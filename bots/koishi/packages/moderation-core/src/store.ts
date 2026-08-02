@@ -2,8 +2,6 @@ import { randomUUID } from 'node:crypto'
 
 import { Context } from 'koishi'
 
-import { GUARD_MEMBER_TABLE } from '@stuhelper/koishi-shared'
-
 import {
   MODERATION_COMMAND_POLICY_TABLE,
   MODERATION_EVENT_TABLE,
@@ -58,8 +56,10 @@ export class ModerationStore {
   }
 
   async listRecentEvents(limit = 20) {
-    const records = await this.ctx.database.get(MODERATION_EVENT_TABLE, {})
-    return records.sort(sortByCreatedDesc).slice(0, limit)
+    return this.ctx.database.get(MODERATION_EVENT_TABLE, {}, {
+      sort: { createdAt: 'desc' },
+      limit,
+    }) as Promise<ModerationEventRecord[]>
   }
 
   async saveMessage(record: MessageLedgerRecord) {
@@ -356,12 +356,11 @@ export class ModerationStore {
   }
 
   async getOverview(): Promise<ModerationOverview> {
-    const [events, reviews, reports, warnings, guards] = await Promise.all([
+    const [events, reviews, reports, warnings] = await Promise.all([
       this.listRecentEvents(20),
       this.listPendingReviews(),
       this.listOpenReports(),
       this.listWarningCounters(),
-      this.ctx.database.get(GUARD_MEMBER_TABLE, {}),
     ])
     return {
       pendingReviews: reviews.length,
@@ -375,10 +374,6 @@ export class ModerationStore {
 
 function createGuildScopedID(guildId: string, memberId: string) {
   return `${guildId}:${memberId}`
-}
-
-function sortByCreatedDesc<T extends { createdAt: Date }>(left: T, right: T) {
-  return right.createdAt.getTime() - left.createdAt.getTime()
 }
 
 function omitFields<T extends object, K extends keyof T>(record: T, keys: readonly K[]): Omit<T, K> {

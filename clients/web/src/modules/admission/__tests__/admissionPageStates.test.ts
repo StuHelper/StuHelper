@@ -20,6 +20,7 @@ const mockAuth = vi.hoisted(() => ({
   bootstrapSession: vi.fn(),
   fetchUser: vi.fn(),
   isAuthenticated: true,
+  loading: false,
   login: vi.fn(),
   reauthenticate: vi.fn(),
   signup: vi.fn(),
@@ -84,6 +85,7 @@ describe('AdmissionPage edge states', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockAuth.isAuthenticated = true
+    mockAuth.loading = false
     mockAuth.user = {
       displayName: 'Alice Zhang',
       name: 'alice',
@@ -628,6 +630,31 @@ describe('AdmissionPage edge states', () => {
     expect(mockAuth.bootstrapSession).not.toHaveBeenCalled()
     expect(wrapper.find('[data-state="needsLogin"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('登录 StuHelper')
+  })
+
+  it('keeps admission login single-flight while the redirect is pending', async () => {
+    mockAuth.isAuthenticated = false
+    mockHasStoredSessionHint.mockReturnValue(false)
+    mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce(
+      sessionWithStatus('joined_muted'),
+    )
+    const login = createDeferred<void>()
+    mockAuth.login.mockReturnValueOnce(login.promise)
+
+    const wrapper = await mountAdmissionPage()
+    await settleAdmissionPage(wrapper)
+    const button = wrapper.get('[data-state="needsLogin"] button.primary-button')
+
+    await button.trigger('click')
+    await button.trigger('click')
+
+    expect(mockAuth.login).toHaveBeenCalledTimes(1)
+    expect(mockAuth.login).toHaveBeenCalledWith('http://localhost:3000/verify/ABCD')
+    expect(button.attributes('disabled')).toBeDefined()
+    expect(button.text()).toBe('正在跳转…')
+
+    login.resolve()
+    await flushPromises()
   })
 
   it('refreshes browser session after an admission oauth callback even without a session hint', async () => {

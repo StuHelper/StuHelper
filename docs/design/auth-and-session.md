@@ -3,7 +3,7 @@ type: design
 audience: backend-dev, frontend-dev
 status: current
 authoritative-source: server/internal/modules/auth/ + server/internal/modules/authorization/ + server/internal/pkg/middleware/
-last-verified: 2026-07-31
+last-verified: 2026-08-02
 ---
 
 # 认证与 SSO
@@ -158,6 +158,7 @@ OIDC 用户同步到本地 `users` 表：`casdoor_subject`、`username`、`email
 3. 用户在系统浏览器完成 Casdoor 登录
 4. 回调时后端识别 native state，将 `code` + `state` 通过 deep link（`stuhelper://auth/callback?code=...&state=...`）回传给 App
 5. App 调用 `POST /api/v1/auth/exchange-native`（body: `{code, state}`），后端用保存的 code_verifier 完成 OIDC 交换，返回 JSON token pair + `sessionID`
+6. App 在打开系统浏览器前 best-effort 保存经过 `/pages/` allowlist 校验的登录前目标；交换成功后消费并清理该目标，以 `reLaunch` 回到原页面。存储不可用只降级到个人中心，不得阻断 SSO；失败或重试也必须清除旧目标。
 
 ## 代码入口
 

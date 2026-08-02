@@ -67,3 +67,63 @@ func TestTeacherPublicStatsProjectionTriggerCoalescesAndFencesRefreshes(t *testi
 	require.NoError(t, err)
 	assert.Empty(t, remaining)
 }
+
+func TestTeacherPublicStatsProjectionSingletonWaitIsObservableAndCoalesced(t *testing.T) {
+	fixture := postgresfixture.Start(t)
+	ctx := context.Background()
+
+	departmentID := seedDepartment(t, fixture, 4111010006, "锁等待学院")
+	firstTeacherID := seedTeacher(t, fixture, 4111010006, "锁等待教师一", departmentID)
+	secondTeacherID := seedTeacher(t, fixture, 4111010006, "锁等待教师二", departmentID)
+
+	blocker, err := fixture.Pool.Begin(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = blocker.Rollback(ctx) })
+	_, err = blocker.Exec(ctx, `UPDATE teachers SET name = name WHERE id = $1`, firstTeacherID)
+	require.NoError(t, err)
+
+	const waiterApplicationName = "teacher-stats-lock-wait-test"
+	waiterStarted := make(chan struct{})
+	waiterDone := make(chan error, 1)
+	go func() {
+		waiter, beginErr := fixture.Pool.Begin(ctx)
+		if beginErr != nil {
+			waiterDone <- beginErr
+			return
+		}
+		defer func() { _ = waiter.Rollback(ctx) }()
+		if _, setErr := waiter.Exec(ctx, `SELECT set_config('application_name', $1, true)`, waiterApplicationName); setErr != nil {
+			waiterDone <- setErr
+			return
+		}
+		close(waiterStarted)
+		if _, updateErr := waiter.Exec(ctx, `UPDATE teachers SET name = name WHERE id = $1`, secondTeacherID); updateErr != nil {
+			waiterDone <- updateErr
+			return
+		}
+		waiterDone <- waiter.Commit(ctx)
+	}()
+	<-waiterStarted
+
+	require.Eventually(t, func() bool {
+		var waitEventType string
+		err := fixture.Pool.QueryRow(ctx, `
+			SELECT COALESCE(wait_event_type, '')
+			FROM pg_stat_activity
+			WHERE application_name = $1
+		`, waiterApplicationName).Scan(&waitEventType)
+		return err == nil && waitEventType == "Lock"
+	}, 3*time.Second, 25*time.Millisecond, "the singleton dedupe row wait must remain visible in pg_stat_activity")
+
+	require.NoError(t, blocker.Commit(ctx))
+	require.NoError(t, <-waiterDone)
+
+	var jobCount int
+	require.NoError(t, fixture.Pool.QueryRow(ctx, `
+		SELECT COUNT(*)
+		FROM domain_event_outbox
+		WHERE stream = 'review_projection'
+		  AND dedupe_key = 'teacher_public_stats'
+	`).Scan(&jobCount))
+	assert.Equal(t, 1, jobCount, "concurrent source writes must still coalesce into one durable refresh job")
+}

@@ -752,8 +752,5 @@ function readIdentityPhotoUploadPayload(
 
     return {
         key: readString(value, "key", message),
-        rejectionReason: readNullableString(value, "rejectionReason", message),
-        createdAt: readOptionalString(value, "createdAt", message),
-        updatedAt: readOptionalString(value, "updatedAt", message),
     };
 }

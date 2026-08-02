@@ -22,6 +22,7 @@ const mockIframeRemove = vi.fn();
 const mockIframeSetAttribute = vi.fn();
 const mockFetch = vi.fn();
 const mockClearTimeout = vi.fn();
+const mockReportFrontendError = vi.fn();
 
 vi.mock("@/api", () => ({
     api: {
@@ -69,6 +70,10 @@ vi.mock("@/stores/verification", () => ({
     useVerificationStore: () => ({ reset: vi.fn() }),
 }));
 
+vi.mock("@/utils/observability", () => ({
+    reportFrontendError: mockReportFrontendError,
+}));
+
 vi.mock("@/i18n", () => ({
     default: {
         global: {
@@ -114,6 +119,7 @@ describe("auth authorize flow", () => {
         mockIframeSetAttribute.mockReset();
         mockFetch.mockReset();
         mockClearTimeout.mockReset();
+        mockReportFrontendError.mockReset();
         mockGetUser.mockReturnValue(null);
         mockFetch.mockResolvedValue({
             ok: true,
@@ -191,6 +197,27 @@ describe("auth authorize flow", () => {
         expect(sessionStorage.getItem("oauth_state")).toBe("login-state");
     });
 
+    it("reuses one pending authorization request for repeated login calls", async () => {
+        const loginResponse = createDeferred<{
+            data: { data: { state: string; url: string } };
+        }>();
+        mockLogin.mockReturnValueOnce(loginResponse.promise);
+
+        const { useAuthStore } = await import("../auth");
+        const store = useAuthStore();
+
+        const first = store.login("https://join.stuhelper.com/verify/token");
+        const second = store.login("https://join.stuhelper.com/verify/token");
+
+        expect(mockLogin).toHaveBeenCalledTimes(1);
+        loginResponse.resolve({
+            data: { data: { state: "single-state", url: "#single" } },
+        });
+        await Promise.all([first, second]);
+
+        expect(sessionStorage.getItem("oauth_state")).toBe("single-state");
+    });
+
     it("uses the signup authorization endpoint for signup", async () => {
         mockSignup.mockResolvedValue({
             data: { data: { state: "signup-state", url: "#signup" } },
@@ -243,7 +270,7 @@ describe("auth authorize flow", () => {
         );
     });
 
-    it("does not redirect when the oauth state cannot be stored", async () => {
+    it("continues login when the sessionStorage state copy cannot be stored", async () => {
         mockLogin.mockResolvedValue({
             data: { data: { state: "login-state", url: "#login" } },
         });
@@ -252,13 +279,35 @@ describe("auth authorize flow", () => {
         const { useAuthStore } = await import("../auth");
         const store = useAuthStore();
 
-        await expect(
-            store.login("https://join.stuhelper.com/verify/token"),
-        ).rejects.toThrow("OAuth state storage unavailable");
+        await store.login("https://join.stuhelper.com/verify/token");
 
         expect(mockLogin).toHaveBeenCalledTimes(1);
         expect(sessionStorage.getItem("oauth_state")).toBeNull();
-        expect(window.location.href).toBe("https://join.stuhelper.com/verify/token");
+        expect(window.location.href).toBe("#login");
+        expect(mockReportFrontendError).toHaveBeenCalledWith(
+            "error",
+            "auth.oauth_state_storage_unavailable",
+        );
+    });
+
+    it("continues signup when the sessionStorage state copy cannot be stored", async () => {
+        mockSignup.mockResolvedValue({
+            data: { data: { state: "signup-state", url: "#signup" } },
+        });
+        mockStoreOAuthState.mockReturnValueOnce(false);
+
+        const { useAuthStore } = await import("../auth");
+        const store = useAuthStore();
+
+        await store.signup("https://join.stuhelper.com/verify/token");
+
+        expect(mockSignup).toHaveBeenCalledTimes(1);
+        expect(sessionStorage.getItem("oauth_state")).toBeNull();
+        expect(window.location.href).toBe("#signup");
+        expect(mockReportFrontendError).toHaveBeenCalledWith(
+            "error",
+            "auth.oauth_state_storage_unavailable",
+        );
     });
 
     it("logs out local and upstream SSO account sessions before switching accounts", async () => {
@@ -373,3 +422,13 @@ describe("auth authorize flow", () => {
         expect(window.location.href).not.toContain("/api/sso-logout");
     });
 });
+
+function createDeferred<T>() {
+    let resolve!: (value: T) => void;
+    let reject!: (reason?: unknown) => void;
+    const promise = new Promise<T>((promiseResolve, promiseReject) => {
+        resolve = promiseResolve;
+        reject = promiseReject;
+    });
+    return { promise, reject, resolve };
+}

@@ -169,16 +169,6 @@ IdentityPhotoUploadResult:
     key:
       type: string
       description: 后续提交实名认证时使用的对象存储 key
-    rejectionReason:
-      type:
-        - string
-        - "null"
-    createdAt:
-      type: string
-      format: date-time
-    updatedAt:
-      type: string
-      format: date-time
 
 SubmitIdentityRequest:
   type: object

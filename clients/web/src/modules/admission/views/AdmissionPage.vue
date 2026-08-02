@@ -31,16 +31,22 @@
       tone="info"
     >
       <template #actions>
-        <button class="primary-button" type="button" @click="startLogin">
-          登录
+        <button
+          class="primary-button"
+          type="button"
+          :disabled="authActionBusy"
+          @click="startLogin"
+        >
+          {{ authActionBusy ? '正在跳转…' : '登录' }}
         </button>
         <button
           v-if="!consumedTokenNeedsLogin"
           class="secondary-button"
           type="button"
+          :disabled="authActionBusy"
           @click="startSignup"
         >
-          注册
+          {{ authActionBusy ? '正在跳转…' : '注册' }}
         </button>
       </template>
     </AdmissionStatePanel>
@@ -60,8 +66,13 @@
         />
       </template>
       <template #actions>
-        <button class="primary-button" type="button" @click="startAccountSwitch">
-          重新登录
+        <button
+          class="primary-button"
+          type="button"
+          :disabled="authActionBusy"
+          @click="startAccountSwitch"
+        >
+          {{ authActionBusy ? '正在退出…' : '重新登录' }}
         </button>
       </template>
     </AdmissionStatePanel>
@@ -84,8 +95,13 @@
         />
       </template>
       <template #actions>
-        <button class="primary-button" type="button" @click="startAccountSwitch">
-          重新登录
+        <button
+          class="primary-button"
+          type="button"
+          :disabled="authActionBusy"
+          @click="startAccountSwitch"
+        >
+          {{ authActionBusy ? '正在退出…' : '重新登录' }}
         </button>
       </template>
     </AdmissionStatePanel>
@@ -425,6 +441,8 @@ const route = useRoute()
 const auth = useAuthStore()
 const verificationStore = useVerificationStore()
 const toast = useToast()
+const authRedirecting = ref(false)
+const authActionBusy = computed(() => authRedirecting.value || auth.loading)
 const pageState = ref<AdmissionPageState>('loading')
 const session = ref<AdmissionSession | null>(null)
 const admissionMe = ref<AdmissionMe | null>(null)
@@ -967,16 +985,29 @@ async function submitBindConfirmation(): Promise<void> {
   await confirmLink()
 }
 
+async function runAuthRedirect(
+  start: (returnURL: string) => Promise<void>,
+): Promise<void> {
+  if (authActionBusy.value) return
+  authRedirecting.value = true
+  try {
+    await start(currentAdmissionURL())
+    // 成功后保持锁定；浏览器即将离开当前页面。
+  } catch {
+    authRedirecting.value = false
+  }
+}
+
 function startLogin() {
-  void auth.login(currentAdmissionURL())
+  void runAuthRedirect(auth.login)
 }
 
 function startSignup() {
-  void auth.signup(currentAdmissionURL())
+  void runAuthRedirect(auth.signup)
 }
 
 function startAccountSwitch() {
-  void auth.switchAccount(currentAdmissionURL())
+  void runAuthRedirect(auth.switchAccount)
 }
 
 async function copyReissueCommand(): Promise<void> {

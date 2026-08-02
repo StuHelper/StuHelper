@@ -441,6 +441,8 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         '403':
           $ref: '#/components/responses/ErrorResponse'
+        '429':
+          $ref: '#/components/responses/ErrorResponse'
         '500':
           $ref: '#/components/responses/ErrorResponse'
         '503':
@@ -629,6 +631,8 @@ paths:
         '401':
           $ref: '#/components/responses/ErrorResponse'
         '429':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
           $ref: '#/components/responses/ErrorResponse'
   /api/v1/open-platform/authorize:
     get:
@@ -3736,6 +3740,8 @@ paths:
                         required:
                           - list
                           - total
+                          - page
+                          - pageSize
                         properties:
                           list:
                             type: array
@@ -3743,6 +3749,12 @@ paths:
                               $ref: '#/components/schemas/Review'
                           total:
                             type: integer
+                          page:
+                            type: integer
+                            minimum: 1
+                          pageSize:
+                            type: integer
+                            minimum: 1
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '500':
@@ -3792,6 +3804,8 @@ paths:
                         required:
                           - list
                           - total
+                          - page
+                          - pageSize
                         properties:
                           list:
                             type: array
@@ -3799,6 +3813,12 @@ paths:
                               $ref: '#/components/schemas/Review'
                           total:
                             type: integer
+                          page:
+                            type: integer
+                            minimum: 1
+                          pageSize:
+                            type: integer
+                            minimum: 1
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '500':
@@ -3864,6 +3884,8 @@ paths:
                         required:
                           - list
                           - total
+                          - page
+                          - pageSize
                         properties:
                           list:
                             type: array
@@ -3871,9 +3893,19 @@ paths:
                               $ref: '#/components/schemas/Review'
                           total:
                             type: integer
+                          page:
+                            type: integer
+                            minimum: 1
+                          pageSize:
+                            type: integer
+                            minimum: 1
         '400':
           $ref: '#/components/responses/ErrorResponse'
+        '429':
+          $ref: '#/components/responses/ErrorResponse'
         '500':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
           $ref: '#/components/responses/ErrorResponse'
   /api/v1/course/review/reviews/batch:
     get:
@@ -3881,7 +3913,7 @@ paths:
         - Review
       operationId: getBatchCourseReviews
       summary: 批量获取多个课程的测评列表（支持可选认证）
-      description: 通过逗号分隔的课程ID列表批量获取测评，避免N+1查询
+      description: 通过重复的 courseIDs 查询参数批量获取测评，避免N+1查询；服务端兼容旧逗号格式
       security:
         - {}
         - cookieAuth: []
@@ -3897,7 +3929,7 @@ paths:
               format: int64
             maxItems: 20
           style: form
-          explode: false
+          explode: true
           description: 课程ID列表（最多20个）
         - $ref: '#/components/parameters/PageSizeParam'
         - name: sort
@@ -3928,6 +3960,8 @@ paths:
                           required:
                             - list
                             - total
+                            - page
+                            - pageSize
                           properties:
                             list:
                               type: array
@@ -3935,9 +3969,19 @@ paths:
                                 $ref: '#/components/schemas/Review'
                             total:
                               type: integer
+                            page:
+                              type: integer
+                              minimum: 1
+                            pageSize:
+                              type: integer
+                              minimum: 1
         '400':
           $ref: '#/components/responses/ErrorResponse'
+        '429':
+          $ref: '#/components/responses/ErrorResponse'
         '500':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
           $ref: '#/components/responses/ErrorResponse'
   /api/v1/course/review/reviews:
     post:
@@ -4063,6 +4107,8 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         '500':
           $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
   /api/v1/course/review/reviews/{reviewID}/votes:
     post:
       tags:
@@ -4148,6 +4194,8 @@ paths:
         '429':
           $ref: '#/components/responses/ErrorResponse'
         '500':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
           $ref: '#/components/responses/ErrorResponse'
   /api/v1/course/review/reviews/{reviewID}/replies:
     get:
@@ -4271,6 +4319,8 @@ paths:
         '429':
           $ref: '#/components/responses/ErrorResponse'
         '500':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
           $ref: '#/components/responses/ErrorResponse'
   /api/v1/course/review/stats:
     get:
@@ -5830,7 +5880,11 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         '401':
           $ref: '#/components/responses/ErrorResponse'
+        '429':
+          $ref: '#/components/responses/ErrorResponse'
         '500':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
           $ref: '#/components/responses/ErrorResponse'
   /api/v1/user/qq-binding:
     get:
@@ -5956,7 +6010,11 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         '409':
           $ref: '#/components/responses/ErrorResponse'
+        '429':
+          $ref: '#/components/responses/ErrorResponse'
         '500':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
           $ref: '#/components/responses/ErrorResponse'
   /api/v1/user/profile/school-email/academic-match:
     post:
@@ -5992,6 +6050,8 @@ paths:
         '401':
           $ref: '#/components/responses/ErrorResponse'
         '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '429':
           $ref: '#/components/responses/ErrorResponse'
         '503':
           $ref: '#/components/responses/ErrorResponse'
@@ -6122,6 +6182,8 @@ paths:
         '429':
           $ref: '#/components/responses/ErrorResponse'
         '500':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
           $ref: '#/components/responses/ErrorResponse'
   /api/v1/user/profile/bind-phone:
     post:
@@ -6520,6 +6582,7 @@ paths:
         - Admission
       operationId: previewFreshmanMobileCameraHandoff
       summary: 手机端预览拍照接力
+      security: []
       parameters:
         - name: token
           in: path
@@ -6550,6 +6613,7 @@ paths:
         - Admission
       operationId: uploadFreshmanMobileCameraCapture
       summary: 手机端上传接力拍摄的新生材料图片
+      security: []
       parameters:
         - name: token
           in: path
@@ -6592,6 +6656,7 @@ paths:
         - Admission
       operationId: chooseFreshmanMobileCameraContinuation
       summary: 手机端选择上传后在哪一端继续
+      security: []
       parameters:
         - name: token
           in: path
@@ -6730,7 +6795,6 @@ paths:
         - Admission
       operationId: startAdmissionSchoolSSO
       summary: 跳转学校官方 SSO 登录
-      security: []
       parameters:
         - name: schoolCode
           in: path
@@ -6753,13 +6817,22 @@ paths:
           description: Redirect to school SSO provider
         '400':
           $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
   /api/v1/admission/school-sso/{schoolCode}/callback:
     get:
       tags:
         - Admission
       operationId: completeAdmissionSchoolSSO
       summary: 学校官方 SSO 回调
-      security: []
       parameters:
         - name: schoolCode
           in: path
@@ -6781,6 +6854,12 @@ paths:
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
           $ref: '#/components/responses/ErrorResponse'
         '503':
           $ref: '#/components/responses/ErrorResponse'
@@ -9516,6 +9595,9 @@ components:
         userVote:
           $ref: '#/components/schemas/VoteType'
           description: 当前已认证用户对该测评的投票；匿名或未投票时省略
+        isOwner:
+          type: boolean
+          description: 当前已认证用户是否为该测评作者；匿名请求为 false
         replyCount:
           type: integer
         status:
@@ -12134,9 +12216,6 @@ components:
             - image/webp
         imageBase64:
           type: string
-        capturedAt:
-          type: string
-          format: date-time
     FreshmanCameraHandoff:
       type: object
       required:
@@ -13888,16 +13967,6 @@ components:
         key:
           type: string
           description: 后续提交实名认证时使用的对象存储 key
-        rejectionReason:
-          type:
-            - string
-            - 'null'
-        createdAt:
-          type: string
-          format: date-time
-        updatedAt:
-          type: string
-          format: date-time
     StudentEmailAcademicMatchRequest:
       type: object
       required:

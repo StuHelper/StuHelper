@@ -9,6 +9,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/StuHelper/StuHelper/server/internal/pkg/audit"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/capability"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/httputil"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/logger"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/middleware"
@@ -30,7 +31,7 @@ func (h *Handler) ListReports(c *gin.Context) {
 		status = ReportStatusPending
 	}
 	page, pageSize := httputil.ParsePage(c)
-	scope := resolveModerationScope(c)
+	scope := resolveModerationScope(c, capability.AdminReportsManage)
 	schoolIDs := scope.schoolIDs()
 
 	respondWithCachedData(h, c, "review:admin:reports", adminReportsCacheKey(status, page, pageSize, schoolIDs), func(ctx context.Context) (*ListReportsResult, error) {
@@ -109,7 +110,7 @@ func (h *Handler) ListAllReviews(c *gin.Context) {
 		status = StatusAll
 	}
 	page, pageSize := httputil.ParsePage(c)
-	scope := resolveModerationScope(c)
+	scope := resolveModerationScope(c, capability.AdminReviewsManage)
 
 	result, err := h.service.ListAllReviews(c.Request.Context(), ListAllReviewsParams{
 		Status:    status,

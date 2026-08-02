@@ -74,7 +74,6 @@ vi.mock('vue-router', () => {
     useRouter: () => mockRouter,
   }
 })
-
 vi.mock('vue-i18n', () => {
   const t = (key: string, params?: Record<string, unknown>) => {
     const message = translations[key] ?? key
@@ -117,6 +116,7 @@ vi.mock('@/components/business/review/ReviewCard.vue', () => ({
   default: {
     name: 'ReviewCard',
     props: ['review'],
+    emits: ['moderated'],
     template: '<article data-review-card>{{ review.title }}</article>',
   },
 }))
@@ -220,5 +220,28 @@ describe('SearchPage advanced form', () => {
     expect(wrapper.text()).toContain('搜索结果')
     expect(wrapper.text()).toContain('高等数学A')
     expect(wrapper.find('form').exists()).toBe(false)
+  })
+
+  it('refreshes only the loaded review pages after moderation', async () => {
+    const wrapper = mountSearchPage()
+    await flushPromises()
+
+    await wrapper.get('#advanced-course-name').setValue('高等数学')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(wrapper.text()).toContain('高等数学A')
+    const scrollCountBeforeModeration = mockScrollTo.mock.calls.length
+
+    mockReviewApi.searchReviewsPage.mockResolvedValueOnce({
+      list: [{ id: 101, title: '审核后的高等数学A' }],
+      total: 1,
+    })
+    wrapper.findComponent({ name: 'ReviewCard' }).vm.$emit('moderated')
+    await flushPromises()
+
+    expect(mockReviewApi.searchReviewsPage).toHaveBeenCalledTimes(2)
+    expect(mockCourseApi.searchCourses).toHaveBeenCalledTimes(1)
+    expect(mockScrollTo).toHaveBeenCalledTimes(scrollCountBeforeModeration)
+    expect(wrapper.text()).toContain('审核后的高等数学A')
   })
 })

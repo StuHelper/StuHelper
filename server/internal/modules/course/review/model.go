@@ -39,6 +39,7 @@ type Review struct {
 	LikeCount            int           `json:"likeCount"`
 	DislikeCount         int           `json:"dislikeCount"`
 	UserVote             *string       `json:"userVote,omitempty"`
+	IsOwner              bool          `json:"isOwner"`
 	ReplyCount           int           `json:"replyCount"`
 	Status               string        `json:"status"`
 	ContentFlag          *string       `json:"contentFlag,omitempty"` // warn / review / cleared / nil

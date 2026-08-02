@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/StuHelper/StuHelper/server/internal/pkg/capability"
 )
 
 func TestFailClosedAuthorizationProvider_ReturnsConfigurationError(t *testing.T) {
@@ -39,6 +41,35 @@ func TestModerationScopeSectionModeratorRequiresReviewModerationSection(t *testi
 	}
 
 	assert.Equal(t, []int64{4111010006}, scope.schoolIDs())
+}
+
+func TestModerationScopeUsesTheRequestedCapabilityGrant(t *testing.T) {
+	grants := capability.BuildUserAccessSnapshot([]capability.Grant{
+		{
+			Name:           capability.AdminReportsManage,
+			ScopeSchoolIDs: []string{"4111010006", "invalid"},
+		},
+		{
+			Name:            capability.AdminReviewsManage,
+			ScopeSectionIDs: []string{reviewModerationSectionID(4111010007), "school_4111010008_qa"},
+		},
+	}).CapabilityGrants
+
+	reportScope := moderationScopeFromCapabilityGrants(grants, capability.AdminReportsManage)
+	assert.Equal(t, []int64{4111010006}, reportScope.schoolIDs())
+
+	reviewScope := moderationScopeFromCapabilityGrants(grants, capability.AdminReviewsManage)
+	assert.Equal(t, []int64{4111010007}, reviewScope.schoolIDs())
+}
+
+func TestModerationScopeGlobalGrantCoversAllSchools(t *testing.T) {
+	grants := capability.BuildUserAccessSnapshot([]capability.Grant{{
+		Name: capability.AdminReportsManage,
+	}}).CapabilityGrants
+
+	scope := moderationScopeFromCapabilityGrants(grants, capability.AdminReportsManage)
+	assert.True(t, scope.global)
+	assert.Nil(t, scope.schoolIDs())
 }
 
 func TestAdminReportsCacheKeyIncludesModerationScope(t *testing.T) {

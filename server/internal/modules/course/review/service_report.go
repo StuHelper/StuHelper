@@ -76,12 +76,18 @@ func (s *Service) ReportReview(ctx context.Context, params ReportReviewParams) (
 
 	var reportID string
 	err = s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		exists, err := s.repo.ReviewExistsTx(ctx, tx, params.ReviewID)
+		ownerHash, _, _, status, err := s.repo.GetReviewOwnerCourseTeacherStatusTx(ctx, tx, params.ReviewID)
 		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrReviewNotFound
+			}
 			return err
 		}
-		if !exists {
+		if status != StatusPublished {
 			return ErrReviewNotFound
+		}
+		if ownerHash == params.UserHash {
+			return ErrCannotReportOwnReview
 		}
 
 		reported, err := s.repo.ReportExistsTx(ctx, tx, params.ReviewID, params.UserHash)
@@ -116,7 +122,7 @@ func (s *Service) ReportReview(ctx context.Context, params ReportReviewParams) (
 
 func validateAndSanitizeReportDescription(description string) (string, error) {
 	if utf8.RuneCountInString(description) > maxReportDescriptionRunes {
-		return "", ErrContentTooLong
+		return "", ErrReportDescriptionTooLong
 	}
 	if sanitizer.ContainsDangerousContent(description) {
 		return "", ErrDangerousContent

@@ -1006,6 +1006,7 @@ func TestLoadExternalDataConfigFromEnv(t *testing.T) {
 	t.Setenv("EXTERNAL_STUDENT_SOURCE_ORACLE_HOST", "oracle.example.test")
 	t.Setenv("EXTERNAL_STUDENT_SOURCE_ORACLE_SERVICE_NAME", "ORCLPDB1")
 	t.Setenv("EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME", "stuhelper_academic_ro")
+	t.Setenv("EXTERNAL_STUDENT_SOURCE_ORACLE_READONLY_USERNAME", "stuhelper_academic_ro")
 	t.Setenv("EXTERNAL_STUDENT_SOURCE_ORACLE_PASSWORD", "secret")
 	t.Setenv("EXTERNAL_STUDENT_SOURCE_ORACLE_SCHEMA", "USR_JWBIZ")
 	t.Setenv("EXTERNAL_STUDENT_SOURCE_ORACLE_TABLE", "T_XS_JBXX")
@@ -1022,6 +1023,7 @@ func TestLoadExternalDataConfigFromEnv(t *testing.T) {
 	assert.Equal(t, "oracle.example.test", source.Oracle.Host)
 	assert.Equal(t, 2484, source.Oracle.Port)
 	assert.Equal(t, "ORCLPDB1", source.Oracle.ServiceName)
+	assert.Equal(t, "stuhelper_academic_ro", source.Oracle.ExpectedUsername)
 	assert.Equal(t, "verify-full", source.Oracle.TLSMode)
 	assert.Equal(t, "/external-student-source-tls/ca.crt", source.Oracle.TLSCAFile)
 	assert.Equal(t, "USR_JWBIZ", source.Oracle.Schema)
@@ -1168,6 +1170,38 @@ func TestValidateRejectsOracleStudentSourceSchemaOwnerAccount(t *testing.T) {
 		t,
 		errs,
 		"EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME must not own the source schema",
+	)
+}
+
+func TestValidateRejectsOracleStudentSourceRuntimeIdentityDrift(t *testing.T) {
+	errs := validateExternalOracleStudentSource(ExternalOracleStudentSourceConfig{
+		Host:                    "oracle.example.test",
+		Port:                    2484,
+		ServiceName:             "ORCLPDB1",
+		Username:                "unexpected_ro",
+		ExpectedUsername:        "stuhelper_academic_ro",
+		Password:                "secret",
+		TLSMode:                 "verify-full",
+		TLSCAFile:               "/external-student-source-tls/ca.crt",
+		Schema:                  "USR_JWBIZ",
+		Table:                   "T_XS_JBXX",
+		StudentIDColumn:         "XH",
+		StudentNameColumn:       "XM",
+		ConnectTimeoutSeconds:   5,
+		QueryTimeoutSeconds:     3,
+		MaxOpenConns:            4,
+		MaxIdleConns:            1,
+		ConnMaxLifetimeSeconds:  300,
+		ConnMaxIdleTimeSeconds:  60,
+		BreakerFailureThreshold: 5,
+		BreakerSuccessThreshold: 2,
+		BreakerOpenSeconds:      30,
+	}, true)
+
+	assert.Contains(
+		t,
+		errs,
+		"EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME must match EXTERNAL_STUDENT_SOURCE_ORACLE_READONLY_USERNAME",
 	)
 }
 

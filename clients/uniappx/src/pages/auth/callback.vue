@@ -2,6 +2,8 @@
 import { ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import A11yButton from '@/components/A11yButton.vue'
+import { scheduleNativeSSORedirect } from '@/auth/callback-redirect'
+import { clearStoredSSORedirect } from '@/auth/sso-state'
 import { useAuthStore } from '@/stores/auth'
 import { translate } from '@/i18n'
 
@@ -23,6 +25,7 @@ onLoad(async (options) => {
   const state = typeof options?.state === 'string' ? options.state : ''
 
   if (!code || !state) {
+    clearStoredSSORedirect()
     status.value = 'error'
     errorMessage.value = t('auth.callback.missingParams')
     return
@@ -35,17 +38,17 @@ onLoad(async (options) => {
     status.value = 'success'
     uni.showToast({ title: t('auth.login.success'), icon: 'success' })
 
-    // 短暂延迟后跳转首页
-    setTimeout(() => {
-      uni.reLaunch({ url: '/pages/user/index' })
-    }, 500)
+    // 短暂延迟后回到发起登录的内部页面；冷启动时也不依赖旧页面栈。
+    scheduleNativeSSORedirect(options => uni.reLaunch(options))
   } catch (error) {
+    clearStoredSSORedirect()
     status.value = 'error'
     errorMessage.value = resolveCallbackErrorMessage(error)
   }
 })
 
 function handleRetry() {
+  clearStoredSSORedirect()
   uni.reLaunch({ url: '/pages/auth/login' })
 }
 </script>

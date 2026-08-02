@@ -5,12 +5,13 @@ import (
 	"strings"
 )
 
-func (s *Service) populateUserVotes(
+func (s *Service) populateUserReviewState(
 	ctx context.Context,
 	userHash string,
 	reviews []Review,
 ) error {
 	userHash = strings.TrimSpace(userHash)
+	populateReviewOwnership(userHash, reviews)
 	if userHash == "" || len(reviews) == 0 {
 		return nil
 	}
@@ -44,7 +45,7 @@ func (s *Service) populateUserVotes(
 	return nil
 }
 
-func (s *Service) populateGroupedUserVotes(
+func (s *Service) populateGroupedUserReviewState(
 	ctx context.Context,
 	userHash string,
 	grouped map[int64][]Review,
@@ -57,21 +58,34 @@ func (s *Service) populateGroupedUserVotes(
 	for _, reviews := range grouped {
 		all = append(all, reviews...)
 	}
-	if err := s.populateUserVotes(ctx, userHash, all); err != nil {
+	if err := s.populateUserReviewState(ctx, userHash, all); err != nil {
 		return err
 	}
 
-	votes := make(map[string]*string, len(all))
+	type reviewState struct {
+		isOwner bool
+		vote    *string
+	}
+	states := make(map[string]reviewState, len(all))
 	for i := range all {
-		votes[all[i].ID] = all[i].UserVote
+		states[all[i].ID] = reviewState{isOwner: all[i].IsOwner, vote: all[i].UserVote}
 	}
 	for courseID, reviews := range grouped {
 		for i := range reviews {
-			reviews[i].UserVote = votes[reviews[i].ID]
+			state := states[reviews[i].ID]
+			reviews[i].IsOwner = state.isOwner
+			reviews[i].UserVote = state.vote
 		}
 		grouped[courseID] = reviews
 	}
 	return nil
+}
+
+func populateReviewOwnership(userHash string, reviews []Review) {
+	userHash = strings.TrimSpace(userHash)
+	for i := range reviews {
+		reviews[i].IsOwner = userHash != "" && reviews[i].UserHash == userHash
+	}
 }
 
 func setKnownUserVote(reviews []Review, voteType string) {

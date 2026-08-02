@@ -49,10 +49,34 @@ func TestMFAGateAuditEventRecordsStepUpSuccess(t *testing.T) {
 	assert.Equal(t, mfaAuditRoutePattern, event.Details["route"])
 }
 
+func TestMFAGateAuditEventDistinguishesSessionProofFromStepUp(t *testing.T) {
+	decision := authorization.Decision{Allow: true, Reason: "mfa proof accepted without freshness requirement"}
+
+	event := mfaAuditEventFromRouteWithAction(
+		t,
+		http.MethodGet,
+		authorization.ActionMFAProofRequire,
+		decision,
+	)
+
+	assert.Equal(t, mfaProofAuditType, event.Type)
+	assert.Equal(t, string(authorization.ActionMFAProofRequire), event.ResourceID)
+	assert.Equal(t, "verify", event.Action)
+	assert.Equal(t, "success", event.Result)
+}
+
 func TestShouldAuditMFAGateScope(t *testing.T) {
 	assert.True(t, shouldAuditMFAGate(
 		authorization.Subject{UserID: "reviewer-1"},
 		authorization.ActionStepUpMFARequire,
+	))
+	assert.True(t, shouldAuditMFAGate(
+		authorization.Subject{UserID: "admin-1", Roles: []string{"super_admin"}},
+		authorization.ActionMFAProofRequire,
+	))
+	assert.False(t, shouldAuditMFAGate(
+		authorization.Subject{UserID: "reviewer-1", Roles: []string{"section_reviewer"}},
+		authorization.ActionMFAProofRequire,
 	))
 	assert.True(t, shouldAuditMFAGate(
 		authorization.Subject{UserID: "admin-1", Roles: []string{"school_admin"}},
@@ -69,12 +93,21 @@ func mfaAuditEventFromRoute(
 	method string,
 	decision authorization.Decision,
 ) audit.Event {
+	return mfaAuditEventFromRouteWithAction(t, method, authorization.ActionStepUpMFARequire, decision)
+}
+
+func mfaAuditEventFromRouteWithAction(
+	t *testing.T,
+	method string,
+	action authorization.Action,
+	decision authorization.Decision,
+) audit.Event {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	var event audit.Event
 	engine := gin.New()
 	engine.Handle(method, mfaAuditRoutePattern, func(c *gin.Context) {
-		event = mfaGateAuditEvent(c, authorization.ActionStepUpMFARequire, decision)
+		event = mfaGateAuditEvent(c, action, decision)
 		c.Status(http.StatusNoContent)
 	})
 

@@ -30,6 +30,7 @@
           <Eye :size="16" />
         </button>
         <button
+          v-if="canEditReviewContent"
           type="button"
           class="p-1.5 rounded-lg text-text-muted hover:text-primary hover:bg-primary/10 cursor-pointer transition-colors"
           :title="t('review.admin.edit')"
@@ -171,7 +172,7 @@
       <!-- 举报按钮（非自己的评价） -->
       <button
         type="button"
-        v-if="!props.isOwnReview"
+        v-if="!isOwn"
         v-ripple
         :class="[warningActionButtonClass, 'ml-auto']"
         :aria-label="t('review.review.reportBtn')"
@@ -183,7 +184,7 @@
       <!-- 编辑按钮（自己的评价） -->
       <button
         type="button"
-        v-if="props.isOwnReview && !editing"
+        v-if="isOwn && !editing"
         v-ripple
         :class="[primaryActionButtonClass, 'ml-auto']"
         :aria-label="t('review.review.editBtn')"
@@ -195,7 +196,7 @@
       <!-- 删除按钮（自己的评价） -->
       <button
         type="button"
-        v-if="props.isOwnReview && !confirmingDelete"
+        v-if="isOwn && !confirmingDelete"
         ref="deleteButtonRef"
         v-ripple
         :class="[dangerActionButtonClass, { 'ml-auto': editing }]"
@@ -268,7 +269,23 @@
         class="w-full px-3 py-2 bg-transparent rounded-lg text-sm text-text-primary outline-none border border-border-light focus:border-primary resize-y min-h-[100px]"
         :aria-label="t('review.review.editPlaceholder')"
         :placeholder="t('review.review.editPlaceholder')"
+        :maxlength="REVIEW_CONTENT_MAX_LENGTH"
+        :aria-invalid="editContentTooShort"
+        :aria-describedby="editContentTooShort ? `review-edit-error-${review.id}` : undefined"
       />
+      <div class="mt-1.5 flex items-start justify-between gap-3 text-xs">
+        <span
+          v-if="editContentTooShort"
+          :id="`review-edit-error-${review.id}`"
+          class="text-danger"
+        >
+          {{ t('review.validation.contentTooShort', { min: REVIEW_CONTENT_MIN_LENGTH }) }}
+        </span>
+        <span v-else />
+        <span class="shrink-0 text-text-muted">
+          {{ editContentLength }}/{{ REVIEW_CONTENT_MAX_LENGTH }}
+        </span>
+      </div>
       <div class="flex justify-end gap-2 mt-2">
         <button
           type="button"
@@ -280,7 +297,7 @@
         <button
           type="button"
           class="px-4 py-1.5 text-xs rounded-full bg-primary text-white cursor-pointer transition-opacity hover:opacity-90 disabled:opacity-50"
-          :disabled="saving || !editContent.trim()"
+          :disabled="saving || editContentTooShort"
           @click="handleSaveEdit"
         >
           {{ saving ? t('common.actions.saving') : t('common.actions.save') }}
@@ -347,8 +364,16 @@
 import { ref, computed, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Heart, ThumbsDown, MessageCircle, EyeOff, Eye, Pencil, ShieldAlert, Flag, Trash2 } from 'lucide-vue-next'
+import {
+  REVIEW_CONTENT_MAX_LENGTH,
+  REVIEW_CONTENT_MIN_LENGTH,
+} from '@stuhelper/shared/constants'
 import type { Review } from '@stuhelper/shared/review'
-import { canListFullReviews, canManageReviews as canManageReviewAccess } from '@/utils/adminAccess'
+import {
+  canEditReviewContent as canEditReviewContentAccess,
+  canListFullReviews,
+  canManageReviews as canManageReviewAccess,
+} from '@/utils/adminAccess'
 import { getRatingColor } from '@/design-system/rating'
 import { useAuthStore } from '@/stores/auth'
 import { useVerificationStore } from '@/stores/verification'
@@ -370,10 +395,12 @@ import { useReviewModeration } from './useReviewModeration'
 import { ratingDimensionLabel } from '@/modules/review/ratingHelpers'
 import { accountCenterURL } from '@/utils/redirect'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   review: Review
   isOwnReview?: boolean
-}>()
+}>(), {
+  isOwnReview: undefined,
+})
 
 const emit = defineEmits<{
   moderated: []
@@ -397,7 +424,9 @@ const deleteCancelButtonRef = ref<HTMLButtonElement>()
 const { style: tiltStyle } = use3DTilt(cardRef, { maxTilt: 4, scale: 1.01, speed: 500 })
 
 const isAuthenticated = computed(() => authStore.isAuthenticated)
+const isOwn = computed(() => props.isOwnReview ?? (props.review.isOwner === true))
 const canManageReviews = computed(() => canManageReviewAccess(authStore.user))
+const canEditReviewContent = computed(() => canEditReviewContentAccess(authStore.user))
 const hasFullListCapability = computed(() => canListFullReviews(authStore.user))
 const isHidden = computed(() => props.review.status === 'hidden')
 const showActions = computed(() => isAuthenticated.value && !isHidden.value)
@@ -468,6 +497,8 @@ const {
   cancelEditing,
   handleSaveEdit,
 } = useReviewEdit(() => props.review, t, (id, content) => emit('updated', id, content))
+const editContentLength = computed(() => editContent.value.trim().length)
+const editContentTooShort = computed(() => editContentLength.value < REVIEW_CONTENT_MIN_LENGTH)
 
 const { deleting, handleDeleteOwn } = useReviewDelete(() => props.review, t, (id) => emit('deleted', id))
 const confirmingDelete = ref(false)

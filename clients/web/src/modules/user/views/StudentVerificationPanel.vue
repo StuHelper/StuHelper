@@ -202,7 +202,11 @@
                             class="block text-sm font-semibold text-text-primary mb-2"
                             for="student-name"
                         >
-                            姓名
+                            {{
+                                t(
+                                    "user.verification.student.academicEmail.studentName",
+                                )
+                            }}
                         </label>
                         <input
                             id="student-name"
@@ -210,7 +214,11 @@
                             data-student-name-input
                             type="text"
                             class="w-full px-3 py-2.5 bg-transparent rounded-lg text-sm text-text-primary placeholder-text-muted outline-none transition-all duration-fast focus:border-primary"
-                            placeholder="请输入学籍库中的姓名"
+                            :placeholder="
+                                t(
+                                    'user.verification.student.academicEmail.studentNamePlaceholder',
+                                )
+                            "
                         />
                     </div>
 
@@ -219,7 +227,11 @@
                             class="block text-sm font-semibold text-text-primary mb-2"
                             for="student-school-email"
                         >
-                            学号邮箱
+                            {{
+                                t(
+                                    "user.verification.student.academicEmail.schoolEmail",
+                                )
+                            }}
                         </label>
                         <input
                             id="student-school-email"
@@ -228,7 +240,11 @@
                             type="email"
                             readonly
                             class="w-full px-3 py-2.5 bg-transparent rounded-lg text-sm text-text-primary placeholder-text-muted outline-none transition-all duration-fast focus:border-primary"
-                            placeholder="学号和姓名校验通过后自动填写"
+                            :placeholder="
+                                t(
+                                    'user.verification.student.academicEmail.schoolEmailPlaceholder',
+                                )
+                            "
                         />
                     </div>
 
@@ -237,7 +253,11 @@
                             class="block text-sm font-semibold text-text-primary"
                             for="student-email-code"
                         >
-                            邮箱验证码
+                            {{
+                                t(
+                                    "user.verification.student.academicEmail.emailCode",
+                                )
+                            }}
                             <input
                                 id="student-email-code"
                                 v-model="form.emailCode"
@@ -245,7 +265,11 @@
                                 type="text"
                                 inputmode="numeric"
                                 class="mt-2 w-full px-3 py-2.5 bg-transparent rounded-lg text-sm text-text-primary placeholder-text-muted outline-none transition-all duration-fast focus:border-primary"
-                                placeholder="请输入验证码"
+                                :placeholder="
+                                    t(
+                                        'user.verification.student.academicEmail.emailCodePlaceholder',
+                                    )
+                                "
                             />
                         </label>
                         <button
@@ -266,7 +290,11 @@
                             :disabled="submitting"
                             @click="requestEmailOTP"
                         >
-                            发送验证码
+                            {{
+                                t(
+                                    "user.verification.student.academicEmail.sendCode",
+                                )
+                            }}
                         </button>
                     </div>
                 </template>
@@ -484,7 +512,19 @@ const submitting = ref(false);
 const academicMatchState = ref<
     "idle" | "waiting" | "checking" | "matched" | "mismatch" | "error"
 >("idle");
-const academicMatchMessage = ref("");
+const academicMatchMessage = computed(() => {
+    const keyByState = {
+        waiting: "enterIdentity",
+        checking: "checking",
+        matched: "matched",
+        mismatch: "mismatch",
+        error: "unavailable",
+    } as const;
+    if (academicMatchState.value === "idle") return "";
+    return t(
+        `user.verification.student.academicEmail.${keyByState[academicMatchState.value]}`,
+    );
+});
 let academicMatchTimer: ReturnType<typeof setTimeout> | undefined;
 let academicMatchRunID = 0;
 
@@ -678,9 +718,9 @@ async function requestEmailOTP() {
             studentName: form.studentName.trim(),
         });
         form.email = result.email;
-        toast.success("验证码已发送");
-    } catch (err) {
-        toast.error(err instanceof Error ? err.message : "验证码发送失败");
+        toast.success(t("user.verification.student.academicEmail.codeSent"));
+    } catch {
+        toast.error(t("user.verification.student.academicEmail.sendFailed"));
     } finally {
         submitting.value = false;
     }
@@ -754,16 +794,13 @@ function scheduleAcademicMatch() {
     const studentName = form.studentName.trim();
     if (!studentID && !studentName) {
         academicMatchState.value = "idle";
-        academicMatchMessage.value = "";
         return;
     }
     if (!studentID || !studentName) {
         academicMatchState.value = "waiting";
-        academicMatchMessage.value = "请先输入学号和姓名。";
         return;
     }
     academicMatchState.value = "checking";
-    academicMatchMessage.value = "正在匹配学号和姓名...";
     const runID = academicMatchRunID;
     academicMatchTimer = setTimeout(() => {
         void runAcademicMatch(runID, studentID, studentName);
@@ -784,21 +821,14 @@ async function runAcademicMatch(
         if (runID !== academicMatchRunID) return;
         if (result.matched && result.email) {
             academicMatchState.value = "matched";
-            academicMatchMessage.value = result.message || "学号和姓名已匹配。";
             form.email = result.email;
             return;
         }
         academicMatchState.value = "mismatch";
-        academicMatchMessage.value =
-            result.message || "学号和姓名不匹配，请核对后再发送验证码。";
         form.email = "";
-    } catch (err) {
+    } catch {
         if (runID !== academicMatchRunID) return;
         academicMatchState.value = "error";
-        academicMatchMessage.value =
-            err instanceof Error
-                ? err.message
-                : "学籍匹配暂时不可用，请稍后重试。";
         form.email = "";
     }
 }
@@ -807,7 +837,6 @@ function resetAcademicMatch() {
     clearAcademicMatchTimer();
     academicMatchRunID += 1;
     academicMatchState.value = "idle";
-    academicMatchMessage.value = "";
 }
 
 function clearAcademicMatchTimer() {
@@ -818,11 +847,11 @@ function clearAcademicMatchTimer() {
 
 function academicRequestBlockedMessage(): string {
     if (!form.studentID.trim() || !form.studentName.trim()) {
-        return "请先输入学号和姓名。";
+        return t("user.verification.student.academicEmail.enterIdentity");
     }
     if (academicMatchState.value === "checking") {
-        return "请等待学号和姓名匹配完成。";
+        return t("user.verification.student.academicEmail.waitForMatch");
     }
-    return "请先通过学号和姓名匹配。";
+    return t("user.verification.student.academicEmail.matchRequired");
 }
 </script>

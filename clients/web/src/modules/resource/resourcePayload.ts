@@ -1,4 +1,5 @@
 import type { components } from '@stuhelper/shared/types'
+import { isNonArrayRecord as isRecord } from '@stuhelper/shared/utils'
 
 export type ResourceBinding = components['schemas']['ResourceBinding']
 export type ResourceVersion = components['schemas']['ResourceVersion']
@@ -10,10 +11,6 @@ export interface ResourcePagePayload {
   total: number
   page: number
   pageSize: number
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
 function readString(record: Record<string, unknown>, key: string, message: string): string {

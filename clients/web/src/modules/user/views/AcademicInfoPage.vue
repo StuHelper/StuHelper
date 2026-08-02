@@ -69,6 +69,7 @@ import { ArrowLeft } from 'lucide-vue-next'
 import { api } from '@/api'
 import { ApiError } from '@/api/errors'
 import type { components } from '@stuhelper/shared/types'
+import { isNonArrayRecord as isRecord } from '@stuhelper/shared/utils'
 
 type AcademicStudentInfo = components['schemas']['AcademicStudentInfo']
 type ErrorState = 'forbidden' | 'not-found' | 'unknown' | null
@@ -79,10 +80,6 @@ const router = useRouter()
 const loading = ref(false)
 const errorState = ref<ErrorState>(null)
 const info = ref<AcademicStudentInfo | null>(null)
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
-}
 
 function readOptionalString(
   record: Record<string, unknown>,

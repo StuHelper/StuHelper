@@ -16,7 +16,8 @@ func TestSmokeConfigFromEnv(t *testing.T) {
 		"EXTERNAL_STUDENT_SOURCE_ORACLE_HOST":                "oracle.example.test",
 		"EXTERNAL_STUDENT_SOURCE_ORACLE_PORT":                "65521",
 		"EXTERNAL_STUDENT_SOURCE_ORACLE_SERVICE_NAME":        "ORCLPDB1",
-		"EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME":            "SYSTEM",
+		"EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME":            "stuhelper_academic_ro",
+		"EXTERNAL_STUDENT_SOURCE_ORACLE_READONLY_USERNAME":   "stuhelper_academic_ro",
 		"EXTERNAL_STUDENT_SOURCE_ORACLE_PASSWORD":            "secret",
 		"EXTERNAL_STUDENT_SOURCE_ORACLE_SCHEMA":              "USR_JWBIZ",
 		"EXTERNAL_STUDENT_SOURCE_ORACLE_TABLE":               "T_XS_JBXX",
@@ -37,6 +38,7 @@ func TestSmokeConfigFromEnv(t *testing.T) {
 	assert.Equal(t, "4111010006", cfg.Oracle.SchoolCode)
 	assert.Equal(t, 65521, cfg.Oracle.Port)
 	assert.Equal(t, "verify-full", cfg.Oracle.TLSMode)
+	assert.Equal(t, "stuhelper_academic_ro", cfg.Oracle.ExpectedUsername)
 	assert.Equal(t, "/external-student-source-tls/ca.crt", cfg.Oracle.TLSCAFile)
 	assert.Equal(t, 300, int(cfg.Oracle.ConnMaxLifetime.Seconds()))
 	assert.Equal(t, 60, int(cfg.Oracle.ConnMaxIdleTime.Seconds()))

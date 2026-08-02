@@ -184,14 +184,24 @@
             :style="{ animationDelay: `${Math.min(index, 8) * 60}ms` }"
             @moderated="() => fetchTeacherReviews(true)"
           />
-          <div v-if="teacherReviewsHasMore" class="flex justify-center pt-1">
+          <div
+            v-if="teacherReviewsHasMore || teacherReviewsLoadMoreError"
+            class="flex flex-col items-center gap-3 pt-1"
+          >
+            <p v-if="teacherReviewsLoadMoreError" role="alert" class="m-0 text-sm text-danger">
+              {{ teacherReviewsLoadMoreError }}
+            </p>
             <button
               type="button"
               class="rounded-lg border border-border-light px-4 py-2 text-sm font-semibold text-text-secondary transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-60"
               :disabled="teacherReviewsLoading"
               @click="fetchTeacherReviews(false)"
             >
-              {{ teacherReviewsLoading ? t('common.actions.loading') : t('common.actions.loadMore') }}
+              {{ teacherReviewsLoading
+                ? t('common.actions.loading')
+                : teacherReviewsLoadMoreError
+                  ? t('common.actions.retry')
+                  : t('common.actions.loadMore') }}
             </button>
           </div>
         </div>
@@ -230,6 +240,7 @@ import EmojiRating from '@/components/business/review/EmojiRating.vue'
 import ReviewCard from '@/components/business/review/ReviewCard.vue'
 import { User, BookOpen, MessageSquare, TrendingUp } from 'lucide-vue-next'
 import type { Review } from '@stuhelper/shared/review'
+import { isNonArrayRecord as isRecord } from '@stuhelper/shared/utils'
 
 interface TeacherCourse {
   id: number
@@ -266,6 +277,7 @@ const canRetryTeacherLoad = ref(false)
 const teacherReviews = ref<Review[]>([])
 const teacherReviewsLoading = ref(false)
 const teacherReviewsError = ref('')
+const teacherReviewsLoadMoreError = ref('')
 const teacherReviewsTotal = ref(0)
 const teacherReviewsPage = ref(1)
 const teacherReviewsPageSize = 6
@@ -285,10 +297,6 @@ const teacherReviewsHasMore = computed(() => teacherReviews.value.length < teach
 
 function isNonNegativeNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
 function readPositiveInteger(
@@ -413,6 +421,7 @@ const fetchTeacher = async (id = teacherID.value) => {
   teacherReviews.value = []
   teacherReviewsLoading.value = false
   teacherReviewsError.value = ''
+  teacherReviewsLoadMoreError.value = ''
   teacherReviewsTotal.value = 0
   teacherReviewsPage.value = 1
   try {
@@ -451,6 +460,7 @@ function showTeacherNotFound() {
   teacherReviews.value = []
   teacherReviewsLoading.value = false
   teacherReviewsError.value = ''
+  teacherReviewsLoadMoreError.value = ''
   teacherReviewsTotal.value = 0
   teacherReviewsPage.value = 1
   updatePageMeta({
@@ -471,6 +481,7 @@ async function fetchTeacherReviews(reset: boolean, id = teacherID.value) {
 
   teacherReviewsLoading.value = true
   teacherReviewsError.value = ''
+  teacherReviewsLoadMoreError.value = ''
   try {
     const page = teacherReviewsPage.value
     const pageData = await api.review.getLatestReviewsPage({
@@ -490,7 +501,11 @@ async function fetchTeacherReviews(reset: boolean, id = teacherID.value) {
     teacherReviewsPage.value = page + 1
   } catch (_error) { void _error;
     if (requestSeq !== teacherReviewsRequestSeq || teacherID.value !== id) return
-    teacherReviewsError.value = t('teaching.profile.reviewsLoadFailed')
+    if (reset || teacherReviews.value.length === 0) {
+      teacherReviewsError.value = t('teaching.profile.reviewsLoadFailed')
+    } else {
+      teacherReviewsLoadMoreError.value = t('teaching.profile.reviewsLoadFailed')
+    }
   } finally {
     if (requestSeq === teacherReviewsRequestSeq && teacherID.value === id) {
       teacherReviewsLoading.value = false

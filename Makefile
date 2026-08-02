@@ -1,4 +1,4 @@
-.PHONY: help bootstrap-dev-ubuntu2404 dev dev-init dev-up dev-docker-up dev-down dev-reset dev-smoke dev-status dev-logs e2e e2e-web e2e-admin e2e-uni e2e-koishi obs-up obs-down obs-smoke prod-init prod-vault-init prod-render prod-deploy prod-rollback deploy prod-down prod-reset prod-smoke prod-sso-smoke prod-tencent-ses-smoke prod-resend-email-smoke prod-admission-reviewer-readiness prod-admission-mvp-evidence prod-admission-mvp-final-evidence prod-admission-mvp-final-koishi-evidence prod-admission-mvp-final-verify prod-open-platform-evidence prod-backup-evidence prod-parity-ingress prod-parity-up prod-parity-down prod-parity-reset prod-parity-smoke prod-parity-datastore-smoke prod-parity-browser-smoke prod-parity-admission-e2e deploy-bundle ansible-bootstrap ansible-deploy-staging ansible-deploy-prod ansible-rollback-staging ansible-rollback-prod check-docs check-admission-mvp check-infra-contracts check-semgrep-custom
+.PHONY: help bootstrap-dev-ubuntu2404 dev dev-init dev-up dev-docker-up dev-down dev-reset dev-smoke dev-status dev-logs e2e e2e-web e2e-admin e2e-uni e2e-koishi obs-up obs-down obs-smoke prod-init prod-vault-init prod-render prod-deploy prod-rollback deploy prod-down prod-reset prod-smoke prod-sso-smoke prod-tencent-ses-smoke prod-resend-email-smoke prod-admission-reviewer-readiness prod-admission-mvp-evidence prod-admission-mvp-final-evidence prod-admission-mvp-final-koishi-evidence prod-admission-mvp-final-verify prod-open-platform-evidence prod-backup-evidence prod-parity-ingress prod-parity-ingress-down prod-parity-up prod-parity-down prod-parity-reset prod-parity-smoke prod-parity-datastore-smoke prod-parity-browser-smoke prod-parity-admission-e2e deploy-bundle ansible-bootstrap ansible-deploy-staging ansible-deploy-prod ansible-rollback-staging ansible-rollback-prod check-docs check-admission-mvp check-infra-contracts check-semgrep-custom
 
 .DEFAULT_GOAL := help
 
@@ -56,10 +56,11 @@ help:
 	@echo "  make prod-admission-mvp-final-verify - verify both final admission MVP evidence files"
 	@echo "  make prod-open-platform-evidence - run token/OpenFGA production evidence smokes"
 	@echo "  make prod-backup-evidence - verify local/fetched PostgreSQL backup evidence"
-	@echo "  make prod-parity-ingress - install local stuhelper/id/sso host ingress"
+	@echo "  make prod-parity-ingress - install local stuhelper/join/sso host ingress"
+	@echo "  make prod-parity-ingress-down - remove local prod-parity host ingress"
 	@echo "  make prod-parity-up - build and run local production-equivalent stack"
-	@echo "  make prod-parity-down - stop local production-equivalent stack"
-	@echo "  make prod-parity-reset - stop local production-equivalent stack and remove volumes"
+	@echo "  make prod-parity-down - stop local production-equivalent stack and remove local ingress"
+	@echo "  make prod-parity-reset - stop local production-equivalent stack and remove ingress/volumes"
 	@echo "  make prod-parity-smoke - smoke-check local production-equivalent stack"
 	@echo "  make prod-parity-datastore-smoke - verify local parity PostgreSQL/Redis isolation"
 	@echo "  make prod-parity-browser-smoke - run browser smoke against local production-equivalent Web/Admin"
@@ -202,6 +203,9 @@ prod-backup-evidence:
 
 prod-parity-ingress:
 	./infra/ops/install-local-prod-parity-ingress.sh
+
+prod-parity-ingress-down:
+	./infra/ops/remove-local-prod-parity-ingress.sh
 
 prod-parity-up:
 	./infra/ops/prod-parity-up.sh

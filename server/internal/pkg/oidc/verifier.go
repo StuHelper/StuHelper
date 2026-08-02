@@ -29,7 +29,10 @@ func newProviderVerifier(
 		return nil, errors.New("oidc: jwks_uri unavailable")
 	}
 	keySet := newProviderUnavailableKeySet(ctx, metadata.JWKSURI)
-	return gooidc.NewVerifier(cfg.Issuer, keySet, &gooidc.Config{SkipClientIDCheck: true}), nil
+	return gooidc.NewVerifier(cfg.Issuer, keySet, &gooidc.Config{
+		SkipClientIDCheck:    true,
+		SupportedSigningAlgs: allowedJWTSigningAlgorithms(),
+	}), nil
 }
 
 func newProviderUnavailableKeySet(ctx context.Context, jwksURI string) *providerUnavailableKeySet {

@@ -27,6 +27,7 @@ import PersistentAdminTable from '../../shared/admin-table/PersistentAdminTable.
 import PersistentAdminTableColumn from '../../shared/admin-table/PersistentAdminTableColumn.vue';
 import AdminContentLayout from '../../shared/AdminContentLayout.vue';
 import { formatAdminDateTime } from '../../shared/display';
+import { isFreshmanReviewPending } from './review-state';
 
 type FreshmanReviewRow = FreshmanApplication & {
   failureCount?: number;
@@ -117,6 +118,10 @@ async function handleReview(
   successMessage: string,
   action: FreshmanReviewAction,
 ) {
+  if (!isFreshmanReviewPending(row.status)) {
+    ElMessage.warning('该申请已处理，请刷新列表');
+    return false;
+  }
   if (rowReviewing(row)) {
     return false;
   }
@@ -307,53 +312,58 @@ onMounted(fetchData);
             >
               材料预览
             </ElButton>
-            <ElButton
-              plain
-              size="small"
-              type="success"
-              data-action="approve"
-              :disabled="rowReviewing(row)"
-              :loading="rowActionLoading(row, 'approve')"
-              @click="approve(row)"
-            >
-              通过
-            </ElButton>
-            <ElInputNumber
-              v-model="extensionDaysById[row.id]"
-              class="freshman-action-number"
-              :disabled="rowReviewing(row)"
-              :min="0"
-              size="small"
-            />
-            <ElButton
-              plain
-              size="small"
-              type="success"
-              data-action="approveWithDays"
-              :disabled="rowReviewing(row)"
-              :loading="rowActionLoading(row, 'approveWithDays')"
-              @click="approve(row, rowExtensionDays(row))"
-            >
-              带天数通过
-            </ElButton>
-            <ElInput
-              v-model="rejectionReasons[row.id]"
-              class="freshman-action-reason"
-              :disabled="rowReviewing(row)"
-              placeholder="驳回原因"
-              size="small"
-            />
-            <ElButton
-              plain
-              size="small"
-              type="danger"
-              data-action="reject"
-              :disabled="rowReviewing(row)"
-              :loading="rowActionLoading(row, 'reject')"
-              @click="reject(row)"
-            >
-              驳回
-            </ElButton>
+            <template v-if="isFreshmanReviewPending(row.status)">
+              <ElButton
+                plain
+                size="small"
+                type="success"
+                data-action="approve"
+                :disabled="rowReviewing(row)"
+                :loading="rowActionLoading(row, 'approve')"
+                @click="approve(row)"
+              >
+                通过
+              </ElButton>
+              <ElInputNumber
+                v-model="extensionDaysById[row.id]"
+                class="freshman-action-number"
+                :disabled="rowReviewing(row)"
+                :min="0"
+                size="small"
+              />
+              <ElButton
+                plain
+                size="small"
+                type="success"
+                data-action="approveWithDays"
+                :disabled="rowReviewing(row)"
+                :loading="rowActionLoading(row, 'approveWithDays')"
+                @click="approve(row, rowExtensionDays(row))"
+              >
+                带天数通过
+              </ElButton>
+              <ElInput
+                v-model="rejectionReasons[row.id]"
+                class="freshman-action-reason"
+                :disabled="rowReviewing(row)"
+                placeholder="驳回原因"
+                size="small"
+              />
+              <ElButton
+                plain
+                size="small"
+                type="danger"
+                data-action="reject"
+                :disabled="rowReviewing(row)"
+                :loading="rowActionLoading(row, 'reject')"
+                @click="reject(row)"
+              >
+                驳回
+              </ElButton>
+            </template>
+            <span v-else class="admin-cell-muted" data-review-complete>
+              已处理
+            </span>
           </div>
         </template>
       </PersistentAdminTableColumn>

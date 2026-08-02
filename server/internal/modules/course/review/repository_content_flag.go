@@ -75,6 +75,9 @@ func (r *Repository) ListFlaggedReviews(ctx context.Context, limit, offset int, 
 	ctx = withDBTable(ctx, "reviews")
 	limit = httputil.ClampPageSize(limit)
 	offset = httputil.ClampOffset(offset)
+	if schoolIDs != nil && len(schoolIDs) == 0 {
+		return []Review{}, 0, nil
+	}
 	var qb strings.Builder
 	qb.WriteString(`
 		SELECT r.id, r.course_id, r.title, r.content, r.status, r.content_flag,

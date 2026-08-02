@@ -50,6 +50,25 @@ groups:
           summary: Database query errors are elevated
           description: Database query error rate is above 1 req/s over the last 10 minutes.
 
+      - alert: StuHelperReviewProjectionSourceWriteLatency
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le, table) (
+              rate(db_query_duration_seconds_bucket{
+                operation=~"exec|query_row",
+                table=~"reviews|teachers|departments"
+              }[5m])
+            )
+          ) > 0.5
+        for: 15m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: Review projection source writes are slow
+          description: '{{ $labels.table }} database write p95 has exceeded 500 ms for 15 minutes; correlate with PostgreSQL Lock waits before changing the coalesced projection key.'
+
       - alert: StuHelperDependencyErrors
         expr: sum by (client, operation) (rate(external_requests_total{status="error"}[5m])) > 0.1
         for: 10m

@@ -323,7 +323,12 @@ function parseBatchMutePayload(payload: string | undefined) {
   if (!source) {
     return null
   }
-  const [secondsText, memberIdsText] = source.split(/\s+/, 2)
+  const separatorIndex = source.search(/\s/)
+  if (separatorIndex < 0) {
+    return null
+  }
+  const secondsText = source.slice(0, separatorIndex)
+  const memberIdsText = source.slice(separatorIndex + 1)
   const seconds = Number(secondsText)
   if (!Number.isInteger(seconds) || seconds < 0) {
     return null

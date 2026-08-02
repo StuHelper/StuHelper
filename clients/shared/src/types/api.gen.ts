@@ -1559,7 +1559,7 @@ export interface paths {
         };
         /**
          * 批量获取多个课程的测评列表（支持可选认证）
-         * @description 通过逗号分隔的课程ID列表批量获取测评，避免N+1查询
+         * @description 通过重复的 courseIDs 查询参数批量获取测评，避免N+1查询；服务端兼容旧逗号格式
          */
         get: operations["getBatchCourseReviews"];
         put?: never;
@@ -3797,6 +3797,8 @@ export interface components {
             dislikeCount: number;
             /** @description 当前已认证用户对该测评的投票；匿名或未投票时省略 */
             userVote?: components["schemas"]["VoteType"];
+            /** @description 当前已认证用户是否为该测评作者；匿名请求为 false */
+            isOwner?: boolean;
             replyCount: number;
             /** @enum {string} */
             status: "published" | "pending_review" | "hidden" | "deleted";
@@ -4899,8 +4901,6 @@ export interface components {
             /** @enum {string} */
             contentType: "image/jpeg" | "image/png" | "image/webp";
             imageBase64: string;
-            /** Format: date-time */
-            capturedAt?: string;
         };
         FreshmanCameraHandoff: {
             id: string;
@@ -5612,11 +5612,6 @@ export interface components {
         IdentityPhotoUploadResult: {
             /** @description 后续提交实名认证时使用的对象存储 key */
             key: string;
-            rejectionReason?: string | null;
-            /** Format: date-time */
-            createdAt?: string;
-            /** Format: date-time */
-            updatedAt?: string;
         };
         StudentEmailAcademicMatchRequest: {
             /** @description 教育部学校标识码；即时学籍匹配必须以此字段识别学校。 */
@@ -6137,6 +6132,7 @@ export interface operations {
             400: components["responses"]["ErrorResponse"];
             401: components["responses"]["ErrorResponse"];
             403: components["responses"]["ErrorResponse"];
+            429: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
             503: components["responses"]["ErrorResponse"];
         };
@@ -6283,6 +6279,7 @@ export interface operations {
             400: components["responses"]["ErrorResponse"];
             401: components["responses"]["ErrorResponse"];
             429: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     openPlatformAuthorize: {
@@ -8528,6 +8525,8 @@ export interface operations {
                         data: {
                             list: components["schemas"]["Review"][];
                             total: number;
+                            page: number;
+                            pageSize: number;
                         };
                     };
                 };
@@ -8563,6 +8562,8 @@ export interface operations {
                         data: {
                             list: components["schemas"]["Review"][];
                             total: number;
+                            page: number;
+                            pageSize: number;
                         };
                     };
                 };
@@ -8604,12 +8605,16 @@ export interface operations {
                         data: {
                             list: components["schemas"]["Review"][];
                             total: number;
+                            page: number;
+                            pageSize: number;
                         };
                     };
                 };
             };
             400: components["responses"]["ErrorResponse"];
+            429: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     getBatchCourseReviews: {
@@ -8638,13 +8643,17 @@ export interface operations {
                             [key: string]: {
                                 list: components["schemas"]["Review"][];
                                 total: number;
+                                page: number;
+                                pageSize: number;
                             };
                         };
                     };
                 };
             };
             400: components["responses"]["ErrorResponse"];
+            429: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     postReview: {
@@ -8745,6 +8754,7 @@ export interface operations {
             404: components["responses"]["ErrorResponse"];
             429: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     voteReview: {
@@ -8815,6 +8825,7 @@ export interface operations {
             409: components["responses"]["ErrorResponse"];
             429: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     getReplies: {
@@ -8917,6 +8928,7 @@ export interface operations {
             404: components["responses"]["ErrorResponse"];
             429: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     getReviewStats: {
@@ -10170,7 +10182,9 @@ export interface operations {
             };
             400: components["responses"]["ErrorResponse"];
             401: components["responses"]["ErrorResponse"];
+            429: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     getUserQQBinding: {
@@ -10274,7 +10288,9 @@ export interface operations {
             401: components["responses"]["ErrorResponse"];
             403: components["responses"]["ErrorResponse"];
             409: components["responses"]["ErrorResponse"];
+            429: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     matchStudentEmailAcademicStudent: {
@@ -10304,6 +10320,7 @@ export interface operations {
             400: components["responses"]["ErrorResponse"];
             401: components["responses"]["ErrorResponse"];
             409: components["responses"]["ErrorResponse"];
+            429: components["responses"]["ErrorResponse"];
             503: components["responses"]["ErrorResponse"];
         };
     };
@@ -10402,6 +10419,7 @@ export interface operations {
             401: components["responses"]["ErrorResponse"];
             429: components["responses"]["ErrorResponse"];
             500: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     bindPhone: {
@@ -10936,6 +10954,11 @@ export interface operations {
                 content?: never;
             };
             400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
         };
     };
     completeAdmissionSchoolSSO: {
@@ -10961,6 +10984,9 @@ export interface operations {
             };
             400: components["responses"]["ErrorResponse"];
             401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
             503: components["responses"]["ErrorResponse"];
         };
     };

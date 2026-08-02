@@ -58,7 +58,7 @@ CASDOOR_ADMIN_REDIRECT_URI=https://stuhelper.com/api/v1/auth/callback
 CASDOOR_UNIAPP_REDIRECT_URI=https://stuhelper.com/api/v1/auth/callback
 
 CORS_ORIGINS=https://stuhelper.com,https://join.stuhelper.com,https://sso.stuhelper.com
-FRONTEND_METRICS_ALLOWED_ORIGINS=https://stuhelper.com
+FRONTEND_METRICS_ALLOWED_ORIGINS=https://stuhelper.com,https://join.stuhelper.com
 OPEN_PLATFORM_CONSENT_BASE_URL=https://stuhelper.com
 OPEN_PLATFORM_ACCOUNT_BASE_URL=https://stuhelper.com
 TOKEN_COOKIE_SECURE=true
@@ -85,6 +85,10 @@ OPENFGA_RESOURCE_SMOKE_MODE=container
 OPENFGA_STORE_ID=
 OPENFGA_MODEL_ID=
 ```
+
+`OPENFGA_RESOURCE_SMOKE_MODE=container` 会直接运行 `BACKEND_IMAGE_REF` 发布镜像内的
+`/app/openfga-resource-smoke`。生产验收不得临时拉取 Go 工具链、下载模块或现场编译，确保
+验证对象就是已经发布的固定制品。
 
 OpenFGA 生产 `STORE_ID` / `MODEL_ID` 不在共享样例中手填占位符，必须保持为空。`bootstrap-platform.sh` / OpenFGA bootstrap 创建 store 和 authorization model 后，把真实 `OPENFGA_STORE_ID`、`OPENFGA_MODEL_ID` 写入 `GENERATED_ENV_FILE`；`GENERATED_ENV_SECRET_REF` 只承载 generated secret env，不承载这两个非 secret runtime ID。生产部署脚本允许空值等待 bootstrap 写入，但会拒绝 `REPLACE_WITH_OPENFGA_*` 这类共享样例占位符进入部署。
 
@@ -171,11 +175,11 @@ sudo ./infra/ops/apply-baota-nginx-templates.sh --profile sso --apply --reload -
 
 北航老生学号邮箱 OTP 使用外部只读 Oracle 学籍源。Oracle DBA 必须提供启用 TCPS 的监听器和证书，证书 SAN 必须覆盖 `EXTERNAL_STUDENT_SOURCE_ORACLE_HOST`；应用固定使用 `EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_MODE=verify-full`，默认端口 `2484`，并从 `EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_HOST_PATH` 复制公开 CA 到只读容器路径 `/external-student-source-tls/ca.crt`。该挂载不得包含数据库文件、服务端私钥或 CA 私钥。
 
-生产 secret backend 中启用 `EXTERNAL_STUDENT_SOURCE_ENABLED=true`，配置 `EXTERNAL_STUDENT_SOURCE_PROVIDER=oracle`、`EXTERNAL_STUDENT_SOURCE_SCHOOL_CODE=4111010006`、host/service/user/password/schema/table/column、连接超时、查询超时和连接池参数。密码只能存在于 secret backend。运行账号必须与源 schema owner 不同，且不得使用 `SYS`、`SYSTEM`、`SYSBACKUP`、`SYSDG`、`SYSKM` 或 `SYSRAC`；在 Oracle 源端通过 `EXTERNAL_STUDENT_SOURCE_ORACLE_READONLY_PASSWORD=<secret> ./infra/ops/provision-external-student-source-oracle-readonly.sh` 管理专用账号。脚本会拒绝任何 role、列级授权或额外系统/对象权限，只允许直接授予无 `ADMIN OPTION` 的 `CREATE SESSION`，以及 `USR_JWBIZ.T_XS_JBXX` 上无 `GRANT OPTION`、无 `HIERARCHY OPTION` 的 `SELECT`。应用只查询 `XH` 与 `XM`，单次学号查询最多读取两行，并拒绝空值、不一致学号、冲突姓名和非法字符。
+生产 secret backend 中启用 `EXTERNAL_STUDENT_SOURCE_ENABLED=true`，配置 `EXTERNAL_STUDENT_SOURCE_PROVIDER=oracle`、`EXTERNAL_STUDENT_SOURCE_SCHOOL_CODE=4111010006`、host/service/user/password/schema/table/column、连接超时、查询超时和连接池参数。密码只能存在于 secret backend。`EXTERNAL_STUDENT_SOURCE_ORACLE_READONLY_USERNAME` 是 DBA provisioning 与应用 runtime 共同使用的预期身份；`EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME` 必须与其大小写不敏感地相等。运行账号必须与源 schema owner 不同，且不得使用 `SYS`、`SYSTEM`、`SYSBACKUP`、`SYSDG`、`SYSKM` 或 `SYSRAC`；在 Oracle 源端通过 `EXTERNAL_STUDENT_SOURCE_ORACLE_READONLY_PASSWORD=<secret> ./infra/ops/provision-external-student-source-oracle-readonly.sh` 管理专用账号。脚本会拒绝任何 role、列级授权或额外系统/对象权限，只允许直接授予无 `ADMIN OPTION` 的 `CREATE SESSION`，以及 `USR_JWBIZ.T_XS_JBXX` 上无 `GRANT OPTION`、无 `HIERARCHY OPTION` 的 `SELECT`。应用只查询 `XH` 与 `XM`，单次学号查询最多读取两行，并拒绝空值、不一致学号、冲突姓名和非法字符。
 
 运行时默认使用 4 个最大连接、1 个空闲连接、300 秒连接寿命和 60 秒空闲寿命。熔断参数由 `EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_FAILURE_THRESHOLD=5`、`EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_SUCCESS_THRESHOLD=2`、`EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_OPEN_SECONDS=30` 控制；半开状态只允许一个恢复探测。Oracle 内部查询超时、TLS、连接、驱动或返回学号与绑定参数不一致等源级故障会增加 breaker failure；调用方取消/截止以及单条记录缺字段、非法姓名或冲突重复行属于 neutral outcome，既不增加也不重置健康计数，并会释放已占用的半开探针。所有失败请求仍记录到 `external_requests_total{client="oracle_student_directory"}`；三类固定的数据完整性原因另记录到 `external_data_integrity_errors_total{client="oracle_student_directory",reason=~"invalid_record|ambiguous_record|identity_mismatch"}`。User 与 Admission 接口继续返回 503，不把依赖或源数据故障伪装成“学号姓名不匹配”。
 
-`./infra/ops/admission-student-source-go-live.sh` 是统一上线入口：外部源模式先运行 `external-student-source-smoke.sh`，本地 TSV 模式先校验再导入 `BUAA_ACADEMIC_STUDENTS_TSV`，随后统一运行 `admission-production-readiness.sh`。readiness summary 必须标记 `buaa_student_source=external_oracle`，并留档 `infra/generated/external-student-source-smoke.json`。需要抽样校验时，在 secret backend 设置 `EXTERNAL_STUDENT_SOURCE_SMOKE_REQUIRE_SAMPLE=true`、`EXTERNAL_STUDENT_SOURCE_SMOKE_STUDENT_ID` 和可选 `EXTERNAL_STUDENT_SOURCE_SMOKE_EXPECTED_NAME`；evidence 只保留学号哈希前缀、TLS 验证状态和匹配布尔值，不记录原始学号、姓名或密码。
+`./infra/ops/admission-student-source-go-live.sh` 是统一上线入口：外部源模式先运行 `external-student-source-smoke.sh`，本地 TSV 模式先校验再导入 `BUAA_ACADEMIC_STUDENTS_TSV`，随后统一运行 `admission-production-readiness.sh`。readiness summary 必须标记 `buaa_student_source=external_oracle`，并留档 `infra/generated/external-student-source-smoke.json`。真实 smoke 会从同一 Oracle 会话读取 `SESSION_USER` 与 `USER_*_PRIVS`：要求实际身份匹配预期只读账号，且直接授权严格为零 role、一个无 `ADMIN OPTION` 的 `CREATE SESSION`、目标表上一个无 grant/hierarchy option 的 `SELECT`、零列级授权。需要抽样校验时，在 secret backend 设置 `EXTERNAL_STUDENT_SOURCE_SMOKE_REQUIRE_SAMPLE=true`、`EXTERNAL_STUDENT_SOURCE_SMOKE_STUDENT_ID` 和可选 `EXTERNAL_STUDENT_SOURCE_SMOKE_EXPECTED_NAME`；evidence 只保留身份与学号的哈希前缀、TLS/身份/授权匹配布尔值和授权计数，不记录原始账号、学号、姓名或密码。
 
 如果暂时没有可用 Oracle 外部源，才使用本地 fallback 表 `academic.buaa_students`。拿到真实 TSV 后，先用 `BUAA_ACADEMIC_VALIDATE_ONLY=true BUAA_ACADEMIC_STUDENTS_TSV=/path/to/buaa-students.tsv ./infra/ops/import-buaa-academic-students.sh` 做离线校验，再用 `BUAA_ACADEMIC_STUDENTS_TSV=/path/to/buaa-students.tsv ./infra/ops/import-buaa-academic-students.sh` 导入。TSV 至少包含 `xh` 和 `xm` 列，也接受 `学号` 和 `姓名` 列名；可选列包括 `sfzjlxdm`、`yxdm`、`zydm`、`bjdm`、`xznj`、`rxnj`、`pyccdm`、`xslbdm`、`sjh`、`dzxx`、`xjztdm`、`sfzx`、`sfzj`。普通 TSV 入口不接受 `sfzjh_enc` 和 `sfzjh_hash`：数据库要求二者作为安全配对原子写入，而普通 upsert 只保留已有配对。当前仓库不提供该入口；确需导入身份证件号时，必须先实现并审计一个从同一明文原子生成 AES envelope 和 HMAC 的专用工具。脚本只做幂等 upsert，不清空旧数据，不打印学生明细。
 

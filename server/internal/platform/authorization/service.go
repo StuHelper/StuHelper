@@ -43,6 +43,8 @@ func (s *Service) Authorize(ctx context.Context, subject Subject, action Action,
 		return authorizeAnyCapability(subject, resource)
 	case ActionCapabilityRequireGlobal:
 		return authorizeGlobalCapability(subject, resource)
+	case ActionMFAProofRequire:
+		return s.authorizeMFAProof(subject, resource)
 	case ActionPrivilegedMFARequire:
 		return s.authorizePrivilegedMFA(subject, resource)
 	case ActionStepUpMFARequire:
@@ -109,6 +111,22 @@ func (s *Service) authorizePrivilegedMFA(subject Subject, resource Resource) Dec
 		return allow("privileged mfa not required")
 	}
 	return s.authorizeMFA(subject, resource)
+}
+
+func (s *Service) authorizeMFAProof(subject Subject, resource Resource) Decision {
+	if s.disableMFAGates {
+		return allow("mfa enforcement disabled")
+	}
+	if resource.Type != ResourceMFA {
+		return deny("mfa resource is invalid", ErrInvalidResource)
+	}
+	if !subject.MFAEnrollmentActive {
+		return deny("mfa enrollment required", ErrMFAEnrollmentRequired)
+	}
+	if subject.MFAProofVerifiedAt.IsZero() || subject.MFAProofVerifiedAt.After(s.now()) {
+		return deny("mfa proof required", ErrStepUpRequired)
+	}
+	return allow("mfa proof accepted without freshness requirement")
 }
 
 func (s *Service) authorizeMFA(subject Subject, resource Resource) Decision {

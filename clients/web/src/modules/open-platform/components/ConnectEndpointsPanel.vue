@@ -59,12 +59,7 @@ const toast = useToast()
 const copiedEndpoint = ref<ConnectEndpointKey | null>(null)
 let copiedEndpointResetTimer: ReturnType<typeof setTimeout> | null = null
 
-const identityIssuer = computed(() =>
-  normalizeSsoIssuer(
-    import.meta.env.VITE_SSO_URL,
-    typeof window === 'undefined' ? undefined : window.location.origin,
-  ),
-)
+const identityIssuer = computed(() => normalizeSsoIssuer(import.meta.env.VITE_SSO_URL))
 const connectEndpoints = computed(() => buildConnectEndpoints(identityIssuer.value))
 
 function connectEndpointLabel(key: ConnectEndpointKey) {

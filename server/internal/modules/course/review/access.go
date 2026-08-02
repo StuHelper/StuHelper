@@ -25,19 +25,19 @@ const (
 )
 
 type ReviewAccessFacts struct {
-	Authenticated       bool
-	InternalUserID      int64
-	CanManageReviews    bool
-	CanViewFull         bool
-	CanPostReview       bool
-	CanEditOwn          bool
-	CanDeleteOwn        bool
-	IdentityVerified    bool
-	StudentVerified     bool
-	SchoolID            *string
-	PreviewTitleRunes   int
-	PreviewContentRunes int
-	PreviewContentPct   int
+	Authenticated            bool
+	InternalUserID           int64
+	CanManageReviews         bool
+	CanViewFull              bool
+	CanPostReview            bool
+	CanEditOwn               bool
+	CanDeleteOwn             bool
+	IdentityVerified         bool
+	StudentVerified          bool
+	SchoolID                 *string
+	GuestPreviewContentRunes int
+	PreviewContentRunes      int
+	PreviewContentPct        int
 }
 
 func (facts ReviewAccessFacts) WriteAccess() ReviewWriteAccess {
@@ -127,10 +127,10 @@ func buildReviewAccessPolicy(schools []reviewaccess.SchoolConfig, configs []revi
 	}
 	policy.AllowedSchoolIDs = allowedSchoolIDs
 
-	if value, ok := firstNonEmptyConfig(configMap, systemconfig.ReviewPreviewTitleCharsKey); ok {
-		policy.PreviewTitleRunes, err = systemconfig.ParseBoundedInt(value, 1, 200)
+	if value, ok := firstNonEmptyConfig(configMap, systemconfig.ReviewGuestPreviewContentCharsKey); ok {
+		policy.GuestPreviewContentRunes, err = systemconfig.ParseBoundedInt(value, 1, 200)
 		if err != nil {
-			return systemconfig.ReviewAccessPolicySnapshot{}, fmt.Errorf("%s %w", systemconfig.ReviewPreviewTitleCharsKey, err)
+			return systemconfig.ReviewAccessPolicySnapshot{}, fmt.Errorf("%s %w", systemconfig.ReviewGuestPreviewContentCharsKey, err)
 		}
 	}
 	if value, ok := firstNonEmptyConfig(configMap, systemconfig.ReviewPreviewContentCharsKey); ok {
@@ -182,9 +182,9 @@ func (s *Service) ResolveAccessFacts(
 	}
 
 	facts := ReviewAccessFacts{
-		PreviewTitleRunes:   policy.PreviewTitleRunes,
-		PreviewContentRunes: policy.PreviewContentRunes,
-		PreviewContentPct:   policy.PreviewContentPct,
+		GuestPreviewContentRunes: policy.GuestPreviewContentRunes,
+		PreviewContentRunes:      policy.PreviewContentRunes,
+		PreviewContentPct:        policy.PreviewContentPct,
 	}
 	if externalSubject == "" {
 		return facts, nil
@@ -245,19 +245,19 @@ func stripReviewsForResponse(reviews []Review, facts ReviewAccessFacts) []Review
 			result[i].Content = ""
 			result[i].Title = ""
 		case !facts.Authenticated:
-			result[i].Content = previewFirstContentLine(result[i].Content, facts.PreviewTitleRunes)
+			result[i].Content = previewFirstContentLine(result[i].Content, facts.GuestPreviewContentRunes, 100)
 			result[i].Title = ""
 		case !facts.CanViewFull:
-			result[i].Content = previewFirstContentLine(result[i].Content, facts.PreviewTitleRunes)
+			result[i].Content = previewFirstContentLine(result[i].Content, facts.PreviewContentRunes, facts.PreviewContentPct)
 		}
 	}
 
 	return result
 }
 
-func previewFirstContentLine(value string, maxRunes int) string {
+func previewFirstContentLine(value string, maxRunes int, percent int) string {
 	for _, line := range strings.Split(value, "\n") {
-		preview := previewText(line, maxRunes, 100)
+		preview := previewText(line, maxRunes, percent)
 		if preview != "" {
 			return preview
 		}

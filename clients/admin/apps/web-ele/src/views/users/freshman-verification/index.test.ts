@@ -3,6 +3,8 @@ import { resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { isFreshmanReviewPending } from './review-state';
+
 const sourcePath = resolve(
   process.cwd(),
   'src/views/users/freshman-verification/index.vue',
@@ -32,11 +34,20 @@ describe('freshman verification admin view contract', () => {
       ':loading="rowActionLoading(row, \'approve\')"',
       ':loading="rowActionLoading(row, \'approveWithDays\')"',
       ':loading="rowActionLoading(row, \'reject\')"',
+      'v-if="isFreshmanReviewPending(row.status)"',
+      'data-review-complete',
+      "ElMessage.warning('该申请已处理，请刷新列表')",
     ]) {
       expect(source).toContain(token);
     }
 
     expect(source).not.toContain('const actionLoading = ref(false)');
     expect(source).not.toContain(':loading="actionLoading"');
+  });
+
+  it('only allows pending rows to enter the review workflow', () => {
+    expect(isFreshmanReviewPending('pending')).toBe(true);
+    expect(isFreshmanReviewPending('approved')).toBe(false);
+    expect(isFreshmanReviewPending('rejected')).toBe(false);
   });
 });

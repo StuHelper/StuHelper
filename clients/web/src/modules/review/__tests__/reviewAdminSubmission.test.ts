@@ -39,6 +39,7 @@ vi.mock('@/stores/auth', () => ({
 }))
 
 vi.mock('@/utils/adminAccess', () => ({
+  canEditReviewContent: () => true,
   canManageReviews: () => true,
 }))
 

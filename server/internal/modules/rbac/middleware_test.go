@@ -232,6 +232,51 @@ func TestRequirePrivilegedMFARequiresEnrollment(t *testing.T) {
 	assertErrorCode(t, w, errs.ErrMFARequired)
 }
 
+func TestRequireMFAProofAllowsStaleSessionProof(t *testing.T) {
+	engine := gin.New()
+	engine.Use(func(c *gin.Context) {
+		c.Set(middleware.CtxKeyUserID, "school-admin-1")
+		c.Set(middleware.CtxKeyRoles, []string{"school_admin"})
+		middleware.SetMFAContext(c, middleware.MFAContext{
+			EnrollmentActive: true,
+			ProofVerifiedAt:  time.Now().Add(-24 * time.Hour),
+		})
+		c.Next()
+	})
+	called := false
+	engine.GET("/test", RequireMFAProof(), func(c *gin.Context) {
+		called = true
+		c.Status(http.StatusOK)
+	})
+
+	w := httptest.NewRecorder()
+	engine.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/test", nil))
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.True(t, called)
+}
+
+func TestRequireMFAProofRejectsMissingSessionProof(t *testing.T) {
+	engine := gin.New()
+	engine.Use(func(c *gin.Context) {
+		c.Set(middleware.CtxKeyUserID, "school-admin-1")
+		c.Set(middleware.CtxKeyRoles, []string{"school_admin"})
+		middleware.SetMFAContext(c, middleware.MFAContext{EnrollmentActive: true})
+		c.Next()
+	})
+	called := false
+	engine.GET("/test", RequireMFAProof(), func(c *gin.Context) {
+		called = true
+	})
+
+	w := httptest.NewRecorder()
+	engine.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/test", nil))
+
+	assert.Equal(t, http.StatusPreconditionFailed, w.Code)
+	assert.False(t, called)
+	assertErrorCode(t, w, errs.ErrStepUpRequired)
+}
+
 func TestRequireStepUpMFARequiresFreshProof(t *testing.T) {
 	engine := gin.New()
 	engine.Use(func(c *gin.Context) {

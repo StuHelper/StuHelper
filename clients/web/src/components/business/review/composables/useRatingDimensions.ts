@@ -3,11 +3,8 @@ import { useI18n } from 'vue-i18n'
 import { api } from '@/api'
 import { isValidRating, type RatingDimension } from '@stuhelper/shared/course'
 import type { ReviewRatings } from '@stuhelper/shared/review'
+import { isNonArrayRecord as isRecord } from '@stuhelper/shared/utils'
 import { localizeRatingDimension } from '@/modules/review/ratingHelpers'
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
-}
 
 function readRatingDimension(payload: unknown): RatingDimension {
   if (!isRecord(payload)) {

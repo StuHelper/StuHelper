@@ -10,22 +10,22 @@ import (
 )
 
 const (
-	ReviewAccessSchoolIDsKey       = "review_access_school_ids"
-	ReviewPreviewTitleCharsKey     = "review_preview_title_chars"
-	ReviewPreviewContentCharsKey   = "review_preview_content_chars"
-	ReviewPreviewContentPercentKey = "review_preview_content_percent"
+	ReviewAccessSchoolIDsKey          = "review_access_school_ids"
+	ReviewGuestPreviewContentCharsKey = "review_guest_preview_content_chars"
+	ReviewPreviewContentCharsKey      = "review_preview_content_chars"
+	ReviewPreviewContentPercentKey    = "review_preview_content_percent"
 
-	defaultReviewPreviewTitleRunes   = 24
-	defaultReviewPreviewContentRunes = 120
-	defaultReviewPreviewContentPct   = 100
+	defaultReviewGuestPreviewContentRunes = 24
+	defaultReviewPreviewContentRunes      = 120
+	defaultReviewPreviewContentPct        = 100
 )
 
 type ReviewAccessPolicySnapshot struct {
-	AllowedSchoolIDs    []string
-	PreviewTitleRunes   int
-	PreviewContentRunes int
-	PreviewContentPct   int
-	LoadedAt            time.Time
+	AllowedSchoolIDs         []string
+	GuestPreviewContentRunes int
+	PreviewContentRunes      int
+	PreviewContentPct        int
+	LoadedAt                 time.Time
 }
 
 var reviewAccessPolicyCache = struct {
@@ -37,9 +37,9 @@ var reviewAccessPolicyCache = struct {
 
 func DefaultReviewAccessPolicySnapshot() ReviewAccessPolicySnapshot {
 	return ReviewAccessPolicySnapshot{
-		PreviewTitleRunes:   defaultReviewPreviewTitleRunes,
-		PreviewContentRunes: defaultReviewPreviewContentRunes,
-		PreviewContentPct:   defaultReviewPreviewContentPct,
+		GuestPreviewContentRunes: defaultReviewGuestPreviewContentRunes,
+		PreviewContentRunes:      defaultReviewPreviewContentRunes,
+		PreviewContentPct:        defaultReviewPreviewContentPct,
 	}
 }
 
@@ -79,7 +79,7 @@ func InvalidateReviewAccessPolicySnapshot() {
 func AffectsReviewAccessPolicy(key string) bool {
 	switch strings.TrimSpace(key) {
 	case ReviewAccessSchoolIDsKey,
-		ReviewPreviewTitleCharsKey,
+		ReviewGuestPreviewContentCharsKey,
 		ReviewPreviewContentCharsKey,
 		ReviewPreviewContentPercentKey:
 		return true
@@ -90,8 +90,8 @@ func AffectsReviewAccessPolicy(key string) bool {
 
 func normalizeReviewAccessPolicySnapshot(snapshot ReviewAccessPolicySnapshot) ReviewAccessPolicySnapshot {
 	snapshot.AllowedSchoolIDs = NormalizeStringList(snapshot.AllowedSchoolIDs)
-	if snapshot.PreviewTitleRunes <= 0 {
-		snapshot.PreviewTitleRunes = defaultReviewPreviewTitleRunes
+	if snapshot.GuestPreviewContentRunes <= 0 {
+		snapshot.GuestPreviewContentRunes = defaultReviewGuestPreviewContentRunes
 	}
 	if snapshot.PreviewContentRunes <= 0 {
 		snapshot.PreviewContentRunes = defaultReviewPreviewContentRunes

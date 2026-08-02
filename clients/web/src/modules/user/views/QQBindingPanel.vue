@@ -78,6 +78,7 @@
 
       <button
         type="button"
+        data-qq-binding-create
         class="w-full py-2.5 bg-text-primary text-bg-base rounded-lg text-sm font-medium cursor-pointer transition-all duration-fast hover:bg-accent hover:text-white border-0 disabled:opacity-50 disabled:cursor-not-allowed"
         :disabled="creating"
         @click="onCreateCode"
@@ -109,9 +110,10 @@
           </code>
           <button
             type="button"
+            data-qq-binding-copy
             class="inline-flex w-12 shrink-0 items-center justify-center border-0 border-l border-solid border-border bg-bg-card text-text-muted transition-colors duration-fast hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
             :aria-label="t('user.verification.qq.copyCommand')"
-            :disabled="copying"
+            :disabled="copying || codeExpired"
             @click="copyBindingCommand"
           >
             <Check v-if="commandCopied" class="size-4 text-green-500" aria-hidden="true" />
@@ -121,8 +123,17 @@
         <p class="text-xs text-text-muted m-0 mt-3">
           {{ t('user.verification.qq.expiresAt') }}：{{ formatTime(qqBindingCode.expiresAt) }}
         </p>
+        <p
+          v-if="codeExpired"
+          class="text-sm text-amber-600 dark:text-amber-400 m-0 mt-3"
+          data-qq-binding-code-expired
+          role="status"
+        >
+          {{ t('user.verification.qq.codeExpired') }}
+        </p>
         <button
           type="button"
+          data-qq-binding-refresh
           class="mt-4 inline-flex items-center gap-2 rounded-lg border border-border bg-bg-card px-3 py-2 text-sm font-medium text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
           :disabled="checking"
           @click="onRefreshStatus"
@@ -152,6 +163,7 @@ import { useVerificationStore } from '@/stores/verification'
 const DEFAULT_QQ_BIND_COMMAND = '绑定'
 const PLACEHOLDER_QQ_BOT_ENTRIES = new Set(['StuHelper QQ Bot'])
 const QQ_BINDING_STATUS_POLL_INTERVAL_MS = 3000
+const QQ_BINDING_STATUS_POLL_MAX_DURATION_MS = 10 * 60 * 1000
 const COPY_FEEDBACK_RESET_MS = 1600
 const rawConfiguredBotEntry = import.meta.env.VITE_QQ_BOT_ENTRY?.trim() || ''
 const configuredBotEntry = PLACEHOLDER_QQ_BOT_ENTRIES.has(rawConfiguredBotEntry)
@@ -185,7 +197,9 @@ const creating = ref(false)
 const checking = ref(false)
 const copying = ref(false)
 const commandCopied = ref(false)
+const codeExpired = ref(false)
 let statusPollTimer: ReturnType<typeof setInterval> | null = null
+let statusPollDeadline = 0
 let copyFeedbackTimer: ReturnType<typeof setTimeout> | null = null
 
 const qqBinding = computed(() => verificationStore.qqBinding)
@@ -235,6 +249,7 @@ async function onCreateCode() {
   creating.value = true
   try {
     await verificationStore.createQQBindingCode()
+    codeExpired.value = false
     startStatusPolling()
     toast.success(t('user.verification.qq.codeCreated'))
   } catch (error) {
@@ -267,7 +282,10 @@ async function refreshQQBindingStatus(options: { silent?: boolean } = {}) {
     if (!options.silent) {
       toast.info(t('user.verification.qq.notYetBound'))
     }
-  } catch {
+  } catch (error) {
+    if (getErrorStatus(error) === 401) {
+      stopStatusPolling()
+    }
     if (!options.silent) {
       toast.error(t('common.loadFailed'))
     }
@@ -281,7 +299,7 @@ function onRefreshStatus() {
 }
 
 async function copyBindingCommand() {
-  if (!bindingCommand.value || copying.value) {
+  if (!bindingCommand.value || copying.value || codeExpired.value) {
     return
   }
   copying.value = true
@@ -306,17 +324,60 @@ async function copyBindingCommand() {
 }
 
 function startStatusPolling() {
-  stopStatusPolling()
+  clearStatusPollTimer()
+  const now = Date.now()
+  const parsedExpiry = Date.parse(qqBindingCode.value?.expiresAt ?? '')
+  const fallbackDeadline = now + QQ_BINDING_STATUS_POLL_MAX_DURATION_MS
+  statusPollDeadline = Number.isFinite(parsedExpiry)
+    ? Math.min(parsedExpiry, fallbackDeadline)
+    : fallbackDeadline
+  codeExpired.value = false
+  resumeStatusPolling()
+}
+
+function resumeStatusPolling() {
+  clearStatusPollTimer()
+  if (!qqBindingCode.value || qqBinding.value || codeExpired.value) return
+  if (statusPollDeadline <= 0) return
+  if (Date.now() >= statusPollDeadline) {
+    expireBindingCode()
+    return
+  }
+  if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
   statusPollTimer = setInterval(() => {
+    if (Date.now() >= statusPollDeadline) {
+      expireBindingCode()
+      return
+    }
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
     void refreshQQBindingStatus({ silent: true })
   }, QQ_BINDING_STATUS_POLL_INTERVAL_MS)
 }
 
 function stopStatusPolling() {
+  clearStatusPollTimer()
+  statusPollDeadline = 0
+}
+
+function clearStatusPollTimer() {
   if (statusPollTimer) {
     clearInterval(statusPollTimer)
     statusPollTimer = null
   }
+}
+
+function expireBindingCode() {
+  clearStatusPollTimer()
+  statusPollDeadline = 0
+  codeExpired.value = true
+}
+
+function handleVisibilityChange() {
+  if (document.visibilityState === 'hidden') {
+    clearStatusPollTimer()
+    return
+  }
+  resumeStatusPolling()
 }
 
 function formatTime(value?: string | null) {
@@ -331,12 +392,19 @@ function goBack() {
 }
 
 onMounted(async () => {
+  document.addEventListener('visibilitychange', handleVisibilityChange)
   if (!props.loadOnMount) {
+    if (qqBindingCode.value && !qqBinding.value) {
+      startStatusPolling()
+    }
     return
   }
   try {
     await verificationStore.fetchStatus()
     emit('loaded')
+    if (qqBindingCode.value && !qqBinding.value) {
+      startStatusPolling()
+    }
   } catch {
     emit('loadError')
     toast.error(t('common.loadFailed'))
@@ -344,6 +412,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
   stopStatusPolling()
   if (copyFeedbackTimer) {
     clearTimeout(copyFeedbackTimer)

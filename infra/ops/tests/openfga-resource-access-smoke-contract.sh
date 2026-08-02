@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 SMOKE_SCRIPT="${REPO_ROOT}/infra/ops/openfga-resource-access-smoke.sh"
 SMOKE_CMD="${REPO_ROOT}/server/cmd/openfga-resource-smoke/main.go"
+SERVER_DOCKERFILE="${REPO_ROOT}/server/Dockerfile"
 
 fail() {
   echo "[openfga-resource-access-smoke-contract][error] $*" >&2
@@ -32,14 +33,18 @@ assert_contains "${SMOKE_SCRIPT}" 'reject_placeholder_if_set OPENFGA_MODEL_ID "\
 assert_contains "${SMOKE_SCRIPT}" 'run_smoke_with_go'
 assert_contains "${SMOKE_SCRIPT}" 'run_smoke_with_docker'
 assert_contains "${SMOKE_SCRIPT}" 'OPENFGA_RESOURCE_SMOKE_MODE'
-assert_contains "${SMOKE_SCRIPT}" 'OPENFGA_RESOURCE_SMOKE_GO_IMAGE'
+assert_contains "${SMOKE_SCRIPT}" 'OPENFGA_RESOURCE_SMOKE_IMAGE'
 assert_contains "${SMOKE_SCRIPT}" 'OPENFGA_RESOURCE_SMOKE_EVIDENCE_FILE'
-assert_contains "${SMOKE_SCRIPT}" 'GOLANG_IMAGE_REF'
+assert_contains "${SMOKE_SCRIPT}" 'BACKEND_IMAGE_REF'
 assert_contains "${SMOKE_SCRIPT}" 'APP_ENV:-.*production'
 assert_contains "${SMOKE_SCRIPT}" 'OPENFGA_RESOURCE_SMOKE_MODE=host'
 assert_contains "${SMOKE_SCRIPT}" 'OPENFGA_RESOURCE_SMOKE_MODE must be host or container'
-assert_contains "${SMOKE_SCRIPT}" 'cgr\.dev/chainguard/go:latest@sha256:b116b5f2d3f5e7556b66252f9ee7ef9988b84c2139c89d824efcebd6cadbf436'
 assert_contains "${SMOKE_SCRIPT}" '--network "\$\{docker_network_name\}"'
+assert_contains "${SMOKE_SCRIPT}" 'docker image inspect "\$\{smoke_image_ref\}"'
+assert_contains "${SMOKE_SCRIPT}" 'docker run --rm --pull never'
+assert_contains "${SMOKE_SCRIPT}" '--read-only'
+assert_contains "${SMOKE_SCRIPT}" '--tmpfs /app/tmp:rw,nosuid,nodev,noexec,size=16m,uid=1000,gid=1000'
+assert_contains "${SMOKE_SCRIPT}" '--entrypoint /app/openfga-resource-smoke'
 assert_contains "${SMOKE_SCRIPT}" 'go run \./cmd/openfga-resource-smoke'
 assert_contains "${SMOKE_SCRIPT}" 'mkdir -p "\$\(dirname "\$\{OPENFGA_RESOURCE_SMOKE_EVIDENCE_FILE\}"\)"'
 assert_contains "${SMOKE_SCRIPT}" '\| jq \.'
@@ -54,5 +59,14 @@ assert_contains "${SMOKE_CMD}" 'DeleteTuples'
 assert_contains "${SMOKE_CMD}" 'ListedReadAfterRevoke'
 assert_contains "${SMOKE_CMD}" 'ReadAfterRevoke'
 assert_contains "${SMOKE_CMD}" 'WriteAfterRevoke'
+
+assert_contains "${SERVER_DOCKERFILE}" '-o /app/bin/openfga-resource-smoke'
+assert_contains "${SERVER_DOCKERFILE}" '\./cmd/openfga-resource-smoke'
+assert_contains "${SERVER_DOCKERFILE}" 'COPY --from=builder /app/bin/openfga-resource-smoke /app/openfga-resource-smoke'
+
+container_runner_block="$(sed -n '/^run_smoke_with_docker() {/,/^}/p' "${SMOKE_SCRIPT}")"
+if grep -Eq 'go run|GOCACHE|GOMODCACHE|/usr/bin/go|/workspace' <<<"${container_runner_block}"; then
+  fail "container-mode OpenFGA smoke must execute the backend release artifact without runtime compilation"
+fi
 
 echo "[openfga-resource-access-smoke-contract] all assertions passed"

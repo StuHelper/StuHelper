@@ -34,7 +34,7 @@ export const DEFAULT_ADMIN_MESSAGES: StuhelperAdminMessageConfig = Object.freeze
   guardGuildContextRequired: '请在群聊中执行，或显式传入群号。',
   guardWarningMissingContext: '请在群聊中执行，或显式传入群号和成员 ID。',
   guardBatchMuteGroupOnly: '请在目标群聊中执行批量禁言。',
-  guardBatchMuteInvalidPayload: '请提供禁言秒数和成员 ID 列表，例如：群审批量禁言 120 10001,10002',
+  guardBatchMuteInvalidPayload: '请提供禁言秒数和成员 ID 列表，例如：群审禁言 120 10001,10002',
   guardBatchMuteNoTargets: '没有找到可操作的待认证成员。',
   guardBatchMuteSuccess: '已批量禁言 {count} 名成员。',
   guardBatchMuteEventSummary: '管理员批量禁言了 {memberId}',

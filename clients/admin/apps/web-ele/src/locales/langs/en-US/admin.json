@@ -444,6 +444,8 @@
       "missingEvidence": "Required evidence is missing",
       "optionalEvidenceMissing": "Optional evidence was not submitted",
       "incompleteEvidence": "Required evidence is incomplete. Approval is disabled; reject the submission and ask the user to resubmit.",
+      "evidenceLoadFailed": "Evidence failed to load or its link expired. Approval is disabled until the evidence is refreshed.",
+      "refreshEvidence": "Refresh Evidence",
       "noEvidenceDetail": "No review evidence is available",
       "approve": "Approve",
       "reject": "Reject",
@@ -498,7 +500,9 @@
       },
       "method": {
         "ldap": "LDAP",
-        "manual": "Manual Review"
+        "manual": "Manual Review",
+        "school_email_otp": "School Email Code",
+        "school_sso": "School SSO"
       }
     },
     "schoolConfig": {

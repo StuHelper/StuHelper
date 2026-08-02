@@ -1521,9 +1521,7 @@ test.describe("Auth callback and admission entry", () => {
             contentType: "image/jpeg",
             imageBase64: "QUJDRA==",
         });
-        expect(typeof (uploadBody as { capturedAt?: unknown }).capturedAt).toBe(
-            "string",
-        );
+        expect(uploadBody).not.toHaveProperty("capturedAt");
         expect(continuationBody).toEqual({ continueOn: "mobile" });
         expect(authRequestCount).toBe(0);
     });
@@ -1902,8 +1900,6 @@ test.describe("Auth callback and admission entry", () => {
             contentType: "image/jpeg",
             imageBase64: "QUJDRA==",
         });
-        expect(
-            typeof (cameraCaptureBody as { capturedAt?: unknown }).capturedAt,
-        ).toBe("string");
+        expect(cameraCaptureBody).not.toHaveProperty("capturedAt");
     });
 });

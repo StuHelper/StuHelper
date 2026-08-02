@@ -15,6 +15,7 @@ const (
 	ActionCapabilityRequire       Action = "capability.require"
 	ActionCapabilityRequireAny    Action = "capability.require_any"
 	ActionCapabilityRequireGlobal Action = "capability.require_global"
+	ActionMFAProofRequire         Action = "mfa.proof.require"
 	ActionPrivilegedMFARequire    Action = "mfa.privileged.require"
 	ActionStepUpMFARequire        Action = "mfa.step_up.require"
 )
@@ -82,6 +83,10 @@ func GlobalCapabilityResource(capabilityName string) Resource {
 
 func PrivilegedMFAResource(window time.Duration) Resource {
 	return Resource{Type: ResourceMFA, StepUpWindow: window}
+}
+
+func MFAProofResource() Resource {
+	return Resource{Type: ResourceMFA}
 }
 
 func StepUpMFAResource(window time.Duration) Resource {

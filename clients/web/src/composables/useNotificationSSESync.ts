@@ -1,4 +1,5 @@
 import { watch, type Ref } from 'vue'
+import { isNonArrayRecord as isRecord } from '@stuhelper/shared/utils'
 import type { SSENotificationEvent } from '@/stores/notification'
 
 export interface PageNotification {
@@ -8,10 +9,6 @@ export interface PageNotification {
 }
 
 export type NotificationFilter = 'all' | 'unread' | 'read'
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
-}
 
 function readPageNotification(payload: unknown): PageNotification | null {
   if (!isRecord(payload)) {

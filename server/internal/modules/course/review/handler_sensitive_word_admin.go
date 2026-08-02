@@ -133,5 +133,5 @@ func (h *Handler) DeleteSensitiveWord(c *gin.Context) {
 
 	h.logAdminOp(c, "delete_sensitive_word", "sensitive_word", wordID, nil, nil)
 
-	response.Success(c, gin.H{"message": "sensitive word deleted"})
+	response.NoContent(c)
 }

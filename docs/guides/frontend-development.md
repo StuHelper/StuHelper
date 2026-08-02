@@ -3,7 +3,7 @@ type: guide
 audience: frontend-dev
 status: current
 authoritative-source: clients/shared/
-last-verified: 2026-07-31
+last-verified: 2026-08-02
 ---
 
 # 前端开发规范
@@ -28,7 +28,6 @@ clients/
 │   ├── api/
 │   ├── components/
 │   ├── composables/
-│   ├── constants/
 │   ├── design-system/
 │   ├── directives/
 │   ├── i18n/
@@ -36,22 +35,27 @@ clients/
 │   ├── router/
 │   ├── stores/
 │   ├── styles/
-│   ├── types/
 │   └── utils/
 ├── admin/apps/web-ele/src/ # 独立管理后台
 └── uniappx/src/            # 实验性跨端
 ```
 
+共享常量与共享 API 类型分别放在 `clients/shared/src/constants/` 和
+`clients/shared/src/types/`；不要在 `clients/web/src/` 下重建影子层。
+
 ## Web 模块
 
 主站模块以 `clients/web/src/modules/` 为准，当前主要分为：
+- `admission`
 - `auth`
+- `common`
 - `course`
+- `errors`
+- `home`
+- `open-platform`
+- `resource`
 - `review`
 - `user`
-- `home`
-- `common`
-- `errors`
 
 主站无嵌入式 `/admin/*` 路由，后台独立部署在 `clients/admin`。
 

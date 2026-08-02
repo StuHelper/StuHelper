@@ -39,6 +39,7 @@ const ElTableColumnStub = defineComponent({
   name: 'ElTableColumn',
   props: {
     columnKey: { type: String, required: true },
+    minWidth: { type: [Number, String], default: undefined },
     width: { type: [Number, String], default: undefined },
   },
   setup(props, { slots }) {
@@ -47,6 +48,7 @@ const ElTableColumnStub = defineComponent({
         'div',
         {
           'data-column-key': props.columnKey,
+          'data-min-width': String(props.minWidth ?? ''),
           'data-stub': 'el-table-column',
           'data-width': String(props.width ?? ''),
         },
@@ -131,6 +133,18 @@ describe('PersistentAdminTable', () => {
     expect(
       wrapper.find('[data-column-key="courseName"]').attributes(),
     ).toMatchObject({ 'data-width': '220' });
+  });
+
+  it('preserves a caller supplied min-width attribute', () => {
+    const wrapper = mount(PersistentAdminTableColumn, {
+      ...mountOptions,
+      attrs: { 'min-width': 180 },
+      props: { columnKey: 'courseName' },
+    });
+
+    expect(
+      wrapper.find('[data-column-key="courseName"]').attributes(),
+    ).toMatchObject({ 'data-min-width': '180' });
   });
 
   it('does not render default cell slots without row context', () => {

@@ -58,6 +58,22 @@ ensure_bootstrap_value() {
   upsert_env_file "${CASDOOR_BOOTSTRAP_ENV_FILE}" "${key}" "${value}"
 }
 
+append_local_no_proxy() {
+  local hosts="127.0.0.1,localhost,::1,stuhelper.com,www.stuhelper.com,join.stuhelper.com,sso.stuhelper.com,.stuhelper.com"
+  if [[ -n "${NO_PROXY:-}" ]]; then
+    export NO_PROXY="${NO_PROXY},${hosts}"
+  else
+    export NO_PROXY="${hosts}"
+  fi
+  if [[ -n "${no_proxy:-}" ]]; then
+    export no_proxy="${no_proxy},${hosts}"
+  else
+    export no_proxy="${hosts}"
+  fi
+}
+
+append_local_no_proxy
+
 sync_casdoor_builtin_bootstrap_credentials() {
   local postgres_container="${SHARED_POSTGRES_CONTAINER:-${PROD_PARITY_POSTGRES_CONTAINER:-stuhelper-prod-parity-postgres}}"
   local superuser="${SHARED_POSTGRES_SUPERUSER:-postgres}"
@@ -112,6 +128,7 @@ ensure_file_value "${ENV_FILE}" "POSTGRES_HOST" "postgres"
 ensure_file_value "${ENV_FILE}" "POSTGRES_INTERNAL_SSL_MODE" "disable"
 ensure_file_value "${ENV_FILE}" "POSTGRES_ENABLE_SSL" "off"
 ensure_file_value "${ENV_FILE}" "DB_SSL_MODE" "disable"
+ensure_file_value "${ENV_FILE}" "POSTGRES_EXPORTER_DATA_SOURCE_URI" "postgres:5432/postgres?sslmode=disable"
 ensure_file_value "${ENV_FILE}" "DATABASE_URL" "postgres://stuhelper_app:${STUHELPER_APP_DB_PASSWORD:-REPLACE_WITH_STUHELPER_APP_DB_PASSWORD}@postgres:5432/stuhelper?sslmode=disable"
 ensure_file_value "${ENV_FILE}" "BACKUP_DATABASE_URL" "postgres://stuhelper_backup:${STUHELPER_BACKUP_DB_PASSWORD:-REPLACE_WITH_STUHELPER_BACKUP_DB_PASSWORD}@postgres:5432/stuhelper?sslmode=disable"
 ensure_file_value "${ENV_FILE}" "REPLICATION_DATABASE_URL" "postgres://stuhelper_replication:${STUHELPER_REPLICATION_DB_PASSWORD:-REPLACE_WITH_STUHELPER_REPLICATION_DB_PASSWORD}@postgres:5432/stuhelper?sslmode=disable"
@@ -120,6 +137,7 @@ ensure_file_value "${ENV_FILE}" "REDIS_PORT" "6379"
 ensure_file_value "${ENV_FILE}" "REDIS_EXTERNAL_PORT" "26379"
 ensure_file_value "${ENV_FILE}" "REDIS_USERNAME" "stuhelper_app"
 ensure_file_value "${ENV_FILE}" "REDIS_EXPORTER_USERNAME" "stuhelper_metrics"
+ensure_file_value "${ENV_FILE}" "REDIS_PROD_PARITY_MAINTENANCE_USERNAME" "stuhelper_parity_maintenance"
 ensure_file_value "${ENV_FILE}" "REDIS_TLS_ENABLED" "true"
 ensure_file_value "${ENV_FILE}" "REDIS_TLS_CA" "/redis-tls/ca.crt"
 ensure_file_value "${ENV_FILE}" "WEB_PUBLIC_URL" "https://stuhelper.com"
@@ -211,7 +229,7 @@ ensure_file_value "${ENV_FILE}" "TOKEN_COOKIE_DOMAIN" ".stuhelper.com"
 ensure_file_value "${ENV_FILE}" "OTEL_ENABLED" "true"
 ensure_file_value "${ENV_FILE}" "OTEL_SERVICE_NAME" "stuhelper-backend"
 ensure_file_value "${ENV_FILE}" "OTEL_SERVICE_NAMESPACE" "stuhelper"
-ensure_file_value "${ENV_FILE}" "FRONTEND_METRICS_ALLOWED_ORIGINS" "https://stuhelper.com"
+ensure_file_value "${ENV_FILE}" "FRONTEND_METRICS_ALLOWED_ORIGINS" "https://stuhelper.com,https://join.stuhelper.com"
 ensure_file_value "${ENV_FILE}" "OTEL_EXPORTER_OTLP_ENDPOINT" "http://alloy:4318"
 ensure_file_value "${ENV_FILE}" "OTEL_EXPORTER_OTLP_INSECURE" "true"
 ensure_file_value "${ENV_FILE}" "OBJECT_STORAGE_ENDPOINT" "https://object-storage:8334"
@@ -258,6 +276,7 @@ ensure_file_secret "${SECRETS_ENV_FILE}" "OPENFGA_DB_PASSWORD" "prod-parity-open
 ensure_file_secret "${SECRETS_ENV_FILE}" "CASDOOR_DB_PASSWORD" "prod-parity-casdoor-db"
 ensure_file_secret "${SECRETS_ENV_FILE}" "REDIS_PASSWORD" "prod-parity-redis"
 ensure_file_secret "${SECRETS_ENV_FILE}" "REDIS_EXPORTER_PASSWORD" "prod-parity-redis-metrics"
+ensure_file_secret "${SECRETS_ENV_FILE}" "REDIS_PROD_PARITY_MAINTENANCE_PASSWORD" "prod-parity-redis-maintenance"
 ensure_file_secret "${SECRETS_ENV_FILE}" "METRICS_PASSWORD" "prod-parity-metrics"
 ensure_file_secret "${SECRETS_ENV_FILE}" "HMAC_SECRET" "prod-parity-hmac"
 if ! grep -Eq '^DOC_AES_KEYS=' "${SECRETS_ENV_FILE}"; then
@@ -289,6 +308,7 @@ load_env
 app_password="${STUHELPER_APP_DB_PASSWORD}"
 backup_password="${STUHELPER_BACKUP_DB_PASSWORD}"
 replication_password="${STUHELPER_REPLICATION_DB_PASSWORD}"
+ensure_file_value "${SECRETS_ENV_FILE}" "OPENFGA_DATASTORE_URI" "postgresql://openfga:${OPENFGA_DB_PASSWORD}@postgres:5432/openfga?sslmode=disable"
 ensure_file_value "${ENV_FILE}" "DATABASE_URL" "postgres://stuhelper_app:${app_password}@postgres:5432/stuhelper?sslmode=disable"
 ensure_file_value "${ENV_FILE}" "BACKUP_DATABASE_URL" "postgres://stuhelper_backup:${backup_password}@postgres:5432/stuhelper?sslmode=disable"
 ensure_file_value "${ENV_FILE}" "REPLICATION_DATABASE_URL" "postgres://stuhelper_replication:${replication_password}@postgres:5432/stuhelper?sslmode=disable"
@@ -362,6 +382,7 @@ infra_services=(
 )
 
 log "starting local production-parity infrastructure services"
+compose --profile prod up -d --no-deps --force-recreate --wait redis
 compose --profile prod up -d --wait "${infra_services[@]}"
 
 log "running local production-parity database migrations"

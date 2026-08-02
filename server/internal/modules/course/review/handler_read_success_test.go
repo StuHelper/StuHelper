@@ -12,6 +12,7 @@ import (
 
 	"github.com/StuHelper/StuHelper/server/internal/pkg/capability"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/crypto"
+	"github.com/StuHelper/StuHelper/server/internal/pkg/httputil"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/middleware"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/reviewaccess"
 	"github.com/StuHelper/StuHelper/server/internal/testutil/postgresfixture"
@@ -36,12 +37,15 @@ func TestReviewHandler_ReadSuccessPaths(t *testing.T) {
 	otherTeacherID := seedTeacher(t, fixture, schoolID, "王老师", departmentID)
 	courseID := seedCourse(t, fixture, schoolID, departmentID, "计算机网络")
 	otherCourseID := seedCourse(t, fixture, schoolID, departmentID, "操作系统")
+	readUserID := "read-user-1"
+	readUserHash, err := httputil.HashUserID(readUserID)
+	require.NoError(t, err)
 
-	seedReviewWithRatings(t, fixture, "550e8400-e29b-41d4-a716-446655441001", courseID, teacherID, "u-read-1", 4.8, StatusPublished, ReviewRatings{"teaching": 5, "difficulty": 4}, "网络课好评", "网络课内容一")
+	seedReviewWithRatings(t, fixture, "550e8400-e29b-41d4-a716-446655441001", courseID, teacherID, readUserHash, 4.8, StatusPublished, ReviewRatings{"teaching": 5, "difficulty": 4}, "网络课好评", "网络课内容一")
 	seedReviewWithRatings(t, fixture, "550e8400-e29b-41d4-a716-446655441002", courseID, teacherID, "u-read-2", 4.2, StatusPublished, ReviewRatings{"teaching": 4, "difficulty": 5}, "网络课二评", "网络课内容二")
 	seedReviewWithRatings(t, fixture, "550e8400-e29b-41d4-a716-446655441003", otherCourseID, teacherID, "u-read-3", 4.0, StatusPublished, ReviewRatings{"teaching": 4, "difficulty": 4}, "系统课好评", "系统课内容三")
 	seedReviewWithRatings(t, fixture, "550e8400-e29b-41d4-a716-446655441004", courseID, otherTeacherID, "u-read-4", 4.1, StatusPublished, ReviewRatings{"teaching": 4, "difficulty": 4}, "其他老师评价", "其他老师内容")
-	_, err := fixture.Pool.Exec(ctx, `UPDATE courses SET review_count = 2 WHERE id = $1`, courseID)
+	_, err = fixture.Pool.Exec(ctx, `UPDATE courses SET review_count = 2 WHERE id = $1`, courseID)
 	require.NoError(t, err)
 	_, err = fixture.Pool.Exec(ctx, `UPDATE courses SET review_count = 1 WHERE id = $1`, otherCourseID)
 	require.NoError(t, err)
@@ -49,24 +53,26 @@ func TestReviewHandler_ReadSuccessPaths(t *testing.T) {
 	require.NoError(t, svc.RefreshTeacherPublicStats(ctx))
 
 	setReadContext := func(c *gin.Context) {
-		c.Set(middleware.CtxKeyUserID, "read-user-1")
+		c.Set(middleware.CtxKeyUserID, readUserID)
 		c.Set(middleware.CtxKeyCapabilities, []string{capability.ReviewListFull})
 	}
 
-	w, c := withUserContext(http.MethodGet, "/courses/1/reviews?sort=time", "", "read-user-1")
+	w, c := withUserContext(http.MethodGet, "/courses/1/reviews?sort=time", "", readUserID)
 	c.Params = gin.Params{{Key: "courseID", Value: strconv.FormatInt(courseID, 10)}}
 	setReadContext(c)
 	h.GetCourseReviews(c)
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	assert.Contains(t, w.Body.String(), "网络课好评")
+	assert.Contains(t, w.Body.String(), `"isOwner":true`)
 
-	w, c = withUserContext(http.MethodGet, "/reviews/latest", "", "read-user-1")
+	w, c = withUserContext(http.MethodGet, "/reviews/latest", "", readUserID)
 	setReadContext(c)
 	h.GetLatestReviews(c)
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	assert.Contains(t, w.Body.String(), "系统课好评")
+	assert.Contains(t, w.Body.String(), `"isOwner":true`)
 
-	w, c = withUserContext(http.MethodGet, "/reviews/latest?teacherID="+strconv.FormatInt(teacherID, 10), "", "read-user-1")
+	w, c = withUserContext(http.MethodGet, "/reviews/latest?teacherID="+strconv.FormatInt(teacherID, 10), "", readUserID)
 	setReadContext(c)
 	h.GetLatestReviews(c)
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
@@ -74,43 +80,45 @@ func TestReviewHandler_ReadSuccessPaths(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "系统课好评")
 	assert.NotContains(t, w.Body.String(), "其他老师评价")
 
-	w, c = withUserContext(http.MethodGet, "/reviews/search?q=网络", "", "read-user-1")
+	w, c = withUserContext(http.MethodGet, "/reviews/search?q=网络", "", readUserID)
 	c.Request.URL.RawQuery = "q=网络&teacherName=陈老师&termID=2025-2&departmentID=" + strconv.FormatInt(departmentID, 10)
 	setReadContext(c)
 	h.SearchReviews(c)
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	assert.Contains(t, w.Body.String(), "网络课好评")
+	assert.Contains(t, w.Body.String(), `"isOwner":true`)
 
-	w, c = withUserContext(http.MethodGet, "/reviews/batch", "", "read-user-1")
+	w, c = withUserContext(http.MethodGet, "/reviews/batch", "", readUserID)
 	c.Request.URL.RawQuery = "courseIDs=" + strconv.FormatInt(courseID, 10) + "," + strconv.FormatInt(otherCourseID, 10)
 	setReadContext(c)
 	h.GetBatchCourseReviews(c)
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	assert.Contains(t, w.Body.String(), strconv.FormatInt(courseID, 10))
 	assert.Contains(t, w.Body.String(), strconv.FormatInt(otherCourseID, 10))
+	assert.Contains(t, w.Body.String(), `"isOwner":true`)
 
-	w, c = withUserContext(http.MethodGet, "/stats/rating-trend", "", "read-user-1")
+	w, c = withUserContext(http.MethodGet, "/stats/rating-trend", "", readUserID)
 	c.Params = gin.Params{{Key: "courseID", Value: strconv.FormatInt(courseID, 10)}}
 	setReadContext(c)
 	h.GetRatingTrend(c)
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	assert.Contains(t, w.Body.String(), "2025-2")
 
-	w, c = withUserContext(http.MethodGet, "/courses/hot", "", "read-user-1")
+	w, c = withUserContext(http.MethodGet, "/courses/hot", "", readUserID)
 	c.Request.URL.RawQuery = "period=all&limit=5"
 	setReadContext(c)
 	h.GetHotCourses(c)
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	assert.Contains(t, w.Body.String(), "计算机网络")
 
-	w, c = withUserContext(http.MethodGet, "/courses/teachers", "", "read-user-1")
+	w, c = withUserContext(http.MethodGet, "/courses/teachers", "", readUserID)
 	c.Params = gin.Params{{Key: "courseID", Value: strconv.FormatInt(courseID, 10)}}
 	setReadContext(c)
 	h.GetCourseTeachers(c)
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	assert.Contains(t, w.Body.String(), "陈老师")
 
-	w, c = withUserContext(http.MethodGet, "/teachers/stats", "", "read-user-1")
+	w, c = withUserContext(http.MethodGet, "/teachers/stats", "", readUserID)
 	c.Params = gin.Params{{Key: "teacherID", Value: strconv.FormatInt(teacherID, 10)}}
 	setReadContext(c)
 	h.GetTeacherRatingStats(c)
