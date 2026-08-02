@@ -151,7 +151,7 @@ if ! bash -c '
   source "$1"
   systemctl() {
     case "$*" in
-      *--property=EnvironmentFiles*) printf "\n" ;;
+      *--property=EnvironmentFiles*|*--property=UnsetEnvironment*|*--property=PassEnvironment*) printf "\n" ;;
       *) printf "%s\n" "ENV_FILE=/opt/stuhelper/.env.prod.shared BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true" ;;
     esac
   }
@@ -167,7 +167,7 @@ if bash -c '
   source "$1"
   systemctl() {
     case "$*" in
-      *--property=EnvironmentFiles*) printf "\n" ;;
+      *--property=EnvironmentFiles*|*--property=UnsetEnvironment*|*--property=PassEnvironment*) printf "\n" ;;
       *) printf "%s\n" "ENV_FILE=/opt/stuhelper/.env.prod.shared BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=false" ;;
     esac
   }
@@ -186,6 +186,7 @@ if bash -c '
   systemctl() {
     case "$*" in
       *--property=EnvironmentFiles*) printf "%s\n" "/opt/stuhelper/.env.prod.shared (ignore_errors=no)" ;;
+      *--property=UnsetEnvironment*|*--property=PassEnvironment*) printf "\n" ;;
       *) printf "%s\n" "BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true" ;;
     esac
   }
@@ -195,8 +196,27 @@ if bash -c '
 ' bash "${COMMON_LIB_FILE}" >"${tmpdir}/backup-unit-env-file.out" 2>"${tmpdir}/backup-unit-env-file.err"; then
   fail "the systemd environment validator accepted a backup unit with EnvironmentFile overrides"
 fi
-grep -q 'must not use EnvironmentFile' "${tmpdir}/backup-unit-env-file.err" || \
+grep -q 'must not set EnvironmentFiles' "${tmpdir}/backup-unit-env-file.err" || \
   fail "the backup unit EnvironmentFile failure did not report the protected marker policy"
+
+if bash -c '
+  set -euo pipefail
+  source "$1"
+  systemctl() {
+    case "$*" in
+      *--property=UnsetEnvironment*) printf "%s\n" "BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED" ;;
+      *--property=EnvironmentFiles*|*--property=PassEnvironment*) printf "\n" ;;
+      *) printf "%s\n" "BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true" ;;
+    esac
+  }
+  require_systemd_unit_environment_value \
+    stuhelper-postgres-backup-sync.service \
+    BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true
+' bash "${COMMON_LIB_FILE}" >"${tmpdir}/backup-unit-unset-env.out" 2>"${tmpdir}/backup-unit-unset-env.err"; then
+  fail "the systemd environment validator accepted an UnsetEnvironment override"
+fi
+grep -q 'must not set UnsetEnvironment' "${tmpdir}/backup-unit-unset-env.err" || \
+  fail "the backup unit UnsetEnvironment failure did not report the protected marker policy"
 
 fake_bin="${tmpdir}/bin"
 mkdir -p "${fake_bin}"

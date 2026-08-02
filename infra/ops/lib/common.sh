@@ -47,14 +47,17 @@ require_systemd_unit_environment_value() {
   local unit="$1"
   local expected="$2"
   local effective_environment
-  local environment_files
+  local protected_property
+  local protected_property_value
 
-  if ! environment_files="$(systemctl show "${unit}" --property=EnvironmentFiles --value 2>/dev/null)"; then
-    die "failed to inspect environment files for systemd unit ${unit}"
-  fi
-  if [[ -n "${environment_files//[[:space:]]/}" ]]; then
-    die "systemd unit ${unit} must not use EnvironmentFile for the protected backup gate; reinstall the production backup timers and remove overriding drop-ins"
-  fi
+  for protected_property in EnvironmentFiles UnsetEnvironment PassEnvironment; do
+    if ! protected_property_value="$(systemctl show "${unit}" --property="${protected_property}" --value 2>/dev/null)"; then
+      die "failed to inspect ${protected_property} for systemd unit ${unit}"
+    fi
+    if [[ -n "${protected_property_value//[[:space:]]/}" ]]; then
+      die "systemd unit ${unit} must not set ${protected_property} for the protected backup gate; reinstall the production backup timers and remove overriding drop-ins"
+    fi
+  done
 
   if ! effective_environment="$(systemctl show "${unit}" --property=Environment --value 2>/dev/null)"; then
     die "failed to inspect effective environment for systemd unit ${unit}"
