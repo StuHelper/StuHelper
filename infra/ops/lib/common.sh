@@ -301,6 +301,25 @@ host = (urlsplit(endpoint).hostname or "").lower().rstrip(".")
 if not host:
     raise SystemExit("BACKUP_OBJECT_STORAGE_ENDPOINT must include a hostname")
 
+local_identity_spec = os.environ.get(
+    "BACKUP_OBJECT_STORAGE_LOCAL_IDENTITY_CIDRS", ""
+).strip()
+if not local_identity_spec:
+    raise SystemExit(
+        "BACKUP_OBJECT_STORAGE_LOCAL_IDENTITY_CIDRS is required; list every public/NAT/LB address or CIDR that can route back to this production host, or set none only after verifying no such identity exists"
+    )
+local_identity_networks = set()
+if local_identity_spec.lower() != "none":
+    for item in re.split(r"[\s,]+", local_identity_spec):
+        if not item:
+            continue
+        try:
+            local_identity_networks.add(ipaddress.ip_network(item, strict=False))
+        except ValueError:
+            raise SystemExit(
+                f"BACKUP_OBJECT_STORAGE_LOCAL_IDENTITY_CIDRS contains an invalid address or CIDR: {item}"
+            ) from None
+
 try:
     address = ipaddress.ip_address(host)
 except ValueError:
@@ -485,6 +504,14 @@ for resolved_address in resolved_addresses:
     if normalized_address in normalized_local_addresses:
         raise SystemExit(
             "BACKUP_OBJECT_STORAGE_ENDPOINT must not resolve to an address assigned to the production host"
+        )
+    if any(
+        normalized_address.version == identity.version
+        and normalized_address in identity
+        for identity in local_identity_networks
+    ):
+        raise SystemExit(
+            "BACKUP_OBJECT_STORAGE_ENDPOINT must not resolve to a configured public/NAT/LB identity of the production host"
         )
     if normalized_address in normalized_local_docker_addresses or any(
         normalized_address.version == subnet.version and normalized_address in subnet
