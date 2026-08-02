@@ -249,7 +249,7 @@ Required 与 Go/JavaScript CodeQL。bypass actor 只允许 GitHub 用户 `Xaurya
 | #78 | P3：authorization 文档角色语义校正 |
 | 反向 `/admin/stats` | `implemented`：显式拆分只读 dashboard 与 privileged 管理路由的认证强度策略；生产/prod-parity 的统计读取要求活动 enrollment 和当前会话 MFA proof，但不要求 5 分钟 freshness，其余管理路由继续要求 5 分钟 step-up。Authorization Service、RBAC、app 组装与路由契约均覆盖缺 enrollment、缺 proof、陈旧 proof 和高风险 gate。本条所在提交。 |
 | 反向 Developer Connect | `implemented`：Connect 端点只从显式 `VITE_SSO_URL` 解析绝对 HTTP(S) issuer；缺失、相对、非法或非 HTTP(S) 配置统一回退到受控的 `https://sso.stuhelper.com`，不再把当前 Web origin 猜成 OIDC issuer。单测覆盖分域、非法 scheme 与默认值。本条所在提交。 |
-| U-3 | P3：StudentVerificationPanel 学籍邮箱流程国际化 |
+| U-3 | `implemented`：StudentVerificationPanel 的姓名、学号邮箱、验证码、匹配状态、阻断提示与 OTP 结果全部改用中英文 locale；不再显示后端中文 `message`，状态文案由机器状态映射并可随 locale 响应变化。页面专项回归、locale 契约、类型与 lint 均覆盖。本条所在提交。 |
 
 ## 7. 已证伪或明确不实施
 
