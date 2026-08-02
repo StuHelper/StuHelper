@@ -318,7 +318,7 @@ async function mockUserApi(page: Page, state: UserApiState) {
         route.fulfill(
             ok({
                 code: "QQ-CODE-1",
-                expiresAt: "2026-05-24T05:00:00Z",
+                expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
             }),
         ),
     );
