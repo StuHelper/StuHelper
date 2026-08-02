@@ -132,6 +132,20 @@ assert_text_contains "${koishi_job_block}" 'bash infra/ops/tests/koishi-stuhelpe
 
 required_job_block="$(sed -n '/^  required:$/,/^  publish-images:$/p' "${GITHUB_CI_FILE}")"
 assert_text_contains "${required_job_block}" '^      - static-contracts$' "required job"
+assert_contains "${GITHUB_CI_FILE}" '^  schedule:$'
+assert_contains "${GITHUB_CI_FILE}" '^    - cron: "23 18 \* \* 0"$'
+assert_contains "${GITHUB_CI_FILE}" "github\.event_name == 'schedule'"
+assert_contains "${GITHUB_CI_FILE}" "github\.event_name == 'pull_request' && github\.ref \|\| github\.run_id"
+assert_contains "${GITHUB_CI_FILE}" 'cancel-in-progress: \$\{\{ github\.event_name == .pull_request. \}\}'
+assert_contains "${GITHUB_CI_FILE}" '^  promote-staging:$'
+assert_contains "${GITHUB_CI_FILE}" "vars\.STAGING_AUTO_DEPLOY_ENABLED == 'true'"
+assert_contains "${GITHUB_CI_FILE}" 'uses: \./\.github/workflows/deploy\.yml'
+assert_contains "${GITHUB_CI_FILE}" '^      target: staging$'
+assert_not_contains "${GITHUB_CI_FILE}" '^    secrets: inherit$'
+assert_contains "${GITHUB_CI_FILE}" '^  promote-production:$'
+assert_contains "${GITHUB_CI_FILE}" "vars\.PRODUCTION_AUTO_PROMOTION_ENABLED == 'true'"
+assert_contains "${GITHUB_CI_FILE}" "needs\.promote-staging\.result == 'success'"
+assert_contains "${GITHUB_CI_FILE}" '^      target: production$'
 
 assert_contains "${GITHUB_CI_FILE}" 'INSTALL_ADMIN: \$\{\{ matrix\.install_admin \}\}'
 assert_contains "${GITHUB_CI_FILE}" 'if \[ "\$\{INSTALL_ADMIN\}" = "true" \]; then'

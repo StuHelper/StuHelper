@@ -52,9 +52,9 @@ last-verified: 2026-08-02
 |--------|------|------------|
 | `CI` | PR、`develop`/`main` push、手工 | PR 只读；按路径选择 Go、契约、前端、E2E、Koishi、Infra、Semgrep、完整历史 secret scan、PR 新增依赖审查，以及 22 个受管运行时镜像的 `HIGH` / `CRITICAL` / `UNKNOWN` 策略扫描 |
 | `CodeQL` | PR、push、每周、手工 | Go 与 JavaScript/TypeScript 代码扫描 |
-| `Publish images` | 受信任 push 的 `CI` 全部成功后 | 同一 commit 只构建一次、扫描同一镜像、发布不可变 SHA tag；另一受信任分支只能复用已验证 digest，并为最终 digest 签发 provenance |
-| `Deploy` | 手工 | 验证指定 40 位 commit SHA、发布工作流身份、源分支、源提交和镜像 digest 后部署 |
-| `Rollback` | 手工 | 使用同一 environment 锁回滚到经过相同 provenance 校验的 40 位 commit SHA |
+| `Publish images` | 受信任 push 的 `Required` 与两项 CodeQL 成功后 | 再确认提交仍是实时 branch head，同一 commit 只构建一次、扫描同一镜像、发布不可变 SHA tag，并为最终 digest 签发 provenance 与 CycloneDX SBOM attestation |
+| `Deploy` | 手工；也可由 `main` CI 依次调用 staging / production | environment 审批前和 SSH 前两次验证当前 branch head、`Required`、双语言 CodeQL 与 staging gate，并校验发布工作流身份和镜像 digest；forward deploy 不接受历史 SHA |
+| `Rollback` | 手工 | 当前可信 controller 使用同一 environment 锁，把经过 provenance 校验的历史 40 位 SHA 镜像集作为回滚目标 |
 
 所有外部 Action 必须固定到完整 commit SHA，并在注释中保留对应主版本。公开 fork 的 PR 不得使用 `pull_request_target` 检出或运行不受信任代码。
 
@@ -98,7 +98,11 @@ last-verified: 2026-08-02
 
 - `PUBLIC_URL`
 
-`production` 只允许 `main` 分支并要求 environment reviewer；`staging` 仅允许 `develop` 和 `main`。生产真正启用前必须至少有两名具备相应仓库权限的维护者，并启用“发起部署者不能批准自己的部署”。只有一个合格 reviewer 时直接启用该选项会造成无法部署，不能把单人自批当作双人复核。
+`production` 只允许 `main` 分支并要求 environment reviewer；`staging` 仅允许 `develop` 和 `main`。
+当前项目采用明确的单维护者例外：production reviewer 只配置 GitHub 用户 `Xauryan`，并保持
+`prevent_self_review=false`，允许该用户批准自己触发的部署。不创建第二个占位管理员，也不把这个
+例外描述成双人复核；风险由 branch ruleset、审批前 checks/provenance/digest 验证、environment
+secrets 隔离和部署审计共同约束。未来有第二名常任维护者时再重新评估职责分离。
 
 SSH known_hosts 必须预先固定真实 host public key，且条目必须与 `DEPLOY_HOST` 和 `DEPLOY_PORT` 对应；工作流不允许运行时 `ssh-keyscan` 或 TOFU。部署主机使用 DNS 名称或规范 IPv4 地址，部署用户使用规范 Linux 账号名，应用目录使用不含软解析片段的绝对路径。
 
@@ -115,6 +119,11 @@ SSH known_hosts 必须预先固定真实 host public key，且条目必须与 `D
 - `ADMIN_PUBLIC_URL`
 - `ADMIN_VITE_API_URL`
 - `ADMIN_VITE_BASE`
+- `STAGING_AUTO_DEPLOY_ENABLED`：默认不配置或设为 `false`；独立 staging 主机、secrets、公开运行时
+  配置和真实 smoke 就绪后才设为 `true`
+- `PRODUCTION_AUTO_PROMOTION_ENABLED`：默认不配置或设为 `false`；只有自动 staging 已启用且同 SHA
+  smoke 成功、production 专用部署身份和 secrets 已验收后才设为 `true`；production environment
+  审批不会因此被跳过
 
 ### Branch protection
 
@@ -162,7 +171,17 @@ GitHub 原生检测不能替代仓库内的完整历史 Gitleaks 门禁：两者
 - `ghcr.io/stuhelper/frontend:<full-commit-sha>`
 - `ghcr.io/stuhelper/admin:<full-commit-sha>`
 
-`develop-latest` 和 `latest` 只用于人类识别。部署与回滚输入必须是完整 commit SHA；同一 commit 的发布任务以 commit SHA 串行，首次构建使用 commit 时间固定镜像与文件元数据。若 SHA tag 已存在，工作流必须先验证仓库、签发工作流、源 commit、受信任源 branch 和 GitHub-hosted runner 身份，随后直接复用原 digest，禁止覆盖该 tag。部署工作流把 tag 解析为 manifest digest，重复执行相同 provenance 校验，最终只向远端传递 `image@sha256:...`。首次推送后确认三个 package 都关联到 `StuHelper/StuHelper`，并根据公开部署策略设置 package visibility。
+`develop-latest` 和 `latest` 只用于人类识别。发布 tag 与 Rollback 输入必须是完整 commit SHA；
+Forward Deploy 的 SHA 直接取当前 workflow ref head，不接受人工版本输入。同一 commit 的发布任务以
+commit SHA 串行，首次构建使用 commit 时间固定镜像与文件元数据。若 SHA tag 已存在，工作流必须
+先验证仓库、签发工作流、源 commit、受信任源 branch 和 GitHub-hosted runner 身份，随后直接复用
+原 digest，禁止覆盖该 tag。部署工作流把 SHA tag 解析为 manifest digest，重复执行相同 provenance
+校验，最终只向远端传递 `image@sha256:...`。首次推送后确认三个 package 都关联到
+`StuHelper/StuHelper`，并根据公开部署策略设置 package visibility。
+
+发布还会为首次构建的镜像生成 CycloneDX JSON，保存 30 天 Actions artifact，并把 SBOM 作为
+签名 attestation 绑定到同一 manifest digest。SBOM 是依赖清单和审计证据，不能替代 Trivy 漏洞
+门禁、provenance 或目标环境业务验收。
 
 远端部署脚本执行 registry login；远端 secret backend 必须配置独立、最小
 `read:packages` 读取凭据，不能复用个人日常登录凭据。
@@ -173,8 +192,8 @@ GitHub 原生检测不能替代仓库内的完整历史 Gitleaks 门禁：两者
 2. 完整历史 Gitleaks 扫描为零未基线化发现；
 3. `CI / Required` 与 CodeQL 全部通过；
 4. 三个 GHCR 镜像均可按 digest 拉取，Trivy 和 provenance attestation 成功；
-5. staging 手工部署、真实页面/E2E、服务健康和观测 smoke 全部通过；
-6. production environment 审批与回滚演练通过；
+5. 同一 `main` SHA 的 staging 部署、真实页面/E2E、服务健康和观测 smoke 全部通过；
+6. production environment 的 Xauryan 单人审批、默认 staging gate 和一次受控回滚演练通过；
 7. `SECURITY.md` 的私密报告入口可用，Secret scanning、Push protection 和 Dependabot alerts 已启用；
 8. 根目录许可证状态与项目对外表述一致；仅设为 public 不等于授予开源许可。
 

@@ -6,6 +6,9 @@ on:
     branches:
       - develop
       - main
+  schedule:
+    # Full default-branch regression every Monday at 02:23 Asia/Shanghai.
+    - cron: "23 18 * * 0"
   workflow_dispatch:
 
 permissions:
@@ -13,13 +16,20 @@ permissions:
   pull-requests: read # Required by paths-filter for fork PR metadata
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Collapse only superseded PR runs. Trusted pushes use a unique group so a
+  # pending production approval never blocks CI for a newer branch head.
+  group: >-
+    ${{ github.workflow }}-${{
+    github.event_name == 'pull_request' && github.ref || github.run_id }}
+  # Trusted-branch runs may already be publishing or deploying. Never interrupt
+  # those remote mutations; stale candidates fail the deployment revalidation.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   changes:
     name: Detect changed areas
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
       clients: ${{ steps.filter.outputs.clients }}
@@ -97,6 +107,7 @@ jobs:
   static-contracts:
     name: Static file contracts
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Check out the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -113,11 +124,13 @@ jobs:
     needs: changes
     if: >-
       github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'schedule' ||
       needs.changes.outputs.docs == 'true' ||
       needs.changes.outputs.clients == 'true' ||
       needs.changes.outputs.guards == 'true' ||
       needs.changes.outputs.workflows == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Check out the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -151,6 +164,7 @@ jobs:
     name: Secret history scan
     needs: changes
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Check out the complete repository history
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -174,6 +188,7 @@ jobs:
     needs: changes
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
@@ -192,8 +207,10 @@ jobs:
     needs: changes
     if: >-
       github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'schedule' ||
       needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     services:
       postgres:
         image: cgr.dev/chainguard/postgres:latest@sha256:dc2f04037c1044a22af76cee4de70b9111885b17c561b939d7ed70103d100759
@@ -306,8 +323,10 @@ jobs:
     needs: changes
     if: >-
       github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'schedule' ||
       needs.changes.outputs.contract == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Check out the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -356,8 +375,10 @@ jobs:
     needs: changes
     if: >-
       github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'schedule' ||
       needs.changes.outputs.clients == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     env:
       CI: "true"
       VITE_ADMIN_URL: /admin/
@@ -421,8 +442,10 @@ jobs:
     needs: changes
     if: >-
       github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'schedule' ||
       needs.changes.outputs.clients == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     container:
       image: mcr.microsoft.com/playwright:v1.62.1-noble@sha256:dcc5531e97840b9b5e794f2814476b21571c5124a3fca2267d73041f56e7580e
     strategy:
@@ -494,8 +517,10 @@ jobs:
     needs: changes
     if: >-
       github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'schedule' ||
       needs.changes.outputs.koishi == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     container:
       image: mcr.microsoft.com/playwright:v1.62.1-noble@sha256:dcc5531e97840b9b5e794f2814476b21571c5124a3fca2267d73041f56e7580e
     env:
@@ -546,8 +571,10 @@ jobs:
     needs: changes
     if: >-
       github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'schedule' ||
       needs.changes.outputs.infra == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - name: Check out the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -612,9 +639,11 @@ jobs:
     needs: changes
     if: >-
       github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'schedule' ||
       needs.changes.outputs.infra == 'true' ||
       needs.changes.outputs.workflows == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - name: Check out the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -651,11 +680,13 @@ jobs:
     needs: changes
     if: >-
       github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'schedule' ||
       needs.changes.outputs.clients == 'true' ||
       needs.changes.outputs.backend == 'true' ||
       needs.changes.outputs.guards == 'true' ||
       needs.changes.outputs.workflows == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Check out the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -706,6 +737,7 @@ jobs:
       - runtime-image-security
       - sast
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Require every selected check to pass
         env:
@@ -726,6 +758,7 @@ jobs:
       github.event_name == 'push' &&
       (github.ref_name == 'develop' || github.ref_name == 'main')
     permissions:
+      checks: read # Publish only after Required and both CodeQL jobs succeed
       contents: read
       packages: write # Publish scanned images after every CI gate succeeds
       attestations: write # Attach provenance to each immutable image digest
@@ -735,3 +768,48 @@ jobs:
     with:
       commit_sha: ${{ github.sha }}
       branch: ${{ github.ref_name }}
+
+  promote-staging:
+    name: Promote to staging
+    needs:
+      - required
+      - publish-images
+    if: >-
+      always() &&
+      !cancelled() &&
+      needs.required.result == 'success' &&
+      needs.publish-images.result == 'success' &&
+      github.event_name == 'push' &&
+      github.ref_name == 'main' &&
+      vars.STAGING_AUTO_DEPLOY_ENABLED == 'true'
+    permissions:
+      attestations: read
+      checks: read
+      contents: read
+      packages: read
+    uses: ./.github/workflows/deploy.yml
+    with:
+      target: staging
+      reason: Automated staging promotion after trusted main CI and image publication
+
+  promote-production:
+    name: Promote to production
+    needs:
+      - promote-staging
+    if: >-
+      always() &&
+      !cancelled() &&
+      needs.promote-staging.result == 'success' &&
+      github.event_name == 'push' &&
+      github.ref_name == 'main' &&
+      vars.STAGING_AUTO_DEPLOY_ENABLED == 'true' &&
+      vars.PRODUCTION_AUTO_PROMOTION_ENABLED == 'true'
+    permissions:
+      attestations: read
+      checks: read
+      contents: read
+      packages: read
+    uses: ./.github/workflows/deploy.yml
+    with:
+      target: production
+      reason: Automated production promotion after successful same-SHA staging deployment
