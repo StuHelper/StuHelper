@@ -138,6 +138,13 @@ if command -v systemctl >/dev/null 2>&1; then
     stuhelper-postgres-basebackup.timer
     stuhelper-postgres-backup-sync.timer
   )
+  backup_service_common_environment=(
+    "ENV_FILE=${REPO_ROOT}/.env.prod.shared"
+    "SECRETS_ENV_FILE=${REPO_ROOT}/.env.prod.secrets"
+    "GENERATED_ENV_FILE=${REPO_ROOT}/.env.prod.generated"
+    "GENERATED_SECRET_ENV_FILE=${REPO_ROOT}/.env.prod.generated.secrets"
+    "BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true"
+  )
   for unit in "${backup_service_units[@]}" "${backup_timer_units[@]}"; do
     if ! systemctl list-unit-files | grep -q "^${unit}"; then
       die "backup unit ${unit} is not installed on the target host"
@@ -145,9 +152,13 @@ if command -v systemctl >/dev/null 2>&1; then
   done
   for index in "${!backup_service_units[@]}"; do
     unit="${backup_service_units[${index}]}"
-    require_systemd_unit_environment_value \
+    expected_service_environment=("${backup_service_common_environment[@]}")
+    if ((index < 2)); then
+      expected_service_environment+=("BACKUP_STAGING_DIR=${BACKUP_STAGING_DIR}")
+    fi
+    require_systemd_unit_exact_environment \
       "${unit}" \
-      "BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true"
+      "${expected_service_environment[@]}"
     require_systemd_unit_hardened_execution \
       "${unit}" \
       "${REPO_ROOT}" \

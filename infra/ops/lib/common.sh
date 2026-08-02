@@ -43,9 +43,10 @@ require_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "missing required command: $1"
 }
 
-require_systemd_unit_environment_value() {
+require_systemd_unit_exact_environment() {
   local unit="$1"
-  local expected="$2"
+  shift
+  (($# > 0)) || die "at least one expected environment assignment is required for systemd unit ${unit}"
   local effective_environment
   local protected_property
   local protected_property_value
@@ -62,27 +63,33 @@ require_systemd_unit_environment_value() {
   if ! effective_environment="$(systemctl show "${unit}" --property=Environment --value 2>/dev/null)"; then
     die "failed to inspect effective environment for systemd unit ${unit}"
   fi
-  if ! python3 - "${expected}" "${effective_environment}" <<'PY'
+  if ! python3 - "${effective_environment}" "$@" <<'PY'
 import shlex
 import sys
 
-expected, effective = sys.argv[1:3]
-if "=" not in expected:
-    raise SystemExit(1)
-expected_key, expected_value = expected.split("=", 1)
+effective = sys.argv[1]
+expected_assignments = sys.argv[2:]
+
+def assignments_to_environment(assignments):
+    environment = {}
+    for assignment in assignments:
+        if "=" not in assignment:
+            raise ValueError
+        key, value = assignment.split("=", 1)
+        if not key or key in environment:
+            raise ValueError
+        environment[key] = value
+    return environment
+
 try:
-    values = shlex.split(effective)
+    actual = assignments_to_environment(shlex.split(effective))
+    expected = assignments_to_environment(expected_assignments)
 except ValueError:
     raise SystemExit(1) from None
-environment = {}
-for assignment in values:
-    if "=" in assignment:
-        key, value = assignment.split("=", 1)
-        environment[key] = value
-raise SystemExit(0 if environment.get(expected_key) == expected_value else 1)
+raise SystemExit(0 if actual == expected else 1)
 PY
   then
-    die "systemd unit ${unit} must set ${expected}; reinstall the production backup timers"
+    die "systemd unit ${unit} must use the exact protected environment; reinstall the production backup timers and remove overriding drop-ins"
   fi
 }
 

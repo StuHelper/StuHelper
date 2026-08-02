@@ -77,11 +77,14 @@ assert_contains "${PREFLIGHT_FILE}" 'APP_ENV must be production for remote prefl
 assert_contains "${PREFLIGHT_FILE}" 'vault-runtime-token\.sh" check'
 assert_contains "${PREFLIGHT_FILE}" 'stuhelper-vault-token-renewal\.timer'
 assert_contains "${PREFLIGHT_FILE}" 'Vault runtime token renewal timer is not active'
-assert_contains "${COMMON_LIB_FILE}" 'require_systemd_unit_environment_value\(\)'
+assert_contains "${COMMON_LIB_FILE}" 'require_systemd_unit_exact_environment\(\)'
 assert_contains "${COMMON_LIB_FILE}" 'require_systemd_unit_hardened_execution\(\)'
 assert_contains "${PREFLIGHT_FILE}" 'stuhelper-postgres-dump-backup\.service'
 assert_contains "${PREFLIGHT_FILE}" 'stuhelper-postgres-basebackup\.service'
 assert_contains "${PREFLIGHT_FILE}" 'stuhelper-postgres-backup-sync\.service'
+assert_contains "${PREFLIGHT_FILE}" 'backup_service_common_environment=\('
+assert_contains "${PREFLIGHT_FILE}" '"ENV_FILE=\$\{REPO_ROOT\}/\.env\.prod\.shared"'
+assert_contains "${PREFLIGHT_FILE}" 'expected_service_environment\+=\("BACKUP_STAGING_DIR=\$\{BACKUP_STAGING_DIR\}"\)'
 [[ "$(grep -c 'BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true' "${PREFLIGHT_FILE}")" == "1" ]] || \
   fail "remote preflight must require the off-host marker for every backup service"
 assert_contains "${PREFLIGHT_FILE}" 'require_systemd_unit_hardened_execution'
@@ -157,11 +160,12 @@ if ! bash -c '
       *) printf "%s\n" "ENV_FILE=/opt/stuhelper/.env.prod.shared BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true" ;;
     esac
   }
-  require_systemd_unit_environment_value \
+  require_systemd_unit_exact_environment \
     stuhelper-postgres-backup-sync.service \
+    ENV_FILE=/opt/stuhelper/.env.prod.shared \
     BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true
 ' bash "${COMMON_LIB_FILE}"; then
-  fail "the systemd environment validator rejected the required off-host marker"
+  fail "the systemd environment validator rejected the exact protected environment"
 fi
 
 if bash -c '
@@ -173,8 +177,9 @@ if bash -c '
       *) printf "%s\n" "ENV_FILE=/opt/stuhelper/.env.prod.shared BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=false" ;;
     esac
   }
-  require_systemd_unit_environment_value \
+  require_systemd_unit_exact_environment \
     stuhelper-postgres-backup-sync.service \
+    ENV_FILE=/opt/stuhelper/.env.prod.shared \
     BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true
 ' bash "${COMMON_LIB_FILE}" >"${tmpdir}/stale-backup-unit.out" 2>"${tmpdir}/stale-backup-unit.err"; then
   fail "the systemd environment validator accepted a stale backup unit"
@@ -187,12 +192,31 @@ if bash -c '
   source "$1"
   systemctl() {
     case "$*" in
+      *--property=EnvironmentFiles*|*--property=UnsetEnvironment*|*--property=PassEnvironment*) printf "\n" ;;
+      *) printf "%s\n" "ENV_FILE=/opt/stuhelper/.env.prod.shared BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true PYTHONPATH=/tmp/payload LD_PRELOAD=/tmp/payload.so" ;;
+    esac
+  }
+  require_systemd_unit_exact_environment \
+    stuhelper-postgres-backup-sync.service \
+    ENV_FILE=/opt/stuhelper/.env.prod.shared \
+    BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true
+' bash "${COMMON_LIB_FILE}" >"${tmpdir}/backup-unit-injected-env.out" 2>"${tmpdir}/backup-unit-injected-env.err"; then
+  fail "the systemd environment validator accepted injected child-runtime variables"
+fi
+grep -q 'exact protected environment' "${tmpdir}/backup-unit-injected-env.err" || \
+  fail "the injected systemd environment failure did not report the exact-environment policy"
+
+if bash -c '
+  set -euo pipefail
+  source "$1"
+  systemctl() {
+    case "$*" in
       *--property=EnvironmentFiles*) printf "%s\n" "/opt/stuhelper/.env.prod.shared (ignore_errors=no)" ;;
       *--property=UnsetEnvironment*|*--property=PassEnvironment*) printf "\n" ;;
       *) printf "%s\n" "BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true" ;;
     esac
   }
-  require_systemd_unit_environment_value \
+  require_systemd_unit_exact_environment \
     stuhelper-postgres-backup-sync.service \
     BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true
 ' bash "${COMMON_LIB_FILE}" >"${tmpdir}/backup-unit-env-file.out" 2>"${tmpdir}/backup-unit-env-file.err"; then
@@ -211,7 +235,7 @@ if bash -c '
       *) printf "%s\n" "BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true" ;;
     esac
   }
-  require_systemd_unit_environment_value \
+  require_systemd_unit_exact_environment \
     stuhelper-postgres-backup-sync.service \
     BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true
 ' bash "${COMMON_LIB_FILE}" >"${tmpdir}/backup-unit-unset-env.out" 2>"${tmpdir}/backup-unit-unset-env.err"; then
