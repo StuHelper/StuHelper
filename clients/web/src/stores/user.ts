@@ -4,6 +4,7 @@
 import { ref, type Ref } from "vue";
 import { defineStore, getActivePinia } from "pinia";
 import type { FavoriteCourse } from "@stuhelper/shared/course";
+import { isNonArrayRecord as isRecord } from "@stuhelper/shared/utils";
 import { api } from "@/api";
 import { safeOnScopeDispose } from "@/stores/safeScopeDispose";
 import { registerSessionResetHandler } from "@/stores/sessionOrchestrator";
@@ -34,10 +35,6 @@ function readPaginatedPayload<T>(
     }
 
     return { list: list.map(itemReader), total };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-    return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 function readString(

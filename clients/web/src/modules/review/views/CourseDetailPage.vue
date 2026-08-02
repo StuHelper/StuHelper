@@ -521,6 +521,7 @@ import {
 
 import type { Course, CourseRatingStatsResponse, TeacherStats } from '@stuhelper/shared/course'
 import type { Review } from '@stuhelper/shared/review'
+import { isNonArrayRecord as isRecord } from '@stuhelper/shared/utils'
 
 type RatingTrendPoint = {
   termName: string
@@ -675,10 +676,6 @@ function dimensionRatingBarAriaLabel(
     avgRating: dimension.avgRating,
     t,
   })
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
 function readArray(payload: unknown, message: string): unknown[] {

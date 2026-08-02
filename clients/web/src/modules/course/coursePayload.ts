@@ -1,4 +1,5 @@
 import type { Course, CourseCategory, Department, TeacherStats, Term } from '@stuhelper/shared/course'
+import { isNonArrayRecord as isRecord } from '@stuhelper/shared/utils'
 
 export interface TeacherSummaryPayload {
   teacherID: number
@@ -12,10 +13,6 @@ export interface TeacherSummaryPayload {
 export interface GroupedCoursePayload {
   departmentName?: string
   courses: Course[]
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
 function readString(record: Record<string, unknown>, key: string, message: string): string {

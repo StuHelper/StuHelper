@@ -7,6 +7,7 @@ import type {
     Notification as AppNotification,
     NotificationType,
 } from "@stuhelper/shared/notification";
+import { isNonArrayRecord as isRecord } from "@stuhelper/shared/utils";
 import { api, NOTIFICATION_STREAM_PATH } from "@/api";
 import { safeOnScopeDispose } from "@/stores/safeScopeDispose";
 import { registerSessionResetHandler } from "@/stores/sessionOrchestrator";
@@ -68,10 +69,6 @@ function applyItemUpdate<T extends { id: string }>(
 
 function isUnreadNotification(notification: AppNotification | undefined) {
     return notification && !notification.isRead;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-    return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 function readString(

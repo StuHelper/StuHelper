@@ -230,6 +230,7 @@ import EmojiRating from '@/components/business/review/EmojiRating.vue'
 import ReviewCard from '@/components/business/review/ReviewCard.vue'
 import { User, BookOpen, MessageSquare, TrendingUp } from 'lucide-vue-next'
 import type { Review } from '@stuhelper/shared/review'
+import { isNonArrayRecord as isRecord } from '@stuhelper/shared/utils'
 
 interface TeacherCourse {
   id: number
@@ -285,10 +286,6 @@ const teacherReviewsHasMore = computed(() => teacherReviews.value.length < teach
 
 function isNonNegativeNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
 function readPositiveInteger(

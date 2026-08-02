@@ -1,8 +1,5 @@
 import type { Reply } from '@stuhelper/shared/reply'
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
-}
+import { isNonArrayRecord as isRecord } from '@stuhelper/shared/utils'
 
 function readString(record: Record<string, unknown>, key: string, message: string): string {
   const value = record[key]
