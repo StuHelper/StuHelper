@@ -204,7 +204,7 @@ Required 与 Go/JavaScript CodeQL。bypass actor 只允许 GitHub 用户 `Xaurya
 
 | 别名 | 最终处置 |
 |------|----------|
-| P2-4 | P3 先测：只优化仍可达的 dashboard 全扫，不重写聚合 API |
+| P2-4 | `implemented`：只修仍可达的两处全量读取：最近 moderation events 改为数据库内倒序加 limit 并增加 `createdAt` 索引，dashboard/review 的待处理成员直接按 `releasedAt/kickedAt IS NULL` 查询；同时删除未使用的 overview 全成员读取。未重写无规模证据的统计聚合 API。Store/model 专项 7/7 与两个相关 TypeScript 工程检查通过。本条所在提交。 |
 | P2-5 | `implemented`：批量禁言只在第一个空白处分隔秒数，后续成员 ID 继续按空白/中英文逗号解析；格式提示改为真实命令 `群审禁言`。管理员命令专项 11/11 通过。本条所在提交。 |
 | P2-8 | `implemented`：Admin 中英文补齐后端会返回的 `school_email_otp` / `school_sso` 学生认证方式，并用 locale 契约覆盖全部四种枚举。本条所在提交。 |
 | P2-11 | `implemented`：OpenAPI 明确 `form + explode=true`，Handler 读取全部重复 `courseIDs` 并兼容旧逗号格式；共享客户端真实 wire test 与 Go parser 回归锁定三端一致性，删除未使用且错误扁平化 grouped response 的 Web adapter。本条所在提交。 |

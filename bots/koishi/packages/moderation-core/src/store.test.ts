@@ -3,6 +3,7 @@ import test from 'node:test'
 
 import {
   MODERATION_COMMAND_POLICY_TABLE,
+  MODERATION_EVENT_TABLE,
   MODERATION_FUN_PROFILE_TABLE,
   MODERATION_KEYWORD_RULE_TABLE,
   MODERATION_MESSAGE_LEDGER_TABLE,
@@ -289,6 +290,36 @@ function assertUpdatePatch(
     assert.equal(field in write.patch, false, `${table} update patch should omit ${field}`)
   }
 }
+
+test('ModerationStore bounds recent event reads inside the database', async () => {
+  const reads: Array<{
+    table: string
+    query: Record<string, unknown>
+    cursor: Record<string, unknown> | undefined
+  }> = []
+  const store = new ModerationStore({
+    database: {
+      async get(
+        table: string,
+        query: Record<string, unknown>,
+        cursor?: Record<string, unknown>,
+      ) {
+        reads.push({ table, query, cursor })
+        return []
+      },
+    },
+  } as never)
+
+  assert.deepEqual(await store.listRecentEvents(20), [])
+  assert.deepEqual(reads, [{
+    table: MODERATION_EVENT_TABLE,
+    query: {},
+    cursor: {
+      sort: { createdAt: 'desc' },
+      limit: 20,
+    },
+  }])
+})
 
 function createMessage(overrides: Partial<MessageLedgerRecord> = {}): MessageLedgerRecord {
   return {

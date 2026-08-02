@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { MODERATION_MESSAGE_LEDGER_TABLE } from './constants'
+import { MODERATION_EVENT_TABLE, MODERATION_MESSAGE_LEDGER_TABLE } from './constants'
 import { registerModerationModels } from './models'
 
 test('message ledger model declares the repeat-query index', () => {
@@ -32,5 +32,12 @@ test('message ledger model declares the repeat-query index', () => {
         createdAt: 'desc',
       },
     }],
+  })
+
+  const events = extensions.get(MODERATION_EVENT_TABLE)
+  assert.ok(events)
+  assert.deepEqual(events.config, {
+    primary: 'id',
+    indexes: [{ keys: { createdAt: 'desc' } }],
   })
 })

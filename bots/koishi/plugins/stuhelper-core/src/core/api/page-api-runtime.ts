@@ -179,8 +179,10 @@ async function listGuardRecords(ctx: Context) {
 }
 
 async function listActiveGuardMembers(ctx: Context) {
-  const records = await listGuardRecords(ctx)
-  return records.filter((record) => !record.releasedAt && !record.kickedAt)
+  return ctx.database.get(GUARD_MEMBER_TABLE, {
+    releasedAt: null,
+    kickedAt: null,
+  }) as Promise<GuardMemberRecord[]>
 }
 
 function readCachedGuildNames(service: StuhelperGroupCenterService) {
