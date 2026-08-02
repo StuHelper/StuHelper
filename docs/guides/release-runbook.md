@@ -49,19 +49,28 @@ last-verified: 2026-08-02
 2. `CI / Required` 汇总后端、契约、客户端、E2E、Koishi、Infra、依赖和安全扫描。
 3. 只有受信任的 `develop` / `main` push 且聚合门禁成功，才调用 `Publish images`。
 4. backend / frontend / admin 使用完整 commit SHA 构建并在本地接受 Trivy 扫描。
-5. 同一候选镜像推送到 GHCR，记录 manifest digest 并签发 provenance。
+5. 同一候选镜像推送到 GHCR，记录 manifest digest，并签发 provenance 与 CycloneDX SBOM
+   attestation；SBOM JSON 作为 Actions evidence 保留 30 天。
 
 ### staging / production
 
-1. 在 GitHub Actions 手工运行 `Deploy`。
-2. 选择 `staging` 或 `production`，输入已发布的完整 40 位 commit SHA。
-3. environment 校验允许分支、审批者和 secrets。
-4. 工作流验证三个 GHCR digest 的来源与 provenance。
-5. 远端实际执行 `./infra/ops/remote-preflight.sh` 和
+1. `main` CI 成功发布三个镜像后，如果仓库变量 `STAGING_AUTO_DEPLOY_ENABLED=true`，自动调用
+   `Deploy` 把同一 SHA 晋级到 staging；未启用时可手工运行 `Deploy`。
+2. 手工运行时选择 workflow ref、`staging` 或 `production`，并填写变更/事故原因。Forward Deploy
+   不再接受 commit SHA；候选固定为当前 workflow ref 的 `github.sha`。
+3. environment secrets 暴露和 production 审批之前，工作流先验证目标仍是当前 branch head、
+   `Required`、Go/JavaScript-TypeScript CodeQL、三个 GHCR digest 的来源与 provenance。
+4. production 默认还要求同一 SHA 的最新 staging deployment 为 success。事故中确需绕过时，显式
+   选择 `skip_staging_gate=true`、填写至少 24 字符上下文，并留下 production approval 审计。
+5. 验证完成后 environment 再校验允许分支、审批者和 secrets；production 当前唯一 reviewer 为
+   `Xauryan` 且允许该用户自批。
+6. 远端实际执行 `./infra/ops/remote-preflight.sh` 和
    `./infra/ops/remote-prod-deploy.sh`。
-6. 自动运行业务与可观测性 smoke；任何 smoke 失败，本次发布即失败并进入回滚判断。
+7. 自动运行业务与严格可观测性 smoke；任何 smoke 失败，本次发布即失败并进入回滚判断。
 
 只要 Smoke Check 失败，本次发布就视为失败，需要立刻进入回滚判断。
+不要把失败处理改成无条件自动回滚：migration 已成功时，旧应用可能不兼容新 schema。先核对备份、
+迁移兼容性和当前 release evidence，再启动有原因、有 environment 审批的 `Rollback`。
 
 ## 手工发布步骤
 
@@ -310,20 +319,23 @@ reason=<incident-or-change-record-and-rollback-rationale>
 
 回滚 Job 会：
 
-1. 校验目标环境、SSH endpoint、完整 commit SHA 和回滚原因
-2. 把 GHCR 中三个 `<full-sha>` tag 解析成 digest，并验证发布 provenance
-3. SSH 到远端部署机，并只传递已校验的 digest 引用
-4. 读取目标机 `.deploy/remote.env`，执行回滚
-5. 自动再次运行业务与可观测性 smoke checks
+1. 在 environment secrets/审批之前，校验当前 rollback controller 仍是实时 branch head，且其
+   `Required` 与双语言 CodeQL 都成功
+2. 校验目标环境、完整历史 commit SHA 和回滚原因，把 GHCR 中三个 `<full-sha>` tag 解析成
+   digest 并验证发布 provenance
+3. environment 审批后校验 SSH endpoint，上传当前可信 controller bundle，并只传递已校验的历史
+   digest 引用
+4. 读取目标机 `.deploy/remote.env`，用当前 `prod-rollback.sh` / `prod-deploy.sh` 执行应用镜像回滚
+5. 自动再次运行业务与严格可观测性 smoke checks
 
 GitHub `Rollback` 不接受 `latest`、短 SHA 或任意业务 tag。仓库本地的 `make prod-rollback`
 仍可按上节规则读取上一条成功发布记录，二者不要混淆。
 
-回滚 workflow 使用两份 side-by-side checkout：目标提交只提供待回滚的发布内容；实际校验、
-打包和日历例外控制器来自正在执行的 workflow 对应提交。这样即使目标提交早于当前回滚修复，
-也不会重新启用旧的、已经修复过的发布控制逻辑。传输到目标机的控制器覆盖面刻意限制为
-`prod-rollback.sh` 与 `validate-runtime-image-scan.py`，应用镜像仍必须由目标完整 commit SHA
-解析并通过 provenance 校验。
+回滚 workflow 不 checkout 或执行历史发布中的 workflow/运维脚本。上传目标机的是当前
+`job.workflow_sha` 的完整、干净 controller bundle；历史 SHA 只用于解析 backend/frontend/admin
+镜像 digest。这样即使目标版本早于当前安全修复，也不会让旧控制代码重新获得 environment
+secrets。当前 controller 与历史应用镜像仍可能存在兼容边界，因此 production rollback 必须保留
+人工原因、审批和 migration expand/contract 判断。
 
 正常部署和回滚默认都按执行当天硬校验 runtime-image review window。只有当前日期校验失败时，
 回滚才会尝试以下窄范围例外，而且条件必须全部成立：

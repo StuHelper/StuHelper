@@ -234,14 +234,22 @@ Pull Request、`develop` 和 `main` push 会触发 `.github/workflows/ci.yml`。
 1. 使用完整 commit SHA 构建 backend / frontend / admin；
 2. 扫描本地候选镜像；
 3. 把同一镜像推送到 `ghcr.io/stuhelper/*:<full-commit-sha>`；
-4. 解析最终 manifest digest 并签发 provenance attestation；
+4. 解析最终 manifest digest，并签发 provenance 与 CycloneDX SBOM attestation；SBOM JSON 作为
+   Actions evidence 保留 30 天；
 5. 更新仅供人类识别的 `develop-latest` 或 `latest` alias。
 
-staging 和 production 都通过 `.github/workflows/deploy.yml` 手工部署。输入必须是已发布的完整
-40 位 commit SHA；工作流会验证镜像所属仓库、签发工作流、源分支、源提交和 digest，再打包部署
-bundle，通过固定 SSH host key 上传，在远端执行 `infra/ops/remote-preflight.sh`、
-`infra/ops/remote-prod-deploy.sh`、业务 smoke 和可观测性 smoke。production 必须由受保护 GitHub
-environment 审批。
+`.github/workflows/deploy.yml` 同时支持手工晋级和由 `main` CI 调用 staging。Forward Deploy 不接受
+人工 commit SHA；候选固定为当前 workflow ref 的 `github.sha`。工作流先在不绑定 environment、
+不读取部署 secrets 的 job 中验证：实时 branch head、`Required`、Go 与 JavaScript/TypeScript
+CodeQL、镜像所属仓库、签发工作流、源分支、源提交和 digest。验证通过后才进入 environment，
+通过固定 SSH host key 上传带 SHA-256 传输校验的唯一 bundle，在远端执行
+`infra/ops/remote-preflight.sh`、`infra/ops/remote-prod-deploy.sh`、业务 smoke 和严格可观测性 smoke。
+
+仓库变量 `STAGING_AUTO_DEPLOY_ENABLED=true` 时，`main` 的 CI 和三个镜像发布成功后自动部署同一
+SHA 到 staging；默认保持关闭，直到隔离 staging 和 secrets 就绪。production 必须由受保护
+environment 的唯一 reviewer `Xauryan` 审批，并默认要求同一 SHA 的最新 staging deployment
+成功。事故 break-glass 只能显式选择 `skip_staging_gate=true`、填写足够的事故上下文并留下
+production approval；它不绕过 checks、provenance、digest 或分支校验。
 
 生产分支真正部署到线上之前，打包阶段和 `remote-preflight.sh` 会共同避免：
 
@@ -279,6 +287,10 @@ sudo bash infra/ops/bootstrap-ubuntu2404.sh
 - `DEPLOY_SSH_KEY`
 - `DEPLOY_SSH_KNOWN_HOSTS`（固定目标 SSH host public key，禁止 TOFU）
 
+部署 SSH 凭据必须属于专用、可撤销的 deploy identity，不能把维护者日常 root 私钥直接上传为
+GitHub secret。目标仍使用 rootful Docker 时，`docker` group 实际接近宿主 root 权限；应至少使用
+独立无密码登录账号、最小文件权限和独立 key，长期再迁移到受限 sudo/gateway 或短期 SSH 证书。
+
 浏览器构建参数使用 GitHub repository variables，现行名称见
 [GitHub 仓库与 Actions 治理](github-migration.md#repository-variables)。真实密钥不得放在 repository
 variables、workflow YAML 或构建参数中。
@@ -298,11 +310,11 @@ GitHub `Rollback` 手工作业选择 `staging` 或 `production` environment，�
 
 回滚本质上是：
 
-1. GitHub Actions 把三个完整 SHA tag 解析为 digest，并验证 provenance
-2. 远端读取 `.deploy/remote.env`
-3. 远端按三个 digest 拉取 backend / frontend / admin 镜像
-4. 重新执行 `infra/ops/remote-prod-rollback.sh`
-5. 自动再次跑业务与可观测性 smoke check
+1. GitHub Actions 先验证当前 workflow controller 的 branch head、`Required` 和双语言 CodeQL
+2. 把三个历史完整 SHA tag 解析为 digest，并验证 provenance
+3. environment 审批后上传当前可信 controller bundle；不 checkout 或执行历史运维脚本
+4. 远端读取 `.deploy/remote.env`，按三个 digest 拉取 backend / frontend / admin 镜像
+5. 重新执行当前 `infra/ops/remote-prod-rollback.sh`，并再次跑业务与严格可观测性 smoke check
 
 本地应急入口仍保留；未传 `ROLLBACK_TAG` 时会尝试读取 `.deploy/releases.log` 的上一条成功版本：
 

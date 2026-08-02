@@ -23,6 +23,7 @@ jobs:
   publish:
     name: ${{ matrix.name }}
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       contents: read
       packages: write # Push the three scanned OCI images to GHCR
@@ -136,6 +137,22 @@ jobs:
           ignore-unfixed: false
           exit-code: "1"
 
+      - name: Generate the candidate SBOM
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: >-
+            ${{ steps.existing.outputs.found == 'true' &&
+            format('{0}@{1}', matrix.image, steps.existing.outputs.digest) ||
+            format('{0}:{1}', matrix.image, inputs.commit_sha) }}
+          version: v0.72.0
+          format: cyclonedx
+          output: sbom-${{ matrix.name }}.cdx.json
+          scanners: vuln
+          list-all-pkgs: "true"
+          exit-code: "0"
+          cache: "false"
+          skip-setup-trivy: ${{ steps.existing.outputs.found != 'true' }}
+
       - name: Publish the scanned image
         id: publish
         env:
@@ -165,11 +182,27 @@ jobs:
           printf 'digest=%s\n' "${digest}" >>"${GITHUB_OUTPUT}"
 
       - name: Attest image provenance
-        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4
+        uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4.2.1
         with:
           subject-name: ${{ matrix.image }}
           subject-digest: ${{ steps.publish.outputs.digest }}
           push-to-registry: true
+
+      - name: Attest the image SBOM
+        uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4.2.1
+        with:
+          subject-name: ${{ matrix.image }}
+          subject-digest: ${{ steps.publish.outputs.digest }}
+          sbom-path: sbom-${{ matrix.name }}.cdx.json
+          push-to-registry: true
+
+      - name: Upload the SBOM evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sbom-${{ matrix.name }}-${{ inputs.commit_sha }}
+          path: sbom-${{ matrix.name }}.cdx.json
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Update the human-readable branch alias
         env:

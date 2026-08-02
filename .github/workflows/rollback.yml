@@ -11,7 +11,7 @@ on:
           - staging
           - production
       commit_sha:
-        description: Full 40-character commit SHA of the previously published release
+        description: Full 40-character SHA of the previously published release
         required: true
         type: string
       reason:
@@ -20,72 +20,54 @@ on:
         type: string
 
 permissions:
+  attestations: read # Verify rollback image provenance before exposing secrets
+  checks: read # Require the current rollback controller's CI and CodeQL checks
   contents: read
-  packages: read # Pull rollback manifests from GHCR
-  attestations: read # Verify provenance before remote mutation
+  packages: read # Resolve immutable rollback manifests from GHCR
 
 concurrency:
   group: deployment-${{ inputs.target }}
   cancel-in-progress: false
 
 jobs:
-  rollback:
-    name: Roll back ${{ inputs.target }}
+  verify-release:
+    name: Verify rollback before approval
     runs-on: ubuntu-latest
-    timeout-minutes: 45
-    environment:
-      name: ${{ inputs.target }}
-      url: ${{ vars.PUBLIC_URL }}
+    timeout-minutes: 15
+    outputs:
+      admin_image_ref: ${{ steps.release-images.outputs.admin_image_ref }}
+      backend_image_ref: ${{ steps.release-images.outputs.backend_image_ref }}
+      frontend_image_ref: ${{ steps.release-images.outputs.frontend_image_ref }}
+      reason_b64: ${{ steps.rollback-audit.outputs.reason_b64 }}
     env:
-      DEPLOY_TARGET_HOST: ${{ secrets.DEPLOY_HOST }}
-      DEPLOY_TARGET_PORT: ${{ secrets.DEPLOY_PORT }}
-      DEPLOY_TARGET_USER: ${{ secrets.DEPLOY_USER }}
-      DEPLOY_TARGET_APP_DIR: ${{ secrets.DEPLOY_APP_DIR }}
-      DEPLOY_TARGET_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-      DEPLOY_TARGET_SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}
       DEPLOY_ENVIRONMENT: ${{ inputs.target }}
-      TARGET_SHA: ${{ inputs.commit_sha }}
+      DEPLOY_REASON: ${{ inputs.reason }}
+      SOURCE_REF: ${{ github.ref }}
+      TARGET_SHA: ${{ github.sha }}
     steps:
-      - name: Validate the immutable release identifier
-        run: |
-          if [[ ! "${TARGET_SHA}" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "commit_sha must be a full lowercase 40-character Git commit SHA" >&2
-            exit 1
-          fi
-
       - name: Check out the trusted rollback controller
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.workflow_sha }}
+          # The JSON round-trip preserves GitHub's newer job.workflow_sha while
+          # remaining compatible with the repository's pinned actionlint release.
+          ref: ${{ fromJSON(toJSON(job)).workflow_sha }}
           fetch-depth: 1
           persist-credentials: false
-          path: rollback-controller
 
-      - name: Check out the rollback release
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ inputs.commit_sha }}
-          fetch-depth: 1
-          persist-credentials: false
-          path: rollback-release
+      - name: Require the current trusted branch head and successful checks
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WORKFLOW_SHA: ${{ fromJSON(toJSON(job)).workflow_sha }}
+        run: ./infra/ops/verify-github-release.sh
 
-      - name: Validate deployment inputs
-        working-directory: rollback-controller
-        run: ./infra/ops/validate-ci-deploy-inputs.sh
-
-      - name: Build the rollback bundle
-        working-directory: rollback-controller
-        run: >-
-          ./infra/ops/build-deploy-bundle.sh
-          "${RUNNER_TEMP}/deploy-bundle.tgz"
-          "${GITHUB_WORKSPACE}/rollback-release"
-
-      - name: Build the trusted rollback-controller overlay
+      - name: Validate rollback release identifier
+        env:
+          ROLLBACK_SHA: ${{ inputs.commit_sha }}
         run: |
-          tar -czf "${RUNNER_TEMP}/rollback-controller.tgz" \
-            -C rollback-controller \
-            infra/ops/prod-rollback.sh \
-            infra/ops/validate-runtime-image-scan.py
+          if [[ ! "${ROLLBACK_SHA}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "commit_sha must be a full lowercase 40-character Git commit SHA" >&2
+            exit 1
+          fi
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@371161bbe7024a29a25c5e19bfcbc0804fe9ad2c # v4.5.2
@@ -96,51 +78,103 @@ jobs:
 
       - name: Resolve and verify rollback images
         id: release-images
-        working-directory: rollback-controller
         env:
           GH_TOKEN: ${{ github.token }}
           IMAGE_NAMESPACE: ghcr.io/stuhelper
+          TARGET_SHA: ${{ inputs.commit_sha }}
         run: ./infra/ops/resolve-attested-release-images.sh
 
       - name: Prepare rollback audit context
         id: rollback-audit
         env:
-          ROLLBACK_ACTOR: ${{ github.actor }}
           ROLLBACK_REASON: ${{ inputs.reason }}
         run: |
           python3 - <<'PY'
           import base64
           import os
-          import re
           from pathlib import Path
 
-          actor = os.environ["ROLLBACK_ACTOR"].strip()
-          reason = os.environ["ROLLBACK_REASON"].strip()
-          if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.@-]{0,127}", actor) is None:
-              raise SystemExit("rollback actor is invalid")
-          if not 12 <= len(reason) <= 500 or any(ord(char) < 32 for char in reason):
-              raise SystemExit("rollback reason must be 12-500 printable characters")
+          reason = os.environ["ROLLBACK_REASON"]
           encoded = base64.b64encode(reason.encode()).decode()
           with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as handle:
               handle.write(f"reason_b64={encoded}\n")
           PY
 
+      - name: Record verified rollback candidate
+        env:
+          ADMIN_IMAGE_REF: ${{ steps.release-images.outputs.admin_image_ref }}
+          BACKEND_IMAGE_REF: ${{ steps.release-images.outputs.backend_image_ref }}
+          FRONTEND_IMAGE_REF: ${{ steps.release-images.outputs.frontend_image_ref }}
+          ROLLBACK_SHA: ${{ inputs.commit_sha }}
+        run: |
+          {
+            printf '### Verified rollback candidate\n\n'
+            printf -- "- Environment: \`%s\`\n" "${DEPLOY_ENVIRONMENT}"
+            printf -- "- Controller: \`%s\`\n" "${TARGET_SHA}"
+            printf -- "- Release: \`%s\`\n" "${ROLLBACK_SHA}"
+            printf -- "- Backend: \`%s\`\n" "${BACKEND_IMAGE_REF}"
+            printf -- "- Frontend: \`%s\`\n" "${FRONTEND_IMAGE_REF}"
+            printf -- "- Admin: \`%s\`\n" "${ADMIN_IMAGE_REF}"
+          } >>"${GITHUB_STEP_SUMMARY}"
+
+  rollback:
+    name: Roll back ${{ inputs.target }}
+    needs: verify-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment:
+      name: ${{ inputs.target }}
+      url: ${{ vars.PUBLIC_URL }}
+    env:
+      DEPLOY_ENVIRONMENT: ${{ inputs.target }}
+      DEPLOY_TARGET_APP_DIR: ${{ secrets.DEPLOY_APP_DIR }}
+      DEPLOY_TARGET_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_TARGET_PORT: ${{ secrets.DEPLOY_PORT }}
+      DEPLOY_TARGET_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+      DEPLOY_TARGET_SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}
+      DEPLOY_TARGET_USER: ${{ secrets.DEPLOY_USER }}
+      ROLLBACK_ADMIN_IMAGE_REF: ${{ needs.verify-release.outputs.admin_image_ref }}
+      ROLLBACK_BACKEND_IMAGE_REF: ${{ needs.verify-release.outputs.backend_image_ref }}
+      ROLLBACK_FRONTEND_IMAGE_REF: ${{ needs.verify-release.outputs.frontend_image_ref }}
+      ROLLBACK_REVIEW_ACTOR: ${{ github.actor }}
+      ROLLBACK_REVIEW_REASON_B64: ${{ needs.verify-release.outputs.reason_b64 }}
+      TARGET_SHA: ${{ inputs.commit_sha }}
+    steps:
+      - name: Check out the trusted rollback controller
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ fromJSON(toJSON(job)).workflow_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Validate deployment inputs
+        run: ./infra/ops/validate-ci-deploy-inputs.sh
+
+      - name: Build the trusted rollback-controller bundle
+        run: ./infra/ops/build-deploy-bundle.sh "${RUNNER_TEMP}/rollback-bundle.tgz"
+
       - name: Upload, roll back, and verify
         env:
-          ROLLBACK_BACKEND_IMAGE_REF: ${{ steps.release-images.outputs.backend_image_ref }}
-          ROLLBACK_FRONTEND_IMAGE_REF: ${{ steps.release-images.outputs.frontend_image_ref }}
-          ROLLBACK_ADMIN_IMAGE_REF: ${{ steps.release-images.outputs.admin_image_ref }}
-          ROLLBACK_REVIEW_ACTOR: ${{ github.actor }}
-          ROLLBACK_REVIEW_REASON_B64: ${{ steps.rollback-audit.outputs.reason_b64 }}
+          DEPLOY_RUN_ATTEMPT: ${{ github.run_attempt }}
+          DEPLOY_RUN_ID: ${{ github.run_id }}
         run: |
           set -euo pipefail
+          [[ "${DEPLOY_RUN_ID}" =~ ^[1-9][0-9]*$ ]]
+          [[ "${DEPLOY_RUN_ATTEMPT}" =~ ^[1-9][0-9]*$ ]]
           [[ "${ROLLBACK_REVIEW_ACTOR}" =~ ^[A-Za-z0-9][A-Za-z0-9_.@-]{0,127}$ ]]
           [[ "${ROLLBACK_REVIEW_REASON_B64}" =~ ^[A-Za-z0-9+/=]+$ ]]
           port="${DEPLOY_TARGET_PORT:-22}"
-          eval "$(ssh-agent -s)"
-          trap 'ssh-agent -k >/dev/null 2>&1 || true' EXIT
+          incoming_dir="${DEPLOY_TARGET_APP_DIR}/.deploy/incoming"
+          incoming_name="rollback-${DEPLOY_RUN_ID}-${DEPLOY_RUN_ATTEMPT}.tgz"
+          incoming_path="${incoming_dir}/${incoming_name}"
+          bundle_sha256="$(sha256sum "${RUNNER_TEMP}/rollback-bundle.tgz" | cut -d' ' -f1)"
+          deploy_key_path="${RUNNER_TEMP}/deploy-key"
+          trap 'rm -f "${deploy_key_path}"' EXIT
+
           install -d -m 700 "${HOME}/.ssh"
-          printf '%s\n' "${DEPLOY_TARGET_SSH_KEY}" | tr -d '\r' | ssh-add -
+          install -m 600 /dev/null "${deploy_key_path}"
+          printf '%s\n' "${DEPLOY_TARGET_SSH_KEY}" | tr -d '\r' >"${deploy_key_path}"
+          ssh-keygen -y -f "${deploy_key_path}" >/dev/null
           printf '%s\n' "${DEPLOY_TARGET_SSH_KNOWN_HOSTS}" |
             tr -d '\r' >"${HOME}/.ssh/known_hosts"
           chmod 600 "${HOME}/.ssh/known_hosts"
@@ -155,39 +189,42 @@ jobs:
 
           ssh_args=(
             -o BatchMode=yes
+            -o ConnectTimeout=15
+            -o IdentitiesOnly=yes
+            -o ServerAliveCountMax=3
+            -o ServerAliveInterval=15
             -o StrictHostKeyChecking=yes
+            -i "${deploy_key_path}"
             -p "${port}"
           )
 
-          # Values below are intentionally expanded on the trusted runner before SSH.
+          # Values below are validated before they are expanded into the trusted remote shell.
           # shellcheck disable=SC2029
           ssh "${ssh_args[@]}" \
             "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}" \
-            "mkdir -p '${DEPLOY_TARGET_APP_DIR}'"
+            "umask 077 && mkdir -p '${DEPLOY_TARGET_APP_DIR}' '${incoming_dir}'"
 
           scp \
             -o BatchMode=yes \
+            -o ConnectTimeout=15 \
+            -o IdentitiesOnly=yes \
+            -o ServerAliveCountMax=3 \
+            -o ServerAliveInterval=15 \
             -o StrictHostKeyChecking=yes \
+            -i "${deploy_key_path}" \
             -P "${port}" \
-            "${RUNNER_TEMP}/deploy-bundle.tgz" \
-            "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}:${DEPLOY_TARGET_APP_DIR}/deploy-bundle.tgz"
+            "${RUNNER_TEMP}/rollback-bundle.tgz" \
+            "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}:${incoming_path}"
 
-          scp \
-            -o BatchMode=yes \
-            -o StrictHostKeyChecking=yes \
-            -P "${port}" \
-            "${RUNNER_TEMP}/rollback-controller.tgz" \
-            "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}:${DEPLOY_TARGET_APP_DIR}/rollback-controller.tgz"
-
-          # The validated release identifier and digest references are passed to the remote shell.
+          # The current controller applies the selected, provenance-verified old image set.
           # shellcheck disable=SC2029
           ssh "${ssh_args[@]}" \
             "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}" \
             "set -euo pipefail &&
+             printf '%s  %s\n' '${bundle_sha256}' '${incoming_path}' | sha256sum -c - &&
+             tar xzf '${incoming_path}' -C '${DEPLOY_TARGET_APP_DIR}' &&
+             rm -f '${incoming_path}' &&
              cd '${DEPLOY_TARGET_APP_DIR}' &&
-             tar xzf deploy-bundle.tgz &&
-             tar xzf rollback-controller.tgz &&
-             rm -f deploy-bundle.tgz rollback-controller.tgz &&
              TAG='${TARGET_SHA}' \
              ROLLBACK_TAG='${TARGET_SHA}' \
              ROLLBACK_BACKEND_IMAGE_REF='${ROLLBACK_BACKEND_IMAGE_REF}' \
@@ -197,4 +234,19 @@ jobs:
              ROLLBACK_REVIEW_REASON_B64='${ROLLBACK_REVIEW_REASON_B64}' \
              ./infra/ops/remote-prod-rollback.sh &&
              ./infra/ops/smoke-check.sh &&
-             ./infra/ops/observability-smoke-check.sh"
+             OBS_SMOKE_STRICT=true ./infra/ops/observability-smoke-check.sh"
+
+      - name: Record rollback result
+        if: always()
+        env:
+          ROLLBACK_JOB_STATUS: ${{ job.status }}
+        run: |
+          {
+            printf '### Rollback result\n\n'
+            printf -- "- Environment: \`%s\`\n" "${DEPLOY_ENVIRONMENT}"
+            printf -- "- Release: \`%s\`\n" "${TARGET_SHA}"
+            printf -- "- Status: \`%s\`\n" "${ROLLBACK_JOB_STATUS}"
+            printf -- "- Actor: \`%s\`\n" "${GITHUB_ACTOR}"
+            printf -- '- Run: %s/%s/actions/runs/%s\n' \
+              "${GITHUB_SERVER_URL}" "${GITHUB_REPOSITORY}" "${GITHUB_RUN_ID}"
+          } >>"${GITHUB_STEP_SUMMARY}"
