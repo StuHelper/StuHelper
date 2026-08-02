@@ -439,6 +439,15 @@ fi
 assert_contains "${tmpdir}/off-host-trailing-dot.log" 'must not use a trailing-dot hostname'
 
 if (
+  export BACKUP_OBJECT_STORAGE_ENDPOINT="https://[2001:4860::1%25eth0]"
+  export BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED="true"
+  require_off_host_backup_object_storage
+) >"${tmpdir}/off-host-scoped-ipv6.log" 2>&1; then
+  fail "a scoped IPv6 backup endpoint that can name a local interface must be rejected"
+fi
+assert_contains "${tmpdir}/off-host-scoped-ipv6.log" 'must not use an IPv6 zone identifier'
+
+if (
   export BACKUP_OBJECT_STORAGE_ENDPOINT="https://127.1:9000"
   export BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED="true"
   require_off_host_backup_object_storage

@@ -351,6 +351,10 @@ endpoint = sys.argv[1].strip()
 raw_host = (urlsplit(endpoint).hostname or "").lower()
 if not raw_host:
     raise SystemExit("BACKUP_OBJECT_STORAGE_ENDPOINT must include a hostname")
+if "%" in raw_host:
+    raise SystemExit(
+        "BACKUP_OBJECT_STORAGE_ENDPOINT must not use an IPv6 zone identifier"
+    )
 if raw_host.endswith("."):
     raise SystemExit(
         "BACKUP_OBJECT_STORAGE_ENDPOINT must not use a trailing-dot hostname"
