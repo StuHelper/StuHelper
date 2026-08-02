@@ -71,6 +71,9 @@ StuHelper 当前由单一常任维护者 `Xauryan` 管理。项目 owner 已明�
   GitHub。
 - staging 必须是可以承受失败的隔离目标；与 production 共用数据库、secret backend、对象存储
   bucket 或同一 Compose project 不能算有效 staging 验收。
+- Web/Admin 的 `VITE_*` 公开配置当前在镜像构建期固化，因此 staging 必须验证与 production
+  相同的 public URL/SSO contract。未来若 staging 必须使用不同 SSO issuer 或浏览器 origin，应先实现
+  受 CSP 和 schema 校验约束的运行时公开配置，再继续复用同一 digest；不得按环境悄悄重建镜像。
 - provenance 和 SBOM 证明来源与依赖清单，不证明业务正确性；真实 SSO、授权、迁移、页面、QQ、
   备份恢复和可观测性仍以目标环境 smoke/evidence 为准。
 
@@ -87,7 +90,9 @@ StuHelper 当前由单一常任维护者 `Xauryan` 管理。项目 owner 已明�
 
 - **Pros**: 可以把环境 URL 直接烘焙进静态前端。
 - **Cons**: staging 测试的不是 production 最终字节，供应链证据和回滚矩阵成倍增加。
-- **Why not**: 环境差异应通过目标机公开运行时配置和 secrets 注入解决，不能通过重新构建改变制品。
+- **Why not**: 当前 staging 必须采用与 production-compatible artifact 相同的 public URL contract；
+  secret 和后端运行配置由目标环境注入。需要不同浏览器 origin/SSO issuer 时，应先实现显式的运行时
+  公开配置机制，不能通过重新构建改变已验收制品。
 
 ### 自动失败回滚
 
