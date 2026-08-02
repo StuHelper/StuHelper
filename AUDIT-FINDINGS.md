@@ -217,7 +217,7 @@ Required 与 Go/JavaScript CodeQL。bypass actor 只允许 GitHub 用户 `Xaurya
 | P3-5 | `implemented`：前端目录/模块、后端 RBAC 边界已按当前源码校正；GitHub 时点状态迁入 `docs/internal` snapshot，现行 guide 只保留可重复验收步骤；automation/runbook 去除迁移叙事。文档卫生通过。本条所在提交。 |
 | P3-6 | `implemented`：school SSO login/callback 继承全局 cookie/bearer 鉴权并补齐 Handler 可达错误响应；三个 token 型 mobile handoff 端点显式声明匿名访问。YAML 契约测试同时锁定两类相反语义。本条所在提交。 |
 | P3-8 | `implemented`：取消收藏、删除教师、删除敏感词三个成功 Handler 改为真正的 204 且无响应体，与既有 OpenAPI 契约一致；集成断言锁定 status/body。本条所在提交。 |
-| R-3 | P3 UX：签名图片 URL 过期后的刷新/禁用 |
+| R-3 | `implemented`：保持后端签名前 `Stat/HEAD` 的 fail-closed 事实不变；Admin 详情窗口内任一已声明材料加载失败时立即禁用“通过”，提示链接可能过期并允许重新获取详情签名。桌面/移动 E2E 2/2 通过；原“缺对象仍可审批”仍为证伪。本条所在提交。 |
 | R-4 | `implemented`：抽出共享 `isNonArrayRecord` 并替换 14 份语义相同的 JSON-object guard；保留 5 份有意接受 array 的 object-like guard，避免盲目统一改变边界。共享单测锁定 object/array/null/primitive。本条所在提交。 |
 | R-5 | `implemented`：错误码参考明确八位码与六个已发布 `admission.*` 兼容码的双真源边界，禁止继续扩展 dotted code；补齐 OpenAPI 遗漏的 `member_blacklisted` 并以契约测试覆盖全部六项。本条所在提交。 |
 | R-6 | `implemented`：复核所有 19 个挂载 endpoint/user/progressive limiter 的操作，不只修原报告少算的四项；每个 OpenAPI operation 现在都声明 limiter 可达的 429 与 Redis fail-closed 503，并由生成契约测试统一锁定。本条所在提交。 |

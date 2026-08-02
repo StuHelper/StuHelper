@@ -91,6 +91,7 @@ let nextIdentityReviewActionErrorMessage: null | string = null;
 let nextIdentityReviewActionDelay: null | Promise<void> = null;
 let nextIdentityReviewDetailErrorMessage: null | string = null;
 let identityReviewDetailMissingSelfie = false;
+let identityReviewDetailBrokenPhoto = false;
 let nextReportListErrorMessage: null | string = null;
 let nextReportActionErrorMessage: null | string = null;
 let nextReviewListErrorMessage: null | string = null;
@@ -282,7 +283,9 @@ async function mockAdminApi(page: Page, capturedMutations: CapturedMutation[]) {
           ok({
             ...item,
             docPhotoFrontURL:
-              'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=',
+              identityReviewDetailBrokenPhoto
+                ? 'data:image/png;base64,broken'
+                : 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=',
             docPhotoBackURL: null,
             docPhotoSelfieURL: identityReviewDetailMissingSelfie
               ? null
@@ -343,6 +346,7 @@ test.describe('Admin management actions', () => {
     nextIdentityReviewActionDelay = null;
     nextIdentityReviewDetailErrorMessage = null;
     identityReviewDetailMissingSelfie = false;
+    identityReviewDetailBrokenPhoto = false;
     nextReportListErrorMessage = null;
     nextReportActionErrorMessage = null;
     nextReviewListErrorMessage = null;
@@ -534,6 +538,39 @@ test.describe('Admin management actions', () => {
     ).toBeVisible();
     await expect(dialog.locator('[data-action="approve"]')).toBeDisabled();
     await expect(dialog.locator('[data-action="reject"]')).toBeEnabled();
+  });
+
+  test('identity review refreshes expired evidence before approval', async ({
+    page,
+  }) => {
+    identityReviewDetailBrokenPhoto = true;
+
+    await page.goto('/users/identity-review');
+    const row = page.getByRole('row', { name: /张三/ });
+    await row.getByRole('button', { name: /查看材料|Review Evidence/ }).click();
+    const dialog = page.getByRole('dialog', {
+      name: /核验实名认证材料|Review Identity Evidence/,
+    });
+    await expect(dialog).toBeVisible();
+
+    await expect(
+      dialog.getByText(
+        /审核材料加载失败或链接已过期|Evidence failed to load or its link expired/,
+      ),
+    ).toBeVisible();
+    await expect(dialog.locator('[data-action="approve"]')).toBeDisabled();
+
+    identityReviewDetailBrokenPhoto = false;
+    await dialog
+      .getByRole('button', { name: /重新获取材料|Refresh Evidence/ })
+      .click();
+
+    await expect(
+      dialog.getByText(
+        /审核材料加载失败或链接已过期|Evidence failed to load or its link expired/,
+      ),
+    ).toHaveCount(0);
+    await expect(dialog.locator('[data-action="approve"]')).toBeEnabled();
   });
 
   test('identity review buttons submit approve and reject decisions', async ({

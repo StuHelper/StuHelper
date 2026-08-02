@@ -35,6 +35,7 @@ import AdminContentLayout from '../../shared/AdminContentLayout.vue';
 import { formatAdminDateTime } from '../../shared/display';
 
 type IdentityReviewAction = 'approve' | 'reject';
+type IdentityEvidenceSlot = 'back' | 'front' | 'selfie';
 
 const loading = ref(false);
 const items = ref<IdentityVerification[]>([]);
@@ -49,6 +50,11 @@ const detailLoading = ref(false);
 const detailError = ref('');
 const detailTarget = ref<IdentityVerification | null>(null);
 const detail = ref<IdentityVerificationReviewDetail | null>(null);
+const failedEvidenceSlots = reactive<Record<IdentityEvidenceSlot, boolean>>({
+  back: false,
+  front: false,
+  selfie: false,
+});
 const reviewingActionsByUserId = reactive<
   Record<number, IdentityReviewAction | undefined>
 >({});
@@ -75,6 +81,22 @@ const detailHasRequiredEvidence = computed(
     Boolean(detail.value?.docPhotoFrontURL) &&
     Boolean(detail.value?.docPhotoSelfieURL),
 );
+const detailHasFailedEvidence = computed(() =>
+  Object.values(failedEvidenceSlots).some(Boolean),
+);
+const detailCanApprove = computed(
+  () => detailHasRequiredEvidence.value && !detailHasFailedEvidence.value,
+);
+
+function resetFailedEvidenceSlots() {
+  failedEvidenceSlots.back = false;
+  failedEvidenceSlots.front = false;
+  failedEvidenceSlots.selfie = false;
+}
+
+function markEvidenceLoadFailed(slot: IdentityEvidenceSlot) {
+  failedEvidenceSlots[slot] = true;
+}
 
 async function fetchData() {
   const requestSeq = ++fetchRequestSeq;
@@ -113,6 +135,7 @@ async function fetchIdentityDetail() {
   detailLoading.value = true;
   detailError.value = '';
   detail.value = null;
+  resetFailedEvidenceSlots();
   try {
     const data = await getIdentityReviewDetail(userId);
     if (
@@ -147,6 +170,7 @@ function resetIdentityDetail() {
   detailError.value = '';
   detail.value = null;
   detailTarget.value = null;
+  resetFailedEvidenceSlots();
 }
 
 async function handleReview(
@@ -219,7 +243,7 @@ async function approveDetail() {
     !target ||
     !detail.value ||
     !isPending(target) ||
-    !detailHasRequiredEvidence.value
+    !detailCanApprove.value
   ) {
     return;
   }
@@ -498,6 +522,18 @@ onMounted(fetchData);
           :title="$t('admin.users.identityReview.incompleteEvidence')"
         />
 
+        <ElAlert
+          v-else-if="detailHasFailedEvidence"
+          type="error"
+          :closable="false"
+          show-icon
+          :title="$t('admin.users.identityReview.evidenceLoadFailed')"
+        >
+          <ElButton size="small" @click="fetchIdentityDetail">
+            {{ $t('admin.users.identityReview.refreshEvidence') }}
+          </ElButton>
+        </ElAlert>
+
         <div class="identity-evidence-grid">
           <section class="identity-evidence-card">
             <h3>{{ $t('admin.users.identityReview.photoFront') }}</h3>
@@ -507,6 +543,7 @@ onMounted(fetchData);
               fit="contain"
               :preview-src-list="detailPreviewURLs"
               :src="detail.docPhotoFrontURL"
+              @error="markEvidenceLoadFailed('front')"
             />
             <p v-else class="identity-evidence-missing">
               {{ $t('admin.users.identityReview.missingEvidence') }}
@@ -521,6 +558,7 @@ onMounted(fetchData);
               fit="contain"
               :preview-src-list="detailPreviewURLs"
               :src="detail.docPhotoBackURL"
+              @error="markEvidenceLoadFailed('back')"
             />
             <p v-else class="identity-evidence-missing">
               {{ $t('admin.users.identityReview.optionalEvidenceMissing') }}
@@ -535,6 +573,7 @@ onMounted(fetchData);
               fit="contain"
               :preview-src-list="detailPreviewURLs"
               :src="detail.docPhotoSelfieURL"
+              @error="markEvidenceLoadFailed('selfie')"
             />
             <p v-else class="identity-evidence-missing">
               {{ $t('admin.users.identityReview.missingEvidence') }}
@@ -580,7 +619,7 @@ onMounted(fetchData);
                 !detail ||
                 !detailTarget ||
                 !isPending(detailTarget) ||
-                !detailHasRequiredEvidence ||
+                !detailCanApprove ||
                 detailTargetReviewing()
               "
               :loading="detailTargetActionLoading('approve')"
