@@ -19,6 +19,11 @@ logical_dir="${BACKUP_LOGICAL_DIR:-${REPO_ROOT}/backups/postgres/logical}"
 base_dir="${BACKUP_BASE_DIR:-${REPO_ROOT}/backups/postgres/base}"
 wal_archive_volume="${POSTGRES_WAL_ARCHIVE_VOLUME_NAME:-${STACK_NAME:-stuhelper}-postgres-wal-archive}"
 prefix="${BACKUP_OBJECT_STORAGE_PREFIX:-postgres}"
+host_user="$(id -u):$(id -g)"
+wal_archive_user="${POSTGRES_WAL_ARCHIVE_CONTAINER_USER:-70:70}"
+
+[[ "${wal_archive_user}" =~ ^[0-9]+:[0-9]+$ ]] ||
+  die "POSTGRES_WAL_ARCHIVE_CONTAINER_USER must be a numeric uid:gid pair"
 
 mkdir -p "${logical_dir}" "${base_dir}"
 
@@ -29,20 +34,21 @@ sync_excludes=(
   --exclude '*.tmp.*'
   --exclude '.stuhelper-postgres-backup-staging/**'
   --exclude 'backup-staging/**'
+  --exclude 'quarantine-incomplete-*/**'
 )
 
 run_backup_object_storage_rclone \
-  "0:0" \
+  "${host_user}" \
   "type=bind,src=${logical_dir},dst=/source,readonly" \
   copy /source "target:${BACKUP_OBJECT_STORAGE_BUCKET}/${prefix}/logical" \
   "${sync_excludes[@]}"
 run_backup_object_storage_rclone \
-  "0:0" \
+  "${host_user}" \
   "type=bind,src=${base_dir},dst=/source,readonly" \
   copy /source "target:${BACKUP_OBJECT_STORAGE_BUCKET}/${prefix}/base" \
   "${sync_excludes[@]}"
 run_backup_object_storage_rclone \
-  "0:0" \
+  "${wal_archive_user}" \
   "type=volume,src=${wal_archive_volume},dst=/source,readonly" \
   copy /source "target:${BACKUP_OBJECT_STORAGE_BUCKET}/${prefix}/wal" \
   "${sync_excludes[@]}"
