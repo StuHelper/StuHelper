@@ -75,6 +75,7 @@ if [[ "$*" == *'/deployments/101/statuses?per_page=100'* ]]; then
   case "${GH_STAGING_MODE:-success}" in
     success) printf '%s\n' '[{"id":201,"state":"success"}]' ;;
     failed) printf '%s\n' '[{"id":201,"state":"failure"}]' ;;
+    pending) printf '%s\n' '[{"id":201,"state":"in_progress"}]' ;;
     *) exit 93 ;;
   esac
   exit 0
@@ -131,6 +132,8 @@ expect_failure "staging deployment missing" \
   REQUIRE_STAGING_SUCCESS_OVERRIDE=true GH_STAGING_MODE_OVERRIDE=missing
 expect_failure "staging deployment failed" \
   REQUIRE_STAGING_SUCCESS_OVERRIDE=true GH_STAGING_MODE_OVERRIDE=failed
+expect_failure "staging deployment remained pending" \
+  REQUIRE_STAGING_SUCCESS_OVERRIDE=true GH_STAGING_MODE_OVERRIDE=pending
 STAGING_GATE_BYPASSED_OVERRIDE=true \
   DEPLOY_REASON_OVERRIDE='Incident INC-123 requires an urgent controlled promotion' \
   run_verifier >/dev/null || fail "audited staging bypass was not accepted"

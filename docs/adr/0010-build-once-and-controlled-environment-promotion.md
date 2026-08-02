@@ -37,8 +37,10 @@ StuHelper 当前由单一常任维护者 `Xauryan` 管理。项目 owner 已明�
    `HIGH` / `CRITICAL` 漏洞门禁，再推送不可变完整 SHA tag；发布后为 digest 签发 provenance 和
    CycloneDX SBOM attestation。`latest` / `develop-latest` 只用于人类识别，永不作为部署输入。
 3. `main` 的不可变 digest 集合是环境晋级单位。启用 `STAGING_AUTO_DEPLOY_ENABLED=true` 后，
-   `main` CI 和三个镜像发布全部成功才自动部署 staging。production 只能部署当前 `main` head，且
-   默认必须先存在同一 SHA 的最新成功 staging deployment。
+   `main` CI 和三个镜像发布全部成功才自动部署 staging。再启用
+   `PRODUCTION_AUTO_PROMOTION_ENABLED=true` 后，staging 成功会自动创建同 SHA production
+   deployment 并等待 environment 审批。production 只能部署当前 `main` head，且默认必须先存在
+   同一 SHA 的最新成功 staging deployment。
 4. production 保留 GitHub protected environment 人工审批。当前唯一 reviewer 为 `Xauryan`，
    `prevent_self_review=false`；审批发生在分支、必需 checks、provenance 和 digest 全部验证之后。
 5. Forward Deploy 不再接受人工输入 commit SHA。手工运行者只选择当前 workflow ref、目标环境和
@@ -56,9 +58,9 @@ StuHelper 当前由单一常任维护者 `Xauryan` 管理。项目 owner 已明�
 9. 部署失败不自动回退数据库 schema，也不无条件自动切换旧镜像。生产 migration 必须遵循
    expand/contract；失败后由操作者依据备份、迁移兼容性和 smoke 结果启动有原因、有审批的
    Rollback。
-10. CI 每周在默认分支执行一次不受路径选择影响的全量回归；每个 job 设置明确 timeout。自动
-    staging 默认关闭，只有独立 staging 主机、环境 secrets、运行时配置和真实 smoke 都就绪后才
-    打开仓库变量。
+10. CI 每周在默认分支执行一次不受路径选择影响的全量回归；每个 job 设置明确 timeout。两个自动
+    promotion 开关默认关闭，只有独立 staging 主机、两个环境的 secrets、运行时配置和真实 smoke
+    都就绪后才按 staging、production 顺序启用。
 
 ## Security boundaries
 

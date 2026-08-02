@@ -784,3 +784,25 @@ jobs:
     with:
       target: staging
       reason: Automated staging promotion after trusted main CI and image publication
+
+  promote-production:
+    name: Promote to production
+    needs:
+      - promote-staging
+    if: >-
+      always() &&
+      !cancelled() &&
+      needs.promote-staging.result == 'success' &&
+      github.event_name == 'push' &&
+      github.ref_name == 'main' &&
+      vars.STAGING_AUTO_DEPLOY_ENABLED == 'true' &&
+      vars.PRODUCTION_AUTO_PROMOTION_ENABLED == 'true'
+    permissions:
+      attestations: read
+      checks: read
+      contents: read
+      packages: read
+    uses: ./.github/workflows/deploy.yml
+    with:
+      target: production
+      reason: Automated production promotion after successful same-SHA staging deployment

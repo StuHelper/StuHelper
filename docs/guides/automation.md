@@ -238,7 +238,8 @@ Pull Request、`develop` 和 `main` push 会触发 `.github/workflows/ci.yml`。
    Actions evidence 保留 30 天；
 5. 更新仅供人类识别的 `develop-latest` 或 `latest` alias。
 
-`.github/workflows/deploy.yml` 同时支持手工晋级和由 `main` CI 调用 staging。Forward Deploy 不接受
+`.github/workflows/deploy.yml` 同时支持手工晋级，以及由 `main` CI 依次调用 staging / production。
+Forward Deploy 不接受
 人工 commit SHA；候选固定为当前 workflow ref 的 `github.sha`。工作流先在不绑定 environment、
 不读取部署 secrets 的 job 中验证：实时 branch head、`Required`、Go 与 JavaScript/TypeScript
 CodeQL、镜像所属仓库、签发工作流、源分支、源提交和 digest。验证通过后才进入 environment，
@@ -246,10 +247,12 @@ CodeQL、镜像所属仓库、签发工作流、源分支、源提交和 digest�
 `infra/ops/remote-preflight.sh`、`infra/ops/remote-prod-deploy.sh`、业务 smoke 和严格可观测性 smoke。
 
 仓库变量 `STAGING_AUTO_DEPLOY_ENABLED=true` 时，`main` 的 CI 和三个镜像发布成功后自动部署同一
-SHA 到 staging；默认保持关闭，直到隔离 staging 和 secrets 就绪。production 必须由受保护
-environment 的唯一 reviewer `Xauryan` 审批，并默认要求同一 SHA 的最新 staging deployment
-成功。事故 break-glass 只能显式选择 `skip_staging_gate=true`、填写足够的事故上下文并留下
-production approval；它不绕过 checks、provenance、digest 或分支校验。
+SHA 到 staging；再设置 `PRODUCTION_AUTO_PROMOTION_ENABLED=true` 后，staging 成功会自动创建同
+SHA production deployment 并等待审批，批准后才执行部署。两个开关默认保持关闭，直到隔离
+staging、production 专用部署身份和环境 secrets 就绪。production 必须由受保护 environment 的唯一
+reviewer `Xauryan` 审批，并默认要求同一 SHA 的最新 staging deployment 成功。事故 break-glass
+只能通过手工 `Deploy` 显式选择 `skip_staging_gate=true`、填写足够的事故上下文并留下 production
+approval；它不绕过 checks、provenance、digest 或分支校验。
 
 生产分支真正部署到线上之前，打包阶段和 `remote-preflight.sh` 会共同避免：
 

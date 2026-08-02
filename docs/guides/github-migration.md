@@ -53,7 +53,7 @@ last-verified: 2026-08-02
 | `CI` | PR、`develop`/`main` push、手工 | PR 只读；按路径选择 Go、契约、前端、E2E、Koishi、Infra、Semgrep、完整历史 secret scan、PR 新增依赖审查，以及 22 个受管运行时镜像的 `HIGH` / `CRITICAL` / `UNKNOWN` 策略扫描 |
 | `CodeQL` | PR、push、每周、手工 | Go 与 JavaScript/TypeScript 代码扫描 |
 | `Publish images` | 受信任 push 的 `CI` 全部成功后 | 同一 commit 只构建一次、扫描同一镜像、发布不可变 SHA tag，并为最终 digest 签发 provenance 与 CycloneDX SBOM attestation |
-| `Deploy` | 手工；也可由 `main` CI 调用 staging | 先验证当前 branch head、`Required`、双语言 CodeQL、发布工作流身份和镜像 digest，再进入 environment 审批与部署；forward deploy 不接受历史 SHA |
+| `Deploy` | 手工；也可由 `main` CI 依次调用 staging / production | 先验证当前 branch head、`Required`、双语言 CodeQL、发布工作流身份和镜像 digest，再进入 environment 审批与部署；forward deploy 不接受历史 SHA |
 | `Rollback` | 手工 | 当前可信 controller 使用同一 environment 锁，把经过 provenance 校验的历史 40 位 SHA 镜像集作为回滚目标 |
 
 所有外部 Action 必须固定到完整 commit SHA，并在注释中保留对应主版本。公开 fork 的 PR 不得使用 `pull_request_target` 检出或运行不受信任代码。
@@ -121,6 +121,9 @@ SSH known_hosts 必须预先固定真实 host public key，且条目必须与 `D
 - `ADMIN_VITE_BASE`
 - `STAGING_AUTO_DEPLOY_ENABLED`：默认不配置或设为 `false`；独立 staging 主机、secrets、公开运行时
   配置和真实 smoke 就绪后才设为 `true`
+- `PRODUCTION_AUTO_PROMOTION_ENABLED`：默认不配置或设为 `false`；只有自动 staging 已启用且同 SHA
+  smoke 成功、production 专用部署身份和 secrets 已验收后才设为 `true`；production environment
+  审批不会因此被跳过
 
 ### Branch protection
 
