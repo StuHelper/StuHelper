@@ -19,6 +19,14 @@ assert_contains() {
   fi
 }
 
+assert_not_contains() {
+  local file="$1"
+  local pattern="$2"
+  if grep -Eq -- "${pattern}" "${file}"; then
+    fail "expected ${file} not to contain pattern: ${pattern}"
+  fi
+}
+
 [[ -f "${BOOTSTRAP_SCRIPT}" ]] || fail "missing bootstrap script: ${BOOTSTRAP_SCRIPT}"
 
 bash -n "${BOOTSTRAP_SCRIPT}"
@@ -81,6 +89,9 @@ assert_contains "${BOOTSTRAP_SCRIPT}" 'stuhelper-postgres-backup-sync\.service'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'Environment=BACKUP_STAGING_DIR=\$\{BACKUP_STAGING_DIR\}'
 [[ "$(grep -c '^Environment=BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true$' "${BOOTSTRAP_SCRIPT}")" == "3" ]] ||
   fail "bootstrap fallback must require off-host storage in all three backup services"
+[[ "$(grep -Ec '^ExecStart=/usr/bin/env --unset=BASH_ENV --unset=ENV /bin/bash --noprofile --norc \./infra/ops/' "${BOOTSTRAP_SCRIPT}")" == "3" ]] ||
+  fail "bootstrap fallback must prevent profile-based backup gate overrides in all three services"
+assert_not_contains "${BOOTSTRAP_SCRIPT}" 'ExecStart=/bin/bash -lc'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'systemctl daemon-reload'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'systemctl enable --now stuhelper-postgres-dump-backup\.timer stuhelper-postgres-basebackup\.timer stuhelper-postgres-backup-sync\.timer'
 
@@ -92,5 +103,8 @@ assert_contains "${BACKUP_TIMER_INSTALLER}" 'install -d -o "\$\{DEPLOY_USER\}".*
 assert_contains "${BACKUP_TIMER_INSTALLER}" 'Environment=BACKUP_STAGING_DIR=\$\{BACKUP_STAGING_DIR\}'
 [[ "$(grep -c '^Environment=BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true$' "${BACKUP_TIMER_INSTALLER}")" == "3" ]] ||
   fail "backup timer installer must require off-host storage in all three services"
+[[ "$(grep -Ec '^ExecStart=/usr/bin/env --unset=BASH_ENV --unset=ENV /bin/bash --noprofile --norc \./infra/ops/' "${BACKUP_TIMER_INSTALLER}")" == "3" ]] ||
+  fail "backup timer installer must prevent profile-based backup gate overrides in all three services"
+assert_not_contains "${BACKUP_TIMER_INSTALLER}" 'ExecStart=/bin/bash -lc'
 
 echo "[bootstrap-ubuntu2404-contract] all assertions passed"
