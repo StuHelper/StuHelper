@@ -7,7 +7,7 @@ source "${SCRIPT_DIR}/lib/common.sh"
 
 MODE="${1:-dump}"
 
-load_env
+load_env_preserving BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED
 require_cmd docker
 
 [[ -n "${BACKUP_DATABASE_URL:-}" ]] || die "BACKUP_DATABASE_URL is required"

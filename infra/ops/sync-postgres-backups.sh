@@ -8,7 +8,13 @@ source "${SCRIPT_DIR}/lib/common.sh"
 source "${SCRIPT_DIR}/lib/rclone-object-storage.sh"
 
 require_cmd docker
-load_env
+load_env_preserving BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED
+
+case "${BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED:-false}" in
+  true) require_off_host_backup_object_storage ;;
+  false|"") ;;
+  *) die "BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED must be true or false" ;;
+esac
 
 [[ -n "${BACKUP_OBJECT_STORAGE_ENDPOINT:-}" ]] || die "BACKUP_OBJECT_STORAGE_ENDPOINT is required"
 [[ -n "${BACKUP_OBJECT_STORAGE_BUCKET:-}" ]] || die "BACKUP_OBJECT_STORAGE_BUCKET is required"

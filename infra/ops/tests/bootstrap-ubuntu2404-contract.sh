@@ -79,6 +79,8 @@ assert_contains "${BOOTSTRAP_SCRIPT}" 'stuhelper-postgres-dump-backup\.service'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'stuhelper-postgres-basebackup\.service'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'stuhelper-postgres-backup-sync\.service'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'Environment=BACKUP_STAGING_DIR=\$\{BACKUP_STAGING_DIR\}'
+[[ "$(grep -c '^Environment=BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true$' "${BOOTSTRAP_SCRIPT}")" == "3" ]] ||
+  fail "bootstrap fallback must require off-host storage in all three backup services"
 assert_contains "${BOOTSTRAP_SCRIPT}" 'systemctl daemon-reload'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'systemctl enable --now stuhelper-postgres-dump-backup\.timer stuhelper-postgres-basebackup\.timer stuhelper-postgres-backup-sync\.timer'
 
@@ -88,5 +90,7 @@ bash -n "${BACKUP_TIMER_INSTALLER}"
 assert_contains "${BACKUP_TIMER_INSTALLER}" 'BACKUP_STAGING_DIR="\$\{BACKUP_STAGING_DIR:-/var/lib/stuhelper/postgres/backup-staging\}"'
 assert_contains "${BACKUP_TIMER_INSTALLER}" 'install -d -o "\$\{DEPLOY_USER\}".*-m 0700 "\$\{BACKUP_STAGING_DIR\}"'
 assert_contains "${BACKUP_TIMER_INSTALLER}" 'Environment=BACKUP_STAGING_DIR=\$\{BACKUP_STAGING_DIR\}'
+[[ "$(grep -c '^Environment=BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true$' "${BACKUP_TIMER_INSTALLER}")" == "3" ]] ||
+  fail "backup timer installer must require off-host storage in all three services"
 
 echo "[bootstrap-ubuntu2404-contract] all assertions passed"

@@ -55,7 +55,8 @@ ADR-0010 把同 SHA staging success 设为 production 的默认前置条件。�
    `stuhelper-prod` Compose project，而不是误建第二套 network/volume/container。
 8. `PRODUCTION_AUTO_PROMOTION_ENABLED` 默认保持 `false`。只有专用 deploy 用户/SSH key、固定
    known_hosts、`/opt/stuhelper` 控制面、Vault 最小权限 periodic runtime token 与自动续期 timer、
-   备份 timers、异机备份取回、Compose project 接管 dry-run、GHCR 拉取、真实预检和一次人工批准
+   备份 timers、异机备份取回、`BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED=true` 门禁、Compose
+   project 接管 dry-run、GHCR 拉取、真实预检和一次人工批准
    发布演练全部通过后才启用。部署 token 不得复用 Vault 初始化 root token；流水线代码完成不等于
    现网已具备自动部署能力。
 9. staging 是延期而非永久删除。未来独立 staging 就绪后，把仓库变量切换为
