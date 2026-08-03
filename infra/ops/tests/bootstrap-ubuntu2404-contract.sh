@@ -111,6 +111,10 @@ assert_contains "${BOOTSTRAP_SCRIPT}" 'Environment=BACKUP_STAGING_DIR=\$\{BACKUP
   fail "bootstrap fallback must keep all backup oneshot services restartable by their timers"
 [[ "$(grep -c '^Restart=no$' "${BOOTSTRAP_SCRIPT}")" == "3" ]] ||
   fail "bootstrap fallback must leave retries under timer control"
+[[ "$(grep -c '^StartLimitIntervalSec=0$' "${BOOTSTRAP_SCRIPT}")" == "3" ]] ||
+  fail "bootstrap fallback must disable service start-rate limiting"
+[[ "$(grep -c '^StartLimitBurst=5$' "${BOOTSTRAP_SCRIPT}")" == "3" ]] ||
+  fail "bootstrap fallback must pin the canonical service start-limit burst"
 assert_contains "${BOOTSTRAP_SCRIPT}" '^TimeoutStartSec=4h$'
 assert_contains "${BOOTSTRAP_SCRIPT}" '^TimeoutStartSec=12h$'
 assert_contains "${BOOTSTRAP_SCRIPT}" '^TimeoutStartSec=10min$'
@@ -159,6 +163,10 @@ assert_contains "${BACKUP_TIMER_INSTALLER}" '^OnCalendar=\*-\*-\* \*:00/15:00$'
   fail "backup timer installer must keep all backup oneshot services restartable by their timers"
 [[ "$(grep -c '^Restart=no$' "${BACKUP_TIMER_INSTALLER}")" == "3" ]] ||
   fail "backup timer installer must leave retries under timer control"
+[[ "$(grep -c '^StartLimitIntervalSec=0$' "${BACKUP_TIMER_INSTALLER}")" == "3" ]] ||
+  fail "backup timer installer must disable service start-rate limiting"
+[[ "$(grep -c '^StartLimitBurst=5$' "${BACKUP_TIMER_INSTALLER}")" == "3" ]] ||
+  fail "backup timer installer must pin the canonical service start-limit burst"
 assert_contains "${BACKUP_TIMER_INSTALLER}" '^TimeoutStartSec=4h$'
 assert_contains "${BACKUP_TIMER_INSTALLER}" '^TimeoutStartSec=12h$'
 assert_contains "${BACKUP_TIMER_INSTALLER}" '^TimeoutStartSec=10min$'

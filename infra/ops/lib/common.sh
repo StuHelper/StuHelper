@@ -122,6 +122,9 @@ require_systemd_unit_hardened_lifecycle() {
     "TimeoutStopUSec=2min"
     "KillMode=control-group"
     "SendSIGKILL=yes"
+    "StartLimitIntervalUSec=0"
+    "StartLimitBurst=5"
+    "Result=success"
   )
   local -a empty_properties=(
     ExecCondition
