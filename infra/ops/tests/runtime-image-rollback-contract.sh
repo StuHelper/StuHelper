@@ -141,8 +141,9 @@ load = source.index("load_env", lock)
 permission_migration = source.index("migrate_legacy_release_state_permissions", load)
 record_read = source.index("source_release_record_env_file", permission_migration)
 identity_migration = source.index("migrate_explicit_legacy_release_identity", record_read)
+policy_gate = source.index('if current_policy_output=', record_read)
 deploy = source.index('"${SCRIPT_DIR}/prod-deploy.sh"', identity_migration)
-if not lock < load < permission_migration < record_read < identity_migration < deploy:
+if not lock < load < permission_migration < record_read < policy_gate < identity_migration < deploy:
     raise SystemExit("rollback lock and legacy migration ordering is unsafe")
 PY
 
@@ -152,6 +153,11 @@ import sys
 from pathlib import Path
 
 record = os.environ.get("RUNTIME_IMAGE_ROLLBACK_RELEASE_RECORD", "")
+allow_legacy = "--allow-legacy-rollback-record" in sys.argv[1:]
+observed = os.environ.get("ROLLBACK_MIGRATION_OBSERVED_FILE", "")
+if observed and Path(observed).exists() and (not record or allow_legacy):
+    print("[runtime-image-scan][error] legacy record migrated before its policy gate", file=sys.stderr)
+    raise SystemExit(4)
 if not record:
     if os.environ.get("VALIDATOR_CURRENT_OK") == "true":
         print("[runtime-image-policy] current fixture accepted")
@@ -164,6 +170,17 @@ if not Path(record).is_file():
 if not os.environ.get("ROLLBACK_REVIEW_AUDIT_ID"):
     print("[runtime-image-scan][error] missing audit id", file=sys.stderr)
     raise SystemExit(3)
+payload = Path(record).read_text(encoding="utf-8")
+if allow_legacy:
+    if "@sha256:" in payload:
+        print("[runtime-image-scan][error] legacy prevalidation received an already migrated record", file=sys.stderr)
+        raise SystemExit(5)
+    if os.environ.get("VALIDATOR_ROLLBACK_OK", "true") != "true":
+        print("[runtime-image-scan][error] proposed rollback identity is not approved", file=sys.stderr)
+        raise SystemExit(6)
+elif "@sha256:" not in payload:
+    print("[runtime-image-scan][error] strict rollback validation requires a canonical record", file=sys.stderr)
+    raise SystemExit(7)
 print("[runtime-image-policy] audited rollback fixture accepted")
 PY
 
@@ -322,6 +339,57 @@ grep -q 'legacy rollback migration audit context is required' \
   fail "legacy migration without audit context did not fail explicitly"
 [[ ! -e "${fixture_root}/legacy-without-audit-observed" ]] ||
   fail "legacy migration without audit context reached prod-deploy"
+
+failed_legacy_state="${fixture_root}/failed-legacy-state"
+failed_legacy_tag="failed-legacy-release"
+mkdir -p "${failed_legacy_state}/releases"
+cat >"${failed_legacy_state}/releases/${failed_legacy_tag}.env" <<EOF
+TAG=${failed_legacy_tag}
+DEPLOYED_AT=2026-07-30T12:00:00Z
+BACKEND_IMAGE_REF=ghcr.io/stuhelper/backend:legacy
+FRONTEND_IMAGE_REF=ghcr.io/stuhelper/frontend:legacy
+ADMIN_IMAGE_REF=ghcr.io/stuhelper/admin:legacy
+EOF
+failed_legacy_checksum="$(sha256sum "${failed_legacy_state}/releases/${failed_legacy_tag}.env" | cut -d ' ' -f 1)"
+failed_legacy_migration_observed="${fixture_root}/failed-legacy-migration-observed"
+if VALIDATOR_ROLLBACK_OK=false \
+  DEPLOY_STATE_DIR="${failed_legacy_state}" \
+  ROLLBACK_TAG="${failed_legacy_tag}" \
+  ROLLBACK_BACKEND_IMAGE_REF="${backend_ref}" \
+  ROLLBACK_FRONTEND_IMAGE_REF="${frontend_ref}" \
+  ROLLBACK_ADMIN_IMAGE_REF="${admin_ref}" \
+  ROLLBACK_REVIEW_ACTOR=contract-operator \
+  ROLLBACK_REVIEW_REASON='validate before publishing this legacy transition' \
+  ROLLBACK_MIGRATION_OBSERVED_FILE="${failed_legacy_migration_observed}" \
+  ROLLBACK_DEPLOY_OBSERVED_FILE="${fixture_root}/failed-legacy-deploy-observed" \
+    "${fixture_repo}/infra/ops/prod-rollback.sh" \
+      >"${fixture_root}/failed-legacy.out" 2>"${fixture_root}/failed-legacy.err"; then
+  fail "legacy rollback continued after its proposed identity failed policy validation"
+fi
+grep -q 'proposed rollback identity is not approved' "${fixture_root}/failed-legacy.err" ||
+  fail "failed legacy prevalidation did not report the policy rejection"
+[[ "$(sha256sum "${failed_legacy_state}/releases/${failed_legacy_tag}.env" | cut -d ' ' -f 1)" == "${failed_legacy_checksum}" ]] ||
+  fail "failed legacy prevalidation permanently changed the successful-release record"
+[[ ! -e "${failed_legacy_migration_observed}" ]] ||
+  fail "failed legacy prevalidation invoked the persistent migration"
+[[ ! -e "${fixture_root}/failed-legacy-deploy-observed" ]] ||
+  fail "failed legacy prevalidation reached prod-deploy"
+
+retry_legacy_migration_observed="${fixture_root}/retry-legacy-migration-observed"
+DEPLOY_STATE_DIR="${failed_legacy_state}" \
+ROLLBACK_TAG="${failed_legacy_tag}" \
+ROLLBACK_BACKEND_IMAGE_REF="${backend_ref}" \
+ROLLBACK_FRONTEND_IMAGE_REF="${frontend_ref}" \
+ROLLBACK_ADMIN_IMAGE_REF="${admin_ref}" \
+ROLLBACK_REVIEW_ACTOR=contract-operator \
+ROLLBACK_REVIEW_REASON='retry the now-approved legacy digest transition' \
+ROLLBACK_MIGRATION_OBSERVED_FILE="${retry_legacy_migration_observed}" \
+ROLLBACK_DEPLOY_OBSERVED_FILE="${fixture_root}/retry-legacy-deploy-observed" \
+  "${fixture_repo}/infra/ops/prod-rollback.sh" >/dev/null
+[[ "$(cat "${retry_legacy_migration_observed}")" == "${failed_legacy_tag}" ]] ||
+  fail "approved retry did not publish the legacy digest migration"
+grep -q '@sha256:' "${failed_legacy_state}/releases/${failed_legacy_tag}.env" ||
+  fail "approved retry did not persist the canonical digest record"
 
 legacy_refs_observed="${fixture_root}/legacy-refs-observed"
 legacy_migration_observed="${fixture_root}/legacy-migration-observed"

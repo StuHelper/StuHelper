@@ -100,19 +100,18 @@ else
   ADMIN_IMAGE_REF="$(derive_tagged_image_ref "${ADMIN_IMAGE_REF:-}" "${target_tag}" || true)"
 fi
 
+legacy_migration_required=false
 if ((override_count == 3)); then
+  if [[ -f "${release_file}" ]] && {
+    [[ ! "${BACKEND_IMAGE_REF}" =~ @sha256:[0-9a-f]{64}$ ]] ||
+      [[ ! "${FRONTEND_IMAGE_REF}" =~ @sha256:[0-9a-f]{64}$ ]] ||
+      [[ ! "${ADMIN_IMAGE_REF}" =~ @sha256:[0-9a-f]{64}$ ]];
+  }; then
+    legacy_migration_required=true
+  fi
   BACKEND_IMAGE_REF="${requested_backend_image_ref}"
   FRONTEND_IMAGE_REF="${requested_frontend_image_ref}"
   ADMIN_IMAGE_REF="${requested_admin_image_ref}"
-  if [[ -f "${release_file}" ]]; then
-    migrate_explicit_legacy_release_identity \
-      "${target_tag}" \
-      "${BACKEND_IMAGE_REF}" \
-      "${FRONTEND_IMAGE_REF}" \
-      "${ADMIN_IMAGE_REF}" \
-      "${ROLLBACK_REVIEW_ACTOR}" \
-      "${ROLLBACK_REVIEW_REASON}"
-  fi
 fi
 
 [[ -n "${BACKEND_IMAGE_REF:-}" ]] || die "missing BACKEND_IMAGE_REF for rollback target ${target_tag}; deploy that release once with the new immutable-image flow or set it explicitly"
@@ -133,6 +132,7 @@ validator=(
 )
 
 current_policy_output=""
+rollback_exception_required=false
 if current_policy_output="$("${validator[@]}" 2>&1)"; then
   log "runtime-image review windows are current; no rollback exception is needed"
 else
@@ -150,6 +150,33 @@ PY
   export ROLLBACK_REVIEW_AUDIT_ID
   export RUNTIME_IMAGE_ROLLBACK_RELEASE_RECORD="${release_file}"
 
+  if [[ "${legacy_migration_required}" == "true" ]]; then
+    "${validator[@]}" \
+      --rollback-release-record "${release_file}" \
+      --allow-legacy-rollback-record
+  else
+    "${validator[@]}"
+  fi
+  rollback_exception_required=true
+fi
+
+# The proposed digest tuple has now passed the current or audited historical
+# runtime-image policy. Only now may a legacy successful-release record be
+# replaced, so a bad override or policy failure leaves the retryable source
+# record and its evidence untouched.
+if ((override_count == 3)) && [[ -f "${release_file}" ]]; then
+  migrate_explicit_legacy_release_identity \
+    "${target_tag}" \
+    "${BACKEND_IMAGE_REF}" \
+    "${FRONTEND_IMAGE_REF}" \
+    "${ADMIN_IMAGE_REF}" \
+    "${ROLLBACK_REVIEW_ACTOR}" \
+    "${ROLLBACK_REVIEW_REASON}"
+fi
+
+if [[ "${rollback_exception_required}" == "true" ]]; then
+  # Revalidate the persisted canonical record before writing the exception
+  # audit event or handing control to the deployment controller.
   "${validator[@]}"
 
   audit_file="${DEPLOY_STATE_DIR}/rollback-review-exceptions.jsonl"
