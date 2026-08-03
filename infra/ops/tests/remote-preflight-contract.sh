@@ -86,6 +86,11 @@ assert_contains "${COMMON_LIB_FILE}" 'require_systemd_unit_exact_identity\(\)'
 assert_contains "${COMMON_LIB_FILE}" 'require_systemd_unit_hardened_lifecycle\(\)'
 assert_contains "${COMMON_LIB_FILE}" 'require_systemd_unit_without_filesystem_overrides\(\)'
 assert_contains "${COMMON_LIB_FILE}" 'BindReadOnlyPaths'
+assert_contains "${COMMON_LIB_FILE}" 'ReadOnlyPaths'
+assert_contains "${COMMON_LIB_FILE}" 'ReadWritePaths'
+assert_contains "${COMMON_LIB_FILE}" 'InaccessiblePaths'
+assert_contains "${COMMON_LIB_FILE}" 'ExecPaths'
+assert_contains "${COMMON_LIB_FILE}" 'NoExecPaths'
 assert_contains "${COMMON_LIB_FILE}" 'TemporaryFileSystem'
 assert_contains "${COMMON_LIB_FILE}" 'MountImages'
 assert_contains "${COMMON_LIB_FILE}" 'ExtensionImages'
@@ -382,6 +387,7 @@ lifecycle_start_limit_interval="0"
 lifecycle_start_limit_burst="5"
 lifecycle_result="success"
 lifecycle_exec_condition=""
+lifecycle_drop_in_paths=""
 lifecycle_success_exit_status=""
 lifecycle_exec_stop_post=""
 systemctl() {
@@ -396,6 +402,7 @@ systemctl() {
     *--property=StartLimitIntervalUSec*) printf '%s\n' "${lifecycle_start_limit_interval}" ;;
     *--property=StartLimitBurst*) printf '%s\n' "${lifecycle_start_limit_burst}" ;;
     *--property=Result*) printf '%s\n' "${lifecycle_result}" ;;
+    *--property=DropInPaths*) printf '%s\n' "${lifecycle_drop_in_paths}" ;;
     *--property=ExecCondition*) printf '%s\n' "${lifecycle_exec_condition}" ;;
     *--property=SuccessExitStatus*) printf '%s\n' "${lifecycle_success_exit_status}" ;;
     *--property=ExecStopPost*) printf '%s\n' "${lifecycle_exec_stop_post}" ;;
@@ -507,6 +514,16 @@ if (require_systemd_unit_hardened_lifecycle \
 fi
 grep -q 'must not set ExecStopPost' "${tmpdir}/backup-unit-stop-post.err" || \
   fail "the ExecStopPost failure did not report the lifecycle override"
+lifecycle_exec_stop_post=""
+
+lifecycle_drop_in_paths="/etc/systemd/system/stuhelper-postgres-backup-sync.service.d/override.conf"
+if (require_systemd_unit_hardened_lifecycle \
+  stuhelper-postgres-backup-sync.service 12h) \
+  >"${tmpdir}/backup-unit-drop-in.out" 2>"${tmpdir}/backup-unit-drop-in.err"; then
+  fail "the systemd lifecycle validator accepted an ad-hoc service drop-in"
+fi
+grep -q 'must not set DropInPaths' "${tmpdir}/backup-unit-drop-in.err" || \
+  fail "the drop-in failure did not report the immutable-unit boundary"
 unset -f systemctl
 
 source "${COMMON_LIB_FILE}"
@@ -514,12 +531,21 @@ namespace_root_directory=""
 namespace_root_image=""
 namespace_bind_paths=""
 namespace_bind_read_only_paths=""
+namespace_read_only_paths=""
+namespace_read_write_paths=""
+namespace_inaccessible_paths=""
+namespace_exec_paths=""
+namespace_no_exec_paths=""
 namespace_temporary_file_system=""
 namespace_mount_images=""
 namespace_extension_images=""
 namespace_extension_directories=""
 namespace_root_ephemeral="no"
 namespace_root_directory_start_only="no"
+namespace_protect_system="no"
+namespace_protect_home="no"
+namespace_private_tmp="no"
+namespace_private_mounts="no"
 systemctl() {
   case "$*" in
     *--property=RootDirectoryStartOnly*) printf '%s\n' "${namespace_root_directory_start_only}" ;;
@@ -527,11 +553,20 @@ systemctl() {
     *--property=RootImage*) printf '%s\n' "${namespace_root_image}" ;;
     *--property=BindPaths*) printf '%s\n' "${namespace_bind_paths}" ;;
     *--property=BindReadOnlyPaths*) printf '%s\n' "${namespace_bind_read_only_paths}" ;;
+    *--property=ReadOnlyPaths*) printf '%s\n' "${namespace_read_only_paths}" ;;
+    *--property=ReadWritePaths*) printf '%s\n' "${namespace_read_write_paths}" ;;
+    *--property=InaccessiblePaths*) printf '%s\n' "${namespace_inaccessible_paths}" ;;
+    *--property=NoExecPaths*) printf '%s\n' "${namespace_no_exec_paths}" ;;
+    *--property=ExecPaths*) printf '%s\n' "${namespace_exec_paths}" ;;
     *--property=TemporaryFileSystem*) printf '%s\n' "${namespace_temporary_file_system}" ;;
     *--property=MountImages*) printf '%s\n' "${namespace_mount_images}" ;;
     *--property=ExtensionImages*) printf '%s\n' "${namespace_extension_images}" ;;
     *--property=ExtensionDirectories*) printf '%s\n' "${namespace_extension_directories}" ;;
     *--property=RootEphemeral*) printf '%s\n' "${namespace_root_ephemeral}" ;;
+    *--property=ProtectSystem*) printf '%s\n' "${namespace_protect_system}" ;;
+    *--property=ProtectHome*) printf '%s\n' "${namespace_protect_home}" ;;
+    *--property=PrivateTmp*) printf '%s\n' "${namespace_private_tmp}" ;;
+    *--property=PrivateMounts*) printf '%s\n' "${namespace_private_mounts}" ;;
     *) return 90 ;;
   esac
 }
@@ -570,6 +605,26 @@ fi
 grep -q 'must not set TemporaryFileSystem' "${tmpdir}/backup-unit-tmpfs.err" || \
   fail "the temporary-filesystem failure did not report the namespace override"
 namespace_temporary_file_system=""
+
+namespace_read_only_paths="/opt/stuhelper"
+if (require_systemd_unit_without_filesystem_overrides \
+  stuhelper-postgres-backup-sync.service) \
+  >"${tmpdir}/backup-unit-read-only.out" 2>"${tmpdir}/backup-unit-read-only.err"; then
+  fail "the systemd filesystem validator accepted a read-only application tree"
+fi
+grep -q 'must not set ReadOnlyPaths' "${tmpdir}/backup-unit-read-only.err" || \
+  fail "the read-only path failure did not report the namespace override"
+namespace_read_only_paths=""
+
+namespace_inaccessible_paths="/opt/stuhelper"
+if (require_systemd_unit_without_filesystem_overrides \
+  stuhelper-postgres-backup-sync.service) \
+  >"${tmpdir}/backup-unit-inaccessible.out" 2>"${tmpdir}/backup-unit-inaccessible.err"; then
+  fail "the systemd filesystem validator accepted an inaccessible application tree"
+fi
+grep -q 'must not set InaccessiblePaths' "${tmpdir}/backup-unit-inaccessible.err" || \
+  fail "the inaccessible path failure did not report the namespace override"
+namespace_inaccessible_paths=""
 
 namespace_root_ephemeral="yes"
 if (require_systemd_unit_without_filesystem_overrides \

@@ -127,6 +127,7 @@ require_systemd_unit_hardened_lifecycle() {
     "Result=success"
   )
   local -a empty_properties=(
+    DropInPaths
     ExecCondition
     ExecReload
     ExecStartPre
@@ -168,6 +169,11 @@ require_systemd_unit_without_filesystem_overrides() {
     RootImage
     BindPaths
     BindReadOnlyPaths
+    ReadOnlyPaths
+    ReadWritePaths
+    InaccessiblePaths
+    ExecPaths
+    NoExecPaths
     TemporaryFileSystem
     MountImages
     ExtensionImages
@@ -176,6 +182,10 @@ require_systemd_unit_without_filesystem_overrides() {
   local -a exact_properties=(
     "RootEphemeral=no"
     "RootDirectoryStartOnly=no"
+    "ProtectSystem=no"
+    "ProtectHome=no"
+    "PrivateTmp=no"
+    "PrivateMounts=no"
   )
 
   for property in "${empty_properties[@]}"; do
