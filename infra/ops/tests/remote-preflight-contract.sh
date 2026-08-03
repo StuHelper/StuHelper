@@ -82,6 +82,7 @@ assert_contains "${PREFLIGHT_FILE}" 'Vault runtime token renewal timer is not ac
 assert_contains "${COMMON_LIB_FILE}" 'require_systemd_unit_exact_environment\(\)'
 assert_contains "${COMMON_LIB_FILE}" 'require_systemd_unit_hardened_lifecycle\(\)'
 assert_contains "${COMMON_LIB_FILE}" '"RemainAfterExit=no"'
+assert_contains "${COMMON_LIB_FILE}" '"TimeoutStartUSec=infinity"'
 assert_contains "${COMMON_LIB_FILE}" 'SuccessExitStatus'
 assert_contains "${COMMON_LIB_FILE}" 'ExecReload'
 assert_contains "${COMMON_LIB_FILE}" 'ExecStopPost'
@@ -300,6 +301,7 @@ if ! bash -c '
       *--property=Type*) printf "%s\n" oneshot ;;
       *--property=RemainAfterExit*) printf "%s\n" no ;;
       *--property=Restart*) printf "%s\n" no ;;
+      *--property=TimeoutStartUSec*) printf "%s\n" infinity ;;
       *--property=ExecCondition*|*--property=ExecReload*|*--property=ExecStartPre*|*--property=ExecStartPost*|*--property=ExecStop*|*--property=ExecStopPost*|*--property=SuccessExitStatus*) printf "\n" ;;
       *) return 90 ;;
     esac
@@ -317,6 +319,7 @@ if bash -c '
       *--property=Type*) printf "%s\n" oneshot ;;
       *--property=RemainAfterExit*) printf "%s\n" yes ;;
       *--property=Restart*) printf "%s\n" no ;;
+      *--property=TimeoutStartUSec*) printf "%s\n" infinity ;;
       *--property=ExecCondition*|*--property=ExecReload*|*--property=ExecStartPre*|*--property=ExecStartPost*|*--property=ExecStop*|*--property=ExecStopPost*|*--property=SuccessExitStatus*) printf "\n" ;;
       *) return 90 ;;
     esac
@@ -336,6 +339,27 @@ if bash -c '
       *--property=Type*) printf "%s\n" oneshot ;;
       *--property=RemainAfterExit*) printf "%s\n" no ;;
       *--property=Restart*) printf "%s\n" no ;;
+      *--property=TimeoutStartUSec*) printf "%s\n" 30s ;;
+      *--property=ExecCondition*|*--property=ExecReload*|*--property=ExecStartPre*|*--property=ExecStartPost*|*--property=ExecStop*|*--property=ExecStopPost*|*--property=SuccessExitStatus*) printf "\n" ;;
+      *) return 90 ;;
+    esac
+  }
+  require_systemd_unit_hardened_lifecycle stuhelper-postgres-backup-sync.service
+' bash "${COMMON_LIB_FILE}" >"${tmpdir}/backup-unit-timeout.out" 2>"${tmpdir}/backup-unit-timeout.err"; then
+  fail "the systemd lifecycle validator accepted a finite backup start timeout"
+fi
+grep -q 'TimeoutStartUSec=infinity' "${tmpdir}/backup-unit-timeout.err" || \
+  fail "the finite start-timeout failure did not report the unbounded backup requirement"
+
+if bash -c '
+  set -euo pipefail
+  source "$1"
+  systemctl() {
+    case "$*" in
+      *--property=Type*) printf "%s\n" oneshot ;;
+      *--property=RemainAfterExit*) printf "%s\n" no ;;
+      *--property=Restart*) printf "%s\n" no ;;
+      *--property=TimeoutStartUSec*) printf "%s\n" infinity ;;
       *--property=ExecCondition*) printf "%s\n" "{ path=/bin/false ; argv[]=/bin/false ; ignore_errors=no ; }" ;;
       *--property=ExecReload*|*--property=ExecStartPre*|*--property=ExecStartPost*|*--property=ExecStop*|*--property=ExecStopPost*|*--property=SuccessExitStatus*) printf "\n" ;;
       *) return 90 ;;
@@ -356,6 +380,7 @@ if bash -c '
       *--property=Type*) printf "%s\n" oneshot ;;
       *--property=RemainAfterExit*) printf "%s\n" no ;;
       *--property=Restart*) printf "%s\n" no ;;
+      *--property=TimeoutStartUSec*) printf "%s\n" infinity ;;
       *--property=SuccessExitStatus*) printf "%s\n" 1 ;;
       *--property=ExecCondition*|*--property=ExecReload*|*--property=ExecStartPre*|*--property=ExecStartPost*|*--property=ExecStop*|*--property=ExecStopPost*) printf "\n" ;;
       *) return 90 ;;
@@ -376,6 +401,7 @@ if bash -c '
       *--property=Type*) printf "%s\n" oneshot ;;
       *--property=RemainAfterExit*) printf "%s\n" no ;;
       *--property=Restart*) printf "%s\n" no ;;
+      *--property=TimeoutStartUSec*) printf "%s\n" infinity ;;
       *--property=ExecStopPost*) printf "%s\n" "{ path=/bin/sh ; argv[]=/bin/sh -c true ; ignore_errors=no ; }" ;;
       *--property=ExecCondition*|*--property=ExecReload*|*--property=ExecStartPre*|*--property=ExecStartPost*|*--property=ExecStop*|*--property=SuccessExitStatus*) printf "\n" ;;
       *) return 90 ;;
