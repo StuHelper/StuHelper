@@ -92,6 +92,9 @@ assert_contains "${COMMON_LIB_FILE}" 'TimeoutStartUSec=\$\{expected_start_timeou
 assert_contains "${COMMON_LIB_FILE}" '"TimeoutStopUSec=2min"'
 assert_contains "${COMMON_LIB_FILE}" '"KillMode=control-group"'
 assert_contains "${COMMON_LIB_FILE}" '"SendSIGKILL=yes"'
+assert_contains "${COMMON_LIB_FILE}" '"StartLimitIntervalUSec=0"'
+assert_contains "${COMMON_LIB_FILE}" '"StartLimitBurst=5"'
+assert_contains "${COMMON_LIB_FILE}" '"Result=success"'
 assert_contains "${PREFLIGHT_FILE}" 'backup_service_start_timeouts='
 assert_contains "${PREFLIGHT_FILE}" '"4h"'
 assert_contains "${PREFLIGHT_FILE}" '"12h"'
@@ -369,6 +372,9 @@ lifecycle_timeout_start="10min"
 lifecycle_timeout_stop="2min"
 lifecycle_kill_mode="control-group"
 lifecycle_send_sigkill="yes"
+lifecycle_start_limit_interval="0"
+lifecycle_start_limit_burst="5"
+lifecycle_result="success"
 lifecycle_exec_condition=""
 lifecycle_success_exit_status=""
 lifecycle_exec_stop_post=""
@@ -381,6 +387,9 @@ systemctl() {
     *--property=TimeoutStopUSec*) printf '%s\n' "${lifecycle_timeout_stop}" ;;
     *--property=KillMode*) printf '%s\n' "${lifecycle_kill_mode}" ;;
     *--property=SendSIGKILL*) printf '%s\n' "${lifecycle_send_sigkill}" ;;
+    *--property=StartLimitIntervalUSec*) printf '%s\n' "${lifecycle_start_limit_interval}" ;;
+    *--property=StartLimitBurst*) printf '%s\n' "${lifecycle_start_limit_burst}" ;;
+    *--property=Result*) printf '%s\n' "${lifecycle_result}" ;;
     *--property=ExecCondition*) printf '%s\n' "${lifecycle_exec_condition}" ;;
     *--property=SuccessExitStatus*) printf '%s\n' "${lifecycle_success_exit_status}" ;;
     *--property=ExecStopPost*) printf '%s\n' "${lifecycle_exec_stop_post}" ;;
@@ -443,6 +452,26 @@ fi
 grep -q 'SendSIGKILL=yes' "${tmpdir}/backup-unit-sigkill.err" ||
   fail "the SIGKILL failure did not report the enforceable-timeout boundary"
 lifecycle_send_sigkill="yes"
+
+lifecycle_start_limit_interval="1h"
+if (require_systemd_unit_hardened_lifecycle \
+  stuhelper-postgres-backup-sync.service 10min) \
+  >"${tmpdir}/backup-unit-start-limit.out" 2>"${tmpdir}/backup-unit-start-limit.err"; then
+  fail "the systemd lifecycle validator accepted a rate-limited recurring backup service"
+fi
+grep -q 'StartLimitIntervalUSec=0' "${tmpdir}/backup-unit-start-limit.err" ||
+  fail "the start-limit failure did not report the disabled rate-limit requirement"
+lifecycle_start_limit_interval="0"
+
+lifecycle_result="start-limit-hit"
+if (require_systemd_unit_hardened_lifecycle \
+  stuhelper-postgres-backup-sync.service 10min) \
+  >"${tmpdir}/backup-unit-rate-limited-result.out" 2>"${tmpdir}/backup-unit-rate-limited-result.err"; then
+  fail "the systemd lifecycle validator accepted a currently rate-limited backup service"
+fi
+grep -q 'Result=success' "${tmpdir}/backup-unit-rate-limited-result.err" ||
+  fail "the rate-limited result failure did not report the healthy-result requirement"
+lifecycle_result="success"
 
 lifecycle_exec_condition="{ path=/bin/false ; argv[]=/bin/false ; ignore_errors=no ; }"
 if (require_systemd_unit_hardened_lifecycle \

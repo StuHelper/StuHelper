@@ -67,6 +67,8 @@ main() {
 Description=StuHelper PostgreSQL logical backup
 After=docker.service network-online.target
 Wants=network-online.target
+StartLimitIntervalSec=0
+StartLimitBurst=5
 
 [Service]
 Type=oneshot
@@ -111,6 +113,8 @@ EOF
 Description=StuHelper PostgreSQL base backup
 After=docker.service network-online.target
 Wants=network-online.target
+StartLimitIntervalSec=0
+StartLimitBurst=5
 
 [Service]
 Type=oneshot
@@ -156,6 +160,8 @@ EOF
 Description=StuHelper PostgreSQL backup artifact sync
 After=docker.service network-online.target
 Wants=network-online.target
+StartLimitIntervalSec=0
+StartLimitBurst=5
 
 [Service]
 Type=oneshot
