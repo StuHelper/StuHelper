@@ -7,6 +7,13 @@ source "${SCRIPT_DIR}/lib/common.sh"
 
 require_cmd python3
 
+# Reject an explicitly requested target before loading any secret-backed
+# environment. The later validation remains necessary for targets derived from
+# loaded deployment state.
+if [[ -n "${ROLLBACK_TAG:-}" ]]; then
+  require_safe_release_tag "${ROLLBACK_TAG}"
+fi
+
 requested_backend_image_ref="${ROLLBACK_BACKEND_IMAGE_REF:-}"
 requested_frontend_image_ref="${ROLLBACK_FRONTEND_IMAGE_REF:-}"
 requested_admin_image_ref="${ROLLBACK_ADMIN_IMAGE_REF:-}"
