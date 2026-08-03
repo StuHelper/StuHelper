@@ -391,6 +391,10 @@ GitHub `Rollback` 手工作业选择 `staging` 或 `production` environment，�
 每次前滚、同版本重激活或回滚都会生成独立的 `UTC timestamp + UUID` deployment attempt ID，并把它加入
 `predeploy-<release-tag>-<attempt-id>.dump`。release tag 继续作为不可变镜像身份和审计元数据，但不再充当备份
 文件的唯一名，因此正常 retention 窗口内回滚到旧 tag 不会撞上原发布备份；备份脚本仍拒绝覆盖任何既有制品。
+迁移前还会寻找本地校验和匹配、tar 可读且处于 `POSTGRES_BACKUP_EVIDENCE_MAX_BASE_AGE_SECONDS` 窗口内的
+物理 base backup；首次部署、备份丢失/损坏/过期时，自动创建
+`predeploy-<release-tag>-<attempt-id>.tar.gz`。逻辑与物理锚点完成后才统一同步 logical/base/WAL，并从独立对象
+存储取回验证；因此全新主机不会在“只创建逻辑 dump、随后强制要求物理证据”的循环中卡死。
 
 本地应急入口仍保留；未传 `ROLLBACK_TAG` 时会尝试读取 `.deploy/releases.log` 的上一条成功版本：
 
