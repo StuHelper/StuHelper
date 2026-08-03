@@ -91,8 +91,18 @@ source_casdoor_bootstrap_env() {
   source_casdoor_bootstrap_env_file "${file}"
 }
 
+clear_casdoor_bootstrap_env() {
+  unset \
+    CASDOOR_BOOTSTRAP_CLIENT_ID \
+    CASDOOR_BOOTSTRAP_CLIENT_SECRET \
+    CASDOOR_BOOTSTRAP_APPLICATION \
+    CASDOOR_BOOTSTRAP_CERTIFICATE \
+    CASDOOR_BOOTSTRAP_ORGANIZATION
+}
+
 validate_casdoor_bootstrap_env() (
-  source_casdoor_bootstrap_env
+  clear_casdoor_bootstrap_env
+  source_casdoor_bootstrap_env # load the file only after inherited values are cleared
   require_nonempty CASDOOR_BOOTSTRAP_CLIENT_ID "${CASDOOR_BOOTSTRAP_CLIENT_ID:-}"
   require_nonempty CASDOOR_BOOTSTRAP_CLIENT_SECRET "${CASDOOR_BOOTSTRAP_CLIENT_SECRET:-}"
   require_nonempty CASDOOR_BOOTSTRAP_APPLICATION "${CASDOOR_BOOTSTRAP_APPLICATION:-}"
@@ -128,11 +138,7 @@ PY
 
 require_backup_object_storage_config
 validate_casdoor_bootstrap_env # validate bootstrap credential env in isolated process
-unset \
-  CASDOOR_BOOTSTRAP_CLIENT_ID \
-  CASDOOR_BOOTSTRAP_CLIENT_SECRET \
-  CASDOOR_BOOTSTRAP_APPLICATION \
-  CASDOOR_BOOTSTRAP_CERTIFICATE
+clear_casdoor_bootstrap_env # remove any caller-provided bootstrap values from unrelated children
 
 if [[ "${EXTERNAL_POSTGRES_ENABLED:-false}" != "true" ]]; then
   require_nonempty POSTGRES_PASSWORD "${POSTGRES_PASSWORD:-}"

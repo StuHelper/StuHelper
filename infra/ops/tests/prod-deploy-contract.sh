@@ -35,7 +35,9 @@ remote_config_load_line="$(line_number 'load_remote_deploy_config')"
 generated_secret_ref_require_line="$(line_number 'GENERATED_ENV_SECRET_REF must be configured for production deploy')"
 secret_backend_require_line="$(line_number 'production deploy requires a non-file secret backend for generated secrets')"
 bootstrap_validation_line="$(line_number 'validate_casdoor_bootstrap_env # validate bootstrap credential env in isolated process')"
-bootstrap_unset_line="$(line_number '  CASDOOR_BOOTSTRAP_CERTIFICATE')"
+bootstrap_parent_clear_line="$(line_number 'clear_casdoor_bootstrap_env # remove any caller-provided bootstrap values from unrelated children')"
+bootstrap_validator_clear_line="$(line_number '  clear_casdoor_bootstrap_env')"
+bootstrap_validator_source_line="$(line_number 'source_casdoor_bootstrap_env # load the file only after inherited values are cleared')"
 postgres_ssl_line="$(line_number 'require_production_postgres_ssl')"
 external_student_source_security_line="$(line_number 'require_production_external_student_source_security')"
 object_storage_gate_line="$(line_number 'require_production_object_storage')"
@@ -62,6 +64,8 @@ observability_smoke_line="$(line_number 'OBS_SMOKE_STRICT=true "${SCRIPT_DIR}/ob
 bootstrap_require_line="$(line_number 'require_nonempty CASDOOR_BOOTSTRAP_CLIENT_SECRET')"
 grep -qF 'validate_casdoor_bootstrap_env() (' "${PROD_DEPLOY_FILE}" ||
   fail "production deploy must validate Casdoor bootstrap credentials in a subshell"
+grep -qF '    CASDOOR_BOOTSTRAP_ORGANIZATION' "${PROD_DEPLOY_FILE}" ||
+  fail "production deploy must clear every bootstrap-file key from the parent environment"
 grep -qF 'source_casdoor_bootstrap_env_file "${file}"' "${PROD_DEPLOY_FILE}" ||
   fail "production deploy must parse the Casdoor bootstrap credential file through its allowlisted loader"
 if grep -qF 'source "${file}"' "${PROD_DEPLOY_FILE}"; then
@@ -144,7 +148,10 @@ fi
 if (( bootstrap_require_line >= bootstrap_validation_line )); then
   fail "Casdoor bootstrap credential requirements must execute inside the isolated validator"
 fi
-if (( bootstrap_unset_line <= bootstrap_validation_line )); then
+if (( bootstrap_validator_clear_line >= bootstrap_validator_source_line )); then
+  fail "Casdoor bootstrap validation must clear inherited values before reading the credential file"
+fi
+if (( bootstrap_parent_clear_line <= bootstrap_validation_line )); then
   fail "Casdoor bootstrap credentials must be removed from the parent after validation"
 fi
 if (( casdoor_public_auth_require_line <= bootstrap_validation_line )); then
