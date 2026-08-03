@@ -674,7 +674,9 @@ postgres_wal_archiver_status() {
   local postgres_container="$1"
   local postgres_user="$2"
   local postgres_database="$3"
+  local minimum_archived_count="${4:-}"
   local status_json
+  local -a validator_args
 
   if ! status_json="$(docker exec "${postgres_container}" \
     psql \
@@ -697,8 +699,33 @@ postgres_wal_archiver_status() {
     )::text FROM pg_stat_archiver" 2>/dev/null)"; then
     return 1
   fi
+  validator_args=(--status-json "${status_json}")
+  if [[ -n "${minimum_archived_count}" ]]; then
+    validator_args+=(--minimum-archived-count "${minimum_archived_count}")
+  fi
   python3 "${COMMON_LIB_DIR}/../validate-postgres-wal-archiver.py" \
-    --status-json "${status_json}"
+    "${validator_args[@]}"
+}
+
+postgres_wal_archived_count() {
+  local postgres_container="$1"
+  local postgres_user="$2"
+  local postgres_database="$3"
+  local archived_count
+
+  if ! archived_count="$(docker exec "${postgres_container}" \
+    psql \
+    --no-psqlrc \
+    --set=ON_ERROR_STOP=1 \
+    --username="${postgres_user}" \
+    --dbname="${postgres_database}" \
+    --tuples-only \
+    --no-align \
+    --command='SELECT archived_count::text FROM pg_stat_archiver' 2>/dev/null)"; then
+    return 1
+  fi
+  [[ "${archived_count}" =~ ^[0-9]+$ ]] || return 1
+  printf '%s\n' "${archived_count}"
 }
 
 require_live_postgres_wal_archiving() {
@@ -707,47 +734,52 @@ require_live_postgres_wal_archiving() {
   local postgres_database="${3:-${POSTGRES_DB:-stuhelper}}"
   local archived_wal
   local attempt
+  local baseline_archived_count
   local status
 
   [[ -n "${postgres_container}" ]] || die "PostgreSQL container name must not be empty"
   [[ -n "${postgres_user}" ]] || die "PostgreSQL archive probe user must not be empty"
   [[ -n "${postgres_database}" ]] || die "PostgreSQL archive probe database must not be empty"
 
-  if archived_wal="$(postgres_wal_archiver_status \
-    "${postgres_container}" "${postgres_user}" "${postgres_database}")"; then
+  if postgres_wal_archiver_status \
+    "${postgres_container}" "${postgres_user}" "${postgres_database}" >/dev/null; then
     :
   else
     status=$?
-    if [[ "${status}" -ne 2 ]]; then
+    [[ "${status}" -eq 2 ]] ||
       die "live PostgreSQL WAL archiver settings or status are invalid"
-    fi
-
-    log "probing PostgreSQL WAL archival after the current server start"
-    docker exec "${postgres_container}" \
-      psql \
-      --no-psqlrc \
-      --set=ON_ERROR_STOP=1 \
-      --username="${postgres_user}" \
-      --dbname="${postgres_database}" \
-      --tuples-only \
-      --no-align \
-      --command='SELECT pg_switch_wal()' >/dev/null 2>&1 ||
-      die "failed to request a PostgreSQL WAL archive probe"
-
-    archived_wal=""
-    for ((attempt = 1; attempt <= 30; attempt++)); do
-      if archived_wal="$(postgres_wal_archiver_status \
-        "${postgres_container}" "${postgres_user}" "${postgres_database}")"; then
-        break
-      else
-        status=$?
-      fi
-      [[ "${status}" -eq 2 ]] || die "PostgreSQL WAL archiver became invalid during the live probe"
-      sleep 1
-    done
-    [[ -n "${archived_wal}" ]] ||
-      die "PostgreSQL did not archive a WAL segment after the live probe"
   fi
+
+  baseline_archived_count="$(postgres_wal_archived_count \
+    "${postgres_container}" "${postgres_user}" "${postgres_database}")" ||
+    die "failed to read the live PostgreSQL WAL archive counter"
+
+  log "forcing a fresh PostgreSQL WAL archive probe for this production gate"
+  docker exec "${postgres_container}" \
+    psql \
+    --no-psqlrc \
+    --set=ON_ERROR_STOP=1 \
+    --username="${postgres_user}" \
+    --dbname="${postgres_database}" \
+    --tuples-only \
+    --no-align \
+    --command='SELECT pg_switch_wal()' >/dev/null 2>&1 ||
+    die "failed to request a PostgreSQL WAL archive probe"
+
+  archived_wal=""
+  for ((attempt = 1; attempt <= 30; attempt++)); do
+    if archived_wal="$(postgres_wal_archiver_status \
+      "${postgres_container}" "${postgres_user}" "${postgres_database}" \
+      "${baseline_archived_count}")"; then
+      break
+    else
+      status=$?
+    fi
+    [[ "${status}" -eq 2 ]] || die "PostgreSQL WAL archiver became invalid during the live probe"
+    sleep 1
+  done
+  [[ -n "${archived_wal}" ]] ||
+    die "PostgreSQL did not archive a new WAL segment after the live probe"
 
   docker exec "${postgres_container}" /bin/sh -c \
     'test -f "/var/lib/postgresql/wal-archive/$1"' sh "${archived_wal}" >/dev/null 2>&1 ||

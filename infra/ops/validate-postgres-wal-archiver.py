@@ -37,7 +37,11 @@ def optional_epoch(document: dict[str, Any], key: str) -> float | None:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--status-json", required=True)
+    parser.add_argument("--minimum-archived-count", type=int)
     args = parser.parse_args()
+
+    if args.minimum_archived_count is not None and args.minimum_archived_count < 0:
+        parser.error("--minimum-archived-count must be non-negative")
 
     try:
         document = json.loads(args.status_json)
@@ -74,6 +78,10 @@ def main() -> int:
         or last_archived_epoch is None
         or last_archived_epoch < postmaster_started_epoch
         or (last_failed_epoch is not None and last_failed_epoch >= last_archived_epoch)
+        or (
+            args.minimum_archived_count is not None
+            and archived_count <= args.minimum_archived_count
+        )
     )
     if needs_probe:
         return 2

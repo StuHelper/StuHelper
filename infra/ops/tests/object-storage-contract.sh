@@ -785,9 +785,35 @@ print(json.dumps({
 PY
 )"
 WAL_ARCHIVER_STATUS="${healthy_archiver_status}"
+fresh_archiver_status="$(python3 - "${healthy_archiver_status}" <<'PY'
+import json
+import sys
+
+document = json.loads(sys.argv[1])
+document["archived_count"] = 3
+document["last_archived_wal"] = "000000010000000000000002"
+document["last_archived_epoch"] = 300
+print(json.dumps(document, separators=(",", ":")))
+PY
+)"
+healthy_probe_state="${tmpdir}/healthy-wal-probe-state"
+HEALTHY_PROBE_STATE="${healthy_probe_state}"
+FRESH_WAL_ARCHIVER_STATUS="${fresh_archiver_status}"
 docker() {
+  if [[ "$1" == exec && "$2" == contract-postgres && "$*" == *"SELECT archived_count::text"* ]]; then
+    printf '%s\n' 2
+    return 0
+  fi
+  if [[ "$1" == exec && "$2" == contract-postgres && "$*" == *pg_switch_wal* ]]; then
+    : >"${HEALTHY_PROBE_STATE}.switched"
+    return 0
+  fi
   if [[ "$1" == exec && "$2" == contract-postgres && "$*" == *json_build_object* ]]; then
-    printf '%s\n' "${WAL_ARCHIVER_STATUS}"
+    if [[ -f "${HEALTHY_PROBE_STATE}.switched" ]]; then
+      printf '%s\n' "${FRESH_WAL_ARCHIVER_STATUS}"
+    else
+      printf '%s\n' "${WAL_ARCHIVER_STATUS}"
+    fi
     return 0
   fi
   if [[ "$1" == exec && "$2" == contract-postgres && "$3" == /bin/sh ]]; then
@@ -797,6 +823,24 @@ docker() {
 }
 if ! require_live_postgres_wal_archiving contract-postgres contract-admin contract-db; then
   fail "the live WAL archiver validator rejected current post-start archive progress"
+fi
+[[ -f "${healthy_probe_state}.switched" ]] ||
+  fail "the live WAL archiver validator reused stale success instead of forcing a fresh probe"
+
+if python3 "${WAL_ARCHIVER_VALIDATOR}" \
+  --status-json "${healthy_archiver_status}" \
+  --minimum-archived-count 2 \
+  >"${tmpdir}/stale-archive-count.out" 2>&1; then
+  fail "the live WAL archiver validator accepted an archive count that did not advance"
+else
+  validator_status=$?
+fi
+[[ "${validator_status}" -eq 2 ]] ||
+  fail "an archive count that has not advanced must request another live probe"
+if ! python3 "${WAL_ARCHIVER_VALIDATOR}" \
+  --status-json "${healthy_archiver_status}" \
+  --minimum-archived-count 1 >/dev/null; then
+  fail "the live WAL archiver validator rejected a newly advanced archive count"
 fi
 
 drifted_archive_command_status="$(python3 - "${healthy_archiver_status}" <<'PY'
@@ -906,6 +950,10 @@ print(json.dumps({
 PY
 )"
 docker() {
+  if [[ "$1" == exec && "$2" == contract-postgres && "$*" == *"SELECT archived_count::text"* ]]; then
+    printf '%s\n' 0
+    return 0
+  fi
   if [[ "$1" == exec && "$2" == contract-postgres && "$*" == *pg_switch_wal* ]]; then
     : >"${WAL_PROBE_STATE}.switched"
     return 0
