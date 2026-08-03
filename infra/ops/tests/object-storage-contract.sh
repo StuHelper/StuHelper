@@ -285,6 +285,12 @@ case "${database}:${host}" in
   ahostsv4:contract-backup.backup-off-host.example.test)
     printf '198.51.100.43 STREAM %s\n' "${host}"
     ;;
+  ahostsv4:cos.ap-beijing.myqcloud.com)
+    printf '169.254.0.49 STREAM %s\n' "${host}"
+    ;;
+  ahostsv4:stuhelper-1370411270.cos.ap-beijing.myqcloud.com)
+    printf '169.254.0.49 STREAM %s\n' "${host}"
+    ;;
   ahostsv4:backup-virtual-local.example.test)
     printf '198.51.100.42 STREAM %s\n' "${host}"
     ;;
@@ -311,6 +317,7 @@ export PATH="${resolver_bin}:${PATH}"
 export RESOLVER_DOCKER_CAPTURE="${resolver_docker_capture}"
 export BACKUP_OBJECT_STORAGE_LOCAL_IDENTITY_CIDRS="none"
 export BACKUP_OBJECT_STORAGE_FORCE_PATH_STYLE="true"
+export BACKUP_OBJECT_STORAGE_PROVIDER_PRIVATE_ENDPOINT="none"
 
 if ! (
   export OBJECT_STORAGE_ENDPOINT="https://objects.example.test"
@@ -509,6 +516,74 @@ if (
   fail "an IPv4-mapped production identity must reject the equivalent resolved endpoint address"
 fi
 assert_contains "${tmpdir}/off-host-dns-mapped-nat-identity.log" 'must not resolve to a configured public/NAT/LB identity'
+
+if (
+  export BACKUP_OBJECT_STORAGE_ENDPOINT="https://cos.ap-beijing.myqcloud.com"
+  export BACKUP_OBJECT_STORAGE_BUCKET="stuhelper-1370411270"
+  export BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED="true"
+  export BACKUP_OBJECT_STORAGE_FORCE_PATH_STYLE="false"
+  export BACKUP_OBJECT_STORAGE_DOCKER_NETWORK="contract-backup-network"
+  export BACKUP_OBJECT_STORAGE_PROVIDER="TencentCOS"
+  export BACKUP_OBJECT_STORAGE_REGION="ap-beijing"
+  export BACKUP_OBJECT_STORAGE_TLS_CA=""
+  export BACKUP_OBJECT_STORAGE_TLS_INSECURE="false"
+  export BACKUP_OBJECT_STORAGE_PROVIDER_PRIVATE_ENDPOINT="none"
+  require_off_host_backup_object_storage
+) >"${tmpdir}/off-host-cos-private-unconfirmed.log" 2>&1; then
+  fail "a provider-private COS VIP must remain rejected without an explicit provider mode"
+fi
+assert_contains "${tmpdir}/off-host-cos-private-unconfirmed.log" 'must not resolve to a loopback, unspecified, link-local, or multicast address'
+
+if (
+  export BACKUP_OBJECT_STORAGE_ENDPOINT="https://cos.ap-beijing.myqcloud.com"
+  export BACKUP_OBJECT_STORAGE_BUCKET="stuhelper-1370411270"
+  export BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED="true"
+  export BACKUP_OBJECT_STORAGE_FORCE_PATH_STYLE="false"
+  export BACKUP_OBJECT_STORAGE_DOCKER_NETWORK="contract-backup-network"
+  export BACKUP_OBJECT_STORAGE_PROVIDER="Other"
+  export BACKUP_OBJECT_STORAGE_REGION="ap-beijing"
+  export BACKUP_OBJECT_STORAGE_TLS_CA=""
+  export BACKUP_OBJECT_STORAGE_TLS_INSECURE="false"
+  export BACKUP_OBJECT_STORAGE_PROVIDER_PRIVATE_ENDPOINT="tencent-cos"
+  require_off_host_backup_object_storage
+) >"${tmpdir}/off-host-cos-private-wrong-provider.log" 2>&1; then
+  fail "the Tencent COS private-endpoint mode must reject another rclone provider"
+fi
+assert_contains "${tmpdir}/off-host-cos-private-wrong-provider.log" 'requires BACKUP_OBJECT_STORAGE_PROVIDER=TencentCOS'
+
+if (
+  export BACKUP_OBJECT_STORAGE_ENDPOINT="https://cos.ap-beijing.myqcloud.com"
+  export BACKUP_OBJECT_STORAGE_BUCKET="stuhelper-1370411270"
+  export BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED="true"
+  export BACKUP_OBJECT_STORAGE_FORCE_PATH_STYLE="false"
+  export BACKUP_OBJECT_STORAGE_DOCKER_NETWORK="contract-backup-network"
+  export BACKUP_OBJECT_STORAGE_PROVIDER="TencentCOS"
+  export BACKUP_OBJECT_STORAGE_REGION="ap-beijing"
+  export BACKUP_OBJECT_STORAGE_TLS_CA=""
+  export BACKUP_OBJECT_STORAGE_TLS_INSECURE="true"
+  export BACKUP_OBJECT_STORAGE_PROVIDER_PRIVATE_ENDPOINT="tencent-cos"
+  require_off_host_backup_object_storage
+) >"${tmpdir}/off-host-cos-private-insecure.log" 2>&1; then
+  fail "the Tencent COS private-endpoint mode must reject disabled certificate verification"
+fi
+assert_contains "${tmpdir}/off-host-cos-private-insecure.log" 'requires public-CA TLS verification'
+
+if ! (
+  export BACKUP_OBJECT_STORAGE_ENDPOINT="https://cos.ap-beijing.myqcloud.com"
+  export BACKUP_OBJECT_STORAGE_BUCKET="stuhelper-1370411270"
+  export BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED="true"
+  export BACKUP_OBJECT_STORAGE_FORCE_PATH_STYLE="false"
+  export BACKUP_OBJECT_STORAGE_DOCKER_NETWORK="contract-backup-network"
+  export BACKUP_OBJECT_STORAGE_PROVIDER="TencentCOS"
+  export BACKUP_OBJECT_STORAGE_REGION="ap-beijing"
+  export BACKUP_OBJECT_STORAGE_TLS_CA=""
+  export BACKUP_OBJECT_STORAGE_TLS_INSECURE="false"
+  export BACKUP_OBJECT_STORAGE_PROVIDER_PRIVATE_ENDPOINT="tencent-cos"
+  require_off_host_backup_object_storage
+  [[ "${BACKUP_OBJECT_STORAGE_PINNED_HOSTS:-}" == $'cos.ap-beijing.myqcloud.com=169.254.0.49\nstuhelper-1370411270.cos.ap-beijing.myqcloud.com=169.254.0.49' ]]
+); then
+  fail "an explicitly constrained Tencent COS provider-private endpoint was rejected"
+fi
 
 if (
   export BACKUP_OBJECT_STORAGE_ENDPOINT="https://backup-virtual-local.example.test"

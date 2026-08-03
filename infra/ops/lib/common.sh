@@ -1813,7 +1813,8 @@ import sys
 from urllib.parse import urlsplit
 
 endpoint = sys.argv[1].strip()
-raw_host = (urlsplit(endpoint).hostname or "").lower()
+parsed_endpoint = urlsplit(endpoint)
+raw_host = (parsed_endpoint.hostname or "").lower()
 if not raw_host:
     raise SystemExit("BACKUP_OBJECT_STORAGE_ENDPOINT must include a hostname")
 if "%" in raw_host:
@@ -1891,9 +1892,68 @@ if force_path_style not in {"true", "false"}:
     raise SystemExit(
         "BACKUP_OBJECT_STORAGE_FORCE_PATH_STYLE must be true or false"
     )
+
+bucket = os.environ.get("BACKUP_OBJECT_STORAGE_BUCKET", "").strip()
+provider_private_endpoint = os.environ.get(
+    "BACKUP_OBJECT_STORAGE_PROVIDER_PRIVATE_ENDPOINT", "none"
+).strip() or "none"
+if provider_private_endpoint not in {"none", "tencent-cos"}:
+    raise SystemExit(
+        "BACKUP_OBJECT_STORAGE_PROVIDER_PRIVATE_ENDPOINT must be none or tencent-cos"
+    )
+
+allow_provider_link_local = False
+if provider_private_endpoint == "tencent-cos":
+    provider = os.environ.get("BACKUP_OBJECT_STORAGE_PROVIDER", "").strip()
+    region = os.environ.get("BACKUP_OBJECT_STORAGE_REGION", "").strip()
+    tls_insecure = os.environ.get(
+        "BACKUP_OBJECT_STORAGE_TLS_INSECURE", "false"
+    ).strip()
+    tls_ca = os.environ.get("BACKUP_OBJECT_STORAGE_TLS_CA", "").strip()
+    if provider != "TencentCOS":
+        raise SystemExit(
+            "tencent-cos provider-private endpoint requires BACKUP_OBJECT_STORAGE_PROVIDER=TencentCOS"
+        )
+    if force_path_style != "false":
+        raise SystemExit(
+            "tencent-cos provider-private endpoint requires virtual-hosted S3 addressing"
+        )
+    try:
+        endpoint_port = parsed_endpoint.port
+    except ValueError as error:
+        raise SystemExit(
+            f"tencent-cos provider-private endpoint has an invalid port: {error}"
+        ) from None
+    if endpoint_port not in {None, 443}:
+        raise SystemExit(
+            "tencent-cos provider-private endpoint must use the default HTTPS port"
+        )
+    endpoint_match = re.fullmatch(
+        r"cos\.([a-z]{2,}(?:-[a-z0-9]+)+)\.(?:myqcloud\.com|tencentcos\.cn)",
+        host,
+    )
+    if endpoint_match is None:
+        raise SystemExit(
+            "tencent-cos provider-private endpoint must use an official regional COS service hostname"
+        )
+    if region != endpoint_match.group(1):
+        raise SystemExit(
+            "tencent-cos provider-private endpoint region must match BACKUP_OBJECT_STORAGE_REGION"
+        )
+    if tls_insecure != "false" or tls_ca:
+        raise SystemExit(
+            "tencent-cos provider-private endpoint requires public-CA TLS verification"
+        )
+    if not re.fullmatch(
+        r"(?=.{3,63}$)[a-z0-9][a-z0-9.-]*-[1-9][0-9]{4,}", bucket
+    ):
+        raise SystemExit(
+            "tencent-cos provider-private endpoint requires a full BucketName-APPID bucket name"
+        )
+    allow_provider_link_local = True
+
 transfer_hosts = [host]
 if address is None and force_path_style == "false":
-    bucket = os.environ.get("BACKUP_OBJECT_STORAGE_BUCKET", "").strip()
     if not bucket:
         raise SystemExit(
             "BACKUP_OBJECT_STORAGE_BUCKET is required for virtual-hosted backup transfers"
@@ -2071,10 +2131,15 @@ for resolved_address in {
 }:
     normalized_address = normalize(resolved_address)
     comparable_addresses = equivalent_addresses(resolved_address)
+    provider_link_local = (
+        allow_provider_link_local
+        and isinstance(normalized_address, ipaddress.IPv4Address)
+        and normalized_address.is_link_local
+    )
     if (
         normalized_address.is_loopback
         or normalized_address.is_unspecified
-        or normalized_address.is_link_local
+        or (normalized_address.is_link_local and not provider_link_local)
         or normalized_address.is_multicast
     ):
         raise SystemExit(

@@ -17,7 +17,7 @@ function isSupportedBraceExpansionVersion(version) {
   if (!match) return false
 
   const [, major, minor, patch] = match.map(Number)
-  return major === 5 && (minor > 0 || patch >= 8)
+  return major === 5 && (minor > 0 || patch >= 9)
 }
 
 for (const virtualStore of virtualStores) {
@@ -51,15 +51,15 @@ for (const virtualStore of virtualStores) {
     const braceModule = requireFromPackage('brace-expansion')
     const hasCompatibleExports =
       typeof braceModule?.expand === 'function' &&
-      // 5.0.8 needs the repository patch to stay callable for minimatch < 10.
-      (bracePackage.version !== '5.0.8' || typeof braceModule === 'function')
+      // 5.0.9 needs the repository patch to stay callable for minimatch < 10.
+      (bracePackage.version !== '5.0.9' || typeof braceModule === 'function')
 
     if (
       !isSupportedBraceExpansionVersion(bracePackage.version) ||
       !hasCompatibleExports
     ) {
       throw new Error(
-        `${entry} is not using a compatible brace-expansion >= 5.0.8 export`,
+        `${entry} is not using a compatible brace-expansion >= 5.0.9 export`,
       )
     }
 
@@ -72,5 +72,5 @@ if (checkedPackages === 0) {
 }
 
 console.log(
-  `[check-brace-expansion-compat] OK: ${checkedPackages} minimatch installations use compatible brace-expansion >= 5.0.8`,
+  `[check-brace-expansion-compat] OK: ${checkedPackages} minimatch installations use compatible brace-expansion >= 5.0.9`,
 )
