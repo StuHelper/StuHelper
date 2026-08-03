@@ -15,7 +15,7 @@ require_cmd jq
 require_cmd python3
 require_cmd openssl
 
-"${SCRIPT_DIR}/remote-preflight.sh"
+"${SCRIPT_DIR}/remote-preflight.sh" --pre-deploy
 
 if [[ -f "${REMOTE_DEPLOY_CONFIG_FILE}" ]]; then
   load_remote_deploy_config
@@ -313,7 +313,6 @@ require_production_postgres_archiving
 require_production_external_student_source_security
 [[ "${REDIS_TLS_ENABLED:-false}" == "true" ]] || die "REDIS_TLS_ENABLED must be true for production deploy"
 require_public_ingress_config_preflight
-require_public_identity_ingress_preflight
 
 export TAG="${TAG:-$(derive_release_id_from_image_ref "${BACKEND_IMAGE_REF:-}" || git_tag_default)}"
 require_safe_release_tag "${TAG}" # validate env-loaded or derived tags before rendering, image pulls, and backups
@@ -406,6 +405,7 @@ log "running Open Platform production evidence smokes"
 log "starting production application services"
 compose --profile prod up -d --wait app frontend admin
 
+require_public_identity_ingress_preflight
 if [[ "${SSO_PUBLIC_SMOKE_ENABLED:-true}" == "true" ]]; then
   "${SCRIPT_DIR}/sso-public-smoke.sh"
 else
@@ -423,6 +423,8 @@ else
 fi
 "${SCRIPT_DIR}/smoke-check.sh"
 OBS_SMOKE_STRICT=true "${SCRIPT_DIR}/observability-smoke-check.sh"
+log "running mandatory post-deploy online preflight"
+"${SCRIPT_DIR}/remote-preflight.sh" --post-deploy
 record_release "${TAG}"
 
 log "production deployment completed successfully"

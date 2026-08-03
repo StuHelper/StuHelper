@@ -36,7 +36,8 @@ line_number() {
 
 load_env_line="$(line_number 'load_env')"
 caller_tag_validation_line="$(line_number 'require_safe_release_tag "${TAG}" # reject caller-provided tags before config or secret materialization')"
-remote_preflight_line="$(line_number '"${SCRIPT_DIR}/remote-preflight.sh"')"
+remote_preflight_line="$(line_number '"${SCRIPT_DIR}/remote-preflight.sh" --pre-deploy')"
+postdeploy_preflight_line="$(line_number '"${SCRIPT_DIR}/remote-preflight.sh" --post-deploy')"
 derived_tag_validation_line="$(line_number 'require_safe_release_tag "${TAG}" # validate env-loaded or derived tags before rendering, image pulls, and backups')"
 remote_config_load_line="$(line_number 'load_remote_deploy_config')"
 generated_secret_ref_require_line="$(line_number 'GENERATED_ENV_SECRET_REF must be configured for production deploy')"
@@ -71,12 +72,16 @@ admission_public_smoke_line="$(line_number '"${SCRIPT_DIR}/admission-public-smok
 public_web_auth_browser_smoke_line="$(line_number 'node "${SCRIPT_DIR}/public-web-auth-browser-smoke.mjs"')"
 smoke_check_line="$(line_number '"${SCRIPT_DIR}/smoke-check.sh"')"
 observability_smoke_line="$(line_number 'OBS_SMOKE_STRICT=true "${SCRIPT_DIR}/observability-smoke-check.sh"')"
+record_release_line="$(line_number 'record_release "${TAG}"')"
 bootstrap_require_line="$(line_number 'require_nonempty CASDOOR_BOOTSTRAP_CLIENT_SECRET')"
 if (( caller_tag_validation_line >= remote_preflight_line )); then
   fail "production deploy must reject unsafe caller tags before running remote preflight"
 fi
 if (( remote_preflight_line >= remote_config_load_line || remote_preflight_line >= load_env_line )); then
   fail "every production deploy entrypoint must complete remote preflight before loading deploy inputs"
+fi
+if (( postdeploy_preflight_line <= observability_smoke_line || postdeploy_preflight_line >= record_release_line )); then
+  fail "production deploy must pass the full online post-deploy preflight before recording the release"
 fi
 grep -qF '"${SCRIPT_DIR}/prod-deploy.sh"' "${REMOTE_PROD_DEPLOY_FILE}" ||
   fail "the emergency remote production entrypoint must delegate to the preflight-owning prod-deploy script"
@@ -337,6 +342,12 @@ fi
 if (( public_ingress_preflight_line <= public_ingress_config_preflight_line )); then
   fail "public SSO/admission ingress preflight must run after local Nginx config preflight"
 fi
+if (( public_ingress_preflight_line <= start_app_line )); then
+  fail "live public ingress preflight must run only after application services are ready"
+fi
+if (( sso_public_smoke_line <= public_ingress_preflight_line )); then
+  fail "public SSO smoke must run after the live public ingress preflight"
+fi
 if (( admission_public_smoke_line <= sso_public_smoke_line )); then
   fail "admission public smoke must run after SSO public smoke"
 fi
@@ -349,8 +360,8 @@ fi
 if (( public_ingress_preflight_line <= postgres_ssl_line )); then
   fail "public SSO/admission ingress preflight must run after production PostgreSQL SSL config validation"
 fi
-if (( render_postgres_tls_line <= public_ingress_preflight_line )); then
-  fail "render-postgres-tls.sh must run after public SSO/admission ingress preflight"
+if (( public_ingress_preflight_line <= render_postgres_tls_line )); then
+  fail "live public ingress preflight must run after production datastore configuration is rendered"
 fi
 if (( render_postgres_tls_line <= postgres_ssl_line )); then
   fail "render-postgres-tls.sh must run after production PostgreSQL SSL config validation"

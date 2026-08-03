@@ -15,6 +15,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/common.sh
 source "${SCRIPT_DIR}/lib/common.sh"
 
+preflight_phase="${1:---full}"
+[[ "$#" -le 1 ]] || die "usage: remote-preflight.sh [--pre-deploy|--post-deploy|--full]"
+case "${preflight_phase}" in
+  --pre-deploy | --post-deploy | --full) ;;
+  *) die "usage: remote-preflight.sh [--pre-deploy|--post-deploy|--full]" ;;
+esac
+
 load_remote_deploy_config
 BACKUP_STAGING_DIR="${BACKUP_STAGING_DIR:-/var/lib/stuhelper/postgres/backup-staging}"
 require_cmd docker
@@ -86,6 +93,10 @@ if [[ -n "${pending_generated_secret_ref}" ]]; then
 fi
 
 [[ "${APP_ENV:-}" == "production" ]] || die "APP_ENV must be production for remote preflight"
+docker info >/dev/null
+docker compose version >/dev/null
+configure_production_preflight_runtime_checks "${preflight_phase}"
+
 python3 "${REPO_ROOT}/infra/ops/validate-runtime-image-scan.py" \
   --repo-root "${REPO_ROOT}" \
   --policy-only \
@@ -98,22 +109,24 @@ require_production_object_storage
 "${SCRIPT_DIR}/prepare-object-storage-client-ca.sh"
 "${SCRIPT_DIR}/prepare-datastore-client-cas.sh"
 require_public_ingress_config_preflight
-require_public_identity_ingress_preflight
-if [[ "${ADMISSION_PUBLIC_SMOKE_ENABLED:-true}" == "true" ]]; then
-  ADMISSION_PUBLIC_SMOKE_RETRIES="${ADMISSION_PUBLIC_SMOKE_PREFLIGHT_RETRIES:-${ADMISSION_PUBLIC_SMOKE_RETRIES:-1}}" \
-    "${SCRIPT_DIR}/admission-public-smoke.sh"
+if [[ "${run_public_runtime_checks}" == "true" ]]; then
+  require_public_identity_ingress_preflight
+  if [[ "${ADMISSION_PUBLIC_SMOKE_ENABLED:-true}" == "true" ]]; then
+    ADMISSION_PUBLIC_SMOKE_RETRIES="${ADMISSION_PUBLIC_SMOKE_PREFLIGHT_RETRIES:-${ADMISSION_PUBLIC_SMOKE_RETRIES:-1}}" \
+      "${SCRIPT_DIR}/admission-public-smoke.sh"
+  else
+    warn "public admission smoke preflight skipped because ADMISSION_PUBLIC_SMOKE_ENABLED is not true"
+  fi
+  if [[ "${PUBLIC_WEB_AUTH_BROWSER_SMOKE_PREFLIGHT_ENABLED:-false}" == "true" ]]; then
+    node "${SCRIPT_DIR}/public-web-auth-browser-smoke.mjs"
+  else
+    warn "public Web auth browser smoke preflight skipped because PUBLIC_WEB_AUTH_BROWSER_SMOKE_PREFLIGHT_ENABLED is not true"
+  fi
 else
-  warn "public admission smoke preflight skipped because ADMISSION_PUBLIC_SMOKE_ENABLED is not true"
-fi
-if [[ "${PUBLIC_WEB_AUTH_BROWSER_SMOKE_PREFLIGHT_ENABLED:-false}" == "true" ]]; then
-  node "${SCRIPT_DIR}/public-web-auth-browser-smoke.mjs"
-else
-  warn "public Web auth browser smoke preflight skipped because PUBLIC_WEB_AUTH_BROWSER_SMOKE_PREFLIGHT_ENABLED is not true"
+  warn "live public runtime checks deferred until the mandatory post-deploy preflight"
 fi
 
 # 校验 Docker 和 Docker Compose 运行环境
-docker info >/dev/null
-docker compose version >/dev/null
 
 # 校验 postgres-client 镜像内 pg_dump 和 pg_basebackup 可用性
 # 备份脚本已容器化，不再依赖宿主机 pg_dump，但需要确保容器镜像中包含这些工具
@@ -259,15 +272,19 @@ else
 fi
 
 # 4. BACKUP_DATABASE_URL 连通性（通过 Compose 网络快速超时检测）
-if compose run --rm --no-deps -T postgres-client \
-  pg_isready -d "${BACKUP_DATABASE_URL}" -t 5 >/dev/null 2>&1; then
-  log "备份数据库连通性: OK"
+if [[ "${run_database_runtime_checks}" == "true" ]]; then
+  if compose run --rm --no-deps -T postgres-client \
+    pg_isready -d "${BACKUP_DATABASE_URL}" -t 5 >/dev/null 2>&1; then
+    log "备份数据库连通性: OK"
+  else
+    die "备份数据库连通性检查失败（pg_isready 超时），请确认 BACKUP_DATABASE_URL 可达"
+  fi
+  if [[ "${EXTERNAL_POSTGRES_ENABLED:-false}" == "true" ]]; then
+    require_external_postgres_pitr_evidence >/dev/null
+    log "外部 PostgreSQL 连续归档和 PITR 证据有效且与当前集群一致"
+  fi
 else
-  die "备份数据库连通性检查失败（pg_isready 超时），请确认 BACKUP_DATABASE_URL 可达"
-fi
-if [[ "${EXTERNAL_POSTGRES_ENABLED:-false}" == "true" ]]; then
-  require_external_postgres_pitr_evidence >/dev/null
-  log "外部 PostgreSQL 连续归档和 PITR 证据有效且与当前集群一致"
+  warn "live database connectivity deferred until the mandatory post-deploy preflight"
 fi
 
-log "remote preflight checks passed"
+log "remote preflight checks passed (${preflight_phase})"

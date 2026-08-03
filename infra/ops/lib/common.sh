@@ -1958,6 +1958,25 @@ load_remote_deploy_config() {
   clear_process_control_environment
 }
 
+configure_production_preflight_runtime_checks() {
+  local preflight_phase="$1"
+  local stack_name="${STACK_NAME:-stuhelper}"
+
+  run_database_runtime_checks=true
+  run_public_runtime_checks=true
+  [[ "${preflight_phase}" == "--pre-deploy" ]] || return 0
+
+  if [[ "${EXTERNAL_POSTGRES_ENABLED:-false}" != "true" ]] && \
+    [[ "$(docker inspect --format '{{.State.Running}}' "${stack_name}-postgres" 2>/dev/null || true)" != "true" ]]; then
+    run_database_runtime_checks=false
+    warn "local PostgreSQL is not running; deferring database connectivity to mandatory post-deploy preflight"
+  fi
+  if [[ "$(docker inspect --format '{{.State.Running}}' "${stack_name}-app" 2>/dev/null || true)" != "true" ]]; then
+    run_public_runtime_checks=false
+    warn "application runtime is not running; deferring public ingress and application smokes to mandatory post-deploy preflight"
+  fi
+}
+
 compose() {
   (
     cd "${REPO_ROOT}" && \

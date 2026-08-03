@@ -158,6 +158,12 @@ assert_contains "${PREFLIGHT_FILE}" 'require_public_identity_ingress_preflight'
 assert_contains "${PREFLIGHT_FILE}" 'ADMISSION_PUBLIC_SMOKE_ENABLED'
 assert_contains "${PREFLIGHT_FILE}" 'ADMISSION_PUBLIC_SMOKE_PREFLIGHT_RETRIES'
 assert_contains "${PREFLIGHT_FILE}" 'admission-public-smoke\.sh'
+assert_contains "${PREFLIGHT_FILE}" 'pre-deploy.*post-deploy.*full'
+assert_contains "${COMMON_LIB_FILE}" 'configure_production_preflight_runtime_checks\(\)'
+assert_contains "${PREFLIGHT_FILE}" 'configure_production_preflight_runtime_checks "\$\{preflight_phase\}"'
+assert_contains "${COMMON_LIB_FILE}" 'run_database_runtime_checks=false'
+assert_contains "${COMMON_LIB_FILE}" 'run_public_runtime_checks=false'
+assert_contains "${PREFLIGHT_FILE}" 'mandatory post-deploy preflight'
 
 app_env_gate_line="$(line_number "${PREFLIGHT_FILE}" 'APP_ENV must be production for remote preflight')"
 ssl_gate_line="$(line_number "${PREFLIGHT_FILE}" 'require_production_postgres_ssl')"
@@ -168,6 +174,7 @@ admission_public_smoke_line="$(line_number "${PREFLIGHT_FILE}" 'admission-public
 backup_staging_default_line="$(line_number "${PREFLIGHT_FILE}" 'BACKUP_STAGING_DIR="${BACKUP_STAGING_DIR:-/var/lib/stuhelper/postgres/backup-staging}"')"
 backup_staging_use_line="$(line_number "${PREFLIGHT_FILE}" 'expected_service_environment+=("BACKUP_STAGING_DIR=${BACKUP_STAGING_DIR}")')"
 docker_info_line="$(line_number "${PREFLIGHT_FILE}" 'docker info >/dev/null')"
+container_runtime_detection_line="$(line_number "${PREFLIGHT_FILE}" 'configure_production_preflight_runtime_checks "${preflight_phase}"')"
 pg_isready_line="$(line_number "${PREFLIGHT_FILE}" 'pg_isready -d "${BACKUP_DATABASE_URL}" -t 5')"
 external_pitr_evidence_line="$(line_number "${PREFLIGHT_FILE}" 'require_external_postgres_pitr_evidence')"
 preflight_complete_line="$(line_number "${PREFLIGHT_FILE}" 'remote preflight checks passed')"
@@ -175,11 +182,11 @@ public_dns_web_line="$(line_number "${COMMON_LIB_FILE}" 'require_public_dns_reso
 public_dns_admission_line="$(line_number "${COMMON_LIB_FILE}" 'require_public_dns_resolved "Admission"')"
 public_http_web_line="$(line_number "${COMMON_LIB_FILE}" 'require_public_http_reachable "Web"')"
 public_http_admission_line="$(line_number "${COMMON_LIB_FILE}" 'require_public_http_reachable "Admission"')"
-if (( ssl_gate_line >= docker_info_line )); then
-  fail "remote preflight must validate production PostgreSQL SSL before Docker checks"
+if (( app_env_gate_line >= docker_info_line || docker_info_line >= container_runtime_detection_line )); then
+  fail "remote preflight must validate Docker before classifying live first-deploy prerequisites"
 fi
-if (( archive_gate_line <= ssl_gate_line || archive_gate_line >= docker_info_line )); then
-  fail "remote preflight must validate internal WAL archiving after TLS config and before Docker checks"
+if (( archive_gate_line <= ssl_gate_line )); then
+  fail "remote preflight must validate internal WAL archiving after PostgreSQL TLS config"
 fi
 if (( app_env_gate_line >= ssl_gate_line )); then
   fail "remote preflight must enforce APP_ENV=production before PostgreSQL SSL config validation"
@@ -193,17 +200,11 @@ fi
 if (( public_ingress_preflight_line <= public_ingress_config_preflight_line )); then
   fail "remote preflight must validate public SSO/admission ingress after local Nginx config validation"
 fi
-if (( public_ingress_preflight_line >= docker_info_line )); then
-  fail "remote preflight must validate public SSO/admission ingress before Docker checks"
-fi
 if (( backup_staging_default_line >= backup_staging_use_line )); then
   fail "remote preflight must define the installer-compatible backup staging default before comparing systemd environments"
 fi
 if (( admission_public_smoke_line <= public_ingress_preflight_line )); then
   fail "remote preflight admission public smoke must run after public SSO/admission ingress preflight"
-fi
-if (( admission_public_smoke_line >= docker_info_line )); then
-  fail "remote preflight admission public smoke must run before Docker checks"
 fi
 if (( ssl_gate_line >= pg_isready_line )); then
   fail "remote preflight must validate production PostgreSQL SSL before pg_isready"
@@ -220,6 +221,52 @@ fi
 if (( public_dns_admission_line >= public_http_web_line )); then
   fail "admission public DNS preflight must run before public HTTP/TLS reachability checks"
 fi
+
+source "${COMMON_LIB_FILE}"
+runtime_postgres_running=false
+runtime_app_running=false
+docker() {
+  [[ "${1:-}" == "inspect" ]] || return 90
+  local target="${!#}"
+  case "${target}" in
+    contract-postgres) printf '%s\n' "${runtime_postgres_running}" ;;
+    contract-app) printf '%s\n' "${runtime_app_running}" ;;
+    *) return 1 ;;
+  esac
+}
+warn() { :; }
+assert_runtime_check_state() {
+  local phase="$1"
+  local expected_database="$2"
+  local expected_public="$3"
+  configure_production_preflight_runtime_checks "${phase}"
+  [[ "${run_database_runtime_checks}" == "${expected_database}" ]] ||
+    fail "${phase} database runtime policy was ${run_database_runtime_checks}, expected ${expected_database}"
+  [[ "${run_public_runtime_checks}" == "${expected_public}" ]] ||
+    fail "${phase} public runtime policy was ${run_public_runtime_checks}, expected ${expected_public}"
+}
+
+STACK_NAME=contract
+EXTERNAL_POSTGRES_ENABLED=false
+assert_runtime_check_state --pre-deploy false false
+
+runtime_postgres_running=true
+runtime_app_running=true
+assert_runtime_check_state --pre-deploy true true
+
+runtime_postgres_running=false
+runtime_app_running=false
+EXTERNAL_POSTGRES_ENABLED=true
+assert_runtime_check_state --pre-deploy true false
+
+EXTERNAL_POSTGRES_ENABLED=false
+assert_runtime_check_state --post-deploy true true
+assert_runtime_check_state --full true true
+
+unset -f docker warn assert_runtime_check_state
+unset runtime_postgres_running runtime_app_running STACK_NAME EXTERNAL_POSTGRES_ENABLED
+unset run_database_runtime_checks run_public_runtime_checks
+source "${COMMON_LIB_FILE}"
 
 tmpdir="$(mktemp -d)"
 cleanup() {
