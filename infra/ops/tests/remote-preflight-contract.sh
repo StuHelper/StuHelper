@@ -79,6 +79,9 @@ assert_contains "${PREFLIGHT_FILE}" 'vault-runtime-token\.sh" check'
 assert_contains "${PREFLIGHT_FILE}" 'stuhelper-vault-token-renewal\.timer'
 assert_contains "${PREFLIGHT_FILE}" 'Vault runtime token renewal timer is not active'
 assert_contains "${COMMON_LIB_FILE}" 'require_systemd_unit_exact_environment\(\)'
+assert_contains "${COMMON_LIB_FILE}" 'require_systemd_unit_hardened_lifecycle\(\)'
+assert_contains "${COMMON_LIB_FILE}" '"RemainAfterExit=no"'
+assert_contains "${COMMON_LIB_FILE}" 'SuccessExitStatus'
 assert_contains "${COMMON_LIB_FILE}" 'require_systemd_unit_hardened_execution\(\)'
 assert_contains "${COMMON_LIB_FILE}" 'validate-systemd-unit-environment\.py'
 assert_contains "${COMMON_LIB_FILE}" 'property=ExecStartEx'
@@ -98,6 +101,7 @@ assert_contains "${PREFLIGHT_FILE}" 'expected_service_environment\+=\("BACKUP_ST
 [[ "$(grep -c 'BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true' "${PREFLIGHT_FILE}")" == "1" ]] || \
   fail "remote preflight must require the off-host marker for every backup service"
 assert_contains "${PREFLIGHT_FILE}" 'require_systemd_unit_hardened_execution'
+assert_contains "${PREFLIGHT_FILE}" 'require_systemd_unit_hardened_lifecycle'
 assert_contains "${PREFLIGHT_FILE}" 'require_production_postgres_ssl'
 assert_contains "${PREFLIGHT_FILE}" 'require_production_external_student_source_security'
 assert_contains "${COMMON_LIB_FILE}" 'EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_MODE must be verify-full in production'
@@ -277,6 +281,82 @@ if bash -c '
 fi
 grep -q 'pre-exec unset list' "${tmpdir}/backup-unit-unset-env.err" || \
   fail "the backup unit UnsetEnvironment failure did not report the protected boundary"
+
+if ! bash -c '
+  set -euo pipefail
+  source "$1"
+  systemctl() {
+    case "$*" in
+      *--property=Type*) printf "%s\n" oneshot ;;
+      *--property=RemainAfterExit*) printf "%s\n" no ;;
+      *--property=Restart*) printf "%s\n" no ;;
+      *--property=ExecCondition*|*--property=ExecStartPre*|*--property=ExecStartPost*|*--property=SuccessExitStatus*) printf "\n" ;;
+      *) return 90 ;;
+    esac
+  }
+  require_systemd_unit_hardened_lifecycle stuhelper-postgres-backup-sync.service
+' bash "${COMMON_LIB_FILE}"; then
+  fail "the systemd lifecycle validator rejected the protected recurring oneshot service"
+fi
+
+if bash -c '
+  set -euo pipefail
+  source "$1"
+  systemctl() {
+    case "$*" in
+      *--property=Type*) printf "%s\n" oneshot ;;
+      *--property=RemainAfterExit*) printf "%s\n" yes ;;
+      *--property=Restart*) printf "%s\n" no ;;
+      *--property=ExecCondition*|*--property=ExecStartPre*|*--property=ExecStartPost*|*--property=SuccessExitStatus*) printf "\n" ;;
+      *) return 90 ;;
+    esac
+  }
+  require_systemd_unit_hardened_lifecycle stuhelper-postgres-backup-sync.service
+' bash "${COMMON_LIB_FILE}" >"${tmpdir}/backup-unit-remain-after-exit.out" 2>"${tmpdir}/backup-unit-remain-after-exit.err"; then
+  fail "the systemd lifecycle validator accepted RemainAfterExit=yes"
+fi
+grep -q 'RemainAfterExit=no' "${tmpdir}/backup-unit-remain-after-exit.err" || \
+  fail "the RemainAfterExit failure did not report the timer-safe lifecycle requirement"
+
+if bash -c '
+  set -euo pipefail
+  source "$1"
+  systemctl() {
+    case "$*" in
+      *--property=Type*) printf "%s\n" oneshot ;;
+      *--property=RemainAfterExit*) printf "%s\n" no ;;
+      *--property=Restart*) printf "%s\n" no ;;
+      *--property=ExecCondition*) printf "%s\n" "{ path=/bin/false ; argv[]=/bin/false ; ignore_errors=no ; }" ;;
+      *--property=ExecStartPre*|*--property=ExecStartPost*|*--property=SuccessExitStatus*) printf "\n" ;;
+      *) return 90 ;;
+    esac
+  }
+  require_systemd_unit_hardened_lifecycle stuhelper-postgres-backup-sync.service
+' bash "${COMMON_LIB_FILE}" >"${tmpdir}/backup-unit-exec-condition.out" 2>"${tmpdir}/backup-unit-exec-condition.err"; then
+  fail "the systemd lifecycle validator accepted a backup-skipping ExecCondition"
+fi
+grep -q 'must not set ExecCondition' "${tmpdir}/backup-unit-exec-condition.err" || \
+  fail "the ExecCondition failure did not report the lifecycle override"
+
+if bash -c '
+  set -euo pipefail
+  source "$1"
+  systemctl() {
+    case "$*" in
+      *--property=Type*) printf "%s\n" oneshot ;;
+      *--property=RemainAfterExit*) printf "%s\n" no ;;
+      *--property=Restart*) printf "%s\n" no ;;
+      *--property=SuccessExitStatus*) printf "%s\n" 1 ;;
+      *--property=ExecCondition*|*--property=ExecStartPre*|*--property=ExecStartPost*) printf "\n" ;;
+      *) return 90 ;;
+    esac
+  }
+  require_systemd_unit_hardened_lifecycle stuhelper-postgres-backup-sync.service
+' bash "${COMMON_LIB_FILE}" >"${tmpdir}/backup-unit-success-status.out" 2>"${tmpdir}/backup-unit-success-status.err"; then
+  fail "the systemd lifecycle validator accepted an extended success exit status"
+fi
+grep -q 'must not set SuccessExitStatus' "${tmpdir}/backup-unit-success-status.err" || \
+  fail "the SuccessExitStatus failure did not report the failure-masking override"
 
 protected_exec_argv='/usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin ENV_FILE=/opt/stuhelper/.env.prod.shared BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true /bin/bash --noprofile --norc ./infra/ops/sync-postgres-backups.sh'
 valid_exec_start="{ path=/usr/bin/env ; argv[]=${protected_exec_argv} ; ignore_errors=no ; }"

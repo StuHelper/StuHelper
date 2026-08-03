@@ -82,6 +82,45 @@ require_systemd_unit_exact_environment() {
   fi
 }
 
+require_systemd_unit_hardened_lifecycle() {
+  local unit="$1"
+  local actual_value
+  local expected_value
+  local property
+  local property_spec
+  local -a exact_properties=(
+    "Type=oneshot"
+    "RemainAfterExit=no"
+    "Restart=no"
+  )
+  local -a empty_properties=(
+    ExecCondition
+    ExecStartPre
+    ExecStartPost
+    SuccessExitStatus
+  )
+
+  for property_spec in "${exact_properties[@]}"; do
+    property="${property_spec%%=*}"
+    expected_value="${property_spec#*=}"
+    if ! actual_value="$(systemctl show "${unit}" --property="${property}" --value 2>/dev/null)"; then
+      die "failed to inspect ${property} for systemd unit ${unit}"
+    fi
+    if [[ "${actual_value}" != "${expected_value}" ]]; then
+      die "systemd unit ${unit} must set ${property}=${expected_value}; reinstall the production backup timers and remove overriding drop-ins"
+    fi
+  done
+
+  for property in "${empty_properties[@]}"; do
+    if ! actual_value="$(systemctl show "${unit}" --property="${property}" --value 2>/dev/null)"; then
+      die "failed to inspect ${property} for systemd unit ${unit}"
+    fi
+    if [[ -n "${actual_value//[[:space:]]/}" ]]; then
+      die "systemd unit ${unit} must not set ${property}; reinstall the production backup timers and remove overriding drop-ins"
+    fi
+  done
+}
+
 require_systemd_unit_hardened_execution() {
   local unit="$1"
   local expected_working_directory="$2"

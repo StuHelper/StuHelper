@@ -158,6 +158,7 @@ if command -v systemctl >/dev/null 2>&1; then
       expected_service_environment+=("BACKUP_STAGING_DIR=${BACKUP_STAGING_DIR}")
     fi
     expected_service_environment+=("BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true")
+    require_systemd_unit_hardened_lifecycle "${unit}"
     require_systemd_unit_exact_environment \
       "${unit}" \
       "${expected_service_environment[@]}"
