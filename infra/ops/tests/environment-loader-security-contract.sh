@@ -33,7 +33,8 @@ for key in \
   DOCKER_CONTEXT \
   DOCKER_CERT_PATH \
   DOCKER_TLS \
-  DOCKER_TLS_VERIFY; do
+  DOCKER_TLS_VERIFY \
+  PRODUCTION_DEPLOY_LOCK_FD; do
   startup_env="${tmpdir}/${key}.env"
   printf '%s=/dev/null\n' "${key}" >"${startup_env}"
   if (source_env_file "${startup_env}") >"${tmpdir}/${key}.log" 2>&1; then

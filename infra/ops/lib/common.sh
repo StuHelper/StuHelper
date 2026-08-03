@@ -452,7 +452,7 @@ forbidden_exact_keys = {
     "JAVA_TOOL_OPTIONS", "_JAVA_OPTIONS", "JDK_JAVA_OPTIONS", "GIT_EXEC_PATH",
     "GIT_SSH", "GIT_SSH_COMMAND", "SSH_ASKPASS", "SSH_ASKPASS_REQUIRE",
     "DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_CERT_PATH", "DOCKER_TLS",
-    "DOCKER_TLS_VERIFY",
+    "DOCKER_TLS_VERIFY", "PRODUCTION_DEPLOY_LOCK_FD",
 }
 forbidden_prefixes = ("LD_", "DYLD_", "PYTHON")
 rendered_assignments = []
