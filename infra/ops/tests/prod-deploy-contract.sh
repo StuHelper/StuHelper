@@ -41,6 +41,7 @@ remote_preflight_line="$(line_number '"${SCRIPT_DIR}/remote-preflight.sh" --pre-
 postdeploy_preflight_line="$(line_number '"${SCRIPT_DIR}/remote-preflight.sh" --post-deploy')"
 derived_tag_validation_line="$(line_number 'require_safe_release_tag "${TAG}" # validate env-loaded or derived tags before rendering, image pulls, and backups')"
 release_state_migration_line="$(line_number 'migrate_legacy_release_state_permissions # normalize safe legacy 0644 state before canonical read-only validation')"
+release_identity_migration_line="$(line_number 'migrate_verified_legacy_current_release_identity # bind a tag-era current record to the exact deployed container images')"
 release_identity_guard_line="$(line_number 'require_release_tag_identity_available "${TAG}" # reject immutable tag reuse before deployment side effects')"
 remote_config_load_line="$(line_number 'load_remote_deploy_config')"
 generated_secret_ref_require_line="$(line_number 'GENERATED_ENV_SECRET_REF must be configured for production deploy')"
@@ -188,6 +189,9 @@ if (( release_identity_guard_line <= derived_tag_validation_line || release_iden
 fi
 if (( release_state_migration_line <= derived_tag_validation_line || release_state_migration_line >= release_identity_guard_line )); then
   fail "safe legacy release-state permissions must be normalized immediately before canonical identity validation"
+fi
+if (( release_identity_migration_line <= release_state_migration_line || release_identity_migration_line >= release_identity_guard_line )); then
+  fail "legacy current-release identity must be verified and migrated after permission normalization and before canonical validation"
 fi
 grep -qF 'deployment_attempt_id="$(new_deployment_attempt_id)"' "${PROD_DEPLOY_FILE}" ||
   fail "production backups must use a unique activation identifier"
