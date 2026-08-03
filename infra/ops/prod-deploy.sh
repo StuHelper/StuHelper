@@ -15,8 +15,6 @@ require_cmd jq
 require_cmd python3
 require_cmd openssl
 
-"${SCRIPT_DIR}/remote-preflight.sh" --pre-deploy
-
 if [[ -f "${REMOTE_DEPLOY_CONFIG_FILE}" ]]; then
   load_remote_deploy_config
 fi
@@ -44,6 +42,11 @@ fi
 export TAG="${TAG:-$(derive_release_id_from_image_ref "${BACKEND_IMAGE_REF:-}" || git_tag_default)}"
 require_safe_release_tag "${TAG}" # validate env-loaded or derived tags before rendering, image pulls, and backups
 require_release_tag_identity_available "${TAG}" # reject immutable tag reuse before deployment side effects
+
+# Preflight refreshes generated CA/config projections used by the running
+# stack. Reject conflicting immutable release identity before allowing those
+# mutations, while still running the complete gate before render/pull/backup.
+"${SCRIPT_DIR}/remote-preflight.sh" --pre-deploy
 
 python3 "${REPO_ROOT}/infra/ops/validate-runtime-image-scan.py" \
   --repo-root "${REPO_ROOT}" \
