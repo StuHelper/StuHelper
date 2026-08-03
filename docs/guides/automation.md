@@ -168,7 +168,7 @@ host-local `bridge` 网络还会拒绝整个 IPAM 子网；共享的 `macvlan`�
 
 受保护的备份 service 不接受任何 systemd drop-in：有效 `DropInPaths` 必须为空。`RootDirectory`、`RootImage`、bind mount、临时文件系统、mount/extension image、`ReadOnlyPaths`、`ReadWritePaths`、`InaccessiblePaths`、`ExecPaths` 与 `NoExecPaths` 也必须保持安装器默认值；`ProtectSystem`、`ProtectHome`、`PrivateTmp` 与 `PrivateMounts` 不得通过主 unit 改写。这样既阻止替换受检脚本，也阻止在预检读取到上一次成功 `Result` 后才让下一次定时备份因路径不可写、不可见或不可执行而失效。
 
-首次 bootstrap 即使尚未上传 deploy bundle，也会预先创建由部署用户拥有的 `/var/lib/stuhelper/postgres/wal-restore`。因此后备 systemd 单元与后续部署用户执行的远端预检使用同一 local-state 布局，不需要依赖 root 再次运行安装器才能建立恢复目录。
+首次 bootstrap 即使尚未上传 deploy bundle，也会预先创建由部署用户拥有的 `/var/lib/stuhelper/postgres/wal-restore`。因此后备 systemd 单元与后续部署用户执行的远端预检使用同一 local-state 布局。若 bundle 尚不存在，bootstrap 只写入后备 unit，不启用或启动 timer，避免 15 分钟同步任务在脚本与生产配置缺失时留下失败 `Result`；首个 bundle 上传后必须由 root 重跑 bootstrap 或 `install-backup-timers.sh`。仓库安装器会在加载正式 unit 后显式清除预备阶段遗留的 service failed 状态，再启用 timer；预检仍要求三个 timer 已启用且 active，并要求当前 service `Result=success`。
 
 备份、同步、对象存储取回、证据生成与恢复脚本把调用进程已经确定的 `LOCAL_STATE_DIR` 视为运维控制面值，并在加载共享/秘密/生成配置时显式保留它。生产 systemd 注入的 `/var/lib/stuhelper` 因而不能被配置文件中的同名空值或漂移值覆盖，也不会在已清除 `HOME` 的隔离环境里回退到用户目录推导逻辑。
 
@@ -335,9 +335,8 @@ sudo bash infra/ops/bootstrap-ubuntu2404.sh
 - `.secrets/vault/token` 占位文件
 - 最小权限 Vault token 配置脚本和 12 小时续期 timer 安装入口（需要在 Vault 初始化/seed 后由 root
   执行 `vault-runtime-token.sh configure`）
-- PostgreSQL 逻辑备份 timer
-- PostgreSQL base backup timer
-- PostgreSQL backup sync timer
+- PostgreSQL 逻辑备份、base backup 和 backup sync unit；仅当 deploy bundle 已存在时才启用 timer，
+  否则上传 bundle 后必须以 root 重跑 bootstrap 或安装器
 - WAL 归档目录
 
 `production` GitHub environment 必须使用以下 secrets；启用 staging 时创建同名、不同值的

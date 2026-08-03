@@ -132,7 +132,10 @@ assert_contains "${BOOTSTRAP_SCRIPT}" '^TimeoutStartSec=12h$'
   fail "bootstrap fallback must start all backup services with an allowlisted empty environment"
 assert_not_contains "${BOOTSTRAP_SCRIPT}" 'ExecStart=/bin/bash -lc'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'systemctl daemon-reload'
-assert_contains "${BOOTSTRAP_SCRIPT}" 'systemctl enable --now stuhelper-postgres-dump-backup\.timer stuhelper-postgres-basebackup\.timer stuhelper-postgres-backup-sync\.timer'
+assert_contains "${BOOTSTRAP_SCRIPT}" 'systemctl disable --now stuhelper-postgres-dump-backup\.timer stuhelper-postgres-basebackup\.timer stuhelper-postgres-backup-sync\.timer'
+assert_contains "${BOOTSTRAP_SCRIPT}" 'systemctl reset-failed stuhelper-postgres-dump-backup\.service stuhelper-postgres-basebackup\.service stuhelper-postgres-backup-sync\.service'
+assert_contains "${BOOTSTRAP_SCRIPT}" 'backup timer units remain disabled until the deploy bundle and production configuration exist'
+assert_not_contains "${BOOTSTRAP_SCRIPT}" 'systemctl enable --now stuhelper-postgres-dump-backup\.timer stuhelper-postgres-basebackup\.timer stuhelper-postgres-backup-sync\.timer'
 
 [[ -f "${BACKUP_TIMER_INSTALLER}" ]] ||
   fail "missing backup timer installer: ${BACKUP_TIMER_INSTALLER}"
@@ -183,5 +186,7 @@ assert_contains "${BACKUP_TIMER_INSTALLER}" '^TimeoutStartSec=12h$'
 [[ "$(grep -Ec '^ExecStart=/usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin .* BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true /bin/bash --noprofile --norc \./infra/ops/' "${BACKUP_TIMER_INSTALLER}")" == "3" ]] ||
   fail "backup timer installer must start all backup services with an allowlisted empty environment"
 assert_not_contains "${BACKUP_TIMER_INSTALLER}" 'ExecStart=/bin/bash -lc'
+assert_contains "${BACKUP_TIMER_INSTALLER}" 'systemctl reset-failed "\$\{SYSTEMD_PREFIX\}-postgres-dump-backup\.service" "\$\{SYSTEMD_PREFIX\}-postgres-basebackup\.service" "\$\{SYSTEMD_PREFIX\}-postgres-backup-sync\.service"'
+assert_contains "${BACKUP_TIMER_INSTALLER}" 'systemctl enable --now "\$\{SYSTEMD_PREFIX\}-postgres-dump-backup\.timer"'
 
 echo "[bootstrap-ubuntu2404-contract] all assertions passed"
