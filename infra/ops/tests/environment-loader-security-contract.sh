@@ -573,7 +573,9 @@ EOF
 chmod 0600 \
   "${partial_legacy_state}/releases/partial-legacy.env" \
   "${partial_legacy_state}/current-release.env"
-(
+partial_release_checksum="$(sha256sum "${partial_legacy_state}/releases/partial-legacy.env" | cut -d ' ' -f 1)"
+partial_current_checksum="$(sha256sum "${partial_legacy_state}/current-release.env" | cut -d ' ' -f 1)"
+if (
   export DEPLOY_STATE_DIR="${partial_legacy_state}"
   migrate_explicit_legacy_release_identity \
     partial-legacy \
@@ -581,12 +583,112 @@ chmod 0600 \
     "${release_frontend_ref}" \
     "${release_admin_ref}" \
     contract-operator \
-    'complete an interrupted canonical-versus-legacy migration'
+    'reject an impossible current-first partial migration'
+) >"${tmpdir}/partial-current-first.out" 2>"${tmpdir}/partial-current-first.err"; then
+  fail "explicit legacy migration accepted an impossible current-first partial state"
+fi
+grep -q 'identities differ before migration' "${tmpdir}/partial-current-first.err" ||
+  fail "current-first partial rejection did not identify divergent history"
+[[ "$(sha256sum "${partial_legacy_state}/releases/partial-legacy.env" | cut -d ' ' -f 1)" == "${partial_release_checksum}" ]] ||
+  fail "current-first partial rejection changed the per-tag record"
+[[ "$(sha256sum "${partial_legacy_state}/current-release.env" | cut -d ' ' -f 1)" == "${partial_current_checksum}" ]] ||
+  fail "current-first partial rejection changed the current record"
+
+release_first_partial_state="${tmpdir}/release-first-partial-state"
+mkdir -p \
+  "${release_first_partial_state}/releases" \
+  "${release_first_partial_state}/release-migrations"
+cat >"${release_first_partial_state}/releases/partial-legacy.env" <<EOF
+TAG=partial-legacy
+DEPLOYED_AT=2026-08-01T12:00:00Z
+BACKEND_IMAGE_REF=${release_backend_ref}
+FRONTEND_IMAGE_REF=${release_frontend_ref}
+ADMIN_IMAGE_REF=${release_admin_ref}
+EOF
+cat >"${release_first_partial_state}/current-release.env" <<'EOF'
+TAG=partial-legacy
+DEPLOYED_AT=2026-08-01T12:00:00Z
+BACKEND_IMAGE_REF=ghcr.io/stuhelper/backend:partial-legacy
+FRONTEND_IMAGE_REF=ghcr.io/stuhelper/frontend:partial-legacy
+ADMIN_IMAGE_REF=ghcr.io/stuhelper/admin:partial-legacy
+EOF
+chmod 0700 "${release_first_partial_state}/release-migrations"
+chmod 0600 \
+  "${release_first_partial_state}/releases/partial-legacy.env" \
+  "${release_first_partial_state}/current-release.env"
+if (
+  export DEPLOY_STATE_DIR="${release_first_partial_state}"
+  migrate_explicit_legacy_release_identity \
+    partial-legacy \
+    "${release_backend_ref}" \
+    "${release_frontend_ref}" \
+    "${release_admin_ref}" \
+    contract-operator \
+    'complete an interrupted release-first migration'
+) >"${tmpdir}/partial-missing-evidence.out" 2>"${tmpdir}/partial-missing-evidence.err"; then
+  fail "release-first partial migration recreated missing audit evidence"
+fi
+grep -q 'requires matching preexisting evidence' "${tmpdir}/partial-missing-evidence.err" ||
+  fail "release-first partial state did not require its durable pre-write evidence"
+
+python3 - \
+  "${release_first_partial_state}/current-release.env" \
+  "${release_first_partial_state}/release-migrations/partial-legacy.json" \
+  "${release_backend_ref}" \
+  "${release_frontend_ref}" \
+  "${release_admin_ref}" <<'PY'
+import hashlib
+import json
+import sys
+from pathlib import Path
+
+legacy_path = Path(sys.argv[1])
+evidence_path = Path(sys.argv[2])
+digests = dict(zip(
+    ("BACKEND_IMAGE_REF", "FRONTEND_IMAGE_REF", "ADMIN_IMAGE_REF"),
+    sys.argv[3:],
+    strict=True,
+))
+legacy_payload = legacy_path.read_bytes()
+legacy_values = dict(
+    line.split("=", 1)
+    for line in legacy_payload.decode("utf-8").splitlines()
+)
+document = {
+    "schemaVersion": 1,
+    "event": "legacy_release_identity_migrated",
+    "tag": "partial-legacy",
+    "deployedAt": "2026-08-01T12:00:00Z",
+    "migratedAt": "2026-08-03T00:00:00Z",
+    "legacyRecordSha256": hashlib.sha256(legacy_payload).hexdigest(),
+    "verificationSource": "explicit_provenance_verified_rollback_digest_override",
+    "actor": "contract-operator",
+    "reason": "complete an interrupted release-first migration",
+    "images": {
+        key: {"legacyRef": legacy_values[key], "digestRef": digest}
+        for key, digest in digests.items()
+    },
+}
+evidence_path.write_text(
+    json.dumps(document, sort_keys=True, separators=(",", ":")) + "\n",
+    encoding="utf-8",
+)
+PY
+chmod 0600 "${release_first_partial_state}/release-migrations/partial-legacy.json"
+(
+  export DEPLOY_STATE_DIR="${release_first_partial_state}"
+  migrate_explicit_legacy_release_identity \
+    partial-legacy \
+    "${release_backend_ref}" \
+    "${release_frontend_ref}" \
+    "${release_admin_ref}" \
+    contract-operator \
+    'complete an interrupted release-first migration'
 )
 cmp -s \
-  "${partial_legacy_state}/current-release.env" \
-  "${partial_legacy_state}/releases/partial-legacy.env" ||
-  fail "canonical-versus-legacy crash recovery did not converge both records"
+  "${release_first_partial_state}/current-release.env" \
+  "${release_first_partial_state}/releases/partial-legacy.env" ||
+  fail "evidence-backed release-first recovery did not converge both records"
 
 unsafe_permission_state="${tmpdir}/unsafe-permission-state"
 mkdir -p "${unsafe_permission_state}"
