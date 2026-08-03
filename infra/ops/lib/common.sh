@@ -320,6 +320,15 @@ source_remote_deploy_config_env_file() {
     VAULT_RUNTIME_TOKEN_MIN_TTL_SECONDS
 }
 
+require_digest_image_ref() {
+  local key="$1"
+  local value="${2:-}"
+
+  if [[ ! "${value}" =~ ^[^[:space:]@]+@sha256:[0-9a-f]{64}$ ]]; then
+    die "${key} must be a complete image@sha256 digest reference"
+  fi
+}
+
 source_release_record_env_file() {
   local file="$1"
   local expected_tag="${2:-}"
@@ -377,6 +386,9 @@ PY
       die "${file}: release record key ${key} must not be empty"
     fi
   done
+  require_digest_image_ref BACKEND_IMAGE_REF "${BACKEND_IMAGE_REF}"
+  require_digest_image_ref FRONTEND_IMAGE_REF "${FRONTEND_IMAGE_REF}"
+  require_digest_image_ref ADMIN_IMAGE_REF "${ADMIN_IMAGE_REF}"
   if [[ -n "${expected_tag}" && "${TAG}" != "${expected_tag}" ]]; then
     die "${file}: release record TAG does not match rollback target ${expected_tag}"
   fi
@@ -1734,6 +1746,9 @@ docker_registry_login() {
 
 record_release() {
   local tag="$1"
+  require_digest_image_ref BACKEND_IMAGE_REF "${BACKEND_IMAGE_REF:-}"
+  require_digest_image_ref FRONTEND_IMAGE_REF "${FRONTEND_IMAGE_REF:-}"
+  require_digest_image_ref ADMIN_IMAGE_REF "${ADMIN_IMAGE_REF:-}"
   mkdir -p "${DEPLOY_STATE_DIR}"
   mkdir -p "${DEPLOY_STATE_DIR}/releases"
   local now
@@ -1760,6 +1775,7 @@ values = {
     "FRONTEND_IMAGE_REF": frontend_ref,
     "ADMIN_IMAGE_REF": admin_ref,
 }
+digest_ref_pattern = re.compile(r"^[^\s@]+@sha256:[0-9a-f]{64}$")
 
 if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", tag):
     raise SystemExit("release tag contains unsafe path characters")
@@ -1768,6 +1784,9 @@ for key, value in values.items():
         raise SystemExit(f"release record field {key} must not be empty")
     if "\n" in value or "\r" in value:
         raise SystemExit(f"release record field {key} must be a single line")
+for key in ("BACKEND_IMAGE_REF", "FRONTEND_IMAGE_REF", "ADMIN_IMAGE_REF"):
+    if not digest_ref_pattern.fullmatch(values[key]):
+        raise SystemExit(f"release record field {key} must be a complete image@sha256 digest reference")
 
 releases_dir = state_dir / "releases"
 state_dir.mkdir(parents=True, exist_ok=True)

@@ -111,31 +111,6 @@ validate_casdoor_bootstrap_env() (
   reject_placeholder CASDOOR_BOOTSTRAP_APPLICATION "${CASDOOR_BOOTSTRAP_APPLICATION:-}" "REPLACE_WITH_CASDOOR_BOOTSTRAP_APPLICATION"
 )
 
-require_immutable_image_ref() {
-  local key="$1"
-  local value="${2:-}"
-  require_nonempty "${key}" "${value}"
-  python3 - "${key}" "${value}" <<'PY'
-import re
-import sys
-
-key = sys.argv[1]
-ref = sys.argv[2].strip()
-
-if "@sha256:" in ref:
-    if not re.fullmatch(r".+@sha256:[0-9a-f]{64}", ref):
-        raise SystemExit(f"{key} must use a valid pinned digest reference: {ref}")
-    raise SystemExit(0)
-
-image, sep, tag = ref.rpartition(":")
-if not sep or "/" not in image or not tag:
-    raise SystemExit(f"{key} must be pinned by explicit tag or digest: {ref}")
-
-if tag in {"latest", "develop-latest", "stable", "main", "master"} or tag.startswith("ci-"):
-    raise SystemExit(f"{key} uses a mutable or pre-release tag and is not allowed in production: {ref}")
-PY
-}
-
 require_backup_object_storage_config
 validate_casdoor_bootstrap_env # validate bootstrap credential env in isolated process
 clear_casdoor_bootstrap_env # remove any caller-provided bootstrap values from unrelated children
@@ -219,9 +194,9 @@ require_nonempty OBJECT_STORAGE_BUCKET "${OBJECT_STORAGE_BUCKET:-}"
 require_nonempty OBJECT_STORAGE_ACCESS_KEY_ID "${OBJECT_STORAGE_ACCESS_KEY_ID:-}"
 require_nonempty OBJECT_STORAGE_SECRET_ACCESS_KEY "${OBJECT_STORAGE_SECRET_ACCESS_KEY:-}"
 require_nonempty GRAFANA_ROOT_URL "${GRAFANA_ROOT_URL:-}"
-require_immutable_image_ref BACKEND_IMAGE_REF "${BACKEND_IMAGE_REF:-}"
-require_immutable_image_ref FRONTEND_IMAGE_REF "${FRONTEND_IMAGE_REF:-}"
-require_immutable_image_ref ADMIN_IMAGE_REF "${ADMIN_IMAGE_REF:-}"
+require_digest_image_ref BACKEND_IMAGE_REF "${BACKEND_IMAGE_REF:-}"
+require_digest_image_ref FRONTEND_IMAGE_REF "${FRONTEND_IMAGE_REF:-}"
+require_digest_image_ref ADMIN_IMAGE_REF "${ADMIN_IMAGE_REF:-}"
 
 if [[ "${EXTERNAL_POSTGRES_ENABLED:-false}" != "true" ]]; then
   reject_placeholder POSTGRES_PASSWORD "${POSTGRES_PASSWORD:-}" "dev123"

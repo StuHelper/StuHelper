@@ -103,9 +103,9 @@ sudo VAULT_ROOT_INIT_FILE=/var/lib/stuhelper/vault-credentials/init.json \
   ./infra/ops/vault-runtime-token.sh configure
 
 # 可选：指定要发布的不可变镜像
-export BACKEND_IMAGE_REF=<registry/backend:sha-or-tag>
-export FRONTEND_IMAGE_REF=<registry/frontend:sha-or-tag>
-export ADMIN_IMAGE_REF=<registry/admin:sha-or-tag>
+export BACKEND_IMAGE_REF=<registry/backend@sha256:64位摘要>
+export FRONTEND_IMAGE_REF=<registry/frontend@sha256:64位摘要>
+export ADMIN_IMAGE_REF=<registry/admin@sha256:64位摘要>
 export TAG=<release-id>
 
 # 远端机器建议先做预检
