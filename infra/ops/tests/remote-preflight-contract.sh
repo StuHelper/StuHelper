@@ -82,6 +82,7 @@ assert_contains "${PREFLIGHT_FILE}" 'vault-runtime-token\.sh" check'
 assert_contains "${PREFLIGHT_FILE}" 'stuhelper-vault-token-renewal\.timer'
 assert_contains "${PREFLIGHT_FILE}" 'Vault runtime token renewal timer is not active'
 assert_contains "${COMMON_LIB_FILE}" 'require_systemd_unit_exact_environment\(\)'
+assert_contains "${COMMON_LIB_FILE}" 'require_systemd_unit_exact_identity\(\)'
 assert_contains "${COMMON_LIB_FILE}" 'require_systemd_unit_hardened_lifecycle\(\)'
 assert_contains "${COMMON_LIB_FILE}" 'require_systemd_unit_without_conditions\(\)'
 assert_contains "${COMMON_LIB_FILE}" 'org\.freedesktop\.systemd1\.Unit Conditions'
@@ -122,6 +123,13 @@ assert_contains "${PREFLIGHT_FILE}" 'expected_service_environment\+=\("BACKUP_ST
 [[ "$(grep -c 'BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true' "${PREFLIGHT_FILE}")" == "1" ]] || \
   fail "remote preflight must require the off-host marker for every backup service"
 assert_contains "${PREFLIGHT_FILE}" 'require_systemd_unit_hardened_execution'
+assert_contains "${PREFLIGHT_FILE}" 'backup_service_user="\$\(id -un\)"'
+assert_contains "${PREFLIGHT_FILE}" 'backup_service_group="\$\(id -gn\)"'
+assert_contains "${PREFLIGHT_FILE}" 'backup_service_uid="\$\(id -u\)"'
+assert_contains "${PREFLIGHT_FILE}" 'backup_service_gid="\$\(id -g\)"'
+assert_contains "${PREFLIGHT_FILE}" 'remote production preflight must run as the non-root deploy user'
+assert_contains "${PREFLIGHT_FILE}" 'remote production preflight requires a non-root deploy primary group'
+assert_contains "${PREFLIGHT_FILE}" 'require_systemd_unit_exact_identity'
 assert_contains "${PREFLIGHT_FILE}" 'require_systemd_unit_hardened_lifecycle'
 assert_contains "${PREFLIGHT_FILE}" 'require_systemd_unit_without_conditions'
 assert_contains "${PREFLIGHT_FILE}" 'require_systemd_timer_schedule'
@@ -316,6 +324,42 @@ if bash -c '
 fi
 grep -q 'pre-exec unset list' "${tmpdir}/backup-unit-unset-env.err" || \
   fail "the backup unit UnsetEnvironment failure did not report the protected boundary"
+
+source "${COMMON_LIB_FILE}"
+identity_user="stuhelper"
+identity_group="stuhelper"
+systemctl() {
+  case "$*" in
+    *--property=User*) printf '%s\n' "${identity_user}" ;;
+    *--property=Group*) printf '%s\n' "${identity_group}" ;;
+    *) return 90 ;;
+  esac
+}
+
+if ! require_systemd_unit_exact_identity \
+  stuhelper-postgres-backup-sync.service stuhelper stuhelper; then
+  fail "the systemd identity validator rejected the exact non-root deploy identity"
+fi
+
+identity_user="root"
+if (require_systemd_unit_exact_identity \
+  stuhelper-postgres-backup-sync.service stuhelper stuhelper) \
+  >"${tmpdir}/backup-unit-root-user.out" 2>"${tmpdir}/backup-unit-root-user.err"; then
+  fail "the systemd identity validator accepted a root service override"
+fi
+grep -q 'must run as deploy user stuhelper' "${tmpdir}/backup-unit-root-user.err" ||
+  fail "the root service identity failure did not report the expected deploy user"
+identity_user="stuhelper"
+
+identity_group="root"
+if (require_systemd_unit_exact_identity \
+  stuhelper-postgres-backup-sync.service stuhelper stuhelper) \
+  >"${tmpdir}/backup-unit-root-group.out" 2>"${tmpdir}/backup-unit-root-group.err"; then
+  fail "the systemd identity validator accepted a root group override"
+fi
+grep -q 'must run as deploy group stuhelper' "${tmpdir}/backup-unit-root-group.err" ||
+  fail "the root group identity failure did not report the expected deploy group"
+unset -f systemctl
 
 source "${COMMON_LIB_FILE}"
 lifecycle_type="oneshot"

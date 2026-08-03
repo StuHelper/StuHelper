@@ -39,6 +39,11 @@ assert_contains "${BOOTSTRAP_SCRIPT}" 'BACKUP_STAGING_DIR="\$\{BACKUP_STAGING_DI
 assert_contains "${BOOTSTRAP_SCRIPT}" 'INSTALL_GO="\$\{INSTALL_GO:-true\}"'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'GO_VERSION="\$\{GO_VERSION:-1\.26\.5\}"'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'run as root \(sudo bash infra/ops/bootstrap-ubuntu2404\.sh\)'
+assert_contains "${BOOTSTRAP_SCRIPT}" 'require_non_root_deploy_identity'
+assert_contains "${BOOTSTRAP_SCRIPT}" 'DEPLOY_USER must be an explicit non-root account'
+assert_contains "${BOOTSTRAP_SCRIPT}" 'DEPLOY_GROUP must be an explicit non-root group'
+assert_contains "${BOOTSTRAP_SCRIPT}" 'DEPLOY_USER must not resolve to uid 0'
+assert_contains "${BOOTSTRAP_SCRIPT}" 'DEPLOY_GROUP must not resolve to gid 0'
 
 assert_contains "${BOOTSTRAP_SCRIPT}" 'apt-get update -y'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'ca-certificates curl gnupg iproute2 jq openssl git bash python3'
@@ -126,6 +131,13 @@ assert_contains "${BOOTSTRAP_SCRIPT}" 'systemctl enable --now stuhelper-postgres
 [[ -f "${BACKUP_TIMER_INSTALLER}" ]] ||
   fail "missing backup timer installer: ${BACKUP_TIMER_INSTALLER}"
 bash -n "${BACKUP_TIMER_INSTALLER}"
+assert_contains "${BACKUP_TIMER_INSTALLER}" 'require_service_identity'
+assert_contains "${BACKUP_TIMER_INSTALLER}" 'deploy user does not exist'
+assert_contains "${BACKUP_TIMER_INSTALLER}" 'deploy group does not exist'
+assert_contains "${BACKUP_TIMER_INSTALLER}" 'DEPLOY_USER must be an explicit non-root account'
+assert_contains "${BACKUP_TIMER_INSTALLER}" 'DEPLOY_GROUP must be an explicit non-root group'
+assert_contains "${BACKUP_TIMER_INSTALLER}" 'DEPLOY_USER must not resolve to uid 0'
+assert_contains "${BACKUP_TIMER_INSTALLER}" 'DEPLOY_GROUP must not resolve to gid 0'
 assert_contains "${BACKUP_TIMER_INSTALLER}" 'BACKUP_STAGING_DIR="\$\{BACKUP_STAGING_DIR:-/var/lib/stuhelper/postgres/backup-staging\}"'
 assert_contains "${BACKUP_TIMER_INSTALLER}" 'install -d -o "\$\{DEPLOY_USER\}".*-m 0700 "\$\{BACKUP_STAGING_DIR\}"'
 assert_contains "${BACKUP_TIMER_INSTALLER}" 'Environment=BACKUP_STAGING_DIR=\$\{BACKUP_STAGING_DIR\}'

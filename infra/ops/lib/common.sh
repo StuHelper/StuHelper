@@ -82,6 +82,31 @@ require_systemd_unit_exact_environment() {
   fi
 }
 
+require_systemd_unit_exact_identity() {
+  local unit="$1"
+  local expected_user="$2"
+  local expected_group="$3"
+  local effective_user
+  local effective_group
+
+  [[ -n "${expected_user}" && "${expected_user}" != "root" && "${expected_user}" != "0" ]] ||
+    die "systemd unit ${unit} requires an explicit non-root deploy user"
+  [[ -n "${expected_group}" && "${expected_group}" != "root" && "${expected_group}" != "0" ]] ||
+    die "systemd unit ${unit} requires an explicit non-root deploy group"
+
+  if ! effective_user="$(systemctl show "${unit}" --property=User --value 2>/dev/null)"; then
+    die "failed to inspect User for systemd unit ${unit}"
+  fi
+  if ! effective_group="$(systemctl show "${unit}" --property=Group --value 2>/dev/null)"; then
+    die "failed to inspect Group for systemd unit ${unit}"
+  fi
+
+  [[ "${effective_user}" == "${expected_user}" ]] ||
+    die "systemd unit ${unit} must run as deploy user ${expected_user}, got ${effective_user:-<implicit-root>}; reinstall the production backup timers and remove overriding drop-ins"
+  [[ "${effective_group}" == "${expected_group}" ]] ||
+    die "systemd unit ${unit} must run as deploy group ${expected_group}, got ${effective_group:-<unset>}; reinstall the production backup timers and remove overriding drop-ins"
+}
+
 require_systemd_unit_hardened_lifecycle() {
   local unit="$1"
   local expected_start_timeout="$2"

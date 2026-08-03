@@ -175,7 +175,7 @@ sudo ./infra/ops/install-backup-timers.sh
 systemd service 也固定要求这项门禁，不能由共享 env 将要求降级；配置漂移后定时同步会失败并留给
 systemd/告警处理，而不是继续把同机副本计作灾备。升级已有节点后须由 root 重新运行
 `./infra/ops/install-backup-timers.sh`；预检会把三个 service 的有效 `Environment`、pre-exec
-`UnsetEnvironment` 与安装器定义精确比对。服务先清除动态加载器变量，再以 `env -i` 丢弃 manager
+`UnsetEnvironment` 与安装器定义精确比对；有效 `User` / `Group` 还必须与当前非 root 部署账号及其主组一致，任何 root 或其他身份的 unit/drop-in 都会失败关闭。服务先清除动态加载器变量，再以 `env -i` 丢弃 manager
 defaults 和其他继承环境，只传固定 `PATH`、配置路径与异机门禁；额外的 `LD_PRELOAD`、`PYTHONPATH`、`PATH`
 等进程控制变量会失败关闭。预检同时拒绝 `EnvironmentFile=`、`PassEnvironment=` 以及不精确的
 `UnsetEnvironment=` unit/drop-in，不能继续使用缺少或可降级门禁的旧单元。
