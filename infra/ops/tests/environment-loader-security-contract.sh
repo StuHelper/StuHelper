@@ -722,6 +722,39 @@ legacy_history_log_before="$(sha256sum "${legacy_history_state}/releases.log" | 
 [[ "$(sha256sum "${legacy_history_state}/releases.log" | cut -d ' ' -f 1)" == "${legacy_history_log_before}" ]] ||
   fail "semantic ledger validation changed a valid activation log"
 
+omitted_history_state="${tmpdir}/omitted-history-state"
+cp -a "${legacy_history_state}" "${omitted_history_state}"
+grep -v $'\tlegacy-history$' \
+  "${legacy_history_state}/releases.log" \
+  >"${omitted_history_state}/releases.log"
+chmod 0600 "${omitted_history_state}/releases.log"
+omitted_history_log_before="$(sha256sum "${omitted_history_state}/releases.log" | cut -d ' ' -f 1)"
+if (
+  export DEPLOY_STATE_DIR="${omitted_history_state}"
+  export BACKEND_IMAGE_REF="${release_backend_ref}"
+  export FRONTEND_IMAGE_REF="${release_frontend_ref}"
+  export ADMIN_IMAGE_REF="${release_admin_ref}"
+  require_release_tag_identity_available future-release
+) >"${tmpdir}/guard-omitted-history.out" 2>"${tmpdir}/guard-omitted-history.err"; then
+  fail "release identity guard accepted immutable history omitted from the activation log"
+fi
+grep -q 'immutable release tag legacy-history is missing from the activation log' \
+  "${tmpdir}/guard-omitted-history.err" ||
+  fail "omitted activation history did not identify the surviving immutable record"
+if (
+  export DEPLOY_STATE_DIR="${omitted_history_state}"
+  export BACKEND_IMAGE_REF="${release_backend_ref}"
+  export FRONTEND_IMAGE_REF="${release_frontend_ref}"
+  export ADMIN_IMAGE_REF="${release_admin_ref}"
+  record_release future-release
+) >"${tmpdir}/record-omitted-history.out" 2>"${tmpdir}/record-omitted-history.err"; then
+  fail "release recorder appended to a ledger missing immutable history"
+fi
+[[ "$(sha256sum "${omitted_history_state}/releases.log" | cut -d ' ' -f 1)" == "${omitted_history_log_before}" ]] ||
+  fail "failed omitted-history publication changed the activation log"
+[[ ! -e "${omitted_history_state}/releases/future-release.env" ]] ||
+  fail "failed omitted-history publication created a candidate record"
+
 missing_history_state="${tmpdir}/missing-history-state"
 cp -a "${legacy_history_state}" "${missing_history_state}"
 rm -f "${missing_history_state}/releases/legacy-history.env"
