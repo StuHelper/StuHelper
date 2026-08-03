@@ -37,6 +37,8 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
+RemainAfterExit=no
+Restart=no
 User=${DEPLOY_USER}
 Group=${DEPLOY_GROUP}
 WorkingDirectory=${DEPLOY_APP_DIR}
@@ -71,6 +73,8 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
+RemainAfterExit=no
+Restart=no
 User=${DEPLOY_USER}
 Group=${DEPLOY_GROUP}
 WorkingDirectory=${DEPLOY_APP_DIR}
@@ -106,6 +110,8 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
+RemainAfterExit=no
+Restart=no
 User=${DEPLOY_USER}
 Group=${DEPLOY_GROUP}
 WorkingDirectory=${DEPLOY_APP_DIR}
