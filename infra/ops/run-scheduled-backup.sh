@@ -15,6 +15,7 @@ load_env_preserving \
   STACK_NAME \
   POSTGRES_CONTAINER_NAME
 require_cmd docker
+require_cmd flock
 protected_bash=(
   /usr/bin/env
   --unset=BASH_ENV
@@ -29,6 +30,27 @@ case "${MODE}" in
   *) die "unsupported backup mode: ${MODE} (expected dump, basebackup, or sync)" ;;
 esac
 
+production_deployment_is_active() {
+  local probe_fd probe_status
+
+  [[ ! -L "${DEPLOY_STATE_DIR}" ]] ||
+    die "deployment state path must not be a symlink: ${DEPLOY_STATE_DIR}"
+  [[ -d "${DEPLOY_STATE_DIR}" ]] || return 1
+  exec {probe_fd}<"${DEPLOY_STATE_DIR}" ||
+    die "cannot open the deployment state directory for lock probing: ${DEPLOY_STATE_DIR}"
+  if flock --exclusive --nonblock "${probe_fd}"; then
+    flock --unlock "${probe_fd}"
+    exec {probe_fd}<&-
+    return 1
+  else
+    probe_status=$?
+    exec {probe_fd}<&-
+    ((probe_status == 1)) ||
+      die "failed to probe the production deployment lock: ${DEPLOY_STATE_DIR}"
+    return 0
+  fi
+}
+
 # Timers may be activated after configuration is ready but before the first
 # datastore deployment starts. A missing marker is a successful no-op only
 # while the host is demonstrably empty: no surviving release evidence, no
@@ -37,6 +59,10 @@ esac
 # a control-plane inconsistency and must make systemd/alerting fail closed.
 current_release_file="${DEPLOY_STATE_DIR}/current-release.env"
 if [[ ! -e "${current_release_file}" && ! -L "${current_release_file}" ]]; then
+  if production_deployment_is_active; then
+    log "scheduled PostgreSQL ${MODE} deferred: a production deployment holds the release lock"
+    exit 0
+  fi
   releases_dir="${DEPLOY_STATE_DIR}/releases"
   releases_log="${DEPLOY_STATE_DIR}/releases.log"
   if [[ -e "${releases_log}" || -L "${releases_log}" ]]; then
