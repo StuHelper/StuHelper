@@ -14,6 +14,7 @@ require_cmd curl
 require_cmd jq
 require_cmd python3
 require_cmd openssl
+acquire_production_deploy_lock # serialize every direct deploy and rollback through release publication
 
 if [[ -f "${REMOTE_DEPLOY_CONFIG_FILE}" ]]; then
   load_remote_deploy_config

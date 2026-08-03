@@ -391,7 +391,7 @@ main() {
   require_non_root_deploy_identity
 
   log "installing base packages"
-  apt_install ca-certificates curl gnupg iproute2 jq openssl git bash python3
+  apt_install ca-certificates curl gnupg iproute2 jq openssl git bash python3 util-linux
 
   log "installing Docker Engine and Compose plugin"
   ensure_docker_repo

@@ -120,6 +120,32 @@ release_frontend_ref='ghcr.io/stuhelper/frontend@sha256:222222222222222222222222
 release_admin_ref='ghcr.io/stuhelper/admin@sha256:3333333333333333333333333333333333333333333333333333333333333333'
 
 require_safe_release_tag release_2026.08-03
+deploy_lock_state="${tmpdir}/deploy-lock-state"
+deploy_lock_ready_fifo="${tmpdir}/deploy-lock-ready.fifo"
+deploy_lock_release_fifo="${tmpdir}/deploy-lock-release.fifo"
+mkfifo "${deploy_lock_ready_fifo}" "${deploy_lock_release_fifo}"
+(
+  export DEPLOY_STATE_DIR="${deploy_lock_state}"
+  acquire_production_deploy_lock
+  printf 'ready\n' >"${deploy_lock_ready_fifo}"
+  IFS= read -r _ <"${deploy_lock_release_fifo}"
+) &
+deploy_lock_holder_pid=$!
+IFS= read -r _ <"${deploy_lock_ready_fifo}"
+if (
+  export DEPLOY_STATE_DIR="${deploy_lock_state}"
+  acquire_production_deploy_lock
+) >"${tmpdir}/deploy-lock-contention.out" 2>"${tmpdir}/deploy-lock-contention.err"; then
+  fail "host deployment lock allowed two concurrent production controllers"
+fi
+grep -q 'another production deploy or rollback already holds' "${tmpdir}/deploy-lock-contention.err" ||
+  fail "host deployment lock contention was not reported"
+printf 'release\n' >"${deploy_lock_release_fifo}"
+wait "${deploy_lock_holder_pid}"
+(
+  export DEPLOY_STATE_DIR="${deploy_lock_state}"
+  acquire_production_deploy_lock
+)
 deployment_attempt_one="$(new_deployment_attempt_id)"
 deployment_attempt_two="$(new_deployment_attempt_id)"
 [[ "${deployment_attempt_one}" =~ ^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{32}$ ]] ||

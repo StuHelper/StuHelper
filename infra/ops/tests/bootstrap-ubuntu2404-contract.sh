@@ -56,7 +56,7 @@ assert_contains "${BOOTSTRAP_SCRIPT}" 'DEPLOY_USER must not resolve to uid 0'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'DEPLOY_GROUP must not resolve to gid 0'
 
 assert_contains "${BOOTSTRAP_SCRIPT}" 'apt-get update -y'
-assert_contains "${BOOTSTRAP_SCRIPT}" 'ca-certificates curl gnupg iproute2 jq openssl git bash python3'
+assert_contains "${BOOTSTRAP_SCRIPT}" 'ca-certificates curl gnupg iproute2 jq openssl git bash python3 util-linux'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'https://download\.docker\.com/linux/ubuntu/gpg'
 assert_contains "${BOOTSTRAP_SCRIPT}" '/etc/apt/keyrings/docker\.asc'
 assert_contains "${BOOTSTRAP_SCRIPT}" '/etc/apt/sources\.list\.d/docker\.list'

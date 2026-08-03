@@ -36,6 +36,7 @@ line_number() {
 
 load_env_line="$(line_number 'load_env')"
 caller_tag_validation_line="$(line_number 'require_safe_release_tag "${TAG}" # reject caller-provided tags before config or secret materialization')"
+deployment_lock_line="$(line_number 'acquire_production_deploy_lock # serialize every direct deploy and rollback through release publication')"
 remote_preflight_line="$(line_number '"${SCRIPT_DIR}/remote-preflight.sh" --pre-deploy')"
 postdeploy_preflight_line="$(line_number '"${SCRIPT_DIR}/remote-preflight.sh" --post-deploy')"
 derived_tag_validation_line="$(line_number 'require_safe_release_tag "${TAG}" # validate env-loaded or derived tags before rendering, image pulls, and backups')"
@@ -79,6 +80,9 @@ record_release_line="$(line_number 'record_release "${TAG}"')"
 bootstrap_require_line="$(line_number 'require_nonempty CASDOOR_BOOTSTRAP_CLIENT_SECRET')"
 if (( caller_tag_validation_line >= remote_preflight_line )); then
   fail "production deploy must reject unsafe caller tags before running remote preflight"
+fi
+if (( deployment_lock_line <= caller_tag_validation_line || deployment_lock_line >= remote_config_load_line || deployment_lock_line >= load_env_line )); then
+  fail "production deploy must acquire its host-wide lock after caller-tag validation and before deploy inputs"
 fi
 if (( remote_preflight_line <= release_identity_guard_line )); then
   fail "production deploy must reject conflicting immutable release identity before mutating preflight projections"
