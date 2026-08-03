@@ -267,6 +267,147 @@ for migrated_release_state_file in \
     fail "legacy release-state permission migration did not normalize ${migrated_release_state_file}"
 done
 
+legacy_identity_backend_ref='ghcr.io/stuhelper/backend:legacy-release'
+legacy_identity_frontend_ref='ghcr.io/stuhelper/frontend:legacy-release'
+legacy_identity_admin_ref='ghcr.io/stuhelper/admin:legacy-release'
+legacy_identity_state="${tmpdir}/legacy-identity-state"
+mkdir -p "${legacy_identity_state}/releases"
+cat >"${legacy_identity_state}/current-release.env" <<EOF
+TAG=legacy-release
+DEPLOYED_AT=2026-08-02T00:00:00Z
+BACKEND_IMAGE_REF=${legacy_identity_backend_ref}
+FRONTEND_IMAGE_REF=${legacy_identity_frontend_ref}
+ADMIN_IMAGE_REF=${legacy_identity_admin_ref}
+EOF
+cp \
+  "${legacy_identity_state}/current-release.env" \
+  "${legacy_identity_state}/releases/legacy-release.env"
+printf '2026-08-02T00:00:00Z\tlegacy-release\n' >"${legacy_identity_state}/releases.log"
+chmod 0600 \
+  "${legacy_identity_state}/current-release.env" \
+  "${legacy_identity_state}/releases/legacy-release.env" \
+  "${legacy_identity_state}/releases.log"
+
+legacy_docker_bin="${tmpdir}/legacy-docker-bin"
+mkdir -p "${legacy_docker_bin}"
+cat >"${legacy_docker_bin}/docker" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+last_argument="${!#}"
+backend_image_id="sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+frontend_image_id="sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+admin_image_id="sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+
+if [[ "$1" == "inspect" && "$2" == "--type" ]]; then
+  case "${last_argument}" in
+    legacy-contract-app)
+      configured_image="ghcr.io/stuhelper/backend:legacy-release"
+      [[ "${LEGACY_FAKE_CONFIG_MISMATCH:-false}" != "true" ]] || configured_image="ghcr.io/stuhelper/backend:moved"
+      printf '{"imageId":"%s","configuredImage":"%s","state":"running","project":"legacy-contract","service":"app"}\n' \
+        "${backend_image_id}" "${configured_image}"
+      ;;
+    legacy-contract-frontend)
+      printf '{"imageId":"%s","configuredImage":"ghcr.io/stuhelper/frontend:legacy-release","state":"running","project":"legacy-contract","service":"frontend"}\n' \
+        "${frontend_image_id}"
+      ;;
+    legacy-contract-admin)
+      printf '{"imageId":"%s","configuredImage":"ghcr.io/stuhelper/admin:legacy-release","state":"running","project":"legacy-contract","service":"admin"}\n' \
+        "${admin_image_id}"
+      ;;
+    *) exit 1 ;;
+  esac
+  exit 0
+fi
+
+if [[ "$1" == "image" && "$2" == "inspect" ]]; then
+  case "${last_argument}" in
+    "${backend_image_id}")
+      printf '["ghcr.io/stuhelper/backend@sha256:1111111111111111111111111111111111111111111111111111111111111111"]\n'
+      ;;
+    "${frontend_image_id}")
+      printf '["ghcr.io/stuhelper/frontend@sha256:2222222222222222222222222222222222222222222222222222222222222222"]\n'
+      ;;
+    "${admin_image_id}")
+      printf '["ghcr.io/stuhelper/admin@sha256:3333333333333333333333333333333333333333333333333333333333333333"]\n'
+      ;;
+    *) exit 1 ;;
+  esac
+  exit 0
+fi
+
+exit 1
+EOF
+chmod +x "${legacy_docker_bin}/docker"
+
+(
+  export PATH="${legacy_docker_bin}:${original_path}"
+  export DEPLOY_STATE_DIR="${legacy_identity_state}"
+  export STACK_NAME=legacy-contract
+  migrate_verified_legacy_current_release_identity
+)
+assert_file_contains() {
+  local file="$1"
+  local expected="$2"
+  grep -qF "${expected}" "${file}" || fail "${file} does not contain expected text: ${expected}"
+}
+assert_file_contains "${legacy_identity_state}/current-release.env" "BACKEND_IMAGE_REF=${release_backend_ref}"
+assert_file_contains "${legacy_identity_state}/current-release.env" "FRONTEND_IMAGE_REF=${release_frontend_ref}"
+assert_file_contains "${legacy_identity_state}/current-release.env" "ADMIN_IMAGE_REF=${release_admin_ref}"
+cmp -s \
+  "${legacy_identity_state}/current-release.env" \
+  "${legacy_identity_state}/releases/legacy-release.env" ||
+  fail "verified legacy migration left current and per-tag records inconsistent"
+legacy_identity_evidence="${legacy_identity_state}/release-migrations/legacy-release.json"
+[[ -s "${legacy_identity_evidence}" && "$(stat -c '%a' "${legacy_identity_evidence}")" == "600" ]] ||
+  fail "verified legacy migration did not publish protected audit evidence"
+python3 - "${legacy_identity_evidence}" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+document = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+assert document["event"] == "legacy_current_release_identity_migrated"
+assert document["verificationSource"] == "running_compose_container_image_identity"
+assert set(document["images"]) == {
+    "BACKEND_IMAGE_REF",
+    "FRONTEND_IMAGE_REF",
+    "ADMIN_IMAGE_REF",
+}
+PY
+
+legacy_identity_mismatch_state="${tmpdir}/legacy-identity-mismatch-state"
+mkdir -p "${legacy_identity_mismatch_state}/releases"
+cat >"${legacy_identity_mismatch_state}/current-release.env" <<EOF
+TAG=legacy-release
+DEPLOYED_AT=2026-08-02T00:00:00Z
+BACKEND_IMAGE_REF=${legacy_identity_backend_ref}
+FRONTEND_IMAGE_REF=${legacy_identity_frontend_ref}
+ADMIN_IMAGE_REF=${legacy_identity_admin_ref}
+EOF
+cp \
+  "${legacy_identity_mismatch_state}/current-release.env" \
+  "${legacy_identity_mismatch_state}/releases/legacy-release.env"
+chmod 0600 \
+  "${legacy_identity_mismatch_state}/current-release.env" \
+  "${legacy_identity_mismatch_state}/releases/legacy-release.env"
+legacy_identity_checksum_before="$(sha256sum "${legacy_identity_mismatch_state}/current-release.env" | cut -d ' ' -f 1)"
+if (
+  export PATH="${legacy_docker_bin}:${original_path}"
+  export DEPLOY_STATE_DIR="${legacy_identity_mismatch_state}"
+  export STACK_NAME=legacy-contract
+  export LEGACY_FAKE_CONFIG_MISMATCH=true
+  migrate_verified_legacy_current_release_identity
+) >"${tmpdir}/legacy-identity-mismatch.out" 2>"${tmpdir}/legacy-identity-mismatch.err"; then
+  fail "legacy identity migration accepted a container whose configured image did not match the release record"
+fi
+grep -q 'does not match the configured image' "${tmpdir}/legacy-identity-mismatch.err" ||
+  fail "legacy identity mismatch did not report the verified-container boundary"
+[[ "$(sha256sum "${legacy_identity_mismatch_state}/current-release.env" | cut -d ' ' -f 1)" == "${legacy_identity_checksum_before}" ]] ||
+  fail "failed legacy identity migration changed the current release record"
+[[ ! -e "${legacy_identity_mismatch_state}/release-migrations/legacy-release.json" ]] ||
+  fail "failed legacy identity migration published audit evidence before verification"
+
 unsafe_permission_state="${tmpdir}/unsafe-permission-state"
 mkdir -p "${unsafe_permission_state}"
 cp "${tmpdir}/release-safe.env" "${unsafe_permission_state}/current-release.env"

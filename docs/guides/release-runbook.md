@@ -27,6 +27,11 @@ last-verified: 2026-08-03
 - [ ] 承载 `postgres_data` / `redis_data` 的宿主机块设备已启用静态加密；外部 S3 已启用服务端加密、版本/保留和生命周期策略。
 - [ ] 远端部署控制面已核对：`.deploy/remote.env`；GitHub 自动部署要求
   `REGISTRY=ghcr.io`、`REGISTRY_AUTH_MODE=workflow-token`。
+- [ ] 从旧版 tag-only 发布账本首次升级时，保留现有 `${STACK_NAME}-app` / `-frontend` / `-admin`
+  容器和对应 Docker image metadata，直到新部署完成账本迁移。控制器只会在旧记录、Compose
+  project/service、容器创建时镜像引用、实际 image ID 与同仓库唯一 `RepoDigest` 全部相符时，
+  原子写入 digest 记录和 `.deploy/release-migrations/<TAG>.json` 审计证据；不要预先 prune 这些
+  运行镜像，也不要手工改写 `current-release.env` 或 per-tag 文件来绕过失败关闭。
 - [ ] 共享配置已核对：`.env.prod.shared`。
 - [ ] secrets 已核对：`.env.prod.secrets`（本地演练可用 `.env.prod.secrets.local`）；运行时派生 secrets 必须通过 `GENERATED_ENV_SECRET_REF` 写入远端 secret backend，`.env.prod.generated.secrets` 仅保留空占位。
 - [ ] secret backend 已核对：`.deploy/remote.env` 中的 `SECRET_BACKEND` / `*_SECRET_REF` / `GENERATED_ENV_SECRET_REF` / `VAULT_ADDR` / `VAULT_TOKEN_FILE`。
