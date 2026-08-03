@@ -2232,7 +2232,7 @@ def atomic_write(path: Path, payload: bytes) -> None:
         raise
 
 
-def read_existing_immutable_release(path: Path) -> bytes:
+def read_canonical_release(path: Path) -> tuple[bytes, dict[str, str]]:
     flags = os.O_RDONLY
     if hasattr(os, "O_NOFOLLOW"):
         flags |= os.O_NOFOLLOW
@@ -2273,15 +2273,57 @@ def read_existing_immutable_release(path: Path) -> bytes:
     for key in ("BACKEND_IMAGE_REF", "FRONTEND_IMAGE_REF", "ADMIN_IMAGE_REF"):
         if not digest_ref_pattern.fullmatch(existing[key]):
             raise SystemExit(f"existing immutable release record has an invalid {key}: {path}")
+    canonical_payload = "".join(f"{key}={existing[key]}\n" for key in values).encode()
+    if payload != canonical_payload:
+        raise SystemExit(f"existing immutable release record is not canonical: {path}")
+    return payload, existing
+
+
+def read_existing_immutable_release(path: Path) -> bytes:
+    payload, existing = read_canonical_release(path)
     for key in ("TAG", "BACKEND_IMAGE_REF", "FRONTEND_IMAGE_REF", "ADMIN_IMAGE_REF"):
         if existing[key] != values[key]:
             raise SystemExit(
                 f"release field {key} does not match existing immutable release record: {path}",
             )
-    canonical_payload = "".join(f"{key}={existing[key]}\n" for key in values).encode()
-    if payload != canonical_payload:
-        raise SystemExit(f"existing immutable release record is not canonical: {path}")
     return payload
+
+
+def read_release_log_tags(path: Path) -> set[str]:
+    flags = os.O_RDONLY
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    fd = os.open(path, flags)
+    try:
+        metadata = os.fstat(fd)
+        if not stat.S_ISREG(metadata.st_mode):
+            raise SystemExit(f"release activation log is not a regular file: {path}")
+        if stat.S_IMODE(metadata.st_mode) != 0o600:
+            raise SystemExit(f"release activation log must use mode 0600: {path}")
+        with os.fdopen(fd, "rb", closefd=False) as stream:
+            payload = stream.read()
+    finally:
+        os.close(fd)
+
+    try:
+        text = payload.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise SystemExit(f"release activation log is not UTF-8: {path}") from exc
+    if text and not text.endswith("\n"):
+        raise SystemExit(f"release activation log is truncated: {path}")
+
+    tags = set()
+    for line in text.splitlines():
+        fields = line.split("\t")
+        if len(fields) != 2:
+            raise SystemExit(f"release activation log is malformed: {path}")
+        deployed_at, logged_tag = fields
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", deployed_at):
+            raise SystemExit(f"release activation log has an invalid timestamp: {path}")
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", logged_tag):
+            raise SystemExit(f"release activation log has an invalid tag: {path}")
+        tags.add(logged_tag)
+    return tags
 
 
 def publish_immutable_release(path: Path, payload: bytes) -> bytes:
@@ -2297,14 +2339,37 @@ def publish_immutable_release(path: Path, payload: bytes) -> bytes:
         temporary_path.unlink(missing_ok=True)
 
 
-# The pre-deploy check is read-only. A missing tag is available; an existing
-# record must already describe exactly the requested immutable image identity.
+# The pre-deploy check is read-only. A genuinely unused tag is available; an
+# existing immutable record must describe exactly the requested image identity.
+# Surviving current/log evidence makes a missing per-tag record ledger damage,
+# not permission to reuse the tag.
 release_path = releases_dir / f"{tag}.env"
 if operation == "check":
     try:
         read_existing_immutable_release(release_path)
     except FileNotFoundError:
-        pass
+        prior_evidence = []
+        current_release_path = state_dir / "current-release.env"
+        try:
+            _, current_release = read_canonical_release(current_release_path)
+        except FileNotFoundError:
+            current_release = None
+        if current_release is not None and current_release["TAG"] == tag:
+            prior_evidence.append(str(current_release_path))
+
+        release_log_path = state_dir / "releases.log"
+        try:
+            logged_tags = read_release_log_tags(release_log_path)
+        except FileNotFoundError:
+            logged_tags = set()
+        if tag in logged_tags:
+            prior_evidence.append(str(release_log_path))
+
+        if prior_evidence:
+            evidence = ", ".join(prior_evidence)
+            raise SystemExit(
+                f"release tag {tag} was previously used but its immutable record is missing; evidence: {evidence}",
+            )
     raise SystemExit(0)
 
 state_dir.mkdir(parents=True, exist_ok=True)
