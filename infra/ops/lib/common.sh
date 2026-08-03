@@ -2527,47 +2527,48 @@ def publish_immutable_release(path: Path, payload: bytes) -> bytes:
 # Surviving current/log evidence makes a missing per-tag record ledger damage,
 # not permission to reuse the tag.
 release_path = releases_dir / f"{tag}.env"
+current_release_path = state_dir / "current-release.env"
+try:
+    current_payload, current_release = read_canonical_release(current_release_path)
+except FileNotFoundError:
+    current_payload = None
+    current_release = None
+if current_release is not None:
+    current_immutable_path = releases_dir / f"{current_release['TAG']}.env"
+    try:
+        current_immutable_payload, _ = read_canonical_release(current_immutable_path)
+    except FileNotFoundError:
+        raise SystemExit(
+            f"release tag {current_release['TAG']} was previously used but its immutable record is missing; "
+            f"evidence: {current_release_path}",
+        )
+    if current_payload != current_immutable_payload:
+        raise SystemExit(
+            f"current release pointer does not match its immutable per-tag record: {current_release_path}",
+        )
+
+release_log_path = state_dir / "releases.log"
+try:
+    logged_tags = read_release_log_tags(release_log_path)
+except FileNotFoundError:
+    logged_tags = set()
+
+try:
+    read_existing_immutable_release(release_path)
+except FileNotFoundError:
+    prior_evidence = []
+    if current_release is not None and current_release["TAG"] == tag:
+        prior_evidence.append(str(current_release_path))
+    if tag in logged_tags:
+        prior_evidence.append(str(release_log_path))
+
+    if prior_evidence:
+        evidence = ", ".join(prior_evidence)
+        raise SystemExit(
+            f"release tag {tag} was previously used but its immutable record is missing; evidence: {evidence}",
+        )
+
 if operation == "check":
-    current_release_path = state_dir / "current-release.env"
-    try:
-        current_payload, current_release = read_canonical_release(current_release_path)
-    except FileNotFoundError:
-        current_payload = None
-        current_release = None
-    if current_release is not None:
-        current_immutable_path = releases_dir / f"{current_release['TAG']}.env"
-        try:
-            current_immutable_payload, _ = read_canonical_release(current_immutable_path)
-        except FileNotFoundError:
-            raise SystemExit(
-                f"release tag {current_release['TAG']} was previously used but its immutable record is missing; "
-                f"evidence: {current_release_path}",
-            )
-        if current_payload != current_immutable_payload:
-            raise SystemExit(
-                f"current release pointer does not match its immutable per-tag record: {current_release_path}",
-            )
-
-    try:
-        read_existing_immutable_release(release_path)
-    except FileNotFoundError:
-        prior_evidence = []
-        if current_release is not None and current_release["TAG"] == tag:
-            prior_evidence.append(str(current_release_path))
-
-        release_log_path = state_dir / "releases.log"
-        try:
-            logged_tags = read_release_log_tags(release_log_path)
-        except FileNotFoundError:
-            logged_tags = set()
-        if tag in logged_tags:
-            prior_evidence.append(str(release_log_path))
-
-        if prior_evidence:
-            evidence = ", ".join(prior_evidence)
-            raise SystemExit(
-                f"release tag {tag} was previously used but its immutable record is missing; evidence: {evidence}",
-            )
     raise SystemExit(0)
 
 state_dir.mkdir(parents=True, exist_ok=True)
