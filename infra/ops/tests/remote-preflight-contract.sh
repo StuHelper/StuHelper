@@ -84,6 +84,7 @@ assert_contains "${PREFLIGHT_FILE}" 'stuhelper-postgres-basebackup\.service'
 assert_contains "${PREFLIGHT_FILE}" 'stuhelper-postgres-backup-sync\.service'
 assert_contains "${PREFLIGHT_FILE}" 'backup_service_common_environment=\('
 assert_contains "${PREFLIGHT_FILE}" '"ENV_FILE=\$\{REPO_ROOT\}/\.env\.prod\.shared"'
+assert_contains "${PREFLIGHT_FILE}" 'BACKUP_STAGING_DIR="\$\{BACKUP_STAGING_DIR:-/var/lib/stuhelper/postgres/backup-staging\}"'
 assert_contains "${PREFLIGHT_FILE}" 'expected_service_environment\+=\("BACKUP_STAGING_DIR=\$\{BACKUP_STAGING_DIR\}"\)'
 [[ "$(grep -c 'BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true' "${PREFLIGHT_FILE}")" == "1" ]] || \
   fail "remote preflight must require the off-host marker for every backup service"
@@ -102,6 +103,8 @@ ssl_gate_line="$(line_number "${PREFLIGHT_FILE}" 'require_production_postgres_ss
 public_ingress_config_preflight_line="$(line_number "${PREFLIGHT_FILE}" 'require_public_ingress_config_preflight')"
 public_ingress_preflight_line="$(line_number "${PREFLIGHT_FILE}" 'require_public_identity_ingress_preflight')"
 admission_public_smoke_line="$(line_number "${PREFLIGHT_FILE}" 'admission-public-smoke.sh')"
+backup_staging_default_line="$(line_number "${PREFLIGHT_FILE}" 'BACKUP_STAGING_DIR="${BACKUP_STAGING_DIR:-/var/lib/stuhelper/postgres/backup-staging}"')"
+backup_staging_use_line="$(line_number "${PREFLIGHT_FILE}" 'expected_service_environment+=("BACKUP_STAGING_DIR=${BACKUP_STAGING_DIR}")')"
 docker_info_line="$(line_number "${PREFLIGHT_FILE}" 'docker info >/dev/null')"
 pg_isready_line="$(line_number "${PREFLIGHT_FILE}" 'pg_isready -d "${BACKUP_DATABASE_URL}" -t 5')"
 public_dns_web_line="$(line_number "${COMMON_LIB_FILE}" 'require_public_dns_resolved "Web"')"
@@ -125,6 +128,9 @@ if (( public_ingress_preflight_line <= public_ingress_config_preflight_line )); 
 fi
 if (( public_ingress_preflight_line >= docker_info_line )); then
   fail "remote preflight must validate public SSO/admission ingress before Docker checks"
+fi
+if (( backup_staging_default_line >= backup_staging_use_line )); then
+  fail "remote preflight must define the installer-compatible backup staging default before comparing systemd environments"
 fi
 if (( admission_public_smoke_line <= public_ingress_preflight_line )); then
   fail "remote preflight admission public smoke must run after public SSO/admission ingress preflight"
