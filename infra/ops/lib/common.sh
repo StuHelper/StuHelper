@@ -557,6 +557,30 @@ require_safe_release_tag() {
   fi
 }
 
+acquire_production_deploy_lock() {
+  local state_mode path_identity fd_identity
+  require_cmd flock
+  mkdir -p -m 0700 "${DEPLOY_STATE_DIR}"
+  [[ -d "${DEPLOY_STATE_DIR}" && ! -L "${DEPLOY_STATE_DIR}" ]] ||
+    die "deployment state path must be a regular non-symlink directory: ${DEPLOY_STATE_DIR}"
+  [[ -O "${DEPLOY_STATE_DIR}" ]] ||
+    die "deployment state directory must be owned by the deploy user: ${DEPLOY_STATE_DIR}"
+  state_mode="$(stat -c '%a' "${DEPLOY_STATE_DIR}")"
+  [[ "${state_mode}" =~ ^[0-7]{3,4}$ ]] ||
+    die "unable to validate deployment state directory mode: ${DEPLOY_STATE_DIR}"
+  (((8#${state_mode} & 8#022) == 0)) ||
+    die "deployment state directory must not be group- or world-writable: ${DEPLOY_STATE_DIR}"
+
+  exec {PRODUCTION_DEPLOY_LOCK_FD}<"${DEPLOY_STATE_DIR}"
+  path_identity="$(stat -Lc '%d:%i' "${DEPLOY_STATE_DIR}")"
+  fd_identity="$(stat -Lc '%d:%i' "/proc/${BASHPID}/fd/${PRODUCTION_DEPLOY_LOCK_FD}")"
+  [[ "${path_identity}" == "${fd_identity}" ]] ||
+    die "deployment state directory changed while acquiring the production lock"
+  flock --exclusive --nonblock "${PRODUCTION_DEPLOY_LOCK_FD}" ||
+    die "another production deploy or rollback already holds the host deployment lock"
+  log "acquired the host production deployment lock"
+}
+
 new_deployment_attempt_id() {
   local attempt_id
   attempt_id="$(python3 - <<'PY'
