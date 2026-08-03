@@ -227,8 +227,8 @@ sudo bash infra/ops/bootstrap-ubuntu2404.sh
 runtime token 占位文件，以及 PostgreSQL 逻辑备份 / base backup / backup sync unit。若
 `/opt/stuhelper` 中尚无 deploy bundle，后备 timer 只写入 unit、不会启用或启动；上传首个 bundle、完成
 生产配置和 Vault 准备后，必须以 root 执行
-`BACKUP_TIMERS_ACTIVATE=true /opt/stuhelper/infra/ops/install-backup-timers.sh`。安装器先停用目标 timer、重置
-历史失败状态，再以非 root 部署用户运行 `remote-preflight.sh --timer-activation`；只有配置、Vault、对象
+`BACKUP_TIMERS_ACTIVATE=true /opt/stuhelper/infra/ops/install-backup-timers.sh`。安装器不会预先停用已有 timer
+或清除历史失败状态，而是先以非 root 部署用户运行 `remote-preflight.sh --timer-activation`；只有配置、Vault、对象
 存储和 unit 契约通过后才重新启用 timer，随后生产预检才会放行。Vault 初始化、
 解封并 seed 三条生产 secret ref 后，还必须由 root 执行
 `VAULT_ROOT_INIT_FILE=/var/lib/stuhelper/vault-credentials/init.json ./infra/ops/vault-runtime-token.sh configure`，

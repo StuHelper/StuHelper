@@ -207,7 +207,6 @@ assert_contains "${BACKUP_TIMER_INSTALLER}" '^TimeoutStartSec=12h$'
 [[ "$(grep -Ec '^ExecStart=/usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin .* BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true /bin/bash --noprofile --norc \./infra/ops/' "${BACKUP_TIMER_INSTALLER}")" == "3" ]] ||
   fail "backup timer installer must start all backup services with an allowlisted empty environment"
 assert_not_contains "${BACKUP_TIMER_INSTALLER}" 'ExecStart=/bin/bash -lc'
-assert_contains "${BACKUP_TIMER_INSTALLER}" 'systemctl reset-failed stuhelper-postgres-dump-backup\.service stuhelper-postgres-basebackup\.service stuhelper-postgres-backup-sync\.service'
 assert_contains "${BACKUP_TIMER_INSTALLER}" 'runuser -u "\$\{DEPLOY_USER\}" -- env -i'
 assert_contains "${BACKUP_TIMER_INSTALLER}" 'remote-preflight\.sh" --timer-activation'
 assert_contains "${BACKUP_TIMER_INSTALLER}" 'timers were not activated'
@@ -215,12 +214,12 @@ assert_contains "${BACKUP_TIMER_INSTALLER}" 'systemctl enable --now stuhelper-po
 assert_not_contains "${BACKUP_TIMER_INSTALLER}" 'SYSTEMD_PREFIX'
 
 inactive_guard_line="$(line_number "${BACKUP_TIMER_INSTALLER}" 'if [[ "${BACKUP_TIMERS_ACTIVATE}" != "true" ]]')"
-disable_timer_line="$(line_number "${BACKUP_TIMER_INSTALLER}" 'systemctl disable --now stuhelper-postgres-dump-backup.timer')"
-reset_service_line="$(line_number "${BACKUP_TIMER_INSTALLER}" 'systemctl reset-failed stuhelper-postgres-dump-backup.service')"
 activation_preflight_line="$(line_number "${BACKUP_TIMER_INSTALLER}" 'remote-preflight.sh" --timer-activation')"
 enable_timer_line="$(line_number "${BACKUP_TIMER_INSTALLER}" 'systemctl enable --now stuhelper-postgres-dump-backup.timer')"
-if (( inactive_guard_line >= disable_timer_line || disable_timer_line >= reset_service_line || reset_service_line >= activation_preflight_line || activation_preflight_line >= enable_timer_line )); then
+if (( inactive_guard_line >= activation_preflight_line || activation_preflight_line >= enable_timer_line )); then
   fail "backup timers must remain untouched by default and pass the non-root activation preflight before enablement"
 fi
+assert_not_contains "${BACKUP_TIMER_INSTALLER}" 'systemctl disable --now stuhelper-postgres-dump-backup\.timer'
+assert_not_contains "${BACKUP_TIMER_INSTALLER}" 'systemctl reset-failed stuhelper-postgres-dump-backup\.service'
 
 echo "[bootstrap-ubuntu2404-contract] all assertions passed"
