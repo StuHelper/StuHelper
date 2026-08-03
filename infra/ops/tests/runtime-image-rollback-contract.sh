@@ -48,6 +48,12 @@ warn() {
 require_safe_release_tag() {
   [[ "${1:-}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]] || die "release tag must be 1-128 characters"
 }
+require_digest_image_ref() {
+  local key="$1"
+  local value="${2:-}"
+  [[ "${value}" =~ ^[^[:space:]@]+@sha256:[0-9a-f]{64}$ ]] ||
+    die "${key} must be a complete image@sha256 digest reference"
+}
 load_env() {
   if [[ -n "${ROLLBACK_LOAD_ENV_OBSERVED_FILE:-}" ]]; then
     printf 'loaded\n' >"${ROLLBACK_LOAD_ENV_OBSERVED_FILE}"
@@ -60,6 +66,7 @@ load_env() {
 source_release_record_env_file() {
   local file="$1"
   local expected_tag="$2"
+  local allow_legacy_image_refs="${3:-false}"
   local key value
   local -A seen=()
   unset TAG DEPLOYED_AT BACKEND_IMAGE_REF FRONTEND_IMAGE_REF ADMIN_IMAGE_REF
@@ -74,13 +81,18 @@ source_release_record_env_file() {
     [[ -n "${!key:-}" ]] || die "missing release record key ${key}"
   done
   [[ "${TAG}" == "${expected_tag}" ]] || die "release record TAG does not match rollback target"
+  if [[ "${allow_legacy_image_refs}" != "true" ]]; then
+    [[ "${BACKEND_IMAGE_REF}" =~ @sha256:[0-9a-f]{64}$ ]] || die "BACKEND_IMAGE_REF must be a complete image@sha256 digest reference"
+    [[ "${FRONTEND_IMAGE_REF}" =~ @sha256:[0-9a-f]{64}$ ]] || die "FRONTEND_IMAGE_REF must be a complete image@sha256 digest reference"
+    [[ "${ADMIN_IMAGE_REF}" =~ @sha256:[0-9a-f]{64}$ ]] || die "ADMIN_IMAGE_REF must be a complete image@sha256 digest reference"
+  fi
 }
 resolve_previous_release_tag() {
   return 1
 }
 EOF
 
-grep -qF 'source_release_record_env_file "${release_file}" "${target_tag}"' "${ROLLBACK_SCRIPT}" ||
+grep -qF '"${allow_legacy_record_images}"' "${ROLLBACK_SCRIPT}" ||
   fail "rollback release records must use their exact target-bound loader"
 if grep -qF 'source "${release_file}"' "${ROLLBACK_SCRIPT}"; then
   fail "rollback release records must not be raw-sourced"
@@ -115,6 +127,13 @@ if [[ -n "${RUNTIME_IMAGE_ROLLBACK_RELEASE_RECORD:-}" ]]; then
   printf '%s\n' "${ROLLBACK_REVIEW_AUDIT_ID}" >"${ROLLBACK_DEPLOY_OBSERVED_FILE}"
 else
   printf 'none\n' >"${ROLLBACK_DEPLOY_OBSERVED_FILE}"
+fi
+if [[ -n "${ROLLBACK_DEPLOY_IMAGE_REFS_FILE:-}" ]]; then
+  printf '%s\n%s\n%s\n' \
+    "${BACKEND_IMAGE_REF}" \
+    "${FRONTEND_IMAGE_REF}" \
+    "${ADMIN_IMAGE_REF}" \
+    >"${ROLLBACK_DEPLOY_IMAGE_REFS_FILE}"
 fi
 EOF
 chmod +x "${fixture_repo}/infra/ops/prod-deploy.sh"
@@ -155,6 +174,23 @@ grep -q 'release tag must be 1-128 characters' "${fixture_root}/unsafe-inherited
   fail "rollback did not report the canonical inherited TAG constraint"
 [[ ! -e "${unsafe_inherited_tag_observed_file}" ]] ||
   fail "unsafe inherited TAG loaded secret-backed environment state"
+
+partial_override_load_observed="${fixture_root}/partial-override-load-observed"
+if VALIDATOR_CURRENT_OK=true \
+  DEPLOY_STATE_DIR="${fixture_state}" \
+  ROLLBACK_TAG=contract-partial \
+  ROLLBACK_BACKEND_IMAGE_REF="${backend_ref}" \
+  ROLLBACK_LOAD_ENV_OBSERVED_FILE="${partial_override_load_observed}" \
+  ROLLBACK_DEPLOY_OBSERVED_FILE="${fixture_root}/partial-override-deploy-observed" \
+  "${fixture_repo}/infra/ops/prod-rollback.sh" \
+  >"${fixture_root}/partial-override.out" 2>"${fixture_root}/partial-override.err"; then
+  fail "rollback accepted an incomplete image override tuple"
+fi
+grep -q 'rollback image override requires backend, frontend, and admin digest references together' \
+  "${fixture_root}/partial-override.err" ||
+  fail "partial rollback override did not report the complete-tuple requirement"
+[[ ! -e "${partial_override_load_observed}" ]] ||
+  fail "partial rollback override loaded secret-backed environment state"
 
 cat >"${fixture_state}/releases/${target_tag}.env" <<EOF
 TAG=${target_tag}
@@ -201,6 +237,44 @@ if VALIDATOR_CURRENT_OK=true \
 fi
 grep -q 'TAG does not match rollback target' "${fixture_root}/mismatched.err" ||
   fail "rollback record tag mismatch did not report the target binding"
+
+legacy_tag="legacy-release"
+cat >"${fixture_state}/releases/${legacy_tag}.env" <<EOF
+TAG=${legacy_tag}
+DEPLOYED_AT=2026-07-30T12:00:00Z
+BACKEND_IMAGE_REF=ghcr.io/stuhelper/backend:legacy
+FRONTEND_IMAGE_REF=ghcr.io/stuhelper/frontend:legacy
+ADMIN_IMAGE_REF=ghcr.io/stuhelper/admin:legacy
+EOF
+if VALIDATOR_CURRENT_OK=true \
+  DEPLOY_STATE_DIR="${fixture_state}" \
+  ROLLBACK_TAG="${legacy_tag}" \
+  ROLLBACK_DEPLOY_OBSERVED_FILE="${fixture_root}/legacy-without-overrides-observed" \
+  "${fixture_repo}/infra/ops/prod-rollback.sh" \
+  >"${fixture_root}/legacy-without-overrides.out" 2>"${fixture_root}/legacy-without-overrides.err"; then
+  fail "rollback accepted legacy mutable image refs without a verified override tuple"
+fi
+grep -q 'BACKEND_IMAGE_REF must be a complete image@sha256 digest reference' \
+  "${fixture_root}/legacy-without-overrides.err" ||
+  fail "legacy rollback without overrides did not retain the immutable-image gate"
+
+legacy_refs_observed="${fixture_root}/legacy-refs-observed"
+VALIDATOR_CURRENT_OK=true \
+DEPLOY_STATE_DIR="${fixture_state}" \
+ROLLBACK_TAG="${legacy_tag}" \
+ROLLBACK_BACKEND_IMAGE_REF="${backend_ref}" \
+ROLLBACK_FRONTEND_IMAGE_REF="${frontend_ref}" \
+ROLLBACK_ADMIN_IMAGE_REF="${admin_ref}" \
+ROLLBACK_DEPLOY_OBSERVED_FILE="${fixture_root}/legacy-deploy-observed" \
+ROLLBACK_DEPLOY_IMAGE_REFS_FILE="${legacy_refs_observed}" \
+  "${fixture_repo}/infra/ops/prod-rollback.sh" >/dev/null
+cat >"${fixture_root}/expected-legacy-refs" <<EOF
+${backend_ref}
+${frontend_ref}
+${admin_ref}
+EOF
+cmp -s "${fixture_root}/expected-legacy-refs" "${legacy_refs_observed}" ||
+  fail "verified rollback overrides did not replace all legacy image refs before deployment"
 
 reason="incident rollback to a previously successful immutable release"
 reason_b64="$(python3 - "${reason}" <<'PY'

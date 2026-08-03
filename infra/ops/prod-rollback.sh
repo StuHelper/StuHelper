@@ -20,6 +20,19 @@ requested_backend_image_ref="${ROLLBACK_BACKEND_IMAGE_REF:-}"
 requested_frontend_image_ref="${ROLLBACK_FRONTEND_IMAGE_REF:-}"
 requested_admin_image_ref="${ROLLBACK_ADMIN_IMAGE_REF:-}"
 
+override_count=0
+[[ -n "${requested_backend_image_ref}" ]] && ((override_count += 1))
+[[ -n "${requested_frontend_image_ref}" ]] && ((override_count += 1))
+[[ -n "${requested_admin_image_ref}" ]] && ((override_count += 1))
+if ((override_count != 0 && override_count != 3)); then
+  die "rollback image override requires backend, frontend, and admin digest references together"
+fi
+if ((override_count == 3)); then
+  require_digest_image_ref ROLLBACK_BACKEND_IMAGE_REF "${requested_backend_image_ref}"
+  require_digest_image_ref ROLLBACK_FRONTEND_IMAGE_REF "${requested_frontend_image_ref}"
+  require_digest_image_ref ROLLBACK_ADMIN_IMAGE_REF "${requested_admin_image_ref}"
+fi
+
 load_env
 
 current_tag="${TAG:-}"
@@ -45,14 +58,6 @@ print(f"{image}:{tag}")
 PY
 }
 
-override_count=0
-[[ -n "${requested_backend_image_ref}" ]] && ((override_count += 1))
-[[ -n "${requested_frontend_image_ref}" ]] && ((override_count += 1))
-[[ -n "${requested_admin_image_ref}" ]] && ((override_count += 1))
-if ((override_count != 0 && override_count != 3)); then
-  die "rollback image override requires backend, frontend, and admin digest references together"
-fi
-
 if [[ -z "${target_tag}" ]]; then
   target_tag="$(resolve_previous_release_tag "${current_tag:-}")" || die "unable to resolve previous release tag; set ROLLBACK_TAG manually"
 fi
@@ -60,7 +65,12 @@ require_safe_release_tag "${target_tag}"
 
 release_file="${DEPLOY_STATE_DIR}/releases/${target_tag}.env"
 if [[ -f "${release_file}" ]]; then
-  source_release_record_env_file "${release_file}" "${target_tag}"
+  allow_legacy_record_images=false
+  ((override_count == 3)) && allow_legacy_record_images=true
+  source_release_record_env_file \
+    "${release_file}" \
+    "${target_tag}" \
+    "${allow_legacy_record_images}"
 else
   BACKEND_IMAGE_REF="$(derive_tagged_image_ref "${BACKEND_IMAGE_REF:-}" "${target_tag}" || true)"
   FRONTEND_IMAGE_REF="$(derive_tagged_image_ref "${FRONTEND_IMAGE_REF:-}" "${target_tag}" || true)"

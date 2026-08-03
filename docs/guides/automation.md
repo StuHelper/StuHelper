@@ -395,7 +395,7 @@ GitHub `Rollback` 手工作业选择 `staging` 或 `production` environment，�
 make prod-rollback
 ```
 
-远端 CI 部署/回滚要求显式发布标识；直接部署在读取到调用方 `TAG` 时立即校验，并在从镜像 digest 推导默认值后再次校验。标识必须为 1–128 个 ASCII 字母、数字、点、下划线或连字符且以字母/数字开头，非法值会在 Docker 登录、配置/凭据物化、渲染、拉镜像和备份路径构造前失败。成功发布记录先以 `0600` 临时文件写入并 `fsync`，再通过同目录原子 hard link 仅创建一次 `releases/<TAG>.env`，绝不替换已经存在的版本记录。重复激活同一 tag 时，只接受字段完整且三个 digest 与原记录逐字一致的文件，沿用其原始 `DEPLOYED_AT` 更新 `current-release.env`，并用追加索引记录本次激活时间；相同 tag 对应不同镜像会失败关闭。回滚在构造 `releases/<target>.env` 前使用同一标识校验，读取版本记录时会先清除当前环境里的镜像引用，并要求 `TAG`、`DEPLOYED_AT`、backend/frontend/admin 三个 digest 字段各出现一次、非空且 `TAG` 与目标完全一致；截断、重复字段、错标签或混入当前版本引用都会失败关闭。
+远端 CI 部署/回滚要求显式发布标识；直接部署在读取到调用方 `TAG` 时立即校验，并在从镜像 digest 推导默认值后再次校验。标识必须为 1–128 个 ASCII 字母、数字、点、下划线或连字符且以字母/数字开头，非法值会在 Docker 登录、配置/凭据物化、渲染、拉镜像和备份路径构造前失败。成功发布记录先以 `0600` 临时文件写入并 `fsync`，再通过同目录原子 hard link 仅创建一次 `releases/<TAG>.env`，绝不替换已经存在的版本记录。重复激活同一 tag 时，只接受字段完整且三个 digest 与原记录逐字一致的文件，沿用其原始 `DEPLOYED_AT` 更新 `current-release.env`，并用追加索引记录本次激活时间；相同 tag 对应不同镜像会失败关闭。回滚在构造 `releases/<target>.env` 前使用同一标识校验，读取版本记录时会先清除当前环境里的镜像引用，并要求 `TAG`、`DEPLOYED_AT`、backend/frontend/admin 字段各出现一次、非空且 `TAG` 与目标完全一致；截断、重复字段、错标签或混入当前版本引用都会失败关闭。新式记录的三个镜像字段必须是摘要。兼容旧版可变引用记录时，只有调用方在读取 secret-backed 环境之前同时提供并通过校验的三条 `ROLLBACK_*_IMAGE_REF=image@sha256:...` 才允许读取旧字段，且旧值会立刻被完整摘要 tuple 覆盖；缺一条、摘要格式错误或试图把旧记录用作过期扫描窗口的历史不可变证据仍会失败关闭。
 
 ## Ansible 入口
 

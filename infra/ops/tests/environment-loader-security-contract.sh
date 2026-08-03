@@ -147,6 +147,19 @@ fi
 grep -q 'BACKEND_IMAGE_REF must be a complete image@sha256 digest reference' "${tmpdir}/release-mutable-image.log" ||
   fail "mutable release image rejection did not identify the digest requirement"
 
+source_release_record_env_file \
+  "${tmpdir}/release-mutable-image.env" \
+  contract-release \
+  true
+[[ "${BACKEND_IMAGE_REF}" == "ghcr.io/stuhelper/backend:sha-contract" ]] ||
+  fail "explicit legacy release parsing changed the historical backend reference before override"
+if (source_release_record_env_file "${tmpdir}/release-mutable-image.env" contract-release maybe) \
+  >"${tmpdir}/release-invalid-legacy-mode.log" 2>&1; then
+  fail "release record loader accepted an invalid legacy parsing mode"
+fi
+grep -q 'allow_legacy_image_refs must be true or false' "${tmpdir}/release-invalid-legacy-mode.log" ||
+  fail "invalid legacy release parsing mode was not reported"
+
 cat >"${tmpdir}/release-missing.env" <<EOF
 TAG=contract-release
 DEPLOYED_AT=2026-08-03T00:00:00Z

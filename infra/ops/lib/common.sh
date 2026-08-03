@@ -537,6 +537,7 @@ require_safe_release_tag() {
 source_release_record_env_file() {
   local file="$1"
   local expected_tag="${2:-}"
+  local allow_legacy_image_refs="${3:-false}"
   local diagnostic
   local key
   local -a required_keys=(
@@ -550,6 +551,10 @@ source_release_record_env_file() {
   if [[ -n "${expected_tag}" ]]; then
     require_safe_release_tag "${expected_tag}"
   fi
+  case "${allow_legacy_image_refs}" in
+    true | false) ;;
+    *) die "allow_legacy_image_refs must be true or false" ;;
+  esac
   clear_process_control_environment
   if ! diagnostic="$(python3 - "${file}" "${required_keys[@]}" 2>&1 <<'PY'
 import re
@@ -596,9 +601,11 @@ PY
     fi
   done
   require_safe_release_tag "${TAG}"
-  require_digest_image_ref BACKEND_IMAGE_REF "${BACKEND_IMAGE_REF}"
-  require_digest_image_ref FRONTEND_IMAGE_REF "${FRONTEND_IMAGE_REF}"
-  require_digest_image_ref ADMIN_IMAGE_REF "${ADMIN_IMAGE_REF}"
+  if [[ "${allow_legacy_image_refs}" != "true" ]]; then
+    require_digest_image_ref BACKEND_IMAGE_REF "${BACKEND_IMAGE_REF}"
+    require_digest_image_ref FRONTEND_IMAGE_REF "${FRONTEND_IMAGE_REF}"
+    require_digest_image_ref ADMIN_IMAGE_REF "${ADMIN_IMAGE_REF}"
+  fi
   if [[ -n "${expected_tag}" && "${TAG}" != "${expected_tag}" ]]; then
     die "${file}: release record TAG does not match rollback target ${expected_tag}"
   fi
