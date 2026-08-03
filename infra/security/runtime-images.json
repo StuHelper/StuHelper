@@ -566,9 +566,13 @@
       "owner": "platform-security",
       "assessed_on": "2026-08-03",
       "review_by": "2026-08-10",
-      "impact_statement": "The image embeds commit 6876c6196aeb, which is 304 commits ahead of the token-exchange fix; Trivy cannot order Casdoor's embedded pseudo-version against product release 2.387.0.",
+      "impact_statement": "The image provenance binds the build to GitHub Actions run 30801120328 and commit 6876c6196aeb. Reproducing the Dockerfile's TestGetVersionInfo step changes only util/variable.go version metadata before the build; it does not modify the vulnerable token-exchange path. The commit is 304 commits ahead of the fix, while Trivy cannot order the resulting dirty pseudo-version against product release 2.387.0.",
       "evidence": [
         "https://github.com/casdoor/casdoor/compare/d92b8568686d...6876c6196aeb",
+        "https://github.com/casdoor/casdoor/actions/runs/30801120328",
+        "https://github.com/casdoor/casdoor/blob/6876c6196aeb537c5bd109f34d4fee13549da9f9/Dockerfile#L15-L22",
+        "https://github.com/casdoor/casdoor/blob/6876c6196aeb537c5bd109f34d4fee13549da9f9/util/system_test.go#L48-L78",
+        "https://hub.docker.com/layers/casbin/casdoor/latest/images/sha256-a4c2f995fe0b120bd714d8b6b05392142b89dc7f9c15e240b85daea2a6c82e52",
         "https://osv.dev/vulnerability/GHSA-c9w5-qp6m-m395"
       ],
       "finding": {
@@ -586,9 +590,13 @@
       "owner": "platform-security",
       "assessed_on": "2026-08-03",
       "review_by": "2026-08-10",
-      "impact_statement": "The image embeds commit 6876c6196aeb, which is 789 commits ahead of the authorization fix; Trivy cannot order Casdoor's embedded pseudo-version against product release 2.63.0.",
+      "impact_statement": "The image provenance binds the build to GitHub Actions run 30801120328 and commit 6876c6196aeb. Reproducing the Dockerfile's TestGetVersionInfo step changes only util/variable.go version metadata before the build; it does not modify the vulnerable authorization path. The commit is 789 commits ahead of the fix, while Trivy cannot order the resulting dirty pseudo-version against product release 2.63.0.",
       "evidence": [
         "https://github.com/casdoor/casdoor/compare/d883db907bb6e0b95737ef8e8b57b7da9078cbdd...6876c6196aeb",
+        "https://github.com/casdoor/casdoor/actions/runs/30801120328",
+        "https://github.com/casdoor/casdoor/blob/6876c6196aeb537c5bd109f34d4fee13549da9f9/Dockerfile#L15-L22",
+        "https://github.com/casdoor/casdoor/blob/6876c6196aeb537c5bd109f34d4fee13549da9f9/util/system_test.go#L48-L78",
+        "https://hub.docker.com/layers/casbin/casdoor/latest/images/sha256-a4c2f995fe0b120bd714d8b6b05392142b89dc7f9c15e240b85daea2a6c82e52",
         "https://nvd.nist.gov/vuln/detail/CVE-2025-61524"
       ],
       "finding": {
