@@ -166,7 +166,7 @@ backup_timer_calendars=(
 backup_service_start_timeouts=(
   "4h"
   "12h"
-  "10min"
+  "12h"
 )
 backup_service_common_environment=(
   "ENV_FILE=${REPO_ROOT}/.env.prod.shared"
