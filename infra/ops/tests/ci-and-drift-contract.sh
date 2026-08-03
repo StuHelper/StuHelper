@@ -17,7 +17,7 @@ CLIENTS_DOCKERIGNORE="${REPO_ROOT}/clients/.dockerignore"
 CLIENTS_PACKAGE="${REPO_ROOT}/clients/package.json"
 CLIENTS_WORKSPACE="${REPO_ROOT}/clients/pnpm-workspace.yaml"
 ADMIN_WORKSPACE="${REPO_ROOT}/clients/admin/pnpm-workspace.yaml"
-BRACE_EXPANSION_PATCH="${REPO_ROOT}/clients/patches/npm/brace-expansion@5.0.8.patch"
+BRACE_EXPANSION_PATCH="${REPO_ROOT}/clients/patches/npm/brace-expansion@5.0.9.patch"
 NODE_VERSION_FILE="${REPO_ROOT}/.node-version"
 NVMRC_FILE="${REPO_ROOT}/.nvmrc"
 
@@ -209,10 +209,10 @@ assert_contains "${SECRET_SCAN_SCRIPT}" '--platform github'
 assert_contains "${SECRET_SCAN_SCRIPT}" '--redact=100'
 assert_not_contains "${SECRET_SCAN_SCRIPT}" 'gitleaks detect'
 assert_contains "${CLIENTS_PACKAGE}" '"test:all": "pnpm run check:dependency-compat .*pnpm run test:admin"'
-assert_contains "${CLIENTS_WORKSPACE}" 'brace-expansion@<5\.0\.8: 5\.0\.8'
-assert_contains "${CLIENTS_WORKSPACE}" 'brace-expansion@5\.0\.8: patches/npm/brace-expansion@5\.0\.8\.patch'
-assert_contains "${ADMIN_WORKSPACE}" 'brace-expansion@<5\.0\.8: 5\.0\.8'
-assert_contains "${ADMIN_WORKSPACE}" 'brace-expansion@5\.0\.8: \.\./patches/npm/brace-expansion@5\.0\.8\.patch'
+assert_contains "${CLIENTS_WORKSPACE}" 'brace-expansion@<5\.0\.9: 5\.0\.9'
+assert_contains "${CLIENTS_WORKSPACE}" 'brace-expansion@5\.0\.9: patches/npm/brace-expansion@5\.0\.9\.patch'
+assert_contains "${ADMIN_WORKSPACE}" 'brace-expansion@<5\.0\.9: 5\.0\.9'
+assert_contains "${ADMIN_WORKSPACE}" 'brace-expansion@5\.0\.9: \.\./patches/npm/brace-expansion@5\.0\.9\.patch'
 assert_contains "${BRACE_EXPANSION_PATCH}" 'module\.exports = Object\.assign\(expand, exports, \{ default: expand \}\);'
 assert_contains "${BRACE_EXPANSION_PATCH}" '^\+export default expand;$'
 assert_contains "${ROOT_MAKEFILE}" '^check-infra-contracts:$'
