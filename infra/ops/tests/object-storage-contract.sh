@@ -7,6 +7,7 @@ RENDER_CONFIG="${REPO_ROOT}/infra/ops/render-local-object-storage-config.sh"
 RENDER_TLS="${REPO_ROOT}/infra/ops/render-object-storage-tls.sh"
 PREPARE_CLIENT_CA="${REPO_ROOT}/infra/ops/prepare-object-storage-client-ca.sh"
 RCLONE_HELPER="${REPO_ROOT}/infra/ops/lib/rclone-object-storage.sh"
+COMMON_LIB="${REPO_ROOT}/infra/ops/lib/common.sh"
 SYNC_BACKUPS="${REPO_ROOT}/infra/ops/sync-postgres-backups.sh"
 FETCH_BACKUPS="${REPO_ROOT}/infra/ops/fetch-postgres-backups.sh"
 SCHEDULED_BACKUP="${REPO_ROOT}/infra/ops/run-scheduled-backup.sh"
@@ -622,6 +623,7 @@ assert_contains "${SYNC_BACKUPS}" 'load_env_preserving BACKUP_OBJECT_STORAGE_OFF
 assert_contains "${SYNC_BACKUPS}" 'require_off_host_backup_object_storage'
 assert_contains "${SYNC_BACKUPS}" 'APP_ENV:-.*production'
 assert_contains "${SYNC_BACKUPS}" 'unset BACKUP_OBJECT_STORAGE_PINNED_HOSTS'
+assert_contains "${SYNC_BACKUPS}" 'require_live_postgres_wal_archive_volume'
 assert_contains "${FETCH_BACKUPS}" 'load_env_preserving \\'
 assert_contains "${FETCH_BACKUPS}" 'BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED \\'
 assert_contains "${FETCH_BACKUPS}" 'LOCAL_STATE_DIR \\'
@@ -647,6 +649,79 @@ assert_not_contains "${SYNC_BACKUPS}" '(^|[[:space:]])sync([[:space:]]|$)'
 assert_not_contains "${FETCH_BACKUPS}" '(^|[[:space:]])sync([[:space:]]|$)'
 assert_not_contains "${SYNC_BACKUPS}" 'minio|MC_HOST|mc mirror'
 assert_not_contains "${FETCH_BACKUPS}" 'minio|MC_HOST|mc mirror'
+
+if ! bash -c '
+  set -euo pipefail
+  source "$1"
+  docker() {
+    if [[ "$1" == volume && "$2" == inspect && "$3" == contract-postgres-wal-archive ]]; then
+      return 0
+    fi
+    if [[ "$1" == container && "$2" == inspect && "$3" == --format && "$5" == contract-postgres ]]; then
+      case "$4" in
+        "{{.State.Running}}") printf "%s\n" true ;;
+        "{{json .Mounts}}") printf "%s\n" "[{\"Type\":\"volume\",\"Name\":\"contract-postgres-wal-archive\",\"Destination\":\"/var/lib/postgresql/wal-archive\",\"RW\":true}]" ;;
+        *) return 90 ;;
+      esac
+      return 0
+    fi
+    return 90
+  }
+  require_live_postgres_wal_archive_volume contract-postgres-wal-archive contract-postgres
+' bash "${COMMON_LIB}"; then
+  fail "the live WAL volume validator rejected the actual PostgreSQL archive mount"
+fi
+
+if bash -c '
+  set -euo pipefail
+  source "$1"
+  docker() {
+    if [[ "$1" == volume && "$2" == inspect ]]; then
+      return 1
+    fi
+    return 90
+  }
+  require_live_postgres_wal_archive_volume missing-wal-volume contract-postgres
+' bash "${COMMON_LIB}" >"${tmpdir}/missing-wal-volume.out" 2>"${tmpdir}/missing-wal-volume.err"; then
+  fail "the live WAL volume validator accepted a missing volume"
+fi
+grep -q 'refusing to let Docker create an empty backup source' "${tmpdir}/missing-wal-volume.err" ||
+  fail "missing WAL volume rejection did not explain the empty-volume risk"
+
+if bash -c '
+  set -euo pipefail
+  source "$1"
+  docker() {
+    if [[ "$1" == volume && "$2" == inspect ]]; then
+      return 0
+    fi
+    if [[ "$1" == container && "$2" == inspect && "$3" == --format ]]; then
+      case "$4" in
+        "{{.State.Running}}") printf "%s\n" true ;;
+        "{{json .Mounts}}") printf "%s\n" "[{\"Type\":\"volume\",\"Name\":\"different-wal-volume\",\"Destination\":\"/var/lib/postgresql/wal-archive\",\"RW\":true}]" ;;
+        *) return 90 ;;
+      esac
+      return 0
+    fi
+    return 90
+  }
+  require_live_postgres_wal_archive_volume configured-wal-volume contract-postgres
+' bash "${COMMON_LIB}" >"${tmpdir}/mismatched-wal-volume.out" 2>"${tmpdir}/mismatched-wal-volume.err"; then
+  fail "the live WAL volume validator accepted a volume not mounted by PostgreSQL"
+fi
+grep -q 'is not the writable WAL archive mounted by contract-postgres' "${tmpdir}/mismatched-wal-volume.err" ||
+  fail "mismatched WAL volume rejection did not report the live-container boundary"
+
+python3 - "${SYNC_BACKUPS}" <<'PY'
+import sys
+from pathlib import Path
+
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+validation = source.index("require_live_postgres_wal_archive_volume")
+first_transfer = source.index("run_backup_object_storage_rclone", validation)
+if validation >= first_transfer:
+    raise SystemExit("live WAL volume validation must precede every backup transfer")
+PY
 
 if ! python3 - "${FETCH_BACKUPS}" <<'PY'
 from pathlib import Path

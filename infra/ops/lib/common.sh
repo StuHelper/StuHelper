@@ -441,6 +441,54 @@ PY
 LOCAL_STATE_DIR="${LOCAL_STATE_DIR:-$(default_local_state_dir)}"
 POSTGRES_WAL_RESTORE_DIR="${POSTGRES_WAL_RESTORE_DIR:-${LOCAL_STATE_DIR}/postgres/wal-restore}"
 
+require_live_postgres_wal_archive_volume() {
+  local volume_name="$1"
+  local postgres_container="${2:-${STACK_NAME:-stuhelper}-postgres}"
+  local container_running
+  local mounts_json
+
+  require_cmd docker
+  require_cmd python3
+  [[ -n "${volume_name}" ]] || die "PostgreSQL WAL archive volume name must not be empty"
+  [[ -n "${postgres_container}" ]] || die "PostgreSQL container name must not be empty"
+
+  if ! docker volume inspect "${volume_name}" >/dev/null 2>&1; then
+    die "PostgreSQL WAL archive volume ${volume_name} does not exist; refusing to let Docker create an empty backup source"
+  fi
+  if ! container_running="$(docker container inspect --format '{{.State.Running}}' "${postgres_container}" 2>/dev/null)"; then
+    die "failed to inspect production PostgreSQL container ${postgres_container}"
+  fi
+  [[ "${container_running}" == "true" ]] ||
+    die "production PostgreSQL container ${postgres_container} is not running"
+  if ! mounts_json="$(docker container inspect --format '{{json .Mounts}}' "${postgres_container}" 2>/dev/null)"; then
+    die "failed to inspect mounts for production PostgreSQL container ${postgres_container}"
+  fi
+
+  if ! python3 - "${volume_name}" "${mounts_json}" <<'PY'
+import json
+import sys
+
+volume_name = sys.argv[1]
+try:
+    mounts = json.loads(sys.argv[2])
+except (json.JSONDecodeError, TypeError):
+    raise SystemExit(1)
+
+matches = [
+    mount
+    for mount in mounts
+    if mount.get("Type") == "volume"
+    and mount.get("Name") == volume_name
+    and mount.get("Destination") == "/var/lib/postgresql/wal-archive"
+    and mount.get("RW") is True
+]
+raise SystemExit(0 if len(matches) == 1 else 1)
+PY
+  then
+    die "volume ${volume_name} is not the writable WAL archive mounted by ${postgres_container}; refusing backup sync"
+  fi
+}
+
 require_backup_object_storage_config() {
   local missing=()
   local key
