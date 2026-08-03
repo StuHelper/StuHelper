@@ -140,9 +140,11 @@ sudo ./infra/ops/install-backup-timers.sh
 失败关闭，并拒绝单标签 Compose 服务名、旧式缩写数字 IPv4、带 zone identifier 的 IPv6 及解析到本机接口的 FQDN。使用 virtual-hosted S3 时，门禁会分别解析、校验并固定 endpoint 与 `bucket.endpoint`；bucket 必须能组成合法的小写 ASCII DNS 主机名，不能让实际传输绕过基础 endpoint 的验证。生产备份
 systemd service 也固定要求这项门禁，不能由共享 env 将要求降级；配置漂移后定时同步会失败并留给
 systemd/告警处理，而不是继续把同机副本计作灾备。升级已有节点后须由 root 重新运行
-`./infra/ops/install-backup-timers.sh`；预检会把三个 service 的有效 `Environment` 与安装器定义的
-最小字段集合精确比对，额外的 `LD_PRELOAD`、`PYTHONPATH`、`PATH` 等进程控制变量会失败关闭；同时拒绝可经
-`EnvironmentFile=`、`UnsetEnvironment=` 或 `PassEnvironment=` 改写保护标记的 unit/drop-in，不能继续使用缺少或可降级门禁的旧单元。
+`./infra/ops/install-backup-timers.sh`；预检会把三个 service 的有效 `Environment`、pre-exec
+`UnsetEnvironment` 与安装器定义精确比对。服务先清除动态加载器变量，再以 `env -i` 丢弃 manager
+defaults 和其他继承环境，只传固定 `PATH`、配置路径与异机门禁；额外的 `LD_PRELOAD`、`PYTHONPATH`、`PATH`
+等进程控制变量会失败关闭。预检同时拒绝 `EnvironmentFile=`、`PassEnvironment=` 以及不精确的
+`UnsetEnvironment=` unit/drop-in，不能继续使用缺少或可降级门禁的旧单元。
 
 生产主机位于 1:1 NAT、hairpin LB 或公网边缘之后时，还必须把所有能路由回本机的地址/CIDR 写入
 `BACKUP_OBJECT_STORAGE_LOCAL_IDENTITY_CIDRS`；无额外身份时显式写 `none`。该清单用于补足
