@@ -229,8 +229,6 @@ EOF
     echo "[install-backup-timers][error] runuser is required for non-root activation preflight" >&2
     exit 1
   }
-  systemctl disable --now stuhelper-postgres-dump-backup.timer stuhelper-postgres-basebackup.timer stuhelper-postgres-backup-sync.timer
-  systemctl reset-failed stuhelper-postgres-dump-backup.service stuhelper-postgres-basebackup.service stuhelper-postgres-backup-sync.service
   runuser -u "${DEPLOY_USER}" -- env -i \
     PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
     ENV_FILE="${DEPLOY_APP_DIR}/.env.prod.shared" \
