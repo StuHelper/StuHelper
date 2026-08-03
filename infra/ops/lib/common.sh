@@ -1818,6 +1818,7 @@ record_release() {
     "${ADMIN_IMAGE_REF:-}" <<'PY'
 import os
 import re
+import stat
 import sys
 import tempfile
 from pathlib import Path
@@ -1847,10 +1848,18 @@ for key in ("BACKEND_IMAGE_REF", "FRONTEND_IMAGE_REF", "ADMIN_IMAGE_REF"):
 releases_dir = state_dir / "releases"
 state_dir.mkdir(parents=True, exist_ok=True)
 releases_dir.mkdir(parents=True, exist_ok=True)
-payload = "".join(f"{key}={value}\n" for key, value in values.items()).encode()
+candidate_payload = "".join(f"{key}={value}\n" for key, value in values.items()).encode()
 
 
-def atomic_write(path: Path) -> None:
+def fsync_directory(path: Path) -> None:
+    directory_fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(directory_fd)
+    finally:
+        os.close(directory_fd)
+
+
+def stage_payload(path: Path, payload: bytes) -> Path:
     fd, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
     temporary_path = Path(temporary_name)
     try:
@@ -1859,12 +1868,7 @@ def atomic_write(path: Path) -> None:
             stream.write(payload)
             stream.flush()
             os.fsync(stream.fileno())
-        os.replace(temporary_path, path)
-        directory_fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
-        try:
-            os.fsync(directory_fd)
-        finally:
-            os.close(directory_fd)
+        return temporary_path
     except BaseException:
         try:
             os.close(fd)
@@ -1874,10 +1878,86 @@ def atomic_write(path: Path) -> None:
         raise
 
 
-# Publish the immutable per-release record first. A crash before the current
-# pointer or append-only index is updated cannot expose a partial record.
-atomic_write(releases_dir / f"{tag}.env")
-atomic_write(state_dir / "current-release.env")
+def atomic_write(path: Path, payload: bytes) -> None:
+    temporary_path = stage_payload(path, payload)
+    try:
+        os.replace(temporary_path, path)
+        fsync_directory(path.parent)
+    except BaseException:
+        temporary_path.unlink(missing_ok=True)
+        raise
+
+
+def read_existing_immutable_release(path: Path) -> bytes:
+    flags = os.O_RDONLY
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    fd = os.open(path, flags)
+    try:
+        metadata = os.fstat(fd)
+        if not stat.S_ISREG(metadata.st_mode):
+            raise SystemExit(f"existing immutable release record is not a regular file: {path}")
+        if stat.S_IMODE(metadata.st_mode) != 0o600:
+            raise SystemExit(f"existing immutable release record must use mode 0600: {path}")
+        with os.fdopen(fd, "rb", closefd=False) as stream:
+            payload = stream.read()
+    finally:
+        os.close(fd)
+
+    try:
+        text = payload.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise SystemExit(f"existing immutable release record is not UTF-8: {path}") from exc
+    if not text.endswith("\n"):
+        raise SystemExit(f"existing immutable release record is truncated: {path}")
+    lines = text.splitlines()
+    if len(lines) != len(values):
+        raise SystemExit(f"existing immutable release record is incomplete: {path}")
+
+    existing = {}
+    for line in lines:
+        if "=" not in line:
+            raise SystemExit(f"existing immutable release record is malformed: {path}")
+        key, value = line.split("=", 1)
+        if key not in values or key in existing or not value:
+            raise SystemExit(f"existing immutable release record is malformed: {path}")
+        existing[key] = value
+    if list(existing) != list(values):
+        raise SystemExit(f"existing immutable release record has an unexpected field order: {path}")
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", existing["DEPLOYED_AT"]):
+        raise SystemExit(f"existing immutable release record has an invalid DEPLOYED_AT: {path}")
+    for key in ("BACKEND_IMAGE_REF", "FRONTEND_IMAGE_REF", "ADMIN_IMAGE_REF"):
+        if not digest_ref_pattern.fullmatch(existing[key]):
+            raise SystemExit(f"existing immutable release record has an invalid {key}: {path}")
+    for key in ("TAG", "BACKEND_IMAGE_REF", "FRONTEND_IMAGE_REF", "ADMIN_IMAGE_REF"):
+        if existing[key] != values[key]:
+            raise SystemExit(
+                f"release field {key} does not match existing immutable release record: {path}",
+            )
+    canonical_payload = "".join(f"{key}={existing[key]}\n" for key in values).encode()
+    if payload != canonical_payload:
+        raise SystemExit(f"existing immutable release record is not canonical: {path}")
+    return payload
+
+
+def publish_immutable_release(path: Path, payload: bytes) -> bytes:
+    temporary_path = stage_payload(path, payload)
+    try:
+        try:
+            os.link(temporary_path, path)
+        except FileExistsError:
+            return read_existing_immutable_release(path)
+        fsync_directory(path.parent)
+        return payload
+    finally:
+        temporary_path.unlink(missing_ok=True)
+
+
+# Link the per-release record into place without replacement. Reusing a tag is
+# allowed only for the same complete release identity; its original timestamp
+# remains immutable while releases.log records each later activation.
+release_payload = publish_immutable_release(releases_dir / f"{tag}.env", candidate_payload)
+atomic_write(state_dir / "current-release.env", release_payload)
 
 log_path = state_dir / "releases.log"
 log_fd = os.open(log_path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
@@ -1886,11 +1966,7 @@ with os.fdopen(log_fd, "ab") as stream:
     stream.write(f"{deployed_at}\t{tag}\n".encode())
     stream.flush()
     os.fsync(stream.fileno())
-directory_fd = os.open(state_dir, os.O_RDONLY | os.O_DIRECTORY)
-try:
-    os.fsync(directory_fd)
-finally:
-    os.close(directory_fd)
+fsync_directory(state_dir)
 PY
 }
 

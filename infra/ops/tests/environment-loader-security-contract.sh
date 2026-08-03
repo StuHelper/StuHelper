@@ -164,6 +164,42 @@ for release_record_path in \
   [[ "$(stat -c '%a' "${release_record_path}")" == "600" ]] ||
     fail "release record ${release_record_path} must use mode 0600"
 done
+immutable_release_path="${release_state_dir}/releases/contract-release.env"
+immutable_inode_before="$(stat -c '%i' "${immutable_release_path}")"
+immutable_checksum_before="$(sha256sum "${immutable_release_path}" | cut -d ' ' -f 1)"
+(
+  export DEPLOY_STATE_DIR="${release_state_dir}"
+  export BACKEND_IMAGE_REF="${release_backend_ref}"
+  export FRONTEND_IMAGE_REF="${release_frontend_ref}"
+  export ADMIN_IMAGE_REF="${release_admin_ref}"
+  record_release contract-release
+)
+[[ "$(stat -c '%i' "${immutable_release_path}")" == "${immutable_inode_before}" ]] ||
+  fail "reusing an identical release replaced its immutable record"
+[[ "$(sha256sum "${immutable_release_path}" | cut -d ' ' -f 1)" == "${immutable_checksum_before}" ]] ||
+  fail "reusing an identical release changed its immutable payload"
+cmp -s "${release_state_dir}/current-release.env" "${immutable_release_path}" ||
+  fail "reusing an identical release did not restore its original immutable payload"
+[[ "$(wc -l <"${release_state_dir}/releases.log")" == "2" ]] ||
+  fail "release activation log did not record the repeated activation"
+
+if (
+  export DEPLOY_STATE_DIR="${release_state_dir}"
+  export BACKEND_IMAGE_REF=ghcr.io/stuhelper/backend@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  export FRONTEND_IMAGE_REF="${release_frontend_ref}"
+  export ADMIN_IMAGE_REF="${release_admin_ref}"
+  record_release contract-release
+) >"${tmpdir}/record-conflicting-release.log" 2>&1; then
+  fail "release recorder accepted a reused tag with a different image tuple"
+fi
+grep -q 'release field BACKEND_IMAGE_REF does not match existing immutable release record' "${tmpdir}/record-conflicting-release.log" ||
+  fail "conflicting release-tag rejection did not identify the changed image"
+[[ "$(stat -c '%i' "${immutable_release_path}")" == "${immutable_inode_before}" ]] ||
+  fail "conflicting release attempt replaced the immutable record"
+[[ "$(sha256sum "${immutable_release_path}" | cut -d ' ' -f 1)" == "${immutable_checksum_before}" ]] ||
+  fail "conflicting release attempt changed the immutable payload"
+[[ "$(wc -l <"${release_state_dir}/releases.log")" == "2" ]] ||
+  fail "failed conflicting release attempt changed the activation log"
 if find "${release_state_dir}" -type f -name '.*.??????' -print -quit | grep -q .; then
   fail "atomic release recording left a temporary file behind"
 fi
