@@ -360,7 +360,7 @@ services:
     - no-new-privileges:true
   casdoor:
     profiles: [dev-full]
-    image: ${CASDOOR_IMAGE_REF:-casbin/casdoor:latest@sha256:d7658640aba370495e59dc1464756d2ae7ec66576203b9de0040e9cc37793607}
+    image: ${CASDOOR_IMAGE_REF:-casbin/casdoor:latest@sha256:53f00e1e69190c8629925a179cd59a10573f7be2764038571906196908cd6579}
     container_name: ${STACK_NAME:-stuhelper}-casdoor
     restart: unless-stopped
     security_opt:
