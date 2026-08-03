@@ -111,7 +111,7 @@ export FRONTEND_IMAGE_REF=<registry/frontend@sha256:64位摘要>
 export ADMIN_IMAGE_REF=<registry/admin@sha256:64位摘要>
 export TAG=<release-id>
 
-# 远端机器建议先做预检
+# 可单独预览预检结果；prod-deploy 随后仍会强制重新执行，不能跳过
 ./infra/ops/remote-preflight.sh
 
 # 生产发布

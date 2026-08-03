@@ -220,7 +220,7 @@ sudo -u stuhelper REMOTE_DEPLOY_CONFIG_FILE=/opt/stuhelper/.deploy/remote.env \
 初始化脚本重复执行时不会再用 root token 覆盖已经安装的 scoped token。Vault 仍采用人工解封：主机
 重启后必须先解封；在未解封期间续期与部署均失败关闭，不能通过延长为永久 token 绕过。
 
-如果是远端部署，实际链路里会先执行 `infra/ops/remote-preflight.sh`，检查：
+所有生产部署入口最终都进入 `infra/ops/prod-deploy.sh`，该脚本在任何镜像拉取、备份、迁移或服务变更前强制执行 `infra/ops/remote-preflight.sh`；`make prod-deploy`、`remote-prod-deploy.sh`、GitHub 远程发布和回滚后的重新部署不能绕过该门禁。预检包括：
 
 - `.deploy/remote.env` 是否就位
 - Vault 运行 token 是否只有约定策略、TTL 是否高于安全下限、三条精确 KV 路径是否可读，以及续期

@@ -58,7 +58,7 @@ set -euo pipefail
 basename "$0" >>"${TEST_OPERATION_LOG}"
 EOF
 chmod +x "${tmpdir}/ops/operation-stub.sh"
-for name in remote-preflight.sh remote-prod-deploy.sh remote-prod-rollback.sh smoke-check.sh observability-smoke-check.sh; do
+for name in remote-prod-deploy.sh remote-prod-rollback.sh smoke-check.sh observability-smoke-check.sh; do
   cp "${tmpdir}/ops/operation-stub.sh" "${tmpdir}/ops/${name}"
 done
 
@@ -82,9 +82,9 @@ fi
   fail "short-lived token was not delivered through Docker standard input"
 [[ "$(<"${TEST_DOCKER_ARGS_FILE}")" == "login ghcr.io --username Xauryan --password-stdin" ]] ||
   fail "Docker login arguments are not constrained"
-expected_deploy_sequence=$'remote-preflight.sh\nremote-prod-deploy.sh\nsmoke-check.sh\nobservability-smoke-check.sh'
+expected_deploy_sequence=$'remote-prod-deploy.sh\nsmoke-check.sh\nobservability-smoke-check.sh'
 [[ "$(<"${TEST_OPERATION_LOG}")" == "${expected_deploy_sequence}" ]] ||
-  fail "deploy did not run preflight, deploy, and both smoke checks in order"
+  fail "deploy did not run the preflight-owning production entrypoint and both smoke checks in order"
 registry_config_dir="$(<"${TEST_DOCKER_CONFIG_FILE}")"
 [[ "${registry_config_dir}" == "${TEST_DEPLOY_STATE_DIR}"/registry-auth.* ]] ||
   fail "temporary Docker config was created outside the deploy state directory"

@@ -62,7 +62,6 @@ export CI_REGISTRY_LOGIN_READY=true
 
 case "${operation}" in
   deploy)
-    "${SCRIPT_DIR}/remote-preflight.sh"
     "${SCRIPT_DIR}/remote-prod-deploy.sh"
     ;;
   rollback)

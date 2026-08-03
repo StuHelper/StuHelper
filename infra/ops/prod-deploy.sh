@@ -15,6 +15,8 @@ require_cmd jq
 require_cmd python3
 require_cmd openssl
 
+"${SCRIPT_DIR}/remote-preflight.sh"
+
 if [[ -f "${REMOTE_DEPLOY_CONFIG_FILE}" ]]; then
   load_remote_deploy_config
 fi

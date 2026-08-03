@@ -4,6 +4,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 PROD_DEPLOY_FILE="${REPO_ROOT}/infra/ops/prod-deploy.sh"
+REMOTE_PROD_DEPLOY_FILE="${REPO_ROOT}/infra/ops/remote-prod-deploy.sh"
+MAKEFILE="${REPO_ROOT}/Makefile"
 PROD_ENV_EXAMPLE_FILE="${REPO_ROOT}/.env.prod.example"
 ADMISSION_READINESS_FILE="${REPO_ROOT}/infra/ops/admission-production-readiness.sh"
 AUTHORIZATION_CUTOVER_FILE="${REPO_ROOT}/infra/ops/authorization-ledger-cutover.sh"
@@ -34,6 +36,7 @@ line_number() {
 
 load_env_line="$(line_number 'load_env')"
 caller_tag_validation_line="$(line_number 'require_safe_release_tag "${TAG}" # reject caller-provided tags before config or secret materialization')"
+remote_preflight_line="$(line_number '"${SCRIPT_DIR}/remote-preflight.sh"')"
 derived_tag_validation_line="$(line_number 'require_safe_release_tag "${TAG}" # validate env-loaded or derived tags before rendering, image pulls, and backups')"
 remote_config_load_line="$(line_number 'load_remote_deploy_config')"
 generated_secret_ref_require_line="$(line_number 'GENERATED_ENV_SECRET_REF must be configured for production deploy')"
@@ -69,6 +72,16 @@ public_web_auth_browser_smoke_line="$(line_number 'node "${SCRIPT_DIR}/public-we
 smoke_check_line="$(line_number '"${SCRIPT_DIR}/smoke-check.sh"')"
 observability_smoke_line="$(line_number 'OBS_SMOKE_STRICT=true "${SCRIPT_DIR}/observability-smoke-check.sh"')"
 bootstrap_require_line="$(line_number 'require_nonempty CASDOOR_BOOTSTRAP_CLIENT_SECRET')"
+if (( caller_tag_validation_line >= remote_preflight_line )); then
+  fail "production deploy must reject unsafe caller tags before running remote preflight"
+fi
+if (( remote_preflight_line >= remote_config_load_line || remote_preflight_line >= load_env_line )); then
+  fail "every production deploy entrypoint must complete remote preflight before loading deploy inputs"
+fi
+grep -qF '"${SCRIPT_DIR}/prod-deploy.sh"' "${REMOTE_PROD_DEPLOY_FILE}" ||
+  fail "the emergency remote production entrypoint must delegate to the preflight-owning prod-deploy script"
+grep -qF '$(PROD_RUNTIME_ENV) ./infra/ops/prod-deploy.sh' "${MAKEFILE}" ||
+  fail "make prod-deploy must delegate to the preflight-owning prod-deploy script"
 grep -qF 'validate_casdoor_bootstrap_env() (' "${PROD_DEPLOY_FILE}" ||
   fail "production deploy must validate Casdoor bootstrap credentials in a subshell"
 grep -qF '    CASDOOR_BOOTSTRAP_ORGANIZATION' "${PROD_DEPLOY_FILE}" ||
