@@ -146,6 +146,19 @@ wait "${deploy_lock_holder_pid}"
   export DEPLOY_STATE_DIR="${deploy_lock_state}"
   acquire_production_deploy_lock
 )
+inherited_lock_observed="${tmpdir}/inherited-deploy-lock-observed"
+(
+  export DEPLOY_STATE_DIR="${deploy_lock_state}"
+  acquire_production_deploy_lock
+  bash -c '
+    set -euo pipefail
+    source "$1"
+    acquire_production_deploy_lock
+    printf "reused\n" >"$2"
+  ' _ "${REPO_ROOT}/infra/ops/lib/common.sh" "${inherited_lock_observed}"
+)
+[[ "$(cat "${inherited_lock_observed}")" == "reused" ]] ||
+  fail "nested rollback/deploy controller did not reuse its inherited host lock"
 deployment_attempt_one="$(new_deployment_attempt_id)"
 deployment_attempt_two="$(new_deployment_attempt_id)"
 [[ "${deployment_attempt_one}" =~ ^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{32}$ ]] ||
@@ -367,7 +380,7 @@ import sys
 from pathlib import Path
 
 document = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-assert document["event"] == "legacy_current_release_identity_migrated"
+assert document["event"] == "legacy_release_identity_migrated"
 assert document["verificationSource"] == "running_compose_container_image_identity"
 assert set(document["images"]) == {
     "BACKEND_IMAGE_REF",
@@ -407,6 +420,93 @@ grep -q 'does not match the configured image' "${tmpdir}/legacy-identity-mismatc
   fail "failed legacy identity migration changed the current release record"
 [[ ! -e "${legacy_identity_mismatch_state}/release-migrations/legacy-release.json" ]] ||
   fail "failed legacy identity migration published audit evidence before verification"
+
+explicit_legacy_state="${tmpdir}/explicit-legacy-state"
+mkdir -p "${explicit_legacy_state}/releases"
+cat >"${explicit_legacy_state}/releases/explicit-legacy.env" <<'EOF'
+TAG=explicit-legacy
+DEPLOYED_AT=2026-08-01T12:00:00Z
+BACKEND_IMAGE_REF=ghcr.io/stuhelper/backend:explicit-legacy
+FRONTEND_IMAGE_REF=ghcr.io/stuhelper/frontend:explicit-legacy
+ADMIN_IMAGE_REF=ghcr.io/stuhelper/admin:explicit-legacy
+EOF
+chmod 0600 "${explicit_legacy_state}/releases/explicit-legacy.env"
+(
+  export DEPLOY_STATE_DIR="${explicit_legacy_state}"
+  migrate_explicit_legacy_release_identity \
+    explicit-legacy \
+    "${release_backend_ref}" \
+    "${release_frontend_ref}" \
+    "${release_admin_ref}" \
+    contract-operator \
+    'restore a provenance-verified historical release'
+)
+assert_file_contains \
+  "${explicit_legacy_state}/releases/explicit-legacy.env" \
+  "BACKEND_IMAGE_REF=${release_backend_ref}"
+explicit_legacy_evidence="${explicit_legacy_state}/release-migrations/explicit-legacy.json"
+python3 - "${explicit_legacy_evidence}" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+document = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+assert document["event"] == "legacy_release_identity_migrated"
+assert document["verificationSource"] == "explicit_provenance_verified_rollback_digest_override"
+assert document["actor"] == "contract-operator"
+assert document["reason"] == "restore a provenance-verified historical release"
+assert set(document["images"]) == {
+    "BACKEND_IMAGE_REF",
+    "FRONTEND_IMAGE_REF",
+    "ADMIN_IMAGE_REF",
+}
+PY
+explicit_legacy_record_checksum="$(sha256sum "${explicit_legacy_state}/releases/explicit-legacy.env" | cut -d ' ' -f 1)"
+explicit_legacy_evidence_checksum="$(sha256sum "${explicit_legacy_evidence}" | cut -d ' ' -f 1)"
+(
+  export DEPLOY_STATE_DIR="${explicit_legacy_state}"
+  migrate_explicit_legacy_release_identity \
+    explicit-legacy \
+    "${release_backend_ref}" \
+    "${release_frontend_ref}" \
+    "${release_admin_ref}" \
+    contract-operator \
+    'restore a provenance-verified historical release'
+)
+[[ "$(sha256sum "${explicit_legacy_state}/releases/explicit-legacy.env" | cut -d ' ' -f 1)" == "${explicit_legacy_record_checksum}" ]] ||
+  fail "idempotent explicit legacy migration changed its canonical record"
+[[ "$(sha256sum "${explicit_legacy_evidence}" | cut -d ' ' -f 1)" == "${explicit_legacy_evidence_checksum}" ]] ||
+  fail "idempotent explicit legacy migration changed its audit evidence"
+
+explicit_wrong_repository_state="${tmpdir}/explicit-wrong-repository-state"
+mkdir -p "${explicit_wrong_repository_state}/releases"
+cat >"${explicit_wrong_repository_state}/releases/explicit-legacy.env" <<'EOF'
+TAG=explicit-legacy
+DEPLOYED_AT=2026-08-01T12:00:00Z
+BACKEND_IMAGE_REF=ghcr.io/different/backend:explicit-legacy
+FRONTEND_IMAGE_REF=ghcr.io/stuhelper/frontend:explicit-legacy
+ADMIN_IMAGE_REF=ghcr.io/stuhelper/admin:explicit-legacy
+EOF
+chmod 0600 "${explicit_wrong_repository_state}/releases/explicit-legacy.env"
+explicit_wrong_repository_checksum="$(sha256sum "${explicit_wrong_repository_state}/releases/explicit-legacy.env" | cut -d ' ' -f 1)"
+if (
+  export DEPLOY_STATE_DIR="${explicit_wrong_repository_state}"
+  migrate_explicit_legacy_release_identity \
+    explicit-legacy \
+    "${release_backend_ref}" \
+    "${release_frontend_ref}" \
+    "${release_admin_ref}" \
+    contract-operator \
+    'restore a provenance-verified historical release'
+) >"${tmpdir}/explicit-wrong-repository.out" 2>"${tmpdir}/explicit-wrong-repository.err"; then
+  fail "explicit legacy migration accepted a digest from a different image repository"
+fi
+grep -q 'changes the legacy image repository' "${tmpdir}/explicit-wrong-repository.err" ||
+  fail "explicit legacy migration did not report repository drift"
+[[ "$(sha256sum "${explicit_wrong_repository_state}/releases/explicit-legacy.env" | cut -d ' ' -f 1)" == "${explicit_wrong_repository_checksum}" ]] ||
+  fail "failed explicit legacy migration changed the historical record"
+[[ ! -e "${explicit_wrong_repository_state}/release-migrations/explicit-legacy.json" ]] ||
+  fail "failed explicit legacy migration published audit evidence"
 
 unsafe_permission_state="${tmpdir}/unsafe-permission-state"
 mkdir -p "${unsafe_permission_state}"

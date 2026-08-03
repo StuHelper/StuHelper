@@ -54,6 +54,40 @@ require_digest_image_ref() {
   [[ "${value}" =~ ^[^[:space:]@]+@sha256:[0-9a-f]{64}$ ]] ||
     die "${key} must be a complete image@sha256 digest reference"
 }
+acquire_production_deploy_lock() { :; }
+migrate_legacy_release_state_permissions() {
+  if [[ -d "${DEPLOY_STATE_DIR}/releases" ]]; then
+    find "${DEPLOY_STATE_DIR}/releases" -maxdepth 1 -type f -name '*.env' -exec chmod 0600 {} +
+  fi
+  [[ ! -f "${DEPLOY_STATE_DIR}/current-release.env" ]] || chmod 0600 "${DEPLOY_STATE_DIR}/current-release.env"
+  [[ ! -f "${DEPLOY_STATE_DIR}/releases.log" ]] || chmod 0600 "${DEPLOY_STATE_DIR}/releases.log"
+}
+migrate_explicit_legacy_release_identity() {
+  local tag="$1"
+  local backend_ref="$2"
+  local frontend_ref="$3"
+  local admin_ref="$4"
+  local actor="$5"
+  local reason="$6"
+  local file="${DEPLOY_STATE_DIR}/releases/${tag}.env"
+  local deployed_at
+  if grep -q '@sha256:' "${file}"; then
+    return 0
+  fi
+  [[ -n "${actor}" && ${#reason} -ge 12 ]] || die "legacy rollback migration audit context is required"
+  deployed_at="$(sed -n 's/^DEPLOYED_AT=//p' "${file}")"
+  cat >"${file}" <<RECORD
+TAG=${tag}
+DEPLOYED_AT=${deployed_at}
+BACKEND_IMAGE_REF=${backend_ref}
+FRONTEND_IMAGE_REF=${frontend_ref}
+ADMIN_IMAGE_REF=${admin_ref}
+RECORD
+  chmod 0600 "${file}"
+  if [[ -n "${ROLLBACK_MIGRATION_OBSERVED_FILE:-}" ]]; then
+    printf '%s\n' "${tag}" >"${ROLLBACK_MIGRATION_OBSERVED_FILE}"
+  fi
+}
 load_env() {
   if [[ -n "${ROLLBACK_LOAD_ENV_OBSERVED_FILE:-}" ]]; then
     printf 'loaded\n' >"${ROLLBACK_LOAD_ENV_OBSERVED_FILE}"
@@ -97,6 +131,20 @@ grep -qF '"${allow_legacy_record_images}"' "${ROLLBACK_SCRIPT}" ||
 if grep -qF 'source "${release_file}"' "${ROLLBACK_SCRIPT}"; then
   fail "rollback release records must not be raw-sourced"
 fi
+python3 - "${ROLLBACK_SCRIPT}" <<'PY'
+import sys
+from pathlib import Path
+
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+lock = source.index("acquire_production_deploy_lock")
+load = source.index("load_env", lock)
+permission_migration = source.index("migrate_legacy_release_state_permissions", load)
+record_read = source.index("source_release_record_env_file", permission_migration)
+identity_migration = source.index("migrate_explicit_legacy_release_identity", record_read)
+deploy = source.index('"${SCRIPT_DIR}/prod-deploy.sh"', identity_migration)
+if not lock < load < permission_migration < record_read < identity_migration < deploy:
+    raise SystemExit("rollback lock and legacy migration ordering is unsafe")
+PY
 
 cat >"${fixture_repo}/infra/ops/validate-runtime-image-scan.py" <<'PY'
 import os
@@ -258,13 +306,34 @@ grep -q 'BACKEND_IMAGE_REF must be a complete image@sha256 digest reference' \
   "${fixture_root}/legacy-without-overrides.err" ||
   fail "legacy rollback without overrides did not retain the immutable-image gate"
 
+if VALIDATOR_CURRENT_OK=true \
+  DEPLOY_STATE_DIR="${fixture_state}" \
+  ROLLBACK_TAG="${legacy_tag}" \
+  ROLLBACK_BACKEND_IMAGE_REF="${backend_ref}" \
+  ROLLBACK_FRONTEND_IMAGE_REF="${frontend_ref}" \
+  ROLLBACK_ADMIN_IMAGE_REF="${admin_ref}" \
+  ROLLBACK_DEPLOY_OBSERVED_FILE="${fixture_root}/legacy-without-audit-observed" \
+  "${fixture_repo}/infra/ops/prod-rollback.sh" \
+  >"${fixture_root}/legacy-without-audit.out" 2>"${fixture_root}/legacy-without-audit.err"; then
+  fail "rollback migrated a legacy release without operator audit context"
+fi
+grep -q 'legacy rollback migration audit context is required' \
+  "${fixture_root}/legacy-without-audit.err" ||
+  fail "legacy migration without audit context did not fail explicitly"
+[[ ! -e "${fixture_root}/legacy-without-audit-observed" ]] ||
+  fail "legacy migration without audit context reached prod-deploy"
+
 legacy_refs_observed="${fixture_root}/legacy-refs-observed"
+legacy_migration_observed="${fixture_root}/legacy-migration-observed"
 VALIDATOR_CURRENT_OK=true \
 DEPLOY_STATE_DIR="${fixture_state}" \
 ROLLBACK_TAG="${legacy_tag}" \
 ROLLBACK_BACKEND_IMAGE_REF="${backend_ref}" \
 ROLLBACK_FRONTEND_IMAGE_REF="${frontend_ref}" \
 ROLLBACK_ADMIN_IMAGE_REF="${admin_ref}" \
+ROLLBACK_REVIEW_ACTOR=contract-operator \
+ROLLBACK_REVIEW_REASON='restore a provenance-verified legacy release' \
+ROLLBACK_MIGRATION_OBSERVED_FILE="${legacy_migration_observed}" \
 ROLLBACK_DEPLOY_OBSERVED_FILE="${fixture_root}/legacy-deploy-observed" \
 ROLLBACK_DEPLOY_IMAGE_REFS_FILE="${legacy_refs_observed}" \
   "${fixture_repo}/infra/ops/prod-rollback.sh" >/dev/null
@@ -275,6 +344,10 @@ ${admin_ref}
 EOF
 cmp -s "${fixture_root}/expected-legacy-refs" "${legacy_refs_observed}" ||
   fail "verified rollback overrides did not replace all legacy image refs before deployment"
+[[ "$(cat "${legacy_migration_observed}")" == "${legacy_tag}" ]] ||
+  fail "verified rollback overrides did not migrate the legacy per-tag record before deployment"
+grep -qF "BACKEND_IMAGE_REF=${backend_ref}" "${fixture_state}/releases/${legacy_tag}.env" ||
+  fail "legacy rollback migration did not persist the verified backend digest"
 
 reason="incident rollback to a previously successful immutable release"
 reason_b64="$(python3 - "${reason}" <<'PY'
