@@ -83,6 +83,7 @@ jobs:
             guards:
               - 'scripts/**'
               - 'tools/**'
+              - 'server/tools/dependabotpolicy/**'
               - '.node-version'
               - '.nvmrc'
             infra:
