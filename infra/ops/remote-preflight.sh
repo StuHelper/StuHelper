@@ -139,6 +139,11 @@ if command -v systemctl >/dev/null 2>&1; then
     stuhelper-postgres-basebackup.timer
     stuhelper-postgres-backup-sync.timer
   )
+  backup_timer_calendars=(
+    "*-*-* 03:15:00"
+    "Sun *-*-* 03:45:00"
+    "*-*-* *:00/15:00"
+  )
   backup_service_common_environment=(
     "ENV_FILE=${REPO_ROOT}/.env.prod.shared"
     "SECRETS_ENV_FILE=${REPO_ROOT}/.env.prod.secrets"
@@ -168,9 +173,17 @@ if command -v systemctl >/dev/null 2>&1; then
       "${backup_service_commands[${index}]}" \
       "${expected_service_environment[@]}"
   done
-  for unit in "${backup_timer_units[@]}"; do
+  for index in "${!backup_timer_units[@]}"; do
+    unit="${backup_timer_units[${index}]}"
+    require_systemd_timer_schedule \
+      "${unit}" \
+      "${backup_service_units[${index}]}" \
+      "${backup_timer_calendars[${index}]}"
     if ! systemctl is-enabled --quiet "${unit}"; then
       die "backup timer ${unit} is not enabled"
+    fi
+    if ! systemctl is-active --quiet "${unit}"; then
+      die "backup timer ${unit} is not active"
     fi
   done
 fi

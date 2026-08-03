@@ -87,6 +87,10 @@ assert_contains "${BOOTSTRAP_SCRIPT}" 'ln -sf /usr/local/go/bin/gofmt /usr/local
 assert_contains "${BOOTSTRAP_SCRIPT}" 'stuhelper-postgres-dump-backup\.service'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'stuhelper-postgres-basebackup\.service'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'stuhelper-postgres-backup-sync\.service'
+assert_contains "${BOOTSTRAP_SCRIPT}" '^Unit=stuhelper-postgres-dump-backup\.service$'
+assert_contains "${BOOTSTRAP_SCRIPT}" '^Unit=stuhelper-postgres-basebackup\.service$'
+assert_contains "${BOOTSTRAP_SCRIPT}" '^Unit=stuhelper-postgres-backup-sync\.service$'
+assert_contains "${BOOTSTRAP_SCRIPT}" '^OnCalendar=\*-\*-\* \*:00/15:00$'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'Environment=BACKUP_STAGING_DIR=\$\{BACKUP_STAGING_DIR\}'
 [[ "$(grep -c '^Environment=LOCAL_STATE_DIR=/var/lib/stuhelper$' "${BOOTSTRAP_SCRIPT}")" == "3" ]] ||
   fail "bootstrap fallback must provide a HOME-independent local state path to every isolated backup service"
@@ -110,6 +114,10 @@ bash -n "${BACKUP_TIMER_INSTALLER}"
 assert_contains "${BACKUP_TIMER_INSTALLER}" 'BACKUP_STAGING_DIR="\$\{BACKUP_STAGING_DIR:-/var/lib/stuhelper/postgres/backup-staging\}"'
 assert_contains "${BACKUP_TIMER_INSTALLER}" 'install -d -o "\$\{DEPLOY_USER\}".*-m 0700 "\$\{BACKUP_STAGING_DIR\}"'
 assert_contains "${BACKUP_TIMER_INSTALLER}" 'Environment=BACKUP_STAGING_DIR=\$\{BACKUP_STAGING_DIR\}'
+assert_contains "${BACKUP_TIMER_INSTALLER}" '^Unit=\$\{SYSTEMD_PREFIX\}-postgres-dump-backup\.service$'
+assert_contains "${BACKUP_TIMER_INSTALLER}" '^Unit=\$\{SYSTEMD_PREFIX\}-postgres-basebackup\.service$'
+assert_contains "${BACKUP_TIMER_INSTALLER}" '^Unit=\$\{SYSTEMD_PREFIX\}-postgres-backup-sync\.service$'
+assert_contains "${BACKUP_TIMER_INSTALLER}" '^OnCalendar=\*-\*-\* \*:00/15:00$'
 [[ "$(grep -c '^Environment=LOCAL_STATE_DIR=/var/lib/stuhelper$' "${BACKUP_TIMER_INSTALLER}")" == "3" ]] ||
   fail "backup timer installer must provide a HOME-independent local state path to every isolated backup service"
 [[ "$(grep -c '^Environment=BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true$' "${BACKUP_TIMER_INSTALLER}")" == "3" ]] ||

@@ -6,6 +6,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 PREFLIGHT_FILE="${REPO_ROOT}/infra/ops/remote-preflight.sh"
 COMMON_LIB_FILE="${REPO_ROOT}/infra/ops/lib/common.sh"
 SYSTEMD_EXEC_VALIDATOR="${REPO_ROOT}/infra/ops/validate-systemd-unit-execution.py"
+SYSTEMD_TIMER_VALIDATOR="${REPO_ROOT}/infra/ops/validate-systemd-timer.py"
 
 fail() {
   echo "[remote-preflight-contract][error] $*" >&2
@@ -83,6 +84,8 @@ assert_contains "${COMMON_LIB_FILE}" 'require_systemd_unit_hardened_lifecycle\(\
 assert_contains "${COMMON_LIB_FILE}" '"RemainAfterExit=no"'
 assert_contains "${COMMON_LIB_FILE}" 'SuccessExitStatus'
 assert_contains "${COMMON_LIB_FILE}" 'require_systemd_unit_hardened_execution\(\)'
+assert_contains "${COMMON_LIB_FILE}" 'require_systemd_timer_schedule\(\)'
+assert_contains "${COMMON_LIB_FILE}" 'validate-systemd-timer\.py'
 assert_contains "${COMMON_LIB_FILE}" 'validate-systemd-unit-environment\.py'
 assert_contains "${COMMON_LIB_FILE}" 'property=ExecStartEx'
 assert_contains "${COMMON_LIB_FILE}" 'validate-systemd-unit-execution\.py'
@@ -102,6 +105,8 @@ assert_contains "${PREFLIGHT_FILE}" 'expected_service_environment\+=\("BACKUP_ST
   fail "remote preflight must require the off-host marker for every backup service"
 assert_contains "${PREFLIGHT_FILE}" 'require_systemd_unit_hardened_execution'
 assert_contains "${PREFLIGHT_FILE}" 'require_systemd_unit_hardened_lifecycle'
+assert_contains "${PREFLIGHT_FILE}" 'require_systemd_timer_schedule'
+assert_contains "${PREFLIGHT_FILE}" 'systemctl is-active --quiet'
 assert_contains "${PREFLIGHT_FILE}" 'require_production_postgres_ssl'
 assert_contains "${PREFLIGHT_FILE}" 'require_production_external_student_source_security'
 assert_contains "${COMMON_LIB_FILE}" 'EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_MODE must be verify-full in production'
@@ -357,6 +362,44 @@ if bash -c '
 fi
 grep -q 'must not set SuccessExitStatus' "${tmpdir}/backup-unit-success-status.err" || \
   fail "the SuccessExitStatus failure did not report the failure-masking override"
+
+valid_calendar='{ OnCalendar=*-*-* *:00/15:00 ; next_elapse=Mon 2026-08-03 09:15:00 CST }'
+if ! python3 "${SYSTEMD_TIMER_VALIDATOR}" \
+  --target stuhelper-postgres-backup-sync.service \
+  --persistent yes \
+  --timers-calendar "${valid_calendar}" \
+  --timers-monotonic '' \
+  --expected-target stuhelper-postgres-backup-sync.service \
+  --expected-calendar '*-*-* *:00/15:00'; then
+  fail "the systemd timer validator rejected the exact protected schedule"
+fi
+if python3 "${SYSTEMD_TIMER_VALIDATOR}" \
+  --target legacy-backup.service \
+  --persistent yes \
+  --timers-calendar "${valid_calendar}" \
+  --timers-monotonic '' \
+  --expected-target stuhelper-postgres-backup-sync.service \
+  --expected-calendar '*-*-* *:00/15:00'; then
+  fail "the systemd timer validator accepted a redirected target"
+fi
+if python3 "${SYSTEMD_TIMER_VALIDATOR}" \
+  --target stuhelper-postgres-backup-sync.service \
+  --persistent yes \
+  --timers-calendar "${valid_calendar} { OnCalendar=*-*-* 00:00:00 ; next_elapse=Tue 2026-08-04 00:00:00 CST }" \
+  --timers-monotonic '' \
+  --expected-target stuhelper-postgres-backup-sync.service \
+  --expected-calendar '*-*-* *:00/15:00'; then
+  fail "the systemd timer validator accepted an extra calendar"
+fi
+if python3 "${SYSTEMD_TIMER_VALIDATOR}" \
+  --target stuhelper-postgres-backup-sync.service \
+  --persistent yes \
+  --timers-calendar "${valid_calendar}" \
+  --timers-monotonic '{ OnBootSec=1min ; next_elapse=1min }' \
+  --expected-target stuhelper-postgres-backup-sync.service \
+  --expected-calendar '*-*-* *:00/15:00'; then
+  fail "the systemd timer validator accepted a monotonic trigger bypass"
+fi
 
 protected_exec_argv='/usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin ENV_FILE=/opt/stuhelper/.env.prod.shared BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true /bin/bash --noprofile --norc ./infra/ops/sync-postgres-backups.sh'
 valid_exec_start="{ path=/usr/bin/env ; argv[]=${protected_exec_argv} ; ignore_errors=no ; }"

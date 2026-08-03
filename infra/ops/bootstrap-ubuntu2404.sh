@@ -239,6 +239,7 @@ EOF
 Description=StuHelper PostgreSQL logical backup timer
 
 [Timer]
+Unit=stuhelper-postgres-dump-backup.service
 OnCalendar=*-*-* 03:15:00
 Persistent=true
 
@@ -275,6 +276,7 @@ EOF
 Description=StuHelper PostgreSQL base backup timer
 
 [Timer]
+Unit=stuhelper-postgres-basebackup.service
 OnCalendar=Sun *-*-* 03:45:00
 Persistent=true
 
@@ -310,7 +312,8 @@ EOF
 Description=StuHelper PostgreSQL backup artifact sync timer
 
 [Timer]
-OnCalendar=*:0/15
+Unit=stuhelper-postgres-backup-sync.service
+OnCalendar=*-*-* *:00/15:00
 Persistent=true
 
 [Install]
