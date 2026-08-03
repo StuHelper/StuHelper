@@ -1240,11 +1240,11 @@ def validate_transition(
 def validate_original_identity_pair(
     release: dict[str, str],
     current: dict[str, str],
-) -> None:
+) -> bool:
     release_identity = tuple(release[key] for key in image_fields)
     current_identity = tuple(current[key] for key in image_fields)
     if release_identity == current_identity:
-        return
+        return False
 
     def is_requested_canonical(record: dict[str, str]) -> bool:
         return all(record[key] == requested_refs[key] for key in image_fields)
@@ -1252,21 +1252,16 @@ def validate_original_identity_pair(
     def is_fully_legacy(record: dict[str, str]) -> bool:
         return all(legacy_ref_pattern.fullmatch(record[key]) is not None for key in image_fields)
 
-    # The migration publishes each complete record atomically. Its only valid
-    # retry state is therefore one whole record already at the requested
-    # canonical tuple while the other still contains the original legacy tuple.
-    canonical_record = None
-    legacy_record = None
+    # Both migration paths publish evidence, then the immutable per-tag record,
+    # then the current pointer. The only valid asymmetric retry state is
+    # therefore release=canonical/current=legacy; the reverse order cannot be
+    # produced by this controller and represents divergent history.
     if is_requested_canonical(release) and is_fully_legacy(current):
-        canonical_record, legacy_record = release, current
-    elif is_requested_canonical(current) and is_fully_legacy(release):
-        canonical_record, legacy_record = current, release
-    if canonical_record is not None and legacy_record is not None:
         for key in image_fields:
-            if image_repository(canonical_record[key]) != image_repository(legacy_record[key]):
+            if image_repository(release[key]) != image_repository(current[key]):
                 break
         else:
-            return
+            return True
 
     raise SystemExit("legacy current and per-tag release identities differ before migration")
 
@@ -1281,6 +1276,7 @@ current_path = state_dir / "current-release.env"
 current_payload = None
 current = None
 current_migrations: dict[str, dict[str, str]] = {}
+requires_existing_migration_evidence = False
 try:
     current_payload, current = read_record(current_path)
 except FileNotFoundError:
@@ -1288,7 +1284,7 @@ except FileNotFoundError:
 if current is not None and current["TAG"] == tag:
     if current["DEPLOYED_AT"] != release["DEPLOYED_AT"]:
         raise SystemExit("legacy current and per-tag release timestamps differ")
-    validate_original_identity_pair(release, current)
+    requires_existing_migration_evidence = validate_original_identity_pair(release, current)
     current_canonical_payload, current_migrations = validate_transition(current, current_path)
     if current_canonical_payload != canonical_payload:
         raise SystemExit("legacy current and per-tag release identities differ")
@@ -1340,6 +1336,10 @@ evidence_payload = (json.dumps(evidence, sort_keys=True, separators=(",", ":")) 
 try:
     existing_evidence = read_protected(evidence_path, "release migration evidence")
 except FileNotFoundError:
+    if requires_existing_migration_evidence:
+        raise SystemExit(
+            f"release-first partial migration requires matching preexisting evidence: {evidence_path}",
+        )
     temporary_evidence = stage_payload(evidence_path, evidence_payload)
     try:
         try:
