@@ -95,8 +95,11 @@ require_systemd_unit_hardened_lifecycle() {
   )
   local -a empty_properties=(
     ExecCondition
+    ExecReload
     ExecStartPre
     ExecStartPost
+    ExecStop
+    ExecStopPost
     SuccessExitStatus
   )
 

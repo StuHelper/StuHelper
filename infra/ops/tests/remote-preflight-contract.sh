@@ -83,6 +83,8 @@ assert_contains "${COMMON_LIB_FILE}" 'require_systemd_unit_exact_environment\(\)
 assert_contains "${COMMON_LIB_FILE}" 'require_systemd_unit_hardened_lifecycle\(\)'
 assert_contains "${COMMON_LIB_FILE}" '"RemainAfterExit=no"'
 assert_contains "${COMMON_LIB_FILE}" 'SuccessExitStatus'
+assert_contains "${COMMON_LIB_FILE}" 'ExecReload'
+assert_contains "${COMMON_LIB_FILE}" 'ExecStopPost'
 assert_contains "${COMMON_LIB_FILE}" 'require_systemd_unit_hardened_execution\(\)'
 assert_contains "${COMMON_LIB_FILE}" 'require_systemd_timer_schedule\(\)'
 assert_contains "${COMMON_LIB_FILE}" 'validate-systemd-timer\.py'
@@ -298,7 +300,7 @@ if ! bash -c '
       *--property=Type*) printf "%s\n" oneshot ;;
       *--property=RemainAfterExit*) printf "%s\n" no ;;
       *--property=Restart*) printf "%s\n" no ;;
-      *--property=ExecCondition*|*--property=ExecStartPre*|*--property=ExecStartPost*|*--property=SuccessExitStatus*) printf "\n" ;;
+      *--property=ExecCondition*|*--property=ExecReload*|*--property=ExecStartPre*|*--property=ExecStartPost*|*--property=ExecStop*|*--property=ExecStopPost*|*--property=SuccessExitStatus*) printf "\n" ;;
       *) return 90 ;;
     esac
   }
@@ -315,7 +317,7 @@ if bash -c '
       *--property=Type*) printf "%s\n" oneshot ;;
       *--property=RemainAfterExit*) printf "%s\n" yes ;;
       *--property=Restart*) printf "%s\n" no ;;
-      *--property=ExecCondition*|*--property=ExecStartPre*|*--property=ExecStartPost*|*--property=SuccessExitStatus*) printf "\n" ;;
+      *--property=ExecCondition*|*--property=ExecReload*|*--property=ExecStartPre*|*--property=ExecStartPost*|*--property=ExecStop*|*--property=ExecStopPost*|*--property=SuccessExitStatus*) printf "\n" ;;
       *) return 90 ;;
     esac
   }
@@ -335,7 +337,7 @@ if bash -c '
       *--property=RemainAfterExit*) printf "%s\n" no ;;
       *--property=Restart*) printf "%s\n" no ;;
       *--property=ExecCondition*) printf "%s\n" "{ path=/bin/false ; argv[]=/bin/false ; ignore_errors=no ; }" ;;
-      *--property=ExecStartPre*|*--property=ExecStartPost*|*--property=SuccessExitStatus*) printf "\n" ;;
+      *--property=ExecReload*|*--property=ExecStartPre*|*--property=ExecStartPost*|*--property=ExecStop*|*--property=ExecStopPost*|*--property=SuccessExitStatus*) printf "\n" ;;
       *) return 90 ;;
     esac
   }
@@ -355,7 +357,7 @@ if bash -c '
       *--property=RemainAfterExit*) printf "%s\n" no ;;
       *--property=Restart*) printf "%s\n" no ;;
       *--property=SuccessExitStatus*) printf "%s\n" 1 ;;
-      *--property=ExecCondition*|*--property=ExecStartPre*|*--property=ExecStartPost*) printf "\n" ;;
+      *--property=ExecCondition*|*--property=ExecReload*|*--property=ExecStartPre*|*--property=ExecStartPost*|*--property=ExecStop*|*--property=ExecStopPost*) printf "\n" ;;
       *) return 90 ;;
     esac
   }
@@ -365,6 +367,26 @@ if bash -c '
 fi
 grep -q 'must not set SuccessExitStatus' "${tmpdir}/backup-unit-success-status.err" || \
   fail "the SuccessExitStatus failure did not report the failure-masking override"
+
+if bash -c '
+  set -euo pipefail
+  source "$1"
+  systemctl() {
+    case "$*" in
+      *--property=Type*) printf "%s\n" oneshot ;;
+      *--property=RemainAfterExit*) printf "%s\n" no ;;
+      *--property=Restart*) printf "%s\n" no ;;
+      *--property=ExecStopPost*) printf "%s\n" "{ path=/bin/sh ; argv[]=/bin/sh -c true ; ignore_errors=no ; }" ;;
+      *--property=ExecCondition*|*--property=ExecReload*|*--property=ExecStartPre*|*--property=ExecStartPost*|*--property=ExecStop*|*--property=SuccessExitStatus*) printf "\n" ;;
+      *) return 90 ;;
+    esac
+  }
+  require_systemd_unit_hardened_lifecycle stuhelper-postgres-backup-sync.service
+' bash "${COMMON_LIB_FILE}" >"${tmpdir}/backup-unit-stop-post.out" 2>"${tmpdir}/backup-unit-stop-post.err"; then
+  fail "the systemd lifecycle validator accepted an extra ExecStopPost hook"
+fi
+grep -q 'must not set ExecStopPost' "${tmpdir}/backup-unit-stop-post.err" || \
+  fail "the ExecStopPost failure did not report the lifecycle override"
 
 valid_calendar='{ OnCalendar=*-*-* *:00/15:00 ; next_elapse=Mon 2026-08-03 09:15:00 CST }'
 if ! python3 "${SYSTEMD_TIMER_VALIDATOR}" \
