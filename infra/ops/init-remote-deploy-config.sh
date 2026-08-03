@@ -6,6 +6,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/common.sh"
 
 config_file="${REMOTE_DEPLOY_CONFIG_FILE:-${DEPLOY_STATE_DIR}/remote.env}"
+preserve_existing="${REMOTE_DEPLOY_CONFIG_PRESERVE_EXISTING:-false}"
+case "${preserve_existing}" in
+  true | false) ;;
+  *) die "REMOTE_DEPLOY_CONFIG_PRESERVE_EXISTING must be true or false" ;;
+esac
 common_default_env_file="${REPO_ROOT}/.env"
 common_default_generated_env_file="${REPO_ROOT}/.env.generated"
 common_default_generated_secret_env_file="${REPO_ROOT}/.env.generated.secrets"
@@ -41,12 +46,22 @@ if [[ -z "${default_secret_backend}" || "${default_secret_backend}" == "none" ]]
   default_secret_backend="vault-kv-v2"
 fi
 
+default_backup_service_group="${BACKUP_SERVICE_GROUP:-$(id -gn)}"
+[[ -n "${default_backup_service_group}" && "${default_backup_service_group}" != "root" && \
+  "${default_backup_service_group}" != "0" ]] ||
+  die "BACKUP_SERVICE_GROUP must identify the configured non-root production backup service group"
+
+if [[ -f "${config_file}" ]]; then
+  (source_remote_deploy_config_env_file "${config_file}")
+fi
+
 mkdir -p "$(dirname "${config_file}")"
 
 DEFAULT_REGISTRY="${REGISTRY:-REPLACE_WITH_REGISTRY_HOST}" \
 DEFAULT_REGISTRY_AUTH_MODE="${REGISTRY_AUTH_MODE:-workflow-token}" \
 DEFAULT_REGISTRY_USERNAME_SECRET_REF="${REGISTRY_USERNAME_SECRET_REF:-secret/stuhelper/prod/registry-username}" \
 DEFAULT_REGISTRY_PASSWORD_SECRET_REF="${REGISTRY_PASSWORD_SECRET_REF:-secret/stuhelper/prod/registry-password}" \
+DEFAULT_BACKUP_SERVICE_GROUP="${default_backup_service_group}" \
 DEFAULT_ENV_FILE="${default_env_file}" \
 DEFAULT_SECRETS_ENV_FILE="${default_secrets_env_file}" \
 DEFAULT_GENERATED_ENV_FILE="${default_generated_env_file}" \
@@ -63,6 +78,7 @@ DEFAULT_VAULT_KV_MOUNT="${VAULT_KV_MOUNT:-secret}" \
 DEFAULT_VAULT_RUNTIME_TOKEN_POLICY="${VAULT_RUNTIME_TOKEN_POLICY:-stuhelper-production-deploy}" \
 DEFAULT_VAULT_RUNTIME_TOKEN_PERIOD_SECONDS="${VAULT_RUNTIME_TOKEN_PERIOD_SECONDS:-259200}" \
 DEFAULT_VAULT_RUNTIME_TOKEN_MIN_TTL_SECONDS="${VAULT_RUNTIME_TOKEN_MIN_TTL_SECONDS:-43200}" \
+DEFAULT_PRESERVE_EXISTING="${preserve_existing}" \
 python3 - "${config_file}" <<'PY'
 from pathlib import Path
 import os
@@ -83,6 +99,7 @@ defaults = {
     "REGISTRY_AUTH_MODE": os.environ["DEFAULT_REGISTRY_AUTH_MODE"],
     "REGISTRY_USERNAME_SECRET_REF": os.environ["DEFAULT_REGISTRY_USERNAME_SECRET_REF"],
     "REGISTRY_PASSWORD_SECRET_REF": os.environ["DEFAULT_REGISTRY_PASSWORD_SECRET_REF"],
+    "BACKUP_SERVICE_GROUP": os.environ["DEFAULT_BACKUP_SERVICE_GROUP"],
     "ENV_FILE": os.environ["DEFAULT_ENV_FILE"],
     "SECRETS_ENV_FILE": os.environ["DEFAULT_SECRETS_ENV_FILE"],
     "GENERATED_ENV_FILE": os.environ["DEFAULT_GENERATED_ENV_FILE"],
@@ -103,8 +120,12 @@ defaults = {
 
 keys = list(defaults.keys())
 result = {}
+preserve_existing = os.environ["DEFAULT_PRESERVE_EXISTING"] == "true"
 for key in keys:
-    result[key] = os.environ.get(key, "") or existing.get(key, "") or defaults[key]
+    if preserve_existing and key in existing:
+        result[key] = existing[key]
+    else:
+        result[key] = os.environ.get(key, "") or existing.get(key, "") or defaults[key]
 
 path.write_text(
     "# Remote-owned deploy control plane for StuHelper.\n"
@@ -115,8 +136,7 @@ path.write_text(
 path.chmod(0o600)
 PY
 
-# shellcheck disable=SC1090
-source "${config_file}"
+source_remote_deploy_config_env_file "${config_file}"
 if [[ "${SECRET_BACKEND:-}" == "file" && "${REGISTRY_AUTH_MODE:-persistent-secret}" == "persistent-secret" ]]; then
   registry_username_path="$(secret_file_path "${REGISTRY_USERNAME_SECRET_REF}")"
   registry_password_path="$(secret_file_path "${REGISTRY_PASSWORD_SECRET_REF}")"

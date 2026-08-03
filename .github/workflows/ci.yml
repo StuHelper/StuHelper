@@ -83,6 +83,7 @@ jobs:
             guards:
               - 'scripts/**'
               - 'tools/**'
+              - 'server/tools/dependabotpolicy/**'
               - '.node-version'
               - '.nvmrc'
             infra:
@@ -150,6 +151,9 @@ jobs:
 
       - name: Check documentation hygiene
         run: make check-docs
+
+      - name: Check Dependabot branch policy
+        run: bash scripts/check-dependabot-policy.sh
 
       - name: Check UniAppX shadow files
         run: bash scripts/check-uniappx-shadow-files.sh

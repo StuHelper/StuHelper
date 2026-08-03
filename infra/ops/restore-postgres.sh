@@ -15,7 +15,7 @@ if [[ "${ALLOW_DESTRUCTIVE:-0}" != "1" ]]; then
   exit 1
 fi
 
-load_env_preserving DATABASE_URL
+load_env_preserving DATABASE_URL LOCAL_STATE_DIR
 require_cmd docker
 [[ -n "${DATABASE_URL:-}" ]] || die "DATABASE_URL is required"
 

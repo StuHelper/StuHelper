@@ -5,11 +5,16 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/common.sh
 source "${SCRIPT_DIR}/lib/common.sh"
 
+if [[ -n "${TAG:-}" ]]; then
+  require_safe_release_tag "${TAG}" # reject caller-provided tags before config or secret materialization
+fi
+
 require_cmd docker
 require_cmd curl
 require_cmd jq
 require_cmd python3
 require_cmd openssl
+acquire_production_deploy_lock # serialize every direct deploy and rollback through release publication
 
 if [[ -f "${REMOTE_DEPLOY_CONFIG_FILE}" ]]; then
   load_remote_deploy_config
@@ -34,6 +39,17 @@ load_env
 if [[ -n "${pending_generated_secret_ref}" ]]; then
   export GENERATED_ENV_SECRET_REF="${pending_generated_secret_ref}"
 fi
+
+export TAG="${TAG:-$(derive_release_id_from_image_ref "${BACKEND_IMAGE_REF:-}" || git_tag_default)}"
+require_safe_release_tag "${TAG}" # validate env-loaded or derived tags before rendering, image pulls, and backups
+migrate_legacy_release_state_permissions # normalize safe legacy 0644 state before canonical read-only validation
+migrate_verified_legacy_current_release_identity # bind a tag-era current record to the exact deployed container images
+require_release_tag_identity_available "${TAG}" # reject immutable tag reuse before deployment side effects
+
+# Preflight refreshes generated CA/config projections used by the running
+# stack. Reject conflicting immutable release identity before allowing those
+# mutations, while still running the complete gate before render/pull/backup.
+"${SCRIPT_DIR}/remote-preflight.sh" --pre-deploy
 
 python3 "${REPO_ROOT}/infra/ops/validate-runtime-image-scan.py" \
   --repo-root "${REPO_ROOT}" \
@@ -88,37 +104,32 @@ source_casdoor_bootstrap_env() {
   local file
   file="$(resolve_env_path "${CASDOOR_BOOTSTRAP_ENV_FILE:-.env.casdoor-bootstrap.local}")"
   [[ -f "${file}" ]] || die "missing Casdoor bootstrap env file: ${file}"
-  # shellcheck disable=SC1090
-  source "${file}"
+  source_casdoor_bootstrap_env_file "${file}"
 }
 
-require_immutable_image_ref() {
-  local key="$1"
-  local value="${2:-}"
-  require_nonempty "${key}" "${value}"
-  python3 - "${key}" "${value}" <<'PY'
-import re
-import sys
-
-key = sys.argv[1]
-ref = sys.argv[2].strip()
-
-if "@sha256:" in ref:
-    if not re.fullmatch(r".+@sha256:[0-9a-f]{64}", ref):
-        raise SystemExit(f"{key} must use a valid pinned digest reference: {ref}")
-    raise SystemExit(0)
-
-image, sep, tag = ref.rpartition(":")
-if not sep or "/" not in image or not tag:
-    raise SystemExit(f"{key} must be pinned by explicit tag or digest: {ref}")
-
-if tag in {"latest", "develop-latest", "stable", "main", "master"} or tag.startswith("ci-"):
-    raise SystemExit(f"{key} uses a mutable or pre-release tag and is not allowed in production: {ref}")
-PY
+clear_casdoor_bootstrap_env() {
+  unset \
+    CASDOOR_BOOTSTRAP_CLIENT_ID \
+    CASDOOR_BOOTSTRAP_CLIENT_SECRET \
+    CASDOOR_BOOTSTRAP_APPLICATION \
+    CASDOOR_BOOTSTRAP_CERTIFICATE \
+    CASDOOR_BOOTSTRAP_ORGANIZATION
 }
+
+validate_casdoor_bootstrap_env() (
+  clear_casdoor_bootstrap_env
+  source_casdoor_bootstrap_env # load the file only after inherited values are cleared
+  require_nonempty CASDOOR_BOOTSTRAP_CLIENT_ID "${CASDOOR_BOOTSTRAP_CLIENT_ID:-}"
+  require_nonempty CASDOOR_BOOTSTRAP_CLIENT_SECRET "${CASDOOR_BOOTSTRAP_CLIENT_SECRET:-}"
+  require_nonempty CASDOOR_BOOTSTRAP_APPLICATION "${CASDOOR_BOOTSTRAP_APPLICATION:-}"
+  reject_placeholder CASDOOR_BOOTSTRAP_CLIENT_ID "${CASDOOR_BOOTSTRAP_CLIENT_ID:-}" "REPLACE_WITH_CASDOOR_BOOTSTRAP_CLIENT_ID"
+  reject_placeholder CASDOOR_BOOTSTRAP_CLIENT_SECRET "${CASDOOR_BOOTSTRAP_CLIENT_SECRET:-}" "REPLACE_WITH_CASDOOR_BOOTSTRAP_CLIENT_SECRET"
+  reject_placeholder CASDOOR_BOOTSTRAP_APPLICATION "${CASDOOR_BOOTSTRAP_APPLICATION:-}" "REPLACE_WITH_CASDOOR_BOOTSTRAP_APPLICATION"
+)
 
 require_backup_object_storage_config
-source_casdoor_bootstrap_env # load bootstrap credential env
+validate_casdoor_bootstrap_env # validate bootstrap credential env in isolated process
+clear_casdoor_bootstrap_env # remove any caller-provided bootstrap values from unrelated children
 
 if [[ "${EXTERNAL_POSTGRES_ENABLED:-false}" != "true" ]]; then
   require_nonempty POSTGRES_PASSWORD "${POSTGRES_PASSWORD:-}"
@@ -138,9 +149,6 @@ require_nonempty CASDOOR_PUBLIC_AUTH_BASE_URL "${CASDOOR_PUBLIC_AUTH_BASE_URL:-}
 require_nonempty CASDOOR_REDIRECT_URI "${CASDOOR_REDIRECT_URI:-}"
 require_nonempty CASDOOR_CLIENT_ID "${CASDOOR_CLIENT_ID:-}"
 require_nonempty CASDOOR_CLIENT_SECRET "${CASDOOR_CLIENT_SECRET:-}"
-require_nonempty CASDOOR_BOOTSTRAP_CLIENT_ID "${CASDOOR_BOOTSTRAP_CLIENT_ID:-}"
-require_nonempty CASDOOR_BOOTSTRAP_CLIENT_SECRET "${CASDOOR_BOOTSTRAP_CLIENT_SECRET:-}"
-require_nonempty CASDOOR_BOOTSTRAP_APPLICATION "${CASDOOR_BOOTSTRAP_APPLICATION:-}"
 require_nonempty CASDOOR_ADMIN_CLIENT_ID "${CASDOOR_ADMIN_CLIENT_ID:-}"
 require_nonempty CASDOOR_ADMIN_CLIENT_SECRET "${CASDOOR_ADMIN_CLIENT_SECRET:-}"
 require_nonempty CASDOOR_ADMIN_REDIRECT_URI "${CASDOOR_ADMIN_REDIRECT_URI:-}"
@@ -202,9 +210,9 @@ require_nonempty OBJECT_STORAGE_BUCKET "${OBJECT_STORAGE_BUCKET:-}"
 require_nonempty OBJECT_STORAGE_ACCESS_KEY_ID "${OBJECT_STORAGE_ACCESS_KEY_ID:-}"
 require_nonempty OBJECT_STORAGE_SECRET_ACCESS_KEY "${OBJECT_STORAGE_SECRET_ACCESS_KEY:-}"
 require_nonempty GRAFANA_ROOT_URL "${GRAFANA_ROOT_URL:-}"
-require_immutable_image_ref BACKEND_IMAGE_REF "${BACKEND_IMAGE_REF:-}"
-require_immutable_image_ref FRONTEND_IMAGE_REF "${FRONTEND_IMAGE_REF:-}"
-require_immutable_image_ref ADMIN_IMAGE_REF "${ADMIN_IMAGE_REF:-}"
+require_digest_image_ref BACKEND_IMAGE_REF "${BACKEND_IMAGE_REF:-}"
+require_digest_image_ref FRONTEND_IMAGE_REF "${FRONTEND_IMAGE_REF:-}"
+require_digest_image_ref ADMIN_IMAGE_REF "${ADMIN_IMAGE_REF:-}"
 
 if [[ "${EXTERNAL_POSTGRES_ENABLED:-false}" != "true" ]]; then
   reject_placeholder POSTGRES_PASSWORD "${POSTGRES_PASSWORD:-}" "dev123"
@@ -221,9 +229,6 @@ reject_placeholder CASDOOR_PUBLIC_AUTH_BASE_URL "${CASDOOR_PUBLIC_AUTH_BASE_URL:
 reject_placeholder CASDOOR_REDIRECT_URI "${CASDOOR_REDIRECT_URI:-}" "REPLACE_WITH_CASDOOR_REDIRECT_URI"
 reject_placeholder CASDOOR_CLIENT_ID "${CASDOOR_CLIENT_ID:-}" "REPLACE_WITH_CASDOOR_CLIENT_ID"
 reject_placeholder CASDOOR_CLIENT_SECRET "${CASDOOR_CLIENT_SECRET:-}" "REPLACE_WITH_CASDOOR_CLIENT_SECRET"
-reject_placeholder CASDOOR_BOOTSTRAP_CLIENT_ID "${CASDOOR_BOOTSTRAP_CLIENT_ID:-}" "REPLACE_WITH_CASDOOR_BOOTSTRAP_CLIENT_ID"
-reject_placeholder CASDOOR_BOOTSTRAP_CLIENT_SECRET "${CASDOOR_BOOTSTRAP_CLIENT_SECRET:-}" "REPLACE_WITH_CASDOOR_BOOTSTRAP_CLIENT_SECRET"
-reject_placeholder CASDOOR_BOOTSTRAP_APPLICATION "${CASDOOR_BOOTSTRAP_APPLICATION:-}" "REPLACE_WITH_CASDOOR_BOOTSTRAP_APPLICATION"
 reject_placeholder CASDOOR_ADMIN_CLIENT_ID "${CASDOOR_ADMIN_CLIENT_ID:-}" "REPLACE_WITH_CASDOOR_ADMIN_CLIENT_ID"
 reject_placeholder CASDOOR_ADMIN_CLIENT_SECRET "${CASDOOR_ADMIN_CLIENT_SECRET:-}" "REPLACE_WITH_CASDOOR_ADMIN_CLIENT_SECRET"
 reject_placeholder CASDOOR_ADMIN_REDIRECT_URI "${CASDOOR_ADMIN_REDIRECT_URI:-}" "REPLACE_WITH_CASDOOR_ADMIN_REDIRECT_URI"
@@ -314,12 +319,11 @@ require_production_object_storage
 [[ "${SMS_ENABLED:-false}" == "true" ]] || die "SMS_ENABLED must be true for production deploy"
 [[ "${OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_REQUIRED:-false}" == "true" ]] || die "OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_REQUIRED must be true for production deploy"
 require_production_postgres_ssl
+require_production_postgres_archiving
 require_production_external_student_source_security
 [[ "${REDIS_TLS_ENABLED:-false}" == "true" ]] || die "REDIS_TLS_ENABLED must be true for production deploy"
 require_public_ingress_config_preflight
-require_public_identity_ingress_preflight
 
-export TAG="${TAG:-$(derive_release_id_from_image_ref "${BACKEND_IMAGE_REF:-}" || git_tag_default)}"
 export BUILD_TIME="${BUILD_TIME:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
 
 if [[ "${EXTERNAL_POSTGRES_ENABLED:-false}" != "true" ]]; then
@@ -329,6 +333,10 @@ else
 fi
 "${SCRIPT_DIR}/render-redis-tls.sh"
 "${SCRIPT_DIR}/prepare-datastore-client-cas.sh"
+if [[ "${EXTERNAL_POSTGRES_ENABLED:-false}" == "true" ]]; then
+  require_external_postgres_pitr_evidence >/dev/null
+  log "verified fresh cluster-bound external PostgreSQL continuous WAL/PITR evidence"
+fi
 "${SCRIPT_DIR}/render-redis-acl.sh"
 "${SCRIPT_DIR}/render-observability.sh" prod
 
@@ -372,10 +380,22 @@ log "starting production observability infrastructure services"
 compose --profile prod up -d --wait "${infra_services[@]}"
 
 log "creating pre-deploy database backup"
-predeploy_backup_dir="${REPO_ROOT}/backups/postgres/logical"
-predeploy_backup_path="${predeploy_backup_dir}/predeploy-${TAG}.dump"
-mkdir -p "${predeploy_backup_dir}"
+predeploy_backup_dir="${BACKUP_LOGICAL_DIR:-${REPO_ROOT}/backups/postgres/logical}"
+predeploy_basebackup_dir="${BACKUP_BASE_DIR:-${REPO_ROOT}/backups/postgres/base}"
+deployment_attempt_id="$(new_deployment_attempt_id)"
+predeploy_backup_path="${predeploy_backup_dir}/predeploy-${TAG}-${deployment_attempt_id}.dump"
+predeploy_basebackup_path="${predeploy_basebackup_dir}/predeploy-${TAG}-${deployment_attempt_id}.tar.gz"
+mkdir -p "${predeploy_backup_dir}" "${predeploy_basebackup_dir}"
 "${SCRIPT_DIR}/backup-postgres.sh" "${predeploy_backup_path}" || die "pre-deploy backup failed; aborting deployment"
+
+# A file's age, checksum, and tar readability do not prove that it belongs to
+# the PostgreSQL cluster currently receiving migrations. Create a new
+# pg_basebackup for every deployment attempt so this recovery anchor is
+# necessarily bound to the live replication endpoint used by this rollout.
+log "creating a fresh cluster-bound physical base backup recovery anchor before migrations"
+BACKUP_MODE=basebackup \
+  "${SCRIPT_DIR}/backup-postgres.sh" "${predeploy_basebackup_path}" ||
+  die "pre-deploy physical base backup failed; aborting deployment"
 
 log "syncing pre-deploy PostgreSQL backup artifacts to object storage"
 "${SCRIPT_DIR}/sync-postgres-backups.sh"
@@ -405,6 +425,7 @@ log "running Open Platform production evidence smokes"
 log "starting production application services"
 compose --profile prod up -d --wait app frontend admin
 
+require_public_identity_ingress_preflight
 if [[ "${SSO_PUBLIC_SMOKE_ENABLED:-true}" == "true" ]]; then
   "${SCRIPT_DIR}/sso-public-smoke.sh"
 else
@@ -422,6 +443,8 @@ else
 fi
 "${SCRIPT_DIR}/smoke-check.sh"
 OBS_SMOKE_STRICT=true "${SCRIPT_DIR}/observability-smoke-check.sh"
+log "running mandatory post-deploy online preflight"
+"${SCRIPT_DIR}/remote-preflight.sh" --post-deploy
 record_release "${TAG}"
 
 log "production deployment completed successfully"

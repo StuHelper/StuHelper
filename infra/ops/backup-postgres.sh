@@ -23,7 +23,11 @@ if [[ $# -lt 1 ]]; then
 fi
 
 mode="${BACKUP_MODE:-dump}"
-load_env_preserving BACKUP_DATABASE_URL REPLICATION_DATABASE_URL
+load_env_preserving \
+  BACKUP_DATABASE_URL \
+  REPLICATION_DATABASE_URL \
+  LOCAL_STATE_DIR \
+  BACKUP_STAGING_DIR
 logical_url="${BACKUP_DATABASE_URL:-}"
 replication_url="${REPLICATION_DATABASE_URL:-}"
 

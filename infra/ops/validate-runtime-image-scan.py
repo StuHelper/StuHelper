@@ -18,6 +18,11 @@ DIGEST_REF_RE = re.compile(
     r"^[^\s@]+:[^\s/@]+@sha256:[0-9a-f]{64}$",
 )
 APPLICATION_DIGEST_REF_RE = re.compile(r"^[^\s@]+@sha256:[0-9a-f]{64}$")
+LEGACY_APPLICATION_REF_RE = re.compile(
+    r"^[A-Za-z0-9][A-Za-z0-9._-]*(?::[0-9]+)?"
+    r"(?:/[A-Za-z0-9][A-Za-z0-9._-]*)*"
+    r":[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$",
+)
 MOVING_TAG_RE = re.compile(r":(?:latest|latest-dev|beta|master|nightly(?:-slim)?)@sha256:")
 ROLLBACK_TAG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 ROLLBACK_ACTOR_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.@-]{0,127}$")
@@ -84,6 +89,14 @@ def parse_args() -> argparse.Namespace:
         help=(
             "validate review windows at a previously successful deployment date; "
             "reserved for the audited production rollback path"
+        ),
+    )
+    parser.add_argument(
+        "--allow-legacy-rollback-record",
+        action="store_true",
+        help=(
+            "validate an explicit digest transition from a legacy tag-based rollback "
+            "record without mutating that record; reserved for prod-rollback.sh"
         ),
     )
     parser.add_argument(
@@ -193,6 +206,18 @@ def parse_release_record(path: Path) -> dict[str, str]:
     return values
 
 
+def image_repository(reference: str) -> str:
+    if "@" in reference:
+        return reference.split("@", 1)[0]
+    last_slash = reference.rfind("/")
+    last_colon = reference.rfind(":")
+    require(
+        last_colon > last_slash,
+        f"legacy rollback image reference must contain an explicit tag: {reference}",
+    )
+    return reference[:last_colon]
+
+
 def validate_rollback_release_evidence(
     *,
     path: Path,
@@ -201,6 +226,7 @@ def validate_rollback_release_evidence(
     policy_only: bool,
     effective_environment: str | None,
     minimum_days_remaining: int,
+    allow_legacy_record: bool,
 ) -> RollbackReleaseEvidence:
     require(policy_only, "--rollback-release-record requires --policy-only")
     require(
@@ -259,16 +285,35 @@ def validate_rollback_release_evidence(
         "rollback release record DEPLOYED_AT cannot be in the future",
     )
 
+    legacy_fields: list[str] = []
     for field in ("BACKEND_IMAGE_REF", "FRONTEND_IMAGE_REF", "ADMIN_IMAGE_REF"):
         recorded_ref = values[field].strip()
         effective_ref = os.environ.get(field, "").strip()
+        if APPLICATION_DIGEST_REF_RE.fullmatch(recorded_ref) is not None:
+            require(
+                effective_ref == recorded_ref,
+                f"{field} does not exactly match the successful rollback release record",
+            )
+            continue
         require(
-            APPLICATION_DIGEST_REF_RE.fullmatch(recorded_ref) is not None,
+            allow_legacy_record
+            and LEGACY_APPLICATION_REF_RE.fullmatch(recorded_ref) is not None,
             f"rollback release record {field} must be an immutable digest reference",
         )
         require(
-            effective_ref == recorded_ref,
-            f"{field} does not exactly match the successful rollback release record",
+            APPLICATION_DIGEST_REF_RE.fullmatch(effective_ref) is not None,
+            f"explicit legacy rollback {field} must transition to an immutable digest reference",
+        )
+        require(
+            image_repository(recorded_ref) == image_repository(effective_ref),
+            f"explicit legacy rollback {field} changes the successful release repository",
+        )
+        legacy_fields.append(field)
+
+    if allow_legacy_record:
+        require(
+            bool(legacy_fields),
+            "--allow-legacy-rollback-record requires at least one legacy image reference",
         )
 
     actor = os.environ.get("ROLLBACK_REVIEW_ACTOR", "").strip()
@@ -722,8 +767,14 @@ def main() -> int:
             policy_only=args.policy_only,
             effective_environment=args.effective_environment,
             minimum_days_remaining=args.minimum_review_days_remaining,
+            allow_legacy_record=args.allow_legacy_rollback_record,
         )
         policy_date = rollback_evidence.review_date
+    else:
+        require(
+            not args.allow_legacy_rollback_record,
+            "--allow-legacy-rollback-record requires --rollback-release-record",
+        )
 
     policy_path = args.policy
     if not policy_path.is_absolute():

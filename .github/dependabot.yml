@@ -3,6 +3,7 @@ version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
+    target-branch: develop
     schedule:
       interval: weekly
       day: monday
@@ -21,6 +22,7 @@ updates:
 
   - package-ecosystem: gomod
     directory: /server
+    target-branch: develop
     schedule:
       interval: weekly
       day: monday
@@ -43,6 +45,7 @@ updates:
   # routine major version updates so security remediations can cross majors.
   - package-ecosystem: npm
     directory: /bots/koishi
+    target-branch: develop
     schedule:
       interval: weekly
       day: monday
@@ -65,6 +68,7 @@ updates:
 
   - package-ecosystem: npm
     directory: /clients
+    target-branch: develop
     # UniAppX follows an exact DCloud build train whose packages, Vue compiler,
     # runtime, Pinia, and @dcloudio/types must be upgraded together. Exclude its
     # manifest from routine version PRs; CI still audits the shared lockfile.
@@ -101,6 +105,7 @@ updates:
 
   - package-ecosystem: npm
     directory: /clients/admin
+    target-branch: develop
     # Admin uses a large pnpm catalog. Dependabot currently conflates current
     # catalog entries with older same-named transitive lockfile nodes, which
     # produces empty PRs and FileUpdater::NoChangeError failures. Disable
@@ -121,6 +126,7 @@ updates:
       - /server
       - /clients/web
       - /clients/admin/scripts/deploy
+    target-branch: develop
     schedule:
       interval: weekly
       day: monday

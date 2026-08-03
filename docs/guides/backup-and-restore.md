@@ -70,10 +70,12 @@ BACKUP_MODE=basebackup ./infra/ops/backup-postgres.sh backups/stuhelper-$(date +
 
 说明：
 
-- `run-scheduled-backup.sh` 会在本地生成备份文件
-- 它会清理超出保留期的 logical / base / WAL 文件
-- 最后会自动调用 `./infra/ops/sync-postgres-backups.sh`，把逻辑备份、base backup、WAL 归档镜像到对象存储
+- `run-scheduled-backup.sh` 会先在本地生成备份文件，再调用 `./infra/ops/sync-postgres-backups.sh`，把逻辑备份、base backup、WAL 归档复制到对象存储
+- 只有本轮全部远端复制成功后，它才会清理超出保留期的本地 logical / base / WAL 文件；认证、网络或对象存储故障不会触发本地删除
 - 同步器显式排除 `*.partial*`、WAL 归档的 `*.tmp*` 和 staging 路径；只有已经原子发布的工件会上传
+- 生产 systemd unit 固定要求异机门禁；门禁会在创建备份或执行 logical / base / WAL 保留期清理之前检查，失败时不会删除任何尚未上传的本地工件
+- `current-release.env` 尚未产生时，只有 Docker daemon 可确认本机 PostgreSQL 容器和 data volume 都不存在、未选择外部 PostgreSQL，且没有 `releases.log` 或 per-tag 历史证据，timer 才允许在真正空白的 bootstrap 主机上成功延期；任何数据库/账本证据仍存而 marker 缺失都会失败并告警，防止首次部署在写 marker 前失败后长期显示“备份成功”
+- StuHelper 环境加载器将配置文件按数据解析，拒绝 `PATH`、`PYTHON*`、`LD_*`、`DYLD_*`、`BASH_ENV` / `ENV`、`GCONV_PATH`、`NODE_OPTIONS` 等进程控制变量，并在解析前与加载后清除父进程继承的同类变量；定时任务调用备份和同步子脚本时仍使用非登录、无 profile 的隔离 Bash，防止子进程启动钩子改变门禁或清理顺序
 
 生产机建议直接安装 systemd timer：
 
@@ -86,6 +88,8 @@ sudo ./infra/ops/install-backup-timers.sh
 - 每天 `03:15` 做逻辑备份
 - 每周日 `03:45` 做 base backup
 - 每 15 分钟执行一次 backup artifact sync
+- 三个 timer 的 coalescing accuracy 固定为一分钟且不允许 randomized delay，防止 drop-in 将工件新鲜度悄然延后
+- 内置生产 PostgreSQL 必须使用 `POSTGRES_ARCHIVE_MODE=on`、`POSTGRES_ARCHIVE_TIMEOUT=15min` 和仓库定义的幂等归档命令；同步前会验证实时归档配置、当前 postmaster 启动后的成功进度及 WAL 文件确实位于受保护 volume，本次同步缺少可信进度时会用一次 `pg_switch_wal()` 实探
 - WAL 归档目录按 `WAL_ARCHIVE_RETENTION_DAYS` 清理
 
 ## 从对象存储取回恢复工件
@@ -103,6 +107,8 @@ sudo ./infra/ops/install-backup-timers.sh
 ./infra/ops/fetch-postgres-backups.sh base
 ./infra/ops/fetch-postgres-backups.sh wal
 ```
+
+在 `APP_ENV=production` 或显式要求异机门禁时，取回脚本不会复用父进程留下的旧地址固定：它会先加载最终环境，重新解析并验证实际传输主机，再把本轮验证结果固定给 rclone。门禁失败时不会发起取回，也不能把同机对象存储响应计作生产恢复 evidence。
 
 默认会把对象存储中的内容拉回：
 
@@ -130,6 +136,57 @@ sudo ./infra/ops/install-backup-timers.sh
 
 **evidence 通过不等于 PITR 已验收。**它证明近期工件存在、完整且能从远端取回；仍须按下方
 演练清单，在隔离实例实际启动恢复后的 PGDATA，并在目标时间点恢复场景中验证 WAL 连续性。
+
+使用 `EXTERNAL_POSTGRES_ENABLED=true` 时，StuHelper 不拥有外部实例的实时 WAL volume，因此仓库脚本只同步 logical dump 和包含流式 WAL 的一致性 base backup，不会创建或读取本地 WAL 卷。外部平台的连续 WAL 归档、保留策略、故障域和 PITR 演练必须由其 DBA/供应商单独验收并留证；只有下述机器可验证的证据通过，部署和同步才会继续。
+
+外部平台的 root 管理任务必须原子刷新 `/etc/stuhelper/external-postgres-pitr-evidence.json`。目录和文件 owner 必须是 root，且 group/other 不可写；部署用户只需只读权限。该文件不得由 StuHelper 发布流程自我签发，也不得放入 Git 或 secret env。证据结构如下（示例值不是生产事实）：
+
+```json
+{
+  "schemaVersion": 1,
+  "evidenceId": "provider-check-20260803T025000Z",
+  "provider": "external-postgres-platform",
+  "evidenceUri": "https://evidence.example.com/postgres/check-20260803T025000Z",
+  "clusterSystemIdentifier": "1234567890123456789",
+  "observedAt": "2026-08-03T02:50:00Z",
+  "expiresAt": "2026-08-03T03:30:00Z",
+  "continuousArchiving": {
+    "enabled": true,
+    "offHost": true,
+    "rpoSeconds": 900,
+    "retentionHours": 168,
+    "lastArchivedAt": "2026-08-03T02:45:00Z"
+  },
+  "restoreDrill": {
+    "status": "passed",
+    "completedAt": "2026-07-15T12:00:00Z",
+    "isolatedTarget": true,
+    "baseBackupVerified": true,
+    "walReplayVerified": true
+  }
+}
+```
+
+门禁会实时读取当前外部集群的 `pg_control_system().system_identifier` 并与证据精确比较；外部 DBA 需要允许 `stuhelper_backup` 执行这个只读系统信息函数。证据观测与最新 WAL 均不得超过 30 分钟，`rpoSeconds` 不得大于 900，异机保留不得少于 168 小时，证据有效期不得超过一小时，隔离恢复演练不得早于 90 天。`evidenceUri` 必须是无内嵌凭据和 fragment 的 HTTPS 报告地址。任一条件不满足时，不允许用布尔确认或 logical/base backup 绕过。
+
+对象存储“可取回”也不自动代表异机灾备：同一生产主机上的 MinIO 会与数据库一起丢失。生产配置
+只有在备份端点位于独立故障域、且已验证生产主机完全丢失后仍可访问时，才能设置
+`BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED=true`。`remote-preflight.sh` 和 `prod-deploy.sh` 会对此
+失败关闭，并拒绝单标签 Compose 服务名、旧式缩写数字 IPv4、带 zone identifier 的 IPv6 及解析到本机接口的 FQDN。使用 virtual-hosted S3 时，门禁会分别解析、校验并固定 endpoint 与 `bucket.endpoint`；bucket 必须能组成合法的小写 ASCII DNS 主机名，不能让实际传输绕过基础 endpoint 的验证。生产备份
+systemd service 也固定要求这项门禁，不能由共享 env 将要求降级；配置漂移后定时同步会失败并留给
+systemd/告警处理，而不是继续把同机副本计作灾备。升级已有节点后须由 root 重新运行
+`./infra/ops/install-backup-timers.sh`；预检会把三个 service 的有效 `Environment`、pre-exec
+`UnsetEnvironment` 与安装器定义精确比对；有效 `User` / `Group` 还必须与当前非 root 部署账号及其主组一致，任何 root 或其他身份的 unit/drop-in 都会失败关闭。服务先清除动态加载器变量，再以 `env -i` 丢弃 manager
+defaults 和其他继承环境，只传固定 `PATH`、配置路径与异机门禁；额外的 `LD_PRELOAD`、`PYTHONPATH`、`PATH`
+等进程控制变量会失败关闭。预检同时拒绝 `EnvironmentFile=`、`PassEnvironment=` 以及不精确的
+`UnsetEnvironment=` unit/drop-in，不能继续使用缺少或可降级门禁的旧单元。
+服务生命周期还必须没有 `ExecReload`、`ExecStop` 或 `ExecStopPost` 钩子，避免额外命令在备份退出或人工停止时改写恢复工件。
+三个 oneshot 分别使用逻辑备份 `18h`、base backup `26h`、独立同步 `12h` 的有限启动上限，并固定 `TimeoutStopUSec=2min`、`KillMode=control-group`、`SendSIGKILL=yes`。逻辑与 base 服务会在生成后内联执行同一异机同步，因此总预算分别由 `4h/12h` 生成窗口、`12h` 最大传输窗口和 `2h` 校验/压缩/重试余量相加得出；独立同步仍固定 `12h`。生产容量规划必须保证一份最大完整 base backup 加待补 WAL 能在 12 小时内以最低持续异机带宽传完。若实测不满足该支持边界，应先扩容链路或拆分备份，而不是用 drop-in 放宽门禁。预检拒绝 drop-in 缩短、延长或关闭上限，避免挂死任务永久吞掉后续 timer。
+预检还通过 systemd D-Bus 校验有效 `Conditions` 与 `Asserts` 都为空，避免 `ConditionPathExists` 等 drop-in 把每次备份静默变成 skipped activation。
+
+生产主机位于 1:1 NAT、hairpin LB 或公网边缘之后时，还必须把所有能路由回本机的地址/CIDR 写入
+`BACKUP_OBJECT_STORAGE_LOCAL_IDENTITY_CIDRS`；无额外身份时显式写 `none`。该清单用于补足
+`ip address` 看不到的公网身份，但仍不能替代“关闭/丢失生产主机后从独立环境取回并恢复”的演练。
 
 ## 逻辑备份恢复
 
@@ -171,6 +228,8 @@ PGDATA 目录；提取后还会要求 `PG_VERSION` 和 `backup_manifest` 存在�
 ## 生产规则
 
 - 每次 production 发布前至少做一次人工备份
+- 备份对象存储必须位于独立故障域；同机 MinIO 只能作为迁移前临时副本，不能设置
+  `BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED=true`
 - 生产机必须启用逻辑备份 / base backup / backup sync timer
 - 发布前 `postgres-backup-evidence.sh` 必须同时显示四份（本地/取回 × 逻辑/物理）工件
   `sha256Verified=true`、`fresh=true`，物理工件还须 `archiveReadable=true`

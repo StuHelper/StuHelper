@@ -12,8 +12,7 @@ load_env
 export ENV_FILE GENERATED_ENV_FILE GENERATED_SECRET_ENV_FILE SECRETS_ENV_FILE
 if [[ -f "${DEV_RUNTIME_ENV}" ]]; then
   set -a
-  # shellcheck disable=SC1090
-  source "${DEV_RUNTIME_ENV}"
+  source_env_file "${DEV_RUNTIME_ENV}"
   set +a
 fi
 

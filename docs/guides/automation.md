@@ -147,7 +147,7 @@ make prod-deploy
 - `.env.prod.secrets.local`：本机或临时环境使用的 secrets 文件
 - `.env.prod.generated`：运行时派生配置
 - `.env.prod.generated.secrets`：生产保留空占位；真实运行时派生 secrets 写入远端 secret backend，避免本地明文落盘
-- `.env.casdoor-bootstrap.local`：一次性 Casdoor bootstrap admin credential；只由部署脚本读取，不挂载到运行时 app 容器
+- `.env.casdoor-bootstrap.local`：一次性 Casdoor bootstrap admin credential；只按受限 `KEY=VALUE` 环境文件解析，不执行 shell 语法，只接受 `CASDOOR_BOOTSTRAP_CLIENT_ID`、`CASDOOR_BOOTSTRAP_CLIENT_SECRET`、`CASDOOR_BOOTSTRAP_APPLICATION`、`CASDOOR_BOOTSTRAP_CERTIFICATE`、`CASDOOR_BOOTSTRAP_ORGANIZATION`，拒绝其他字段及任何进程控制变量，且不挂载到运行时 app 容器。解析器会先验证完整文件再输出赋值；失败诊断只含文件、行号和字段名，不会连带输出此前已解析的 credential。生产父部署进程只在隔离子 Shell 中验证该文件并立即清除可能继承的同名变量；真正需要凭据的 bootstrap/cutover 子进程各自重新读取，备份、渲染、迁移、Docker 和 smoke 子进程不会继承 bootstrap credential
 
 `make prod-deploy` 会自动完成：
 
@@ -159,6 +159,22 @@ make prod-deploy
 6. 执行业务、公网浏览器和 Observability Smoke Check
 
 生产对象存储 bucket、访问身份、服务端加密和生命周期策略必须由外部 S3 控制面预先创建；部署身份没有建桶或管理 IAM 的权限。公共 CA 场景下 `OBJECT_STORAGE_TLS_CA` 与 `OBJECT_STORAGE_TLS_CA_HOST_PATH` 都留空。私有 CA 场景下，前者固定为容器路径 `/object-storage-tls/ca.crt`，后者指向宿主机上经核验的只读 PEM CA bundle；部署脚本只把公开证书原子复制到 `infra/generated/object-storage-client-ca/ca.crt`，应用容器不会挂载本地 SeaweedFS 的私钥或身份配置。备份 rclone 的 `BACKUP_OBJECT_STORAGE_TLS_CA` 仍使用宿主机可读路径，可与应用 CA 不同。
+
+备份目标还必须与生产主机处于独立故障域。完成异机/云对象存储配置并验证生产主机完全丢失后仍可取回工件，才可把 `BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED` 设为 `true`。同时必须用 `BACKUP_OBJECT_STORAGE_LOCAL_IDENTITY_CIDRS` 列出所有可路由回本机的公网、1:1 NAT 或负载均衡 IP/CIDR；确认不存在额外身份时也要显式填写 `none`。生产预检会拒绝缺少这份清单、只有逗号/空白等分隔符的空清单或命中清单的端点，也会拒绝 `minio`、`object-storage` 等单标签 Compose 主机名、loopback、link-local、旧式缩写数字 IPv4、带 zone identifier 的 IPv6、尾随点 FQDN 和 `.local` 端点。
+
+FQDN 必须在 rclone 实际使用的 Docker 网络命名空间内解析到 A/AAAA 地址，且任何解析结果都不能是本机接口地址、本机 Docker 容器地址或列入生产公网/NAT/LB 身份清单的等价 IPv4、IPv4-mapped IPv6 地址。使用 virtual-hosted S3 时，基础 endpoint 与实际请求使用的 `bucket.endpoint` 会被分别解析和校验，bucket 必须能组成合法的小写 ASCII DNS 主机名。通过验证的每个传输主机及完整地址集合都会用容器 `--add-host` 固定给本轮 rclone；URL、HTTP Host 与 TLS SNI 仍保留原 FQDN，避免验证和传输之间的 DNS 轮换或重绑定。生产取回 evidence 也会在加载最终环境后重新执行该门禁，而不是复用父进程地址或回到普通 DNS。
+
+host-local `bridge` 网络还会拒绝整个 IPAM 子网；共享的 `macvlan`、`ipvlan`、`overlay` 只拒绝本机容器精确地址，避免误伤异机节点。`BACKUP_OBJECT_STORAGE_DOCKER_NETWORK=host|none` 不允许用于生产异机备份。root 管理的三个生产备份 systemd service 还会固定注入 `BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true`；共享配置无法把它覆盖为 false，因此发布后发生配置漂移时，定时同步同样失败关闭。StuHelper 环境加载器把所有环境文件当作数据解析，不执行 shell 语法；文件内会全局拒绝 `PATH`、`PYTHON*`、`LD_*`、`DYLD_*`、`BASH_ENV`、`ENV`、`GCONV_PATH`、`NODE_OPTIONS` 等解释器、动态加载器和命令解析控制字段，并在启动解析器前及加载后清除父进程继承的同类变量。服务本身使用非登录、禁用 profile 的 Bash；定时备份调用备份、同步子脚本时也使用同样的隔离启动路径。systemd 在启动 `/usr/bin/env` 前通过受检的 `UnsetEnvironment=` 清除 `LD_PRELOAD`、`LD_LIBRARY_PATH`、`LD_AUDIT`、`GCONV_PATH`、`LOCPATH`，随后 `env -i` 丢弃包括 manager `DefaultEnvironment=` / `systemd.setenv=` 在内的其余继承环境，只重新加入固定 `PATH`、四个环境文件路径、`LOCAL_STATE_DIR=/var/lib/stuhelper`、可选 staging 路径和异机门禁标记；显式 local-state 路径使脚本不依赖已清除的 `HOME`。安装器在写 unit 前拒绝 root、UID/GID 0 或不存在的运行身份；主机 bootstrap 则允许创建默认的 `stuhelper` 身份，但会在任何主机修改前拒绝显式 root 名称以及已存在且解析到 UID/GID 0 的别名。生产预检强制要求 systemd，并把三个 service 的有效 `User`、`Group` 与当前非 root 部署账号及其主组精确比对，同时把完整显式 `Environment`、上述 pre-exec unset 集合与安装器定义精确比对。任何把备份服务改成 root 或其他身份的 unit/drop-in 都会失败关闭。同时要求 timer 可重复触发的 `Type=oneshot`、`RemainAfterExit=no`、`Restart=no`；逻辑备份、base backup、独立同步分别使用精确的 `18h`、`26h`、`12h` 总上限，其中前两者显式包含 `4h/12h` 生成窗口、`12h` 内联传输窗口和 `2h` 校验/压缩/重试余量。容量规划必须证明一份最大完整 base backup 加待补 WAL 可在 12 小时内通过最低持续异机带宽传完。三个服务均以 `TimeoutStopUSec=2min`、`KillMode=control-group`、`SendSIGKILL=yes` 保证超时后整个 service cgroup 能被终止。预检通过 systemd D-Bus 要求有效 `Conditions` / `Asserts` 列表为空，并拒绝 `ExecCondition`、`ExecReload`、额外 start/stop/post 命令与扩展成功退出码。这样 unit 或 drop-in 不能把备份激活转成“跳过但非失败”，挂死的同步也不能永久吞掉后续 timer。预检还校验有效 `WorkingDirectory`、`ExecStart` 与 `ExecStartEx`；`ignore_errors` 必须为 `no` 且不能使用 `-`、`+`、`!` 等执行前缀，异机门禁或同步失败不能被记作成功，有限上限也不能被 drop-in 缩短、延长或关闭。每个 timer 还必须启用并处于 active 状态，精确指向同名受保护 service，仅含预期的 persistent calendar 且不能追加 monotonic 触发器；有效 `AccuracyUSec` 固定为一分钟，`RandomizedDelayUSec` 固定为零，避免 drop-in 把备份新鲜度任意延后。预检拒绝任何 `EnvironmentFile=`、`PassEnvironment=`，也拒绝缺少或增加字段的 `UnsetEnvironment=` 及对应 drop-in。升级已有节点时必须以 root 重新运行 `./infra/ops/install-backup-timers.sh`，旧单元不会被当作合格配置继续发布。该变量是运维确认而不是自动证明，不能替代隔离恢复与 PITR 演练。
+
+受保护的备份 service 不接受任何 systemd drop-in：有效 `DropInPaths` 必须为空。`RootDirectory`、`RootImage`、bind mount、临时文件系统、mount/extension image、`ReadOnlyPaths`、`ReadWritePaths`、`InaccessiblePaths`、`ExecPaths` 与 `NoExecPaths` 也必须保持安装器默认值；`ProtectSystem`、`ProtectHome`、`PrivateTmp` 与 `PrivateMounts` 不得通过主 unit 改写。这样既阻止替换受检脚本，也阻止在预检读取到上一次成功 `Result` 后才让下一次定时备份因路径不可写、不可见或不可执行而失效。
+
+首次 bootstrap 即使尚未上传 deploy bundle，也会预先创建由部署用户拥有的 `/var/lib/stuhelper/postgres/wal-restore`。因此后备 systemd 单元与后续部署用户执行的远端预检使用同一 local-state 布局。若 bundle 尚不存在，bootstrap 只写入后备 unit，不启用或启动 timer，避免 15 分钟同步任务在脚本与生产配置缺失时留下失败 `Result`。正式安装器默认也只写 unit、保持现有激活状态不变；首个 bundle、生产配置和 Vault 就绪后，root 必须显式执行 `BACKUP_TIMERS_ACTIVATE=true ./infra/ops/install-backup-timers.sh`。安装器先用隔离环境切换为非 root 部署用户执行 `remote-preflight.sh --timer-activation`，并把写入 unit 的同一个 `BACKUP_STAGING_DIR` 显式传入该隔离进程；默认目录或受支持的独立备份磁盘都必须按实际有效路径做精确环境比对。该阶段验证完整静态配置、Vault、异机对象存储、备份工具和 unit 契约，只允许 timer 暂未 enabled/active，并对尚未启动的本机 PostgreSQL 延后连通性检查；全部通过后才 `enable --now`。预检还枚举所有 `*-postgres-{dump-backup,basebackup,backup-sync}.timer`，只允许规范的三条 `stuhelper-*` unit；历史 `SYSTEMD_PREFIX=custom` 等遗留 unit 即使 disabled 也必须由 root 在确认名称后显式 `disable --now` 并移除 unit 文件、`daemon-reload`，不能让两套日历并存。安装器不会为了重装先 `disable --now` 或清除已有 service 失败结果，因此 Vault 封印、对象存储暂不可用或真实备份失败会让安装器失败关闭，同时保留原有 timer 的 enabled/active 状态和诊断证据。三个规范 timer 都通过统一的受保护调度包装器运行：首个 `current-release.env` 尚未写入时，只有同时不存在 `releases.log`、per-tag 记录、外部 PostgreSQL 选择、本机 PostgreSQL 容器和数据 volume，且 Docker daemon 可读地证明这些条件，任务才以“尚无已提交发布或 datastore 证据”成功延期。部署已经启动却在 `record_release` 前失败、marker 被删除、外部数据库已选中或任一历史证据仍存时，定时任务必须失败并触发 systemd/告警，不能把“未备份”伪装成成功 no-op。一旦 release marker 存在，包装器要求它与对应的不可变 per-tag 记录完全一致，随后数据库、对象存储或同步失败仍会失败关闭。常规部署前/后预检仍要求三个 timer 已启用且 active，并要求当前 service `Result=success`。
+
+备份、同步、对象存储取回、证据生成与恢复脚本把调用进程已经确定的 `LOCAL_STATE_DIR` 视为运维控制面值，并在加载共享/秘密/生成配置时显式保留它。生产 systemd 注入的 `/var/lib/stuhelper` 因而不能被配置文件中的同名空值或漂移值覆盖，也不会在已清除 `HOME` 的隔离环境里回退到用户目录推导逻辑。
+
+WAL 同步在任何对象存储传输前还会检查配置卷已经存在、`${STACK_NAME}-postgres` 容器正在运行，并确认该容器把同名 Docker volume 以可写方式挂载到 `/var/lib/postgresql/wal-archive`。内置生产 PostgreSQL 强制 `POSTGRES_ARCHIVE_MODE=on` 和 `POSTGRES_ARCHIVE_TIMEOUT=15min`；同步脚本通过容器内本地 socket 查询实时 `archive_mode`、`archive_timeout`、精确的幂等 `archive_command` 和 `pg_stat_archiver`，并确认当前 postmaster 启动后已有成功归档且对应文件真实存在。若本次启动尚无成功记录或最后一次失败不早于成功记录，本次同步最多触发一次 `pg_switch_wal()` 实探并等待 30 秒；没有形成可见 WAL 工件就失败。缺失卷、空卷自动创建风险、错误 stack/卷名、只读或未挂载状态、`archive_mode=off`、超时/命令漂移或伪造/陈旧进度都会失败关闭，不能在复制空 `/source` 后继续清理本地恢复材料。
+
+`EXTERNAL_POSTGRES_ENABLED=true` 时不存在 StuHelper 管理的本地 PostgreSQL 容器或 WAL volume。此模式仍会生成、同步并取回验证逻辑 dump 与使用 `--wal-method=stream` 的一致性 base backup，但明确跳过本地 WAL volume 同步与清理。外部平台必须以 root 原子刷新固定路径 `/etc/stuhelper/external-postgres-pitr-evidence.json`；文件及父目录不能被 group/other 写入。远端预检、正式部署、每次同步和聚合 backup evidence 都会用备份连接实时读取 `pg_control_system().system_identifier`，要求证据绑定同一集群，并校验 30 分钟内的观测/最新 WAL、最多 15 分钟 RPO、至少 7 天异机保留、一小时内失效和 90 天内的隔离恢复演练。缺失、过期、同机归档、集群不符或未验证 WAL replay 都会失败关闭；StuHelper 的 logical/base evidence 不能替代该外部 PITR 验收。
 
 ## 远端部署控制面
 
@@ -176,12 +192,13 @@ make prod-deploy
   小时，systemd 每 12 小时续期，部署前要求 TTL 至少还有 12 小时。
 - shared env / generated env secrets 由 `${DEPLOY_APP_DIR}/.deploy/remote.env` 中的 secret ref 决定
   （默认 `SECRET_BACKEND=vault-kv-v2`）
+- `.deploy/remote.env` 只接受注册表、环境文件路径、`BACKUP_SERVICE_GROUP`、secret backend 和 Vault 运行 token 参数；生产远端预检还要求四个环境文件路径精确等于当前 deploy bundle 根目录下的 `.env.prod.shared`、`.env.prod.secrets`、`.env.prod.generated`、`.env.prod.generated.secrets`，与 root 安装的受保护 systemd unit 完全一致，不支持让部署进程校验一组自定义文件、timer 却读取另一组默认文件。`BACKUP_SERVICE_GROUP` 持久记录 root 安装 systemd 备份单元时选定的服务组，即使它不是部署用户的主组，远程预检也会与有效 `Group=` 精确比对。发布回滚读取的 `releases/*.env` 只接受 `TAG`、`DEPLOYED_AT` 和三个不可变镜像引用。三类低权限状态文件分别使用独立字段白名单，不能注入 `PATH`、`SCRIPT_DIR`、`PYTHONPATH`、`LD_PRELOAD` 等进程控制字段。初始化器会在重写已有 `remote.env` 前先验证原文件；未知或拼错字段会保留现场文件并使初始化、部署或回滚立即失败，新增控制面字段时必须同步代码白名单与契约测试。
 - GitHub Actions 远端发布使用 `REGISTRY_AUTH_MODE=workflow-token`：每个 job 的短期
   `github.token` 经 SSH 标准输入传递，只写入远端临时 `DOCKER_CONFIG` 并在结束时删除；目标机不保存
   个人 PAT 或长期 GHCR pull token。`persistent-secret` 只用于明确管理的非 GitHub 兼容链路
-- CI / Ansible 仅传发布标识与镜像引用；GitHub Actions 传完整 commit SHA、三个
-  `image@sha256:...` 引用和一次性 registry token，仓库本地/Ansible 兼容链路仍可使用
-  `TAG` / `ROLLBACK_TAG`
+- CI / Ansible 仅传发布标识与镜像引用；所有生产 backend/frontend/admin 引用都必须是完整
+  `image@sha256:...`，显式版本标签也不能作为成功发布记录。GitHub Actions 另外传完整 commit SHA
+  和一次性 registry token；仓库本地/Ansible 兼容链路仍可使用 `TAG` / `ROLLBACK_TAG` 标识发布
 
 如果远端部署控制面变更，直接在目标机执行：
 
@@ -189,6 +206,12 @@ make prod-deploy
 cd /opt/stuhelper
 ./infra/ops/init-remote-deploy-config.sh
 ```
+
+完整主机 bootstrap 可以安全重复执行：它调用初始化器时固定使用
+`REMOTE_DEPLOY_CONFIG_PRESERVE_EXISTING=true`，已有 `remote.env` 中已经出现的字段（包括显式空值）
+优先于 bootstrap 的占位/default 输入，仅对新版本新增而现场缺失的键补默认值；deploy bundle 尚不可用的后备路径则
+直接保留已有文件。需要有意修改控制面值时，应由部署用户单独运行初始化器并显式传入新值，不能借重跑 bootstrap
+覆盖现场配置。
 
 Vault 已初始化、解封并写入三条 secret ref 后，由 root 一次性收敛运行权限并安装续期 timer：
 
@@ -205,7 +228,7 @@ sudo -u stuhelper REMOTE_DEPLOY_CONFIG_FILE=/opt/stuhelper/.deploy/remote.env \
 初始化脚本重复执行时不会再用 root token 覆盖已经安装的 scoped token。Vault 仍采用人工解封：主机
 重启后必须先解封；在未解封期间续期与部署均失败关闭，不能通过延长为永久 token 绕过。
 
-如果是远端部署，实际链路里会先执行 `infra/ops/remote-preflight.sh`，检查：
+所有生产部署入口最终都进入 `infra/ops/prod-deploy.sh`。脚本先校验调用方 TAG，再对部署用户本人拥有且不可被组/其他用户写入的 `.deploy` 目录文件描述符取得非阻塞独占 `flock`；该锁覆盖控制面/secret 加载、身份检查、预检、备份、迁移、rollout、post-deploy 验证和 `record_release`，直至进程退出自动释放。GitHub concurrency 之外的 `make prod-deploy`、应急前滚与回滚因此也不能并行穿过“标签尚不存在”的检查；竞争调用会在读取 secret 和任何运行时副作用前失败并要求重试。持锁后才加载发布输入并推导安全标签；随后执行一次有界的旧账本权限迁移，只对部署用户本人拥有、非 symlink、模式恰为历史 `0644` 或目标 `0600` 的 `current-release.env`、`releases.log` 与合法 per-tag 文件操作，将 `0644` 原位收敛为 `0600`，其他 owner、模式或文件类型一律失败。权限迁移不改变内容；若当前记录仍来自旧版 tag-only 流程，脚本随后逐一核对固定名称的 app/frontend/admin Compose 容器：记录中的旧 tag 必须等于容器创建时的镜像引用，容器必须属于同一 Compose project/service，且容器实际 image ID 在本机只能解析出同仓库的一条 `RepoDigest`。三项证据全部成立后，才把 current 与对应 per-tag 记录原子收敛为 digest，并在 `release-migrations/<TAG>.json` 留下 `0600`、不含凭据的不可变迁移证据；容器缺失、镜像已漂移、RepoDigest 不唯一、账本不一致或迁移中断后的结果无法独立重验时均失败关闭。紧接着的规范解析器仍会拒绝损坏或可变的当前身份。每次 check 和 publish 都先完整解析现存 `releases.log`，即使候选 per-tag 已存在，也会拒绝缺行尾、字段/时间戳/tag 非法或权限异常的日志，绝不向损坏日志继续追加；解析还会逐个打开日志引用的所有历史 per-tag 文件，要求 deploy-user owner、`0600`、规范字段/顺序/时间/TAG，且文件内 TAG 与日志一致。历史 tag-only 记录可按受限 legacy schema 留作审计与显式回滚迁移证据，但缺失、截断、损坏或错标签的任意历史记录都会阻断无关新发布；当前 TAG 也必须出现在 activation log。随后验证 `current-release.env` 的安全 TAG，并要求它对应的 per-tag 文件存在且字节完全一致；因此 sole current pointer 损坏时，即使候选是另一个全新标签，也不能通过覆盖指针抹掉唯一证据。当前指针自洽后才检查候选：真正从未使用的标签不会创建任何状态，已有标签的三个镜像摘要必须与原记录完全相同，per-tag 记录缺失但 `current-release.env` 或 `releases.log` 证明标签曾发布时则视为账本损坏并失败关闭。完成这一步后，脚本才执行会刷新生成 CA/配置投影的 `infra/ops/remote-preflight.sh --pre-deploy`，因此冲突标签不能先改变当前运行栈的 bind-mounted 投影。`make prod-deploy`、`remote-prod-deploy.sh`、GitHub 远程发布和回滚后的重新部署都不能绕过该门禁；静态配置、Vault、镜像策略、备份 timer、对象存储与本机 Nginx 契约始终在镜像拉取、备份、迁移或服务变更前验证。若本机 PostgreSQL 已运行，数据库连通性也必须在变更前通过；首次部署或停机恢复时，对尚未运行的本机数据库在线检查会明确延期。预部署不以当前旧应用的公网行为作为门禁，避免故障版本阻断修复或回滚；公网入口、admission 和浏览器检查始终在新应用启动后强制执行。服务启动、迁移、备份和业务 smoke 全部完成后，脚本必须再执行 `remote-preflight.sh --post-deploy`；完整数据库连通性、公网入口和 admission 检查通过后才写入 release record。直接运行不带参数的 `remote-preflight.sh` 等价于 `--full`，不会采用首次部署延期。预检包括：
 
 - `.deploy/remote.env` 是否就位
 - Vault 运行 token 是否只有约定策略、TTL 是否高于安全下限、三条精确 KV 路径是否可读，以及续期
@@ -216,7 +239,7 @@ sudo -u stuhelper REMOTE_DEPLOY_CONFIG_FILE=/opt/stuhelper/.deploy/remote.env \
 - 本机宝塔 Nginx 主站和 join 入口配置是否满足 `infra/ops/nginx-public-ingress-preflight.sh` 契约
 - 公网 SSO 入口是否已经具备可用 TLS，并且 `sso.stuhelper.com/.well-known/openid-configuration` 返回有效 Casdoor OIDC discovery
 - PostgreSQL 逻辑备份 / base backup / backup sync timer 是否已启用
-- `BACKUP_DATABASE_URL` / `REPLICATION_DATABASE_URL` / `BACKUP_OBJECT_STORAGE_ENDPOINT` / `BACKUP_OBJECT_STORAGE_BUCKET` / `BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID` / `BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY`
+- `BACKUP_DATABASE_URL` / `REPLICATION_DATABASE_URL` / `BACKUP_OBJECT_STORAGE_ENDPOINT` / `BACKUP_OBJECT_STORAGE_BUCKET` / `BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID` / `BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY`，以及仅在独立故障域验证完成后设置的 `BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED=true`
 
 停止生产环境：
 
@@ -318,9 +341,9 @@ sudo bash infra/ops/bootstrap-ubuntu2404.sh
 - `.secrets/vault/token` 占位文件
 - 最小权限 Vault token 配置脚本和 12 小时续期 timer 安装入口（需要在 Vault 初始化/seed 后由 root
   执行 `vault-runtime-token.sh configure`）
-- PostgreSQL 逻辑备份 timer
-- PostgreSQL base backup timer
-- PostgreSQL backup sync timer
+- PostgreSQL 逻辑备份、base backup 和 backup sync unit；上传 bundle 并完成生产配置/Vault 后，必须
+  以 root 显式运行 `BACKUP_TIMERS_ACTIVATE=true ./infra/ops/install-backup-timers.sh`，通过专用激活预检后
+  才启用 timer
 - WAL 归档目录
 
 `production` GitHub environment 必须使用以下 secrets；启用 staging 时创建同名、不同值的
@@ -365,12 +388,24 @@ GitHub `Rollback` 手工作业选择 `staging` 或 `production` environment，�
    backend / frontend / admin 镜像
 5. 重新执行当前 rollback controller，并再次跑业务与严格可观测性 smoke check
 
+每次前滚、同版本重激活或回滚都会生成独立的 `UTC timestamp + UUID` deployment attempt ID，并把它加入
+`predeploy-<release-tag>-<attempt-id>.dump`。release tag 继续作为不可变镜像身份和审计元数据，但不再充当备份
+文件的唯一名，因此正常 retention 窗口内回滚到旧 tag 不会撞上原发布备份；备份脚本仍拒绝覆盖任何既有制品。
+迁移前每一次 deployment attempt 都会通过本轮 `REPLICATION_DATABASE_URL` 创建新的
+`predeploy-<release-tag>-<attempt-id>.tar.gz`，不会仅凭旧压缩包的 mtime、SHA256 和 tar 可读性复用物理锚点；
+这些文件属性不能证明旧 base backup 与当前 live PostgreSQL cluster 属于同一 system identifier。逻辑与本轮
+cluster-bound 物理锚点完成后才统一同步 logical/base/WAL，并从独立对象存储取回验证；因此数据库重建、恢复或
+外部 endpoint 切换后，不会把上一集群的 base backup 与当前 WAL/evidence 误拼成可恢复链，全新主机也不会在
+“只创建逻辑 dump、随后强制要求物理证据”的循环中卡死。
+
 本地应急入口仍保留；未传 `ROLLBACK_TAG` 时会尝试读取 `.deploy/releases.log` 的上一条成功版本：
 
 ```bash
 # 项目根目录下运行
 make prod-rollback
 ```
+
+远端 CI 部署/回滚要求显式发布标识；直接部署在读取到调用方 `TAG` 时立即校验，并在从镜像 digest 推导默认值后再次校验。标识必须为 1–128 个 ASCII 字母、数字、点、下划线或连字符且以字母/数字开头，非法值会在 Docker 登录、配置/凭据物化、渲染、拉镜像和备份路径构造前失败。成功发布记录先以 `0600` 临时文件写入并 `fsync`，再通过同目录原子 hard link 仅创建一次 `releases/<TAG>.env`，绝不替换已经存在的版本记录。重复激活同一 tag 时，只接受字段完整且三个 digest 与原记录逐字一致的文件，沿用其原始 `DEPLOYED_AT` 更新 `current-release.env`，并用追加索引记录本次激活时间；相同 tag 对应不同镜像会失败关闭。回滚控制器在读取 secret-backed 环境和修改账本前取得同一 host lock；嵌套 `prod-deploy.sh` 只复用继承的已锁文件描述符，锁持续覆盖迁移、rollout 与发布记录。回滚在构造 `releases/<target>.env` 前使用同一标识校验，读取版本记录时会先清除当前环境里的镜像引用，并要求 `TAG`、`DEPLOYED_AT`、backend/frontend/admin 字段各出现一次、非空且 `TAG` 与目标完全一致；截断、重复字段、错标签或混入当前版本引用都会失败关闭。新式记录的三个镜像字段必须是摘要。兼容旧版可变引用记录时，只有调用方在读取 secret-backed 环境之前同时提供并通过校验的三条 `ROLLBACK_*_IMAGE_REF=image@sha256:...`，且提供有效操作人和 12–500 字符原因，才允许读取旧字段；每条新 digest 必须保持原镜像仓库不变。控制器随后在持锁状态把 legacy per-tag（以及同 TAG current pointer）原子收敛为完整摘要 tuple，并写入 `release-migrations/<TAG>.json` 审计证据，再由普通 digest-only 发布门禁重新验证。缺一条、摘要/仓库错误、缺少审计上下文或试图把未迁移旧记录用作过期扫描窗口的历史不可变证据仍会失败关闭。
 
 ## Ansible 入口
 

@@ -11,6 +11,8 @@ run_backup_object_storage_rclone() {
   local force_path_style="${BACKUP_OBJECT_STORAGE_FORCE_PATH_STYLE:-${OBJECT_STORAGE_FORCE_PATH_STYLE:-true}}"
   local tls_insecure="${BACKUP_OBJECT_STORAGE_TLS_INSECURE:-false}"
   local ca_file="${BACKUP_OBJECT_STORAGE_TLS_CA:-}"
+  local pinned_hosts="${BACKUP_OBJECT_STORAGE_PINNED_HOSTS:-}"
+  local bucket="${BACKUP_OBJECT_STORAGE_BUCKET:-}"
   local -x RCLONE_CONFIG_TARGET_TYPE="s3"
   local -x RCLONE_CONFIG_TARGET_PROVIDER="${BACKUP_OBJECT_STORAGE_PROVIDER:-Other}"
   local -x RCLONE_CONFIG_TARGET_ACCESS_KEY_ID="${BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID:-}"
@@ -19,6 +21,7 @@ run_backup_object_storage_rclone() {
   local -x RCLONE_CONFIG_TARGET_REGION="${region}"
   local -x RCLONE_CONFIG_TARGET_FORCE_PATH_STYLE="${force_path_style}"
   local -x RCLONE_CONFIG_TARGET_NO_CHECK_BUCKET="true"
+  local proxy_environment_key
   local -a docker_args=(
     run
     --rm
@@ -51,6 +54,16 @@ run_backup_object_storage_rclone() {
     --stats-one-line
   )
 
+  # Docker can inject proxy settings from the deploy user's client config into
+  # every newly created container. Explicit empty values take precedence over
+  # those defaults so the validated --add-host pins remain the actual transfer
+  # route instead of being bypassed by a proxy that resolves the endpoint.
+  for proxy_environment_key in \
+    HTTP_PROXY HTTPS_PROXY FTP_PROXY ALL_PROXY NO_PROXY \
+    http_proxy https_proxy ftp_proxy all_proxy no_proxy; do
+    docker_args+=(--env "${proxy_environment_key}=")
+  done
+
   [[ "${image_ref}" =~ ^.+@sha256:[0-9a-f]{64}$ ]] ||
     die "RCLONE_IMAGE_REF must be a complete image@sha256 reference"
   [[ -n "${endpoint}" ]] || die "BACKUP_OBJECT_STORAGE_ENDPOINT is required"
@@ -82,6 +95,124 @@ run_backup_object_storage_rclone() {
     [[ "${BACKUP_OBJECT_STORAGE_DOCKER_NETWORK}" =~ ^[A-Za-z0-9_.-]+$ ]] ||
       die "BACKUP_OBJECT_STORAGE_DOCKER_NETWORK contains unsupported characters"
     docker_args+=(--network "${BACKUP_OBJECT_STORAGE_DOCKER_NETWORK}")
+  fi
+  if [[ -n "${pinned_hosts}" ]]; then
+    local pinned_payload
+    if ! pinned_payload="$(python3 - \
+      "${endpoint}" \
+      "${pinned_hosts}" \
+      "${bucket}" \
+      "${force_path_style}" 2>&1 <<'PY'
+import ipaddress
+import re
+import sys
+from urllib.parse import urlsplit, urlunsplit
+
+endpoint, pinned_hosts, bucket, force_path_style = sys.argv[1:]
+parsed = urlsplit(endpoint)
+raw_host = (parsed.hostname or "").lower()
+if parsed.username is not None or parsed.password is not None:
+    raise SystemExit(
+        "BACKUP_OBJECT_STORAGE_PINNED_HOSTS does not allow endpoint credentials"
+    )
+if "%" in raw_host:
+    raise SystemExit(
+        "BACKUP_OBJECT_STORAGE_PINNED_HOSTS does not allow an IPv6 zone identifier"
+    )
+if raw_host.endswith("."):
+    raise SystemExit(
+        "BACKUP_OBJECT_STORAGE_PINNED_HOSTS does not allow a trailing-dot endpoint hostname"
+    )
+host = raw_host
+labels = host.split(".")
+if (
+    not host
+    or len(host) > 253
+    or any(
+        not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", label)
+        for label in labels
+    )
+):
+    raise SystemExit(
+        "BACKUP_OBJECT_STORAGE_PINNED_HOSTS requires a valid ASCII DNS endpoint hostname"
+    )
+
+expected_hosts = {host}
+if force_path_style == "false":
+    virtual_host = f"{bucket}.{host}"
+    virtual_labels = virtual_host.split(".")
+    if not bucket or len(virtual_host) > 253 or any(
+        not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", label)
+        for label in virtual_labels
+    ):
+        raise SystemExit(
+            "BACKUP_OBJECT_STORAGE_BUCKET must form a valid lowercase ASCII virtual-hosted S3 hostname"
+        )
+    expected_hosts.add(virtual_host)
+
+addresses_by_host = {}
+for raw_value in pinned_hosts.splitlines():
+    value = raw_value.strip()
+    if not value:
+        continue
+    pinned_host, separator, raw_address = value.partition("=")
+    pinned_host = pinned_host.lower()
+    if separator != "=" or pinned_host not in expected_hosts:
+        raise SystemExit(
+            f"BACKUP_OBJECT_STORAGE_PINNED_HOSTS contains an unexpected transfer hostname: {value}"
+        )
+    try:
+        address = ipaddress.ip_address(raw_address)
+    except ValueError:
+        raise SystemExit(
+            f"BACKUP_OBJECT_STORAGE_PINNED_HOSTS contains an invalid IP address: {value}"
+        ) from None
+    if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped is not None:
+        address = address.ipv4_mapped
+    addresses_by_host.setdefault(pinned_host, set()).add(address)
+missing_hosts = expected_hosts - addresses_by_host.keys()
+if missing_hosts:
+    raise SystemExit(
+        "BACKUP_OBJECT_STORAGE_PINNED_HOSTS is missing validated addresses for: "
+        + ", ".join(sorted(missing_hosts))
+    )
+
+try:
+    port = parsed.port
+except ValueError as error:
+    raise SystemExit(f"BACKUP_OBJECT_STORAGE_ENDPOINT has an invalid port: {error}") from None
+normalized_authority = host if port is None else f"{host}:{port}"
+print(
+    urlunsplit(
+        (
+            parsed.scheme,
+            normalized_authority,
+            parsed.path,
+            parsed.query,
+            parsed.fragment,
+        )
+    )
+)
+for pinned_host in sorted(addresses_by_host):
+    for address in sorted(
+        addresses_by_host[pinned_host],
+        key=lambda value: (value.version, int(value)),
+    ):
+        print(f"{pinned_host}={address.compressed}")
+PY
+    )"; then
+      die "${pinned_payload}"
+    fi
+    local -a pinned_lines=()
+    mapfile -t pinned_lines <<<"${pinned_payload}"
+    (( ${#pinned_lines[@]} >= 2 )) ||
+      die "failed to render the validated backup endpoint address pins"
+    endpoint="${pinned_lines[0]}"
+    RCLONE_CONFIG_TARGET_ENDPOINT="${endpoint}"
+    local pinned_index
+    for ((pinned_index = 1; pinned_index < ${#pinned_lines[@]}; pinned_index++)); do
+      docker_args+=(--add-host "${pinned_lines[${pinned_index}]}")
+    done
   fi
 
   docker "${docker_args[@]}" "${image_ref}" "$@" "${rclone_args[@]}"

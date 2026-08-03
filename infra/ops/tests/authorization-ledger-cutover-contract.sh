@@ -28,6 +28,10 @@ bash -n "${CUTOVER_SCRIPT}"
 
 assert_contains "${CUTOVER_SCRIPT}" '^load_env$'
 assert_contains "${CUTOVER_SCRIPT}" '^source_casdoor_bootstrap_env$'
+assert_contains "${CUTOVER_SCRIPT}" 'source_casdoor_bootstrap_env_file "\$\{file\}"'
+if grep -qF 'source "${file}"' "${CUTOVER_SCRIPT}"; then
+  fail "authorization cutover must not raw-source the Casdoor bootstrap credential file"
+fi
 assert_contains "${CUTOVER_SCRIPT}" 'go run ./cmd/authorization-cutover'
 assert_contains "${CUTOVER_SCRIPT}" 'OPENFGA_CUTOVER_API_URL'
 assert_contains "${CUTOVER_SCRIPT}" 'AUTHORIZATION_CUTOVER_DATABASE_URL'

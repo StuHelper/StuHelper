@@ -9,6 +9,7 @@ CONFIGURE_UFW="${CONFIGURE_UFW:-true}"
 ALLOW_HTTP_PORTS="${ALLOW_HTTP_PORTS:-80,443}"
 INSTALL_BACKUP_TIMERS="${INSTALL_BACKUP_TIMERS:-true}"
 BACKUP_STAGING_DIR="${BACKUP_STAGING_DIR:-/var/lib/stuhelper/postgres/backup-staging}"
+BACKUP_TIMERS_ACTIVATE="${BACKUP_TIMERS_ACTIVATE:-false}"
 INSTALL_GO="${INSTALL_GO:-true}"
 GO_VERSION="${GO_VERSION:-1.26.5}"
 
@@ -24,6 +25,25 @@ die() {
 require_root() {
   if [[ "${EUID}" -ne 0 ]]; then
     die "run as root (sudo bash infra/ops/bootstrap-ubuntu2404.sh)"
+  fi
+}
+
+require_non_root_deploy_identity() {
+  local deploy_uid
+  local deploy_group_record
+  local deploy_gid
+
+  [[ -n "${DEPLOY_USER}" && "${DEPLOY_USER}" != "root" && "${DEPLOY_USER}" != "0" ]] ||
+    die "DEPLOY_USER must be an explicit non-root account"
+  [[ -n "${DEPLOY_GROUP}" && "${DEPLOY_GROUP}" != "root" && "${DEPLOY_GROUP}" != "0" ]] ||
+    die "DEPLOY_GROUP must be an explicit non-root group"
+  if deploy_uid="$(id -u "${DEPLOY_USER}" 2>/dev/null)"; then
+    [[ "${deploy_uid}" != "0" ]] || die "DEPLOY_USER must not resolve to uid 0"
+  fi
+  if deploy_group_record="$(getent group "${DEPLOY_GROUP}")"; then
+    IFS=: read -r _ _ deploy_gid _ <<<"${deploy_group_record}"
+    [[ "${deploy_gid}" =~ ^[0-9]+$ && "${deploy_gid}" != "0" ]] ||
+      die "DEPLOY_GROUP must not resolve to gid 0"
   fi
 }
 
@@ -65,6 +85,7 @@ ensure_deploy_user() {
   install -d -o "${DEPLOY_USER}" -g "${DEPLOY_GROUP}" -m 0755 "${DEPLOY_APP_DIR}/backups/postgres/logical"
   install -d -o "${DEPLOY_USER}" -g "${DEPLOY_GROUP}" -m 0755 "${DEPLOY_APP_DIR}/backups/postgres/base"
   install -d -o "${DEPLOY_USER}" -g "${DEPLOY_GROUP}" -m 0700 "${BACKUP_STAGING_DIR}"
+  install -d -o "${DEPLOY_USER}" -g "${DEPLOY_GROUP}" -m 0755 "/var/lib/stuhelper/postgres/wal-restore"
   touch \
     "${DEPLOY_APP_DIR}/.env.prod.shared" \
     "${DEPLOY_APP_DIR}/.env.prod.secrets" \
@@ -116,10 +137,21 @@ ensure_remote_deploy_config() {
       REGISTRY_AUTH_MODE='workflow-token' \
       REGISTRY_USERNAME_SECRET_REF='secret/stuhelper/prod/registry-username' \
       REGISTRY_PASSWORD_SECRET_REF='secret/stuhelper/prod/registry-password' \
+      BACKUP_SERVICE_GROUP='${DEPLOY_GROUP}' \
       VAULT_ADDR='REPLACE_WITH_VAULT_ADDR' \
       VAULT_TOKEN_FILE='${DEPLOY_APP_DIR}/.secrets/vault/token' \
+      REMOTE_DEPLOY_CONFIG_PRESERVE_EXISTING='true' \
       ./infra/ops/init-remote-deploy-config.sh
     "
+    return 0
+  fi
+
+  if [[ -e "${remote_config}" || -L "${remote_config}" ]]; then
+    [[ -f "${remote_config}" && ! -L "${remote_config}" ]] ||
+      die "existing remote deploy config must be a regular non-symlink file: ${remote_config}"
+    log "deploy bundle is unavailable; preserving the existing remote deploy control-plane config"
+    chown "${DEPLOY_USER}:${DEPLOY_GROUP}" "${remote_config}"
+    chmod 0600 "${remote_config}"
     return 0
   fi
 
@@ -130,6 +162,7 @@ REGISTRY=REPLACE_WITH_REGISTRY_HOST
 REGISTRY_AUTH_MODE=workflow-token
 REGISTRY_USERNAME_SECRET_REF=secret/stuhelper/prod/registry-username
 REGISTRY_PASSWORD_SECRET_REF=secret/stuhelper/prod/registry-password
+BACKUP_SERVICE_GROUP=${DEPLOY_GROUP}
 ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.shared
 SECRETS_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.secrets
 GENERATED_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.generated
@@ -203,20 +236,29 @@ install_backup_timers() {
     DEPLOY_GROUP="${DEPLOY_GROUP}" \
     DEPLOY_APP_DIR="${DEPLOY_APP_DIR}" \
     BACKUP_STAGING_DIR="${BACKUP_STAGING_DIR}" \
+    BACKUP_TIMERS_ACTIVATE="${BACKUP_TIMERS_ACTIVATE}" \
     "${backup_timer_installer}"
     return 0
   fi
 
-  log "deploy bundle not present yet, installing backup timers with bootstrap defaults"
+  log "deploy bundle not present yet, installing inactive backup timer units with bootstrap defaults"
 
   cat >/etc/systemd/system/stuhelper-postgres-dump-backup.service <<EOF
 [Unit]
 Description=StuHelper PostgreSQL logical backup
 After=docker.service network-online.target
 Wants=network-online.target
+StartLimitIntervalSec=0
+StartLimitBurst=5
 
 [Service]
 Type=oneshot
+RemainAfterExit=no
+Restart=no
+TimeoutStartSec=18h
+TimeoutStopSec=2min
+KillMode=control-group
+SendSIGKILL=yes
 User=${DEPLOY_USER}
 Group=${DEPLOY_GROUP}
 WorkingDirectory=${DEPLOY_APP_DIR}
@@ -224,8 +266,11 @@ Environment=ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.shared
 Environment=SECRETS_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.secrets
 Environment=GENERATED_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.generated
 Environment=GENERATED_SECRET_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.generated.secrets
+Environment=LOCAL_STATE_DIR=/var/lib/stuhelper
 Environment=BACKUP_STAGING_DIR=${BACKUP_STAGING_DIR}
-ExecStart=/bin/bash -lc 'cd "${DEPLOY_APP_DIR}" && ./infra/ops/run-scheduled-backup.sh dump'
+Environment=BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true
+UnsetEnvironment=LD_PRELOAD LD_LIBRARY_PATH LD_AUDIT GCONV_PATH LOCPATH
+ExecStart=/usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.shared SECRETS_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.secrets GENERATED_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.generated GENERATED_SECRET_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.generated.secrets LOCAL_STATE_DIR=/var/lib/stuhelper BACKUP_STAGING_DIR=${BACKUP_STAGING_DIR} BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true /bin/bash --noprofile --norc ./infra/ops/run-scheduled-backup.sh dump
 EOF
 
   cat >/etc/systemd/system/stuhelper-postgres-dump-backup.timer <<EOF
@@ -233,8 +278,12 @@ EOF
 Description=StuHelper PostgreSQL logical backup timer
 
 [Timer]
+Unit=stuhelper-postgres-dump-backup.service
 OnCalendar=*-*-* 03:15:00
 Persistent=true
+AccuracySec=1min
+RandomizedDelaySec=0
+FixedRandomDelay=false
 
 [Install]
 WantedBy=timers.target
@@ -245,9 +294,17 @@ EOF
 Description=StuHelper PostgreSQL base backup
 After=docker.service network-online.target
 Wants=network-online.target
+StartLimitIntervalSec=0
+StartLimitBurst=5
 
 [Service]
 Type=oneshot
+RemainAfterExit=no
+Restart=no
+TimeoutStartSec=1d 2h
+TimeoutStopSec=2min
+KillMode=control-group
+SendSIGKILL=yes
 User=${DEPLOY_USER}
 Group=${DEPLOY_GROUP}
 WorkingDirectory=${DEPLOY_APP_DIR}
@@ -255,8 +312,11 @@ Environment=ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.shared
 Environment=SECRETS_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.secrets
 Environment=GENERATED_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.generated
 Environment=GENERATED_SECRET_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.generated.secrets
+Environment=LOCAL_STATE_DIR=/var/lib/stuhelper
 Environment=BACKUP_STAGING_DIR=${BACKUP_STAGING_DIR}
-ExecStart=/bin/bash -lc 'cd "${DEPLOY_APP_DIR}" && ./infra/ops/run-scheduled-backup.sh basebackup'
+Environment=BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true
+UnsetEnvironment=LD_PRELOAD LD_LIBRARY_PATH LD_AUDIT GCONV_PATH LOCPATH
+ExecStart=/usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.shared SECRETS_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.secrets GENERATED_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.generated GENERATED_SECRET_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.generated.secrets LOCAL_STATE_DIR=/var/lib/stuhelper BACKUP_STAGING_DIR=${BACKUP_STAGING_DIR} BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true /bin/bash --noprofile --norc ./infra/ops/run-scheduled-backup.sh basebackup
 EOF
 
   cat >/etc/systemd/system/stuhelper-postgres-basebackup.timer <<EOF
@@ -264,8 +324,12 @@ EOF
 Description=StuHelper PostgreSQL base backup timer
 
 [Timer]
+Unit=stuhelper-postgres-basebackup.service
 OnCalendar=Sun *-*-* 03:45:00
 Persistent=true
+AccuracySec=1min
+RandomizedDelaySec=0
+FixedRandomDelay=false
 
 [Install]
 WantedBy=timers.target
@@ -276,9 +340,17 @@ EOF
 Description=StuHelper PostgreSQL backup artifact sync
 After=docker.service network-online.target
 Wants=network-online.target
+StartLimitIntervalSec=0
+StartLimitBurst=5
 
 [Service]
 Type=oneshot
+RemainAfterExit=no
+Restart=no
+TimeoutStartSec=12h
+TimeoutStopSec=2min
+KillMode=control-group
+SendSIGKILL=yes
 User=${DEPLOY_USER}
 Group=${DEPLOY_GROUP}
 WorkingDirectory=${DEPLOY_APP_DIR}
@@ -286,7 +358,10 @@ Environment=ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.shared
 Environment=SECRETS_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.secrets
 Environment=GENERATED_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.generated
 Environment=GENERATED_SECRET_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.generated.secrets
-ExecStart=/bin/bash -lc 'cd "${DEPLOY_APP_DIR}" && ./infra/ops/sync-postgres-backups.sh'
+Environment=LOCAL_STATE_DIR=/var/lib/stuhelper
+Environment=BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true
+UnsetEnvironment=LD_PRELOAD LD_LIBRARY_PATH LD_AUDIT GCONV_PATH LOCPATH
+ExecStart=/usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.shared SECRETS_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.secrets GENERATED_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.generated GENERATED_SECRET_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.generated.secrets LOCAL_STATE_DIR=/var/lib/stuhelper BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true /bin/bash --noprofile --norc ./infra/ops/run-scheduled-backup.sh sync
 EOF
 
   cat >/etc/systemd/system/stuhelper-postgres-backup-sync.timer <<EOF
@@ -294,22 +369,29 @@ EOF
 Description=StuHelper PostgreSQL backup artifact sync timer
 
 [Timer]
-OnCalendar=*:0/15
+Unit=stuhelper-postgres-backup-sync.service
+OnCalendar=*-*-* *:00/15:00
 Persistent=true
+AccuracySec=1min
+RandomizedDelaySec=0
+FixedRandomDelay=false
 
 [Install]
 WantedBy=timers.target
 EOF
 
   systemctl daemon-reload
-  systemctl enable --now stuhelper-postgres-dump-backup.timer stuhelper-postgres-basebackup.timer stuhelper-postgres-backup-sync.timer
+  systemctl disable --now stuhelper-postgres-dump-backup.timer stuhelper-postgres-basebackup.timer stuhelper-postgres-backup-sync.timer
+  systemctl reset-failed stuhelper-postgres-dump-backup.service stuhelper-postgres-basebackup.service stuhelper-postgres-backup-sync.service
+  log "backup timer units remain disabled until the deploy bundle and production configuration exist; re-run bootstrap after uploading the bundle"
 }
 
 main() {
   require_root
+  require_non_root_deploy_identity
 
   log "installing base packages"
-  apt_install ca-certificates curl gnupg jq openssl git bash python3
+  apt_install ca-certificates curl gnupg iproute2 jq openssl git bash python3 util-linux
 
   log "installing Docker Engine and Compose plugin"
   ensure_docker_repo
@@ -344,7 +426,8 @@ Next steps:
 4. Review the remote deploy control plane in ${DEPLOY_APP_DIR}/.deploy/remote.env
    - set REGISTRY=ghcr.io and REGISTRY_AUTH_MODE=workflow-token for GitHub Actions
    - shared/generated secret refs should point to your remote secret backend
-5. Ensure the deploy bundle is synced to ${DEPLOY_APP_DIR}; re-run bootstrap or install-backup-timers.sh afterwards if you want systemd timers installed from the repo
+5. Ensure the deploy bundle and production configuration are ready, then activate the protected backup timers explicitly:
+   - sudo BACKUP_TIMERS_ACTIVATE=true ${DEPLOY_APP_DIR}/infra/ops/install-backup-timers.sh
 6. Configure the production GitHub environment secrets (and isolated staging secrets when staging is enabled):
    - DEPLOY_HOST / DEPLOY_PORT / DEPLOY_USER / DEPLOY_APP_DIR / DEPLOY_SSH_KEY
    - DEPLOY_SSH_KNOWN_HOSTS
