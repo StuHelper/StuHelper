@@ -594,6 +594,21 @@ acquire_production_deploy_lock() {
   (((8#${state_mode} & 8#022) == 0)) ||
     die "deployment state directory must not be group- or world-writable: ${DEPLOY_STATE_DIR}"
 
+  if [[ -n "${PRODUCTION_DEPLOY_LOCK_FD:-}" ]]; then
+    [[ "${PRODUCTION_DEPLOY_LOCK_FD}" =~ ^[0-9]+$ ]] ||
+      die "inherited production deployment lock descriptor is invalid"
+    [[ -e "/proc/${BASHPID}/fd/${PRODUCTION_DEPLOY_LOCK_FD}" ]] ||
+      die "inherited production deployment lock descriptor is not open"
+    path_identity="$(stat -Lc '%d:%i' "${DEPLOY_STATE_DIR}")"
+    fd_identity="$(stat -Lc '%d:%i' "/proc/${BASHPID}/fd/${PRODUCTION_DEPLOY_LOCK_FD}")"
+    [[ "${path_identity}" == "${fd_identity}" ]] ||
+      die "inherited production deployment lock targets a different state directory"
+    flock --exclusive --nonblock "${PRODUCTION_DEPLOY_LOCK_FD}" ||
+      die "inherited production deployment lock is not held by this controller"
+    log "reusing the inherited host production deployment lock"
+    return 0
+  fi
+
   exec {PRODUCTION_DEPLOY_LOCK_FD}<"${DEPLOY_STATE_DIR}"
   path_identity="$(stat -Lc '%d:%i' "${DEPLOY_STATE_DIR}")"
   fd_identity="$(stat -Lc '%d:%i' "/proc/${BASHPID}/fd/${PRODUCTION_DEPLOY_LOCK_FD}")"
@@ -601,6 +616,7 @@ acquire_production_deploy_lock() {
     die "deployment state directory changed while acquiring the production lock"
   flock --exclusive --nonblock "${PRODUCTION_DEPLOY_LOCK_FD}" ||
     die "another production deploy or rollback already holds the host deployment lock"
+  export PRODUCTION_DEPLOY_LOCK_FD
   log "acquired the host production deployment lock"
 }
 
@@ -982,7 +998,7 @@ legacy_sha256 = hashlib.sha256(current_payload).hexdigest()
 evidence_path = evidence_dir / f"{current['TAG']}.json"
 evidence = {
     "schemaVersion": 1,
-    "event": "legacy_current_release_identity_migrated",
+    "event": "legacy_release_identity_migrated",
     "tag": current["TAG"],
     "deployedAt": current["DEPLOYED_AT"],
     "migratedAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -1012,7 +1028,7 @@ except (UnicodeDecodeError, json.JSONDecodeError) as exc:
     raise SystemExit(f"release migration evidence is malformed: {evidence_path}") from exc
 if (
     existing_document.get("schemaVersion") != 1
-    or existing_document.get("event") != "legacy_current_release_identity_migrated"
+    or existing_document.get("event") != "legacy_release_identity_migrated"
     or existing_document.get("tag") != current["TAG"]
     or existing_document.get("legacyRecordSha256") != legacy_sha256
     or {
@@ -1035,6 +1051,296 @@ PY
 )" || die "failed to migrate a verified legacy current release identity"
   if [[ "${migrated_count}" != "0" ]]; then
     log "migrated the legacy current release identity to verified image digests"
+  fi
+}
+
+migrate_explicit_legacy_release_identity() {
+  local tag="$1"
+  local backend_ref="$2"
+  local frontend_ref="$3"
+  local admin_ref="$4"
+  local actor="$5"
+  local reason="$6"
+  local migrated_count
+
+  require_safe_release_tag "${tag}"
+  require_digest_image_ref ROLLBACK_BACKEND_IMAGE_REF "${backend_ref}"
+  require_digest_image_ref ROLLBACK_FRONTEND_IMAGE_REF "${frontend_ref}"
+  require_digest_image_ref ROLLBACK_ADMIN_IMAGE_REF "${admin_ref}"
+  migrated_count="$(python3 - \
+    "${DEPLOY_STATE_DIR}" \
+    "${tag}" \
+    "${backend_ref}" \
+    "${frontend_ref}" \
+    "${admin_ref}" \
+    "${actor}" \
+    "${reason}" <<'PY'
+import hashlib
+import json
+import os
+import re
+import stat
+import sys
+import tempfile
+from datetime import datetime, timezone
+from pathlib import Path
+
+state_dir = Path(sys.argv[1])
+tag, backend_ref, frontend_ref, admin_ref, actor, reason = sys.argv[2:]
+fields = (
+    "TAG",
+    "DEPLOYED_AT",
+    "BACKEND_IMAGE_REF",
+    "FRONTEND_IMAGE_REF",
+    "ADMIN_IMAGE_REF",
+)
+image_fields = fields[2:]
+requested_refs = {
+    "BACKEND_IMAGE_REF": backend_ref,
+    "FRONTEND_IMAGE_REF": frontend_ref,
+    "ADMIN_IMAGE_REF": admin_ref,
+}
+digest_ref_pattern = re.compile(r"^[^\s@]+@sha256:[0-9a-f]{64}$")
+legacy_ref_pattern = re.compile(
+    r"^[A-Za-z0-9][A-Za-z0-9._-]*(?::[0-9]+)?"
+    r"(?:/[A-Za-z0-9][A-Za-z0-9._-]*)*"
+    r":[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$",
+)
+tag_pattern = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
+timestamp_pattern = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z")
+actor_pattern = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.@-]{0,127}")
+
+
+def fsync_directory(path: Path) -> None:
+    directory_fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(directory_fd)
+    finally:
+        os.close(directory_fd)
+
+
+def read_protected(path: Path, label: str) -> bytes:
+    flags = os.O_RDONLY
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    fd = os.open(path, flags)
+    try:
+        metadata = os.fstat(fd)
+        if not stat.S_ISREG(metadata.st_mode):
+            raise SystemExit(f"{label} is not a regular file: {path}")
+        if metadata.st_uid != os.geteuid() or stat.S_IMODE(metadata.st_mode) != 0o600:
+            raise SystemExit(f"{label} must be deploy-user-owned mode 0600: {path}")
+        with os.fdopen(fd, "rb", closefd=False) as stream:
+            return stream.read()
+    finally:
+        os.close(fd)
+
+
+def read_record(path: Path) -> tuple[bytes, dict[str, str]]:
+    payload = read_protected(path, "legacy release record")
+    try:
+        text = payload.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise SystemExit(f"legacy release record is not UTF-8: {path}") from exc
+    if not text.endswith("\n"):
+        raise SystemExit(f"legacy release record is truncated: {path}")
+    lines = text.splitlines()
+    if len(lines) != len(fields):
+        raise SystemExit(f"legacy release record is incomplete: {path}")
+    values: dict[str, str] = {}
+    for expected_key, line in zip(fields, lines, strict=True):
+        if "=" not in line:
+            raise SystemExit(f"legacy release record is malformed: {path}")
+        key, value = line.split("=", 1)
+        if key != expected_key or not value:
+            raise SystemExit(f"legacy release record is not canonical: {path}")
+        values[key] = value
+    if not tag_pattern.fullmatch(values["TAG"]):
+        raise SystemExit(f"legacy release record has an unsafe TAG: {path}")
+    if not timestamp_pattern.fullmatch(values["DEPLOYED_AT"]):
+        raise SystemExit(f"legacy release record has an invalid DEPLOYED_AT: {path}")
+    for key in image_fields:
+        value = values[key]
+        if not digest_ref_pattern.fullmatch(value) and not legacy_ref_pattern.fullmatch(value):
+            raise SystemExit(f"legacy release record has an invalid {key}: {path}")
+    return payload, values
+
+
+def stage_payload(path: Path, payload: bytes) -> Path:
+    fd, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    temporary_path = Path(temporary_name)
+    try:
+        os.fchmod(fd, 0o600)
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
+        return temporary_path
+    except BaseException:
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+        temporary_path.unlink(missing_ok=True)
+        raise
+
+
+def atomic_write(path: Path, payload: bytes) -> None:
+    temporary_path = stage_payload(path, payload)
+    try:
+        os.replace(temporary_path, path)
+        fsync_directory(path.parent)
+    except BaseException:
+        temporary_path.unlink(missing_ok=True)
+        raise
+
+
+def image_repository(reference: str) -> str:
+    if "@" in reference:
+        return reference.split("@", 1)[0]
+    last_slash = reference.rfind("/")
+    last_colon = reference.rfind(":")
+    if last_colon <= last_slash:
+        raise SystemExit(f"legacy image reference must contain an explicit tag: {reference}")
+    return reference[:last_colon]
+
+
+def validate_transition(
+    source: dict[str, str],
+    source_path: Path,
+) -> tuple[bytes, dict[str, dict[str, str]]]:
+    canonical = dict(source)
+    migrated_images: dict[str, dict[str, str]] = {}
+    for key in image_fields:
+        recorded_ref = source[key]
+        requested_ref = requested_refs[key]
+        if digest_ref_pattern.fullmatch(recorded_ref):
+            if recorded_ref != requested_ref:
+                raise SystemExit(
+                    f"explicit rollback {key} does not match canonical release record: {source_path}",
+                )
+            continue
+        if image_repository(recorded_ref) != image_repository(requested_ref):
+            raise SystemExit(
+                f"explicit rollback {key} changes the legacy image repository: {source_path}",
+            )
+        canonical[key] = requested_ref
+        migrated_images[key] = {
+            "legacyRef": recorded_ref,
+            "digestRef": requested_ref,
+        }
+    payload = "".join(f"{key}={canonical[key]}\n" for key in fields).encode()
+    return payload, migrated_images
+
+
+release_path = state_dir / "releases" / f"{tag}.env"
+release_payload, release = read_record(release_path)
+if release["TAG"] != tag:
+    raise SystemExit(f"legacy release record TAG does not match rollback target: {release_path}")
+canonical_payload, release_migrations = validate_transition(release, release_path)
+
+current_path = state_dir / "current-release.env"
+current_payload = None
+current = None
+current_migrations: dict[str, dict[str, str]] = {}
+try:
+    current_payload, current = read_record(current_path)
+except FileNotFoundError:
+    pass
+if current is not None and current["TAG"] == tag:
+    if current["DEPLOYED_AT"] != release["DEPLOYED_AT"]:
+        raise SystemExit("legacy current and per-tag release timestamps differ")
+    current_canonical_payload, current_migrations = validate_transition(current, current_path)
+    if current_canonical_payload != canonical_payload:
+        raise SystemExit("legacy current and per-tag release identities differ")
+
+needs_release_write = release_payload != canonical_payload
+needs_current_write = current is not None and current["TAG"] == tag and current_payload != canonical_payload
+if not needs_release_write and not needs_current_write:
+    print(0)
+    raise SystemExit(0)
+
+if not actor_pattern.fullmatch(actor):
+    raise SystemExit("legacy rollback record migration requires a valid ROLLBACK_REVIEW_ACTOR")
+if not 12 <= len(reason) <= 500 or any(ord(character) < 32 or ord(character) == 127 for character in reason):
+    raise SystemExit("legacy rollback record migration requires a 12-500 character printable reason")
+
+migrations = release_migrations or current_migrations
+legacy_payload = release_payload if release_migrations else current_payload
+if not migrations or legacy_payload is None:
+    raise SystemExit("legacy rollback migration has no mutable identity to migrate")
+
+evidence_dir = state_dir / "release-migrations"
+try:
+    evidence_metadata = evidence_dir.lstat()
+except FileNotFoundError:
+    evidence_dir.mkdir(mode=0o700)
+    os.chmod(evidence_dir, 0o700)
+    fsync_directory(state_dir)
+else:
+    if not stat.S_ISDIR(evidence_metadata.st_mode) or evidence_dir.is_symlink():
+        raise SystemExit(f"release migration evidence path must be a regular directory: {evidence_dir}")
+    if evidence_metadata.st_uid != os.geteuid() or stat.S_IMODE(evidence_metadata.st_mode) != 0o700:
+        raise SystemExit(f"release migration evidence directory must be deploy-user-owned mode 0700: {evidence_dir}")
+
+legacy_sha256 = hashlib.sha256(legacy_payload).hexdigest()
+evidence_path = evidence_dir / f"{tag}.json"
+evidence = {
+    "schemaVersion": 1,
+    "event": "legacy_release_identity_migrated",
+    "tag": tag,
+    "deployedAt": release["DEPLOYED_AT"],
+    "migratedAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    "legacyRecordSha256": legacy_sha256,
+    "verificationSource": "explicit_provenance_verified_rollback_digest_override",
+    "actor": actor,
+    "reason": reason,
+    "images": migrations,
+}
+evidence_payload = (json.dumps(evidence, sort_keys=True, separators=(",", ":")) + "\n").encode()
+try:
+    existing_evidence = read_protected(evidence_path, "release migration evidence")
+except FileNotFoundError:
+    temporary_evidence = stage_payload(evidence_path, evidence_payload)
+    try:
+        try:
+            os.link(temporary_evidence, evidence_path)
+        except FileExistsError:
+            existing_evidence = read_protected(evidence_path, "release migration evidence")
+        else:
+            fsync_directory(evidence_dir)
+            existing_evidence = evidence_payload
+    finally:
+        temporary_evidence.unlink(missing_ok=True)
+
+try:
+    existing_document = json.loads(existing_evidence)
+except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+    raise SystemExit(f"release migration evidence is malformed: {evidence_path}") from exc
+existing_digests = {
+    key: value.get("digestRef")
+    for key, value in existing_document.get("images", {}).items()
+    if isinstance(value, dict)
+}
+expected_digests = {key: value["digestRef"] for key, value in migrations.items()}
+if (
+    existing_document.get("schemaVersion") != 1
+    or existing_document.get("event") != "legacy_release_identity_migrated"
+    or existing_document.get("tag") != tag
+    or existing_document.get("legacyRecordSha256") != legacy_sha256
+    or existing_digests != expected_digests
+):
+    raise SystemExit(f"release migration evidence conflicts with the explicit transition: {evidence_path}")
+
+if needs_release_write:
+    atomic_write(release_path, canonical_payload)
+if needs_current_write:
+    atomic_write(current_path, canonical_payload)
+print(1)
+PY
+)" || die "failed to migrate the explicit legacy rollback identity"
+  if [[ "${migrated_count}" != "0" ]]; then
+    log "migrated the explicit legacy rollback identity to provenance-verified digests"
   fi
 }
 

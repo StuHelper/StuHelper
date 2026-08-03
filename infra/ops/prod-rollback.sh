@@ -33,7 +33,30 @@ if ((override_count == 3)); then
   require_digest_image_ref ROLLBACK_ADMIN_IMAGE_REF "${requested_admin_image_ref}"
 fi
 
+if [[ -n "${ROLLBACK_REVIEW_REASON:-}" && -n "${ROLLBACK_REVIEW_REASON_B64:-}" ]]; then
+  die "set only one of ROLLBACK_REVIEW_REASON or ROLLBACK_REVIEW_REASON_B64"
+fi
+if [[ -n "${ROLLBACK_REVIEW_REASON_B64:-}" ]]; then
+  ROLLBACK_REVIEW_REASON="$(
+    python3 - "${ROLLBACK_REVIEW_REASON_B64}" <<'PY'
+import base64
+import binascii
+import sys
+
+try:
+    decoded = base64.b64decode(sys.argv[1], validate=True).decode("utf-8")
+except (binascii.Error, UnicodeDecodeError) as exc:
+    raise SystemExit(f"invalid ROLLBACK_REVIEW_REASON_B64: {exc}") from exc
+print(decoded, end="")
+PY
+  )"
+fi
+export ROLLBACK_REVIEW_ACTOR="${ROLLBACK_REVIEW_ACTOR:-}"
+export ROLLBACK_REVIEW_REASON="${ROLLBACK_REVIEW_REASON:-}"
+
+acquire_production_deploy_lock
 load_env
+migrate_legacy_release_state_permissions
 
 current_tag="${TAG:-}"
 target_tag="${ROLLBACK_TAG:-${TAG:-}}"
@@ -81,6 +104,15 @@ if ((override_count == 3)); then
   BACKEND_IMAGE_REF="${requested_backend_image_ref}"
   FRONTEND_IMAGE_REF="${requested_frontend_image_ref}"
   ADMIN_IMAGE_REF="${requested_admin_image_ref}"
+  if [[ -f "${release_file}" ]]; then
+    migrate_explicit_legacy_release_identity \
+      "${target_tag}" \
+      "${BACKEND_IMAGE_REF}" \
+      "${FRONTEND_IMAGE_REF}" \
+      "${ADMIN_IMAGE_REF}" \
+      "${ROLLBACK_REVIEW_ACTOR}" \
+      "${ROLLBACK_REVIEW_REASON}"
+  fi
 fi
 
 [[ -n "${BACKEND_IMAGE_REF:-}" ]] || die "missing BACKEND_IMAGE_REF for rollback target ${target_tag}; deploy that release once with the new immutable-image flow or set it explicitly"
@@ -108,27 +140,6 @@ else
   [[ -f "${release_file}" ]] ||
     die "expired review windows may only be reused for a release previously deployed in this environment"
 
-  if [[ -n "${ROLLBACK_REVIEW_REASON:-}" && -n "${ROLLBACK_REVIEW_REASON_B64:-}" ]]; then
-    die "set only one of ROLLBACK_REVIEW_REASON or ROLLBACK_REVIEW_REASON_B64"
-  fi
-  if [[ -n "${ROLLBACK_REVIEW_REASON_B64:-}" ]]; then
-    ROLLBACK_REVIEW_REASON="$(
-      python3 - "${ROLLBACK_REVIEW_REASON_B64}" <<'PY'
-import base64
-import binascii
-import sys
-
-try:
-    decoded = base64.b64decode(sys.argv[1], validate=True).decode("utf-8")
-except (binascii.Error, UnicodeDecodeError) as exc:
-    raise SystemExit(f"invalid ROLLBACK_REVIEW_REASON_B64: {exc}") from exc
-print(decoded, end="")
-PY
-    )"
-  fi
-
-  export ROLLBACK_REVIEW_ACTOR="${ROLLBACK_REVIEW_ACTOR:-}"
-  export ROLLBACK_REVIEW_REASON="${ROLLBACK_REVIEW_REASON:-}"
   ROLLBACK_REVIEW_AUDIT_ID="$(
     python3 - <<'PY'
 import uuid
