@@ -3,6 +3,7 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"flag"
 	"fmt"
@@ -34,13 +35,12 @@ func main() {
 		fail("--config is required")
 	}
 
-	configFile, err := os.Open(*configPath)
+	contents, err := os.ReadFile(*configPath)
 	if err != nil {
-		fail("open %s: %v", *configPath, err)
+		fail("read %s: %v", *configPath, err)
 	}
-	defer configFile.Close()
 
-	decoder := yaml.NewDecoder(configFile)
+	decoder := yaml.NewDecoder(bytes.NewReader(contents))
 	var config dependabotConfig
 	if err := decoder.Decode(&config); err != nil {
 		fail("parse %s: %v", *configPath, err)
