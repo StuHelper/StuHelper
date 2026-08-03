@@ -222,7 +222,7 @@ sudo -u stuhelper REMOTE_DEPLOY_CONFIG_FILE=/opt/stuhelper/.deploy/remote.env \
 初始化脚本重复执行时不会再用 root token 覆盖已经安装的 scoped token。Vault 仍采用人工解封：主机
 重启后必须先解封；在未解封期间续期与部署均失败关闭，不能通过延长为永久 token 绕过。
 
-所有生产部署入口最终都进入 `infra/ops/prod-deploy.sh`，该脚本在任何镜像拉取、备份、迁移或服务变更前强制执行 `infra/ops/remote-preflight.sh --pre-deploy`；`make prod-deploy`、`remote-prod-deploy.sh`、GitHub 远程发布和回滚后的重新部署不能绕过该门禁。静态配置、Vault、镜像策略、备份 timer、对象存储与本机 Nginx 契约始终在该阶段验证。加载本次不可变镜像摘要并推导安全发布标签后，部署还会只读检查同名历史 release record：标签不存在时不创建任何状态；标签存在时，三个镜像摘要必须与原记录完全相同，否则在渲染、拉取、备份、迁移和 rollout 前失败。若本机 PostgreSQL 已运行，数据库连通性也必须在变更前通过；首次部署或停机恢复时，对尚未运行的本机数据库在线检查会明确延期。预部署不以当前旧应用的公网行为作为门禁，避免故障版本阻断修复或回滚；公网入口、admission 和浏览器检查始终在新应用启动后强制执行。服务启动、迁移、备份和业务 smoke 全部完成后，脚本必须再执行 `remote-preflight.sh --post-deploy`；完整数据库连通性、公网入口和 admission 检查通过后才写入 release record。直接运行不带参数的 `remote-preflight.sh` 等价于 `--full`，不会采用首次部署延期。预检包括：
+所有生产部署入口最终都进入 `infra/ops/prod-deploy.sh`，该脚本在任何镜像拉取、备份、迁移或服务变更前强制执行 `infra/ops/remote-preflight.sh --pre-deploy`；`make prod-deploy`、`remote-prod-deploy.sh`、GitHub 远程发布和回滚后的重新部署不能绕过该门禁。静态配置、Vault、镜像策略、备份 timer、对象存储与本机 Nginx 契约始终在该阶段验证。加载本次不可变镜像摘要并推导安全发布标签后，部署还会只读检查同名历史 release record：真正从未使用的标签不会创建任何状态；标签存在时，三个镜像摘要必须与原记录完全相同；若 per-tag 记录缺失但 `current-release.env` 或 `releases.log` 仍证明该标签曾发布，则视为账本损坏并失败关闭，不能借删除文件复用标签。上述冲突均在渲染、拉取、备份、迁移和 rollout 前失败。若本机 PostgreSQL 已运行，数据库连通性也必须在变更前通过；首次部署或停机恢复时，对尚未运行的本机数据库在线检查会明确延期。预部署不以当前旧应用的公网行为作为门禁，避免故障版本阻断修复或回滚；公网入口、admission 和浏览器检查始终在新应用启动后强制执行。服务启动、迁移、备份和业务 smoke 全部完成后，脚本必须再执行 `remote-preflight.sh --post-deploy`；完整数据库连通性、公网入口和 admission 检查通过后才写入 release record。直接运行不带参数的 `remote-preflight.sh` 等价于 `--full`，不会采用首次部署延期。预检包括：
 
 - `.deploy/remote.env` 是否就位
 - Vault 运行 token 是否只有约定策略、TTL 是否高于安全下限、三条精确 KV 路径是否可读，以及续期

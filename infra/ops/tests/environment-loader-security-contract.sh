@@ -272,6 +272,46 @@ grep -q 'release field BACKEND_IMAGE_REF does not match existing immutable relea
 [[ "$(wc -l <"${release_state_dir}/releases.log")" == "2" ]] ||
   fail "failed read-only release identity validation changed the activation log"
 
+assert_missing_immutable_record_rejected() {
+  local state_dir="$1"
+  local expected_evidence="$2"
+  local output_file="$3"
+  if (
+    export DEPLOY_STATE_DIR="${state_dir}"
+    export BACKEND_IMAGE_REF="${release_backend_ref}"
+    export FRONTEND_IMAGE_REF="${release_frontend_ref}"
+    export ADMIN_IMAGE_REF="${release_admin_ref}"
+    require_release_tag_identity_available contract-release
+  ) >"${output_file}" 2>&1; then
+    fail "release identity guard accepted a previously used tag whose immutable record was missing"
+  fi
+  grep -q 'was previously used but its immutable record is missing' "${output_file}" ||
+    fail "missing immutable release rejection did not report ledger inconsistency"
+  grep -q "${expected_evidence}" "${output_file}" ||
+    fail "missing immutable release rejection did not identify ${expected_evidence} evidence"
+  [[ ! -e "${state_dir}/releases/contract-release.env" ]] ||
+    fail "read-only ledger inconsistency check recreated a missing immutable record"
+}
+
+log_only_release_state="${tmpdir}/log-only-release-state"
+mkdir -p "${log_only_release_state}/releases"
+cp "${release_state_dir}/releases.log" "${log_only_release_state}/releases.log"
+chmod 0600 "${log_only_release_state}/releases.log"
+assert_missing_immutable_record_rejected \
+  "${log_only_release_state}" \
+  'releases.log' \
+  "${tmpdir}/guard-missing-record-log-evidence.log"
+
+current_only_release_state="${tmpdir}/current-only-release-state"
+mkdir -p "${current_only_release_state}/releases"
+cp "${release_state_dir}/current-release.env" "${current_only_release_state}/current-release.env"
+chmod 0600 "${current_only_release_state}/current-release.env"
+assert_missing_immutable_record_rejected \
+  "${current_only_release_state}" \
+  'current-release.env' \
+  "${tmpdir}/guard-missing-record-current-evidence.log"
+unset -f assert_missing_immutable_record_rejected
+
 if (
   export DEPLOY_STATE_DIR="${release_state_dir}"
   export BACKEND_IMAGE_REF=ghcr.io/stuhelper/backend@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
