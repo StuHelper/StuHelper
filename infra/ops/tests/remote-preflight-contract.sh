@@ -101,10 +101,9 @@ assert_contains "${COMMON_LIB_FILE}" '"StartLimitIntervalUSec=0"'
 assert_contains "${COMMON_LIB_FILE}" '"StartLimitBurst=5"'
 assert_contains "${COMMON_LIB_FILE}" '"Result=success"'
 assert_contains "${PREFLIGHT_FILE}" 'backup_service_start_timeouts='
-assert_contains "${PREFLIGHT_FILE}" '"4h"'
+assert_contains "${PREFLIGHT_FILE}" '"18h"'
+assert_contains "${PREFLIGHT_FILE}" '"1d 2h"'
 assert_contains "${PREFLIGHT_FILE}" '"12h"'
-[[ "$(grep -c '^  "12h"$' "${PREFLIGHT_FILE}")" == "2" ]] ||
-  fail "remote preflight must require the 12-hour base-backup and sync budgets"
 assert_contains "${COMMON_LIB_FILE}" 'SuccessExitStatus'
 assert_contains "${COMMON_LIB_FILE}" 'ExecReload'
 assert_contains "${COMMON_LIB_FILE}" 'ExecStopPost'

@@ -164,8 +164,8 @@ backup_timer_calendars=(
   "*-*-* *:00/15:00"
 )
 backup_service_start_timeouts=(
-  "4h"
-  "12h"
+  "18h"
+  "1d 2h"
   "12h"
 )
 backup_service_common_environment=(
