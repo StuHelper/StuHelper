@@ -4,15 +4,14 @@ set -euo pipefail
 DEPLOY_USER="${DEPLOY_USER:-stuhelper}"
 DEPLOY_GROUP="${DEPLOY_GROUP:-${DEPLOY_USER}}"
 DEPLOY_APP_DIR="${DEPLOY_APP_DIR:-/opt/stuhelper}"
-SYSTEMD_PREFIX="${SYSTEMD_PREFIX:-stuhelper}"
 BACKUP_STAGING_DIR="${BACKUP_STAGING_DIR:-/var/lib/stuhelper/postgres/backup-staging}"
 
-dump_service="/etc/systemd/system/${SYSTEMD_PREFIX}-postgres-dump-backup.service"
-dump_timer="/etc/systemd/system/${SYSTEMD_PREFIX}-postgres-dump-backup.timer"
-base_service="/etc/systemd/system/${SYSTEMD_PREFIX}-postgres-basebackup.service"
-base_timer="/etc/systemd/system/${SYSTEMD_PREFIX}-postgres-basebackup.timer"
-sync_service="/etc/systemd/system/${SYSTEMD_PREFIX}-postgres-backup-sync.service"
-sync_timer="/etc/systemd/system/${SYSTEMD_PREFIX}-postgres-backup-sync.timer"
+dump_service="/etc/systemd/system/stuhelper-postgres-dump-backup.service"
+dump_timer="/etc/systemd/system/stuhelper-postgres-dump-backup.timer"
+base_service="/etc/systemd/system/stuhelper-postgres-basebackup.service"
+base_timer="/etc/systemd/system/stuhelper-postgres-basebackup.timer"
+sync_service="/etc/systemd/system/stuhelper-postgres-backup-sync.service"
+sync_timer="/etc/systemd/system/stuhelper-postgres-backup-sync.timer"
 
 require_root() {
   if [[ "${EUID}" -ne 0 ]]; then
@@ -97,7 +96,7 @@ EOF
 Description=StuHelper PostgreSQL logical backup timer
 
 [Timer]
-Unit=${SYSTEMD_PREFIX}-postgres-dump-backup.service
+Unit=stuhelper-postgres-dump-backup.service
 OnCalendar=*-*-* 03:15:00
 Persistent=true
 AccuracySec=1min
@@ -143,7 +142,7 @@ EOF
 Description=StuHelper PostgreSQL base backup timer
 
 [Timer]
-Unit=${SYSTEMD_PREFIX}-postgres-basebackup.service
+Unit=stuhelper-postgres-basebackup.service
 OnCalendar=Sun *-*-* 03:45:00
 Persistent=true
 AccuracySec=1min
@@ -189,7 +188,7 @@ EOF
 Description=StuHelper PostgreSQL backup artifact sync timer
 
 [Timer]
-Unit=${SYSTEMD_PREFIX}-postgres-backup-sync.service
+Unit=stuhelper-postgres-backup-sync.service
 OnCalendar=*-*-* *:00/15:00
 Persistent=true
 AccuracySec=1min
@@ -201,8 +200,8 @@ WantedBy=timers.target
 EOF
 
   systemctl daemon-reload
-  systemctl reset-failed "${SYSTEMD_PREFIX}-postgres-dump-backup.service" "${SYSTEMD_PREFIX}-postgres-basebackup.service" "${SYSTEMD_PREFIX}-postgres-backup-sync.service"
-  systemctl enable --now "${SYSTEMD_PREFIX}-postgres-dump-backup.timer" "${SYSTEMD_PREFIX}-postgres-basebackup.timer" "${SYSTEMD_PREFIX}-postgres-backup-sync.timer"
+  systemctl reset-failed stuhelper-postgres-dump-backup.service stuhelper-postgres-basebackup.service stuhelper-postgres-backup-sync.service
+  systemctl enable --now stuhelper-postgres-dump-backup.timer stuhelper-postgres-basebackup.timer stuhelper-postgres-backup-sync.timer
 
   echo "[install-backup-timers] installed:"
   echo "  - ${dump_service}"

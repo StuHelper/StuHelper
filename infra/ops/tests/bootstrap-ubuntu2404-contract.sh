@@ -150,9 +150,9 @@ assert_contains "${BACKUP_TIMER_INSTALLER}" 'DEPLOY_GROUP must not resolve to gi
 assert_contains "${BACKUP_TIMER_INSTALLER}" 'BACKUP_STAGING_DIR="\$\{BACKUP_STAGING_DIR:-/var/lib/stuhelper/postgres/backup-staging\}"'
 assert_contains "${BACKUP_TIMER_INSTALLER}" 'install -d -o "\$\{DEPLOY_USER\}".*-m 0700 "\$\{BACKUP_STAGING_DIR\}"'
 assert_contains "${BACKUP_TIMER_INSTALLER}" 'Environment=BACKUP_STAGING_DIR=\$\{BACKUP_STAGING_DIR\}'
-assert_contains "${BACKUP_TIMER_INSTALLER}" '^Unit=\$\{SYSTEMD_PREFIX\}-postgres-dump-backup\.service$'
-assert_contains "${BACKUP_TIMER_INSTALLER}" '^Unit=\$\{SYSTEMD_PREFIX\}-postgres-basebackup\.service$'
-assert_contains "${BACKUP_TIMER_INSTALLER}" '^Unit=\$\{SYSTEMD_PREFIX\}-postgres-backup-sync\.service$'
+assert_contains "${BACKUP_TIMER_INSTALLER}" '^Unit=stuhelper-postgres-dump-backup\.service$'
+assert_contains "${BACKUP_TIMER_INSTALLER}" '^Unit=stuhelper-postgres-basebackup\.service$'
+assert_contains "${BACKUP_TIMER_INSTALLER}" '^Unit=stuhelper-postgres-backup-sync\.service$'
 assert_contains "${BACKUP_TIMER_INSTALLER}" '^OnCalendar=\*-\*-\* \*:00/15:00$'
 [[ "$(grep -c '^AccuracySec=1min$' "${BACKUP_TIMER_INSTALLER}")" == "3" ]] ||
   fail "backup timer installer must bound timer coalescing accuracy to one minute"
@@ -186,7 +186,8 @@ assert_contains "${BACKUP_TIMER_INSTALLER}" '^TimeoutStartSec=12h$'
 [[ "$(grep -Ec '^ExecStart=/usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin .* BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true /bin/bash --noprofile --norc \./infra/ops/' "${BACKUP_TIMER_INSTALLER}")" == "3" ]] ||
   fail "backup timer installer must start all backup services with an allowlisted empty environment"
 assert_not_contains "${BACKUP_TIMER_INSTALLER}" 'ExecStart=/bin/bash -lc'
-assert_contains "${BACKUP_TIMER_INSTALLER}" 'systemctl reset-failed "\$\{SYSTEMD_PREFIX\}-postgres-dump-backup\.service" "\$\{SYSTEMD_PREFIX\}-postgres-basebackup\.service" "\$\{SYSTEMD_PREFIX\}-postgres-backup-sync\.service"'
-assert_contains "${BACKUP_TIMER_INSTALLER}" 'systemctl enable --now "\$\{SYSTEMD_PREFIX\}-postgres-dump-backup\.timer"'
+assert_contains "${BACKUP_TIMER_INSTALLER}" 'systemctl reset-failed stuhelper-postgres-dump-backup\.service stuhelper-postgres-basebackup\.service stuhelper-postgres-backup-sync\.service'
+assert_contains "${BACKUP_TIMER_INSTALLER}" 'systemctl enable --now stuhelper-postgres-dump-backup\.timer'
+assert_not_contains "${BACKUP_TIMER_INSTALLER}" 'SYSTEMD_PREFIX'
 
 echo "[bootstrap-ubuntu2404-contract] all assertions passed"
