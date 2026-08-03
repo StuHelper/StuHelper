@@ -512,6 +512,82 @@ grep -q 'changes the legacy image repository' "${tmpdir}/explicit-wrong-reposito
 [[ ! -e "${explicit_wrong_repository_state}/release-migrations/explicit-legacy.json" ]] ||
   fail "failed explicit legacy migration published audit evidence"
 
+divergent_legacy_state="${tmpdir}/divergent-legacy-state"
+mkdir -p "${divergent_legacy_state}/releases"
+cat >"${divergent_legacy_state}/releases/divergent-legacy.env" <<'EOF'
+TAG=divergent-legacy
+DEPLOYED_AT=2026-08-01T12:00:00Z
+BACKEND_IMAGE_REF=ghcr.io/stuhelper/backend:per-tag-version
+FRONTEND_IMAGE_REF=ghcr.io/stuhelper/frontend:per-tag-version
+ADMIN_IMAGE_REF=ghcr.io/stuhelper/admin:per-tag-version
+EOF
+cat >"${divergent_legacy_state}/current-release.env" <<'EOF'
+TAG=divergent-legacy
+DEPLOYED_AT=2026-08-01T12:00:00Z
+BACKEND_IMAGE_REF=ghcr.io/stuhelper/backend:current-version
+FRONTEND_IMAGE_REF=ghcr.io/stuhelper/frontend:current-version
+ADMIN_IMAGE_REF=ghcr.io/stuhelper/admin:current-version
+EOF
+chmod 0600 \
+  "${divergent_legacy_state}/releases/divergent-legacy.env" \
+  "${divergent_legacy_state}/current-release.env"
+divergent_release_checksum="$(sha256sum "${divergent_legacy_state}/releases/divergent-legacy.env" | cut -d ' ' -f 1)"
+divergent_current_checksum="$(sha256sum "${divergent_legacy_state}/current-release.env" | cut -d ' ' -f 1)"
+if (
+  export DEPLOY_STATE_DIR="${divergent_legacy_state}"
+  migrate_explicit_legacy_release_identity \
+    divergent-legacy \
+    "${release_backend_ref}" \
+    "${release_frontend_ref}" \
+    "${release_admin_ref}" \
+    contract-operator \
+    'reject conflicting original legacy release identities'
+) >"${tmpdir}/divergent-legacy.out" 2>"${tmpdir}/divergent-legacy.err"; then
+  fail "explicit legacy migration erased divergent current and per-tag identities"
+fi
+grep -q 'identities differ before migration' "${tmpdir}/divergent-legacy.err" ||
+  fail "divergent legacy identity rejection did not identify the original-ledger conflict"
+[[ "$(sha256sum "${divergent_legacy_state}/releases/divergent-legacy.env" | cut -d ' ' -f 1)" == "${divergent_release_checksum}" ]] ||
+  fail "divergent legacy rejection changed the per-tag record"
+[[ "$(sha256sum "${divergent_legacy_state}/current-release.env" | cut -d ' ' -f 1)" == "${divergent_current_checksum}" ]] ||
+  fail "divergent legacy rejection changed the current record"
+[[ ! -e "${divergent_legacy_state}/release-migrations/divergent-legacy.json" ]] ||
+  fail "divergent legacy rejection published migration evidence"
+
+partial_legacy_state="${tmpdir}/partial-legacy-state"
+mkdir -p "${partial_legacy_state}/releases"
+cat >"${partial_legacy_state}/releases/partial-legacy.env" <<'EOF'
+TAG=partial-legacy
+DEPLOYED_AT=2026-08-01T12:00:00Z
+BACKEND_IMAGE_REF=ghcr.io/stuhelper/backend:partial-legacy
+FRONTEND_IMAGE_REF=ghcr.io/stuhelper/frontend:partial-legacy
+ADMIN_IMAGE_REF=ghcr.io/stuhelper/admin:partial-legacy
+EOF
+cat >"${partial_legacy_state}/current-release.env" <<EOF
+TAG=partial-legacy
+DEPLOYED_AT=2026-08-01T12:00:00Z
+BACKEND_IMAGE_REF=${release_backend_ref}
+FRONTEND_IMAGE_REF=${release_frontend_ref}
+ADMIN_IMAGE_REF=${release_admin_ref}
+EOF
+chmod 0600 \
+  "${partial_legacy_state}/releases/partial-legacy.env" \
+  "${partial_legacy_state}/current-release.env"
+(
+  export DEPLOY_STATE_DIR="${partial_legacy_state}"
+  migrate_explicit_legacy_release_identity \
+    partial-legacy \
+    "${release_backend_ref}" \
+    "${release_frontend_ref}" \
+    "${release_admin_ref}" \
+    contract-operator \
+    'complete an interrupted canonical-versus-legacy migration'
+)
+cmp -s \
+  "${partial_legacy_state}/current-release.env" \
+  "${partial_legacy_state}/releases/partial-legacy.env" ||
+  fail "canonical-versus-legacy crash recovery did not converge both records"
+
 unsafe_permission_state="${tmpdir}/unsafe-permission-state"
 mkdir -p "${unsafe_permission_state}"
 cp "${tmpdir}/release-safe.env" "${unsafe_permission_state}/current-release.env"
