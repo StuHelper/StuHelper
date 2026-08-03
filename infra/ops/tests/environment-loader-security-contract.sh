@@ -107,6 +107,21 @@ release_backend_ref='ghcr.io/stuhelper/backend@sha256:11111111111111111111111111
 release_frontend_ref='ghcr.io/stuhelper/frontend@sha256:2222222222222222222222222222222222222222222222222222222222222222'
 release_admin_ref='ghcr.io/stuhelper/admin@sha256:3333333333333333333333333333333333333333333333333333333333333333'
 
+require_safe_release_tag release_2026.08-03
+for unsafe_release_tag in \
+  '' \
+  '../escape' \
+  'nested/release' \
+  'release with spaces' \
+  $'release\nnewline' \
+  "$(printf 'a%.0s' {1..129})"; do
+  if (require_safe_release_tag "${unsafe_release_tag}") >"${tmpdir}/unsafe-release-tag.log" 2>&1; then
+    fail "release-tag validator accepted an unsafe or overlong identifier"
+  fi
+  grep -q 'release tag must be 1-128 characters' "${tmpdir}/unsafe-release-tag.log" ||
+    fail "unsafe release-tag rejection did not report the canonical constraint"
+done
+
 cat >"${tmpdir}/release-mutable-image.env" <<EOF
 TAG=contract-release
 DEPLOYED_AT=2026-08-03T00:00:00Z
@@ -244,6 +259,20 @@ grep -q 'BACKEND_IMAGE_REF must be a complete image@sha256 digest reference' "${
   fail "release recorder did not report its digest-only boundary"
 [[ ! -e "${tmpdir}/mutable-release-state/current-release.env" ]] ||
   fail "release recorder published state before rejecting a mutable image"
+
+if (
+  export DEPLOY_STATE_DIR="${tmpdir}/unsafe-release-state"
+  export BACKEND_IMAGE_REF="${release_backend_ref}"
+  export FRONTEND_IMAGE_REF="${release_frontend_ref}"
+  export ADMIN_IMAGE_REF="${release_admin_ref}"
+  record_release '../escape'
+) >"${tmpdir}/record-unsafe-release.log" 2>&1; then
+  fail "release recorder accepted a path-traversing tag"
+fi
+grep -q 'release tag must be 1-128 characters' "${tmpdir}/record-unsafe-release.log" ||
+  fail "release recorder did not report the canonical tag constraint"
+[[ ! -e "${tmpdir}/unsafe-release-state" ]] ||
+  fail "release recorder created state before rejecting an unsafe tag"
 
 : >"${tmpdir}/shared.env"
 : >"${tmpdir}/generated.env"

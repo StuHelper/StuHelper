@@ -11,6 +11,17 @@ case "${operation}" in
   *) die "usage: $0 deploy|rollback" ;;
 esac
 
+case "${operation}" in
+  deploy)
+    [[ -n "${TAG:-}" ]] || die "TAG is required for a remote CI deploy"
+    require_safe_release_tag "${TAG}"
+    ;;
+  rollback)
+    [[ -n "${ROLLBACK_TAG:-}" ]] || die "ROLLBACK_TAG is required for a remote CI rollback"
+    require_safe_release_tag "${ROLLBACK_TAG}"
+    ;;
+esac
+
 load_remote_deploy_config
 require_cmd docker
 

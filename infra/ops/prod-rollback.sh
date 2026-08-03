@@ -47,6 +47,7 @@ fi
 if [[ -z "${target_tag}" ]]; then
   target_tag="$(resolve_previous_release_tag "${current_tag:-}")" || die "unable to resolve previous release tag; set ROLLBACK_TAG manually"
 fi
+require_safe_release_tag "${target_tag}"
 
 release_file="${DEPLOY_STATE_DIR}/releases/${target_tag}.env"
 if [[ -f "${release_file}" ]]; then

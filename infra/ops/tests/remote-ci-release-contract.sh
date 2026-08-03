@@ -27,6 +27,9 @@ log() {
 require_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "missing command: $1"
 }
+require_safe_release_tag() {
+  [[ "${1:-}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]] || die "release tag must be 1-128 characters"
+}
 load_remote_deploy_config() {
   REGISTRY="${TEST_REGISTRY:-ghcr.io}"
   REGISTRY_AUTH_MODE="${TEST_REGISTRY_AUTH_MODE:-workflow-token}"
@@ -70,6 +73,7 @@ output_file="${tmpdir}/output"
 if ! printf '%s\n' "${token_sentinel}" | \
   PATH="${tmpdir}/bin:${PATH}" \
   CI_REGISTRY_USERNAME=Xauryan \
+  TAG=0123456789abcdef0123456789abcdef01234567 \
   /bin/bash "${tmpdir}/ops/remote-ci-release.sh" deploy >"${output_file}" 2>&1; then
   fail "valid deploy operation failed"
 fi
@@ -94,6 +98,7 @@ fi
 if ! printf '%s\n' "${token_sentinel}" | \
   PATH="${tmpdir}/bin:${PATH}" \
   CI_REGISTRY_USERNAME='github-actions[bot]' \
+  ROLLBACK_TAG=0123456789abcdef0123456789abcdef01234567 \
   /bin/bash "${tmpdir}/ops/remote-ci-release.sh" rollback >"${output_file}" 2>&1; then
   fail "valid rollback operation failed"
 fi
@@ -104,9 +109,24 @@ registry_config_dir="$(<"${TEST_DOCKER_CONFIG_FILE}")"
 [[ ! -e "${registry_config_dir}" ]] ||
   fail "temporary Docker config was not deleted after rollback"
 
+rm -f "${TEST_DOCKER_ARGS_FILE}"
+: >"${TEST_OPERATION_LOG}"
 if printf '%s\n' "${token_sentinel}" | \
   PATH="${tmpdir}/bin:${PATH}" \
   CI_REGISTRY_USERNAME=Xauryan \
+  TAG='../escape' \
+  /bin/bash "${tmpdir}/ops/remote-ci-release.sh" deploy >"${tmpdir}/unsafe-tag.out" 2>"${tmpdir}/unsafe-tag.err"; then
+  fail "remote CI release accepted an unsafe deployment tag"
+fi
+grep -q 'release tag must be 1-128 characters' "${tmpdir}/unsafe-tag.err" ||
+  fail "remote CI release did not report its early release-tag gate"
+[[ ! -e "${TEST_DOCKER_ARGS_FILE}" && ! -s "${TEST_OPERATION_LOG}" ]] ||
+  fail "remote CI release performed registry or deployment side effects before rejecting an unsafe tag"
+
+if printf '%s\n' "${token_sentinel}" | \
+  PATH="${tmpdir}/bin:${PATH}" \
+  CI_REGISTRY_USERNAME=Xauryan \
+  TAG=0123456789abcdef0123456789abcdef01234567 \
   TEST_REGISTRY_AUTH_MODE=persistent-secret \
   /bin/bash "${tmpdir}/ops/remote-ci-release.sh" deploy >/dev/null 2>&1; then
   fail "persistent registry credentials were accepted by the CI release wrapper"
@@ -114,11 +134,13 @@ fi
 if printf '%s\n' "${token_sentinel}" | \
   PATH="${tmpdir}/bin:${PATH}" \
   CI_REGISTRY_USERNAME='invalid;actor' \
+  TAG=0123456789abcdef0123456789abcdef01234567 \
   /bin/bash "${tmpdir}/ops/remote-ci-release.sh" deploy >/dev/null 2>&1; then
   fail "an unsafe registry username was accepted"
 fi
 if PATH="${tmpdir}/bin:${PATH}" \
   CI_REGISTRY_USERNAME=Xauryan \
+  TAG=0123456789abcdef0123456789abcdef01234567 \
   /bin/bash "${tmpdir}/ops/remote-ci-release.sh" deploy </dev/null >/dev/null 2>&1; then
   fail "an empty short-lived token was accepted"
 fi

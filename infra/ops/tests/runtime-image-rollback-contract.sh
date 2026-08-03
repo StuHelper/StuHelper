@@ -45,6 +45,9 @@ log() {
 warn() {
   printf '[fixture][warn] %s\n' "$*" >&2
 }
+require_safe_release_tag() {
+  [[ "${1:-}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]] || die "release tag must be 1-128 characters"
+}
 load_env() {
   export TAG=current-release
   export BACKEND_IMAGE_REF=ghcr.io/stuhelper/backend@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
@@ -118,6 +121,19 @@ target_tag="0123456789abcdef0123456789abcdef01234567"
 backend_ref="ghcr.io/stuhelper/backend@sha256:1111111111111111111111111111111111111111111111111111111111111111"
 frontend_ref="ghcr.io/stuhelper/frontend@sha256:2222222222222222222222222222222222222222222222222222222222222222"
 admin_ref="ghcr.io/stuhelper/admin@sha256:3333333333333333333333333333333333333333333333333333333333333333"
+unsafe_observed_file="${fixture_root}/unsafe-deploy-observed"
+if VALIDATOR_CURRENT_OK=true \
+  DEPLOY_STATE_DIR="${fixture_state}" \
+  ROLLBACK_TAG='../escape' \
+  ROLLBACK_DEPLOY_OBSERVED_FILE="${unsafe_observed_file}" \
+  "${fixture_repo}/infra/ops/prod-rollback.sh" >"${fixture_root}/unsafe.out" 2>"${fixture_root}/unsafe.err"; then
+  fail "rollback accepted a path-traversing target tag"
+fi
+grep -q 'release tag must be 1-128 characters' "${fixture_root}/unsafe.err" ||
+  fail "rollback did not report the canonical release-tag constraint"
+[[ ! -e "${unsafe_observed_file}" ]] ||
+  fail "unsafe rollback target reached prod-deploy"
+
 cat >"${fixture_state}/releases/${target_tag}.env" <<EOF
 TAG=${target_tag}
 DEPLOYED_AT=2026-07-30T12:00:00Z
