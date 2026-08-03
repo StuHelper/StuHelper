@@ -595,6 +595,11 @@ run_backup_object_storage_rclone \
 assert_not_contains "${capture_file}" 'contract-runtime-secret'
 assert_not_contains "${capture_file}" 'RCLONE_CONFIG_TARGET_SECRET_ACCESS_KEY='
 assert_contains "${capture_file}" '^RCLONE_CONFIG_TARGET_SECRET_ACCESS_KEY$'
+for proxy_environment_key in \
+  HTTP_PROXY HTTPS_PROXY FTP_PROXY ALL_PROXY NO_PROXY \
+  http_proxy https_proxy ftp_proxy all_proxy no_proxy; do
+  assert_contains "${capture_file}" "^${proxy_environment_key}=$"
+done
 assert_contains "${capture_file}" '^--read-only$'
 assert_contains "${capture_file}" '^ALL$'
 assert_contains "${capture_file}" '^no-new-privileges$'
