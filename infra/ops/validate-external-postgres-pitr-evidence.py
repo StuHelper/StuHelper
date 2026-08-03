@@ -195,6 +195,8 @@ def validate(
         raise ValueError("external PostgreSQL last archive time is newer than its observation")
     if now - last_archived_at > MAX_ARCHIVE_LAG:
         raise ValueError("external PostgreSQL latest archived WAL is stale")
+    if now - last_archived_at > timedelta(seconds=rpo_seconds):
+        raise ValueError("external PostgreSQL latest archived WAL exceeds the declared RPO")
 
     restore = document.get("restoreDrill")
     if not isinstance(restore, dict):

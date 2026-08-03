@@ -123,14 +123,21 @@ same_host["continuousArchiving"]["offHost"] = False
 old_drill = json.loads(json.dumps(source))
 old_drill["restoreDrill"]["completedAt"] = "2026-01-01T00:00:00Z"
 (output / "old-drill.json").write_text(json.dumps(old_drill), encoding="utf-8")
+
+outside_declared_rpo = json.loads(json.dumps(source))
+outside_declared_rpo["continuousArchiving"]["rpoSeconds"] = 300
+(output / "outside-declared-rpo.json").write_text(
+    json.dumps(outside_declared_rpo), encoding="utf-8"
+)
 PY
 chmod 0644 \
   "${tmpdir}/different-cluster.json" \
   "${tmpdir}/stale.json" \
   "${tmpdir}/same-host.json" \
-  "${tmpdir}/old-drill.json"
+  "${tmpdir}/old-drill.json" \
+  "${tmpdir}/outside-declared-rpo.json"
 
-for invalid in different-cluster stale same-host old-drill; do
+for invalid in different-cluster stale same-host old-drill outside-declared-rpo; do
   if python3 "${VALIDATOR}" \
     --evidence-file "${tmpdir}/${invalid}.json" \
     --expected-system-identifier "${system_identifier}" \
@@ -140,6 +147,9 @@ for invalid in different-cluster stale same-host old-drill; do
     fail "validator accepted invalid external PITR evidence: ${invalid}"
   fi
 done
+grep -q 'latest archived WAL exceeds the declared RPO' \
+  "${tmpdir}/outside-declared-rpo.out" ||
+  fail "declared-RPO rejection did not report the violated recovery objective"
 
 cp "${valid_evidence}" "${tmpdir}/writable.json"
 chmod 0664 "${tmpdir}/writable.json"
