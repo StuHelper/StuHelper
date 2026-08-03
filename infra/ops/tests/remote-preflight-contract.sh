@@ -800,12 +800,12 @@ if python3 "${SYSTEMD_TIMER_VALIDATOR}" \
   fail "the systemd timer validator accepted a randomized freshness delay"
 fi
 
-protected_exec_argv='/usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin ENV_FILE=/opt/stuhelper/.env.prod.shared BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true /bin/bash --noprofile --norc ./infra/ops/sync-postgres-backups.sh'
+protected_exec_argv='/usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin ENV_FILE=/opt/stuhelper/.env.prod.shared BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true /bin/bash --noprofile --norc ./infra/ops/run-scheduled-backup.sh sync'
 valid_exec_start="{ path=/usr/bin/env ; argv[]=${protected_exec_argv} ; ignore_errors=no ; }"
 valid_exec_start_ex="{ path=/usr/bin/env ; argv[]=${protected_exec_argv} ; flags= ; }"
 if ! python3 "${SYSTEMD_EXEC_VALIDATOR}" \
   --expected-working-directory /opt/stuhelper \
-  --expected-command "./infra/ops/sync-postgres-backups.sh" \
+  --expected-command "./infra/ops/run-scheduled-backup.sh sync" \
   --actual-working-directory /opt/stuhelper \
   --exec-start "${valid_exec_start}" \
   --exec-start-ex "${valid_exec_start_ex}" \
@@ -814,11 +814,11 @@ if ! python3 "${SYSTEMD_EXEC_VALIDATOR}" \
   fail "the systemd execution validator rejected the protected non-login backup command"
 fi
 
-login_exec_start='{ path=/bin/bash ; argv[]=/bin/bash -lc cd /opt/stuhelper && ./infra/ops/sync-postgres-backups.sh ; ignore_errors=no ; }'
-login_exec_start_ex='{ path=/bin/bash ; argv[]=/bin/bash -lc cd /opt/stuhelper && ./infra/ops/sync-postgres-backups.sh ; flags= ; }'
+login_exec_start='{ path=/bin/bash ; argv[]=/bin/bash -lc cd /opt/stuhelper && ./infra/ops/run-scheduled-backup.sh sync ; ignore_errors=no ; }'
+login_exec_start_ex='{ path=/bin/bash ; argv[]=/bin/bash -lc cd /opt/stuhelper && ./infra/ops/run-scheduled-backup.sh sync ; flags= ; }'
 if python3 "${SYSTEMD_EXEC_VALIDATOR}" \
   --expected-working-directory /opt/stuhelper \
-  --expected-command "./infra/ops/sync-postgres-backups.sh" \
+  --expected-command "./infra/ops/run-scheduled-backup.sh sync" \
   --actual-working-directory /opt/stuhelper \
   --exec-start "${login_exec_start}" \
   --exec-start-ex "${login_exec_start_ex}" \
@@ -831,7 +831,7 @@ ignore_exec_start="{ path=/usr/bin/env ; argv[]=${protected_exec_argv} ; ignore_
 ignore_exec_start_ex="{ path=/usr/bin/env ; argv[]=${protected_exec_argv} ; flags=ignore-failure ; }"
 if python3 "${SYSTEMD_EXEC_VALIDATOR}" \
   --expected-working-directory /opt/stuhelper \
-  --expected-command "./infra/ops/sync-postgres-backups.sh" \
+  --expected-command "./infra/ops/run-scheduled-backup.sh sync" \
   --actual-working-directory /opt/stuhelper \
   --exec-start "${ignore_exec_start}" \
   --exec-start-ex "${ignore_exec_start_ex}" \

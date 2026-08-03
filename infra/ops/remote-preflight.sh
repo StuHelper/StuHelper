@@ -164,7 +164,7 @@ backup_service_units=(
 backup_service_commands=(
   "./infra/ops/run-scheduled-backup.sh dump"
   "./infra/ops/run-scheduled-backup.sh basebackup"
-  "./infra/ops/sync-postgres-backups.sh"
+  "./infra/ops/run-scheduled-backup.sh sync"
 )
 backup_timer_units=(
   stuhelper-postgres-dump-backup.timer
