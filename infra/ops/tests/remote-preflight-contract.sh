@@ -7,6 +7,7 @@ PREFLIGHT_FILE="${REPO_ROOT}/infra/ops/remote-preflight.sh"
 COMMON_LIB_FILE="${REPO_ROOT}/infra/ops/lib/common.sh"
 SYSTEMD_EXEC_VALIDATOR="${REPO_ROOT}/infra/ops/validate-systemd-unit-execution.py"
 SYSTEMD_TIMER_VALIDATOR="${REPO_ROOT}/infra/ops/validate-systemd-timer.py"
+SYSTEMD_CONDITION_VALIDATOR="${REPO_ROOT}/infra/ops/validate-systemd-unit-conditions.py"
 
 fail() {
   echo "[remote-preflight-contract][error] $*" >&2
@@ -81,6 +82,9 @@ assert_contains "${PREFLIGHT_FILE}" 'stuhelper-vault-token-renewal\.timer'
 assert_contains "${PREFLIGHT_FILE}" 'Vault runtime token renewal timer is not active'
 assert_contains "${COMMON_LIB_FILE}" 'require_systemd_unit_exact_environment\(\)'
 assert_contains "${COMMON_LIB_FILE}" 'require_systemd_unit_hardened_lifecycle\(\)'
+assert_contains "${COMMON_LIB_FILE}" 'require_systemd_unit_without_conditions\(\)'
+assert_contains "${COMMON_LIB_FILE}" 'org\.freedesktop\.systemd1\.Unit Conditions'
+assert_contains "${COMMON_LIB_FILE}" 'org\.freedesktop\.systemd1\.Unit Asserts'
 assert_contains "${COMMON_LIB_FILE}" '"RemainAfterExit=no"'
 assert_contains "${COMMON_LIB_FILE}" '"TimeoutStartUSec=infinity"'
 assert_contains "${COMMON_LIB_FILE}" 'SuccessExitStatus'
@@ -111,6 +115,7 @@ assert_contains "${PREFLIGHT_FILE}" 'expected_service_environment\+=\("BACKUP_ST
   fail "remote preflight must require the off-host marker for every backup service"
 assert_contains "${PREFLIGHT_FILE}" 'require_systemd_unit_hardened_execution'
 assert_contains "${PREFLIGHT_FILE}" 'require_systemd_unit_hardened_lifecycle'
+assert_contains "${PREFLIGHT_FILE}" 'require_systemd_unit_without_conditions'
 assert_contains "${PREFLIGHT_FILE}" 'require_systemd_timer_schedule'
 assert_contains "${PREFLIGHT_FILE}" 'systemctl is-active --quiet'
 assert_contains "${PREFLIGHT_FILE}" 'require_production_postgres_ssl'
@@ -413,6 +418,49 @@ if bash -c '
 fi
 grep -q 'must not set ExecStopPost' "${tmpdir}/backup-unit-stop-post.err" || \
   fail "the ExecStopPost failure did not report the lifecycle override"
+
+empty_conditions='{"type":"a(sbbsi)","data":[]}'
+if ! python3 "${SYSTEMD_CONDITION_VALIDATOR}" \
+  --conditions-json "${empty_conditions}" \
+  --asserts-json "${empty_conditions}"; then
+  fail "the systemd condition validator rejected empty effective conditions"
+fi
+if python3 "${SYSTEMD_CONDITION_VALIDATOR}" \
+  --conditions-json '{"type":"a(sbbsi)","data":[["ConditionPathExists",false,false,"/nonexistent",0]]}' \
+  --asserts-json "${empty_conditions}"; then
+  fail "the systemd condition validator accepted a backup-skipping condition"
+fi
+if ! bash -c '
+  set -euo pipefail
+  source "$1"
+  busctl() {
+    case "$*" in
+      *Manager\ GetUnit*) printf "%s\n" "{\"type\":\"o\",\"data\":[\"/org/freedesktop/systemd1/unit/stuhelper_2dpostgres_2dbackup_2dsync_2eservice\"]}" ;;
+      *Conditions|*Asserts) printf "%s\n" "{\"type\":\"a(sbbsi)\",\"data\":[]}" ;;
+      *) return 90 ;;
+    esac
+  }
+  require_systemd_unit_without_conditions stuhelper-postgres-backup-sync.service
+' bash "${COMMON_LIB_FILE}"; then
+  fail "the systemd condition gate rejected a service without conditions"
+fi
+if bash -c '
+  set -euo pipefail
+  source "$1"
+  busctl() {
+    case "$*" in
+      *Manager\ GetUnit*) printf "%s\n" "{\"type\":\"o\",\"data\":[\"/org/freedesktop/systemd1/unit/stuhelper_2dpostgres_2dbackup_2dsync_2eservice\"]}" ;;
+      *Conditions) printf "%s\n" "{\"type\":\"a(sbbsi)\",\"data\":[[\"ConditionPathExists\",false,false,\"/nonexistent\",0]]}" ;;
+      *Asserts) printf "%s\n" "{\"type\":\"a(sbbsi)\",\"data\":[]}" ;;
+      *) return 90 ;;
+    esac
+  }
+  require_systemd_unit_without_conditions stuhelper-postgres-backup-sync.service
+' bash "${COMMON_LIB_FILE}" >"${tmpdir}/backup-unit-condition.out" 2>"${tmpdir}/backup-unit-condition.err"; then
+  fail "the systemd condition gate accepted an effective ConditionPathExists"
+fi
+grep -q 'must not define Conditions or Asserts' "${tmpdir}/backup-unit-condition.err" || \
+  fail "the systemd condition failure did not report the skipped-backup boundary"
 
 valid_calendar='{ OnCalendar=*-*-* *:00/15:00 ; next_elapse=Mon 2026-08-03 09:15:00 CST }'
 if ! python3 "${SYSTEMD_TIMER_VALIDATOR}" \

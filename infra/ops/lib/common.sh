@@ -125,6 +125,58 @@ require_systemd_unit_hardened_lifecycle() {
   done
 }
 
+require_systemd_unit_without_conditions() {
+  local unit="$1"
+  local asserts_json
+  local conditions_json
+  local unit_path
+  local unit_path_json
+
+  require_cmd busctl
+  if ! unit_path_json="$(busctl --json=short call \
+    org.freedesktop.systemd1 \
+    /org/freedesktop/systemd1 \
+    org.freedesktop.systemd1.Manager \
+    GetUnit s "${unit}" 2>/dev/null)"; then
+    die "failed to resolve the systemd D-Bus object for ${unit}"
+  fi
+  if ! unit_path="$(python3 - "${unit_path_json}" <<'PY'
+import json
+import sys
+
+try:
+    document = json.loads(sys.argv[1])
+    values = document["data"]
+except (json.JSONDecodeError, KeyError, TypeError):
+    raise SystemExit(1)
+if document.get("type") != "o" or len(values) != 1:
+    raise SystemExit(1)
+path = values[0]
+if not isinstance(path, str) or not path.startswith("/org/freedesktop/systemd1/unit/"):
+    raise SystemExit(1)
+print(path)
+PY
+)"; then
+    die "systemd returned an invalid D-Bus object for ${unit}"
+  fi
+  if ! conditions_json="$(busctl --json=short get-property \
+    org.freedesktop.systemd1 "${unit_path}" \
+    org.freedesktop.systemd1.Unit Conditions 2>/dev/null)"; then
+    die "failed to inspect effective Conditions for systemd unit ${unit}"
+  fi
+  if ! asserts_json="$(busctl --json=short get-property \
+    org.freedesktop.systemd1 "${unit_path}" \
+    org.freedesktop.systemd1.Unit Asserts 2>/dev/null)"; then
+    die "failed to inspect effective Asserts for systemd unit ${unit}"
+  fi
+  if ! python3 "${COMMON_LIB_DIR}/../validate-systemd-unit-conditions.py" \
+    --conditions-json "${conditions_json}" \
+    --asserts-json "${asserts_json}"
+  then
+    die "systemd unit ${unit} must not define Conditions or Asserts that can skip protected backups; reinstall the production backup timers and remove overriding drop-ins"
+  fi
+}
+
 require_systemd_timer_schedule() {
   local timer_unit="$1"
   local expected_target="$2"
