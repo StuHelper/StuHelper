@@ -49,6 +49,7 @@ assert_contains "${COMMON_LIB_FILE}" '\$\{GENERATED_ENV_SECRET_REF:-\}'
 assert_contains "${COMMON_LIB_FILE}" 'source_env_file\(\)'
 assert_contains "${COMMON_LIB_FILE}" 'shlex\.quote\(value\)'
 assert_contains "${COMMON_LIB_FILE}" 'require_production_postgres_ssl\(\)'
+assert_contains "${COMMON_LIB_FILE}" 'require_production_postgres_archiving\(\)'
 assert_contains "${COMMON_LIB_FILE}" 'EXTERNAL_POSTGRES_ALLOW_PLAINTEXT'
 assert_contains "${COMMON_LIB_FILE}" 'EXTERNAL_POSTGRES_ALLOW_PLAINTEXT is only allowed in prod-parity'
 assert_contains "${COMMON_LIB_FILE}" 'EXTERNAL_DATASTORE_NETWORK'
@@ -119,6 +120,7 @@ assert_contains "${PREFLIGHT_FILE}" 'require_systemd_unit_without_conditions'
 assert_contains "${PREFLIGHT_FILE}" 'require_systemd_timer_schedule'
 assert_contains "${PREFLIGHT_FILE}" 'systemctl is-active --quiet'
 assert_contains "${PREFLIGHT_FILE}" 'require_production_postgres_ssl'
+assert_contains "${PREFLIGHT_FILE}" 'require_production_postgres_archiving'
 assert_contains "${PREFLIGHT_FILE}" 'require_production_external_student_source_security'
 assert_contains "${COMMON_LIB_FILE}" 'EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_MODE must be verify-full in production'
 assert_contains "${PREFLIGHT_FILE}" 'require_public_ingress_config_preflight'
@@ -129,6 +131,7 @@ assert_contains "${PREFLIGHT_FILE}" 'admission-public-smoke\.sh'
 
 app_env_gate_line="$(line_number "${PREFLIGHT_FILE}" 'APP_ENV must be production for remote preflight')"
 ssl_gate_line="$(line_number "${PREFLIGHT_FILE}" 'require_production_postgres_ssl')"
+archive_gate_line="$(line_number "${PREFLIGHT_FILE}" 'require_production_postgres_archiving')"
 public_ingress_config_preflight_line="$(line_number "${PREFLIGHT_FILE}" 'require_public_ingress_config_preflight')"
 public_ingress_preflight_line="$(line_number "${PREFLIGHT_FILE}" 'require_public_identity_ingress_preflight')"
 admission_public_smoke_line="$(line_number "${PREFLIGHT_FILE}" 'admission-public-smoke.sh')"
@@ -142,6 +145,9 @@ public_http_web_line="$(line_number "${COMMON_LIB_FILE}" 'require_public_http_re
 public_http_admission_line="$(line_number "${COMMON_LIB_FILE}" 'require_public_http_reachable "Admission"')"
 if (( ssl_gate_line >= docker_info_line )); then
   fail "remote preflight must validate production PostgreSQL SSL before Docker checks"
+fi
+if (( archive_gate_line <= ssl_gate_line || archive_gate_line >= docker_info_line )); then
+  fail "remote preflight must validate internal WAL archiving after TLS config and before Docker checks"
 fi
 if (( app_env_gate_line >= ssl_gate_line )); then
   fail "remote preflight must enforce APP_ENV=production before PostgreSQL SSL config validation"

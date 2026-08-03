@@ -88,6 +88,7 @@ sudo ./infra/ops/install-backup-timers.sh
 - 每周日 `03:45` 做 base backup
 - 每 15 分钟执行一次 backup artifact sync
 - 三个 timer 的 coalescing accuracy 固定为一分钟且不允许 randomized delay，防止 drop-in 将工件新鲜度悄然延后
+- 内置生产 PostgreSQL 必须使用 `POSTGRES_ARCHIVE_MODE=on`、`POSTGRES_ARCHIVE_TIMEOUT=15min` 和仓库定义的幂等归档命令；同步前会验证实时归档配置、当前 postmaster 启动后的成功进度及 WAL 文件确实位于受保护 volume，本次同步缺少可信进度时会用一次 `pg_switch_wal()` 实探
 - WAL 归档目录按 `WAL_ARCHIVE_RETENTION_DAYS` 清理
 
 ## 从对象存储取回恢复工件

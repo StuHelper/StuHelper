@@ -73,6 +73,7 @@ python3 "${REPO_ROOT}/infra/ops/validate-runtime-image-scan.py" \
   --effective-environment production
 
 require_production_postgres_ssl
+require_production_postgres_archiving
 require_production_external_student_source_security
 require_production_object_storage
 "${SCRIPT_DIR}/prepare-object-storage-client-ca.sh"

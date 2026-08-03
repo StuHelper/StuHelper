@@ -342,6 +342,9 @@ fi
 if ! grep -qF 'require_production_postgres_ssl' "${PROD_DEPLOY_FILE}"; then
   fail "production deploy must fail fast on insecure internal PostgreSQL SSL settings"
 fi
+if ! grep -qF 'require_production_postgres_archiving' "${PROD_DEPLOY_FILE}"; then
+  fail "production deploy must fail fast when internal PostgreSQL WAL archiving is disabled"
+fi
 if grep -qF 'external PostgreSQL plaintext transport is explicitly enabled' "${PROD_DEPLOY_FILE}"; then
   fail "production deploy must not retain a plaintext PostgreSQL bypass"
 fi

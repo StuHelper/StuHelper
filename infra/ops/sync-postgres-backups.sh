@@ -46,6 +46,10 @@ if [[ "${external_postgres_enabled}" != "true" ]]; then
   require_live_postgres_wal_archive_volume \
     "${wal_archive_volume}" \
     "${STACK_NAME:-stuhelper}-postgres"
+  require_live_postgres_wal_archiving \
+    "${STACK_NAME:-stuhelper}-postgres" \
+    "${POSTGRES_USER:-stuhelper}" \
+    "${POSTGRES_DB:-stuhelper}"
 fi
 
 sync_excludes=(

@@ -14,6 +14,7 @@ SCHEDULED_BACKUP="${REPO_ROOT}/infra/ops/run-scheduled-backup.sh"
 BASE_COMPOSE="${REPO_ROOT}/docker-compose.yml"
 PROD_COMPOSE="${REPO_ROOT}/docker-compose.prod.yml"
 PROD_DEPLOY="${REPO_ROOT}/infra/ops/prod-deploy.sh"
+WAL_ARCHIVER_VALIDATOR="${REPO_ROOT}/infra/ops/validate-postgres-wal-archiver.py"
 
 fail() {
   printf '[object-storage-contract][error] %s\n' "$*" >&2
@@ -624,6 +625,13 @@ assert_contains "${SYNC_BACKUPS}" 'require_off_host_backup_object_storage'
 assert_contains "${SYNC_BACKUPS}" 'APP_ENV:-.*production'
 assert_contains "${SYNC_BACKUPS}" 'unset BACKUP_OBJECT_STORAGE_PINNED_HOSTS'
 assert_contains "${SYNC_BACKUPS}" 'require_live_postgres_wal_archive_volume'
+assert_contains "${SYNC_BACKUPS}" 'require_live_postgres_wal_archiving'
+assert_contains "${COMMON_LIB}" 'pg_switch_wal'
+assert_contains "${COMMON_LIB}" 'pg_postmaster_start_time'
+assert_contains "${COMMON_LIB}" 'last_archived_wal'
+assert_contains "${WAL_ARCHIVER_VALIDATOR}" 'archive_mode != "on"'
+assert_contains "${WAL_ARCHIVER_VALIDATOR}" 'archive_timeout != "15min"'
+assert_contains "${WAL_ARCHIVER_VALIDATOR}" '/var/lib/postgresql/wal-archive/%f'
 assert_contains "${SYNC_BACKUPS}" 'external PostgreSQL selected; its provider/DBA owns continuous WAL archival and PITR evidence'
 assert_contains "${FETCH_BACKUPS}" 'load_env_preserving \\'
 assert_contains "${FETCH_BACKUPS}" 'BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED \\'
@@ -651,6 +659,39 @@ assert_not_contains "${SYNC_BACKUPS}" '(^|[[:space:]])sync([[:space:]]|$)'
 assert_not_contains "${FETCH_BACKUPS}" '(^|[[:space:]])sync([[:space:]]|$)'
 assert_not_contains "${SYNC_BACKUPS}" 'minio|MC_HOST|mc mirror'
 assert_not_contains "${FETCH_BACKUPS}" 'minio|MC_HOST|mc mirror'
+
+if ! POSTGRES_ARCHIVE_MODE=on POSTGRES_ARCHIVE_TIMEOUT=15min EXTERNAL_POSTGRES_ENABLED=false bash -c '
+  set -euo pipefail
+  source "$1"
+  require_production_postgres_archiving
+' bash "${COMMON_LIB}"; then
+  fail "the production archiving config gate rejected internal archive_mode=on"
+fi
+if POSTGRES_ARCHIVE_MODE=off POSTGRES_ARCHIVE_TIMEOUT=15min EXTERNAL_POSTGRES_ENABLED=false bash -c '
+  set -euo pipefail
+  source "$1"
+  require_production_postgres_archiving
+' bash "${COMMON_LIB}" >"${tmpdir}/archive-mode-off.out" 2>"${tmpdir}/archive-mode-off.err"; then
+  fail "the production archiving config gate accepted internal archive_mode=off"
+fi
+grep -q 'POSTGRES_ARCHIVE_MODE must be on' "${tmpdir}/archive-mode-off.err" ||
+  fail "disabled production archive mode did not report the configuration boundary"
+if POSTGRES_ARCHIVE_MODE=on POSTGRES_ARCHIVE_TIMEOUT=1d EXTERNAL_POSTGRES_ENABLED=false bash -c '
+  set -euo pipefail
+  source "$1"
+  require_production_postgres_archiving
+' bash "${COMMON_LIB}" >"${tmpdir}/archive-timeout-invalid.out" 2>"${tmpdir}/archive-timeout-invalid.err"; then
+  fail "the production archiving config gate accepted a non-canonical archive timeout"
+fi
+grep -q 'POSTGRES_ARCHIVE_TIMEOUT must be 15min' "${tmpdir}/archive-timeout-invalid.err" ||
+  fail "invalid production archive timeout did not report the configuration boundary"
+if ! POSTGRES_ARCHIVE_MODE=off EXTERNAL_POSTGRES_ENABLED=true bash -c '
+  set -euo pipefail
+  source "$1"
+  require_production_postgres_archiving
+' bash "${COMMON_LIB}"; then
+  fail "the production archiving config gate incorrectly claimed external PostgreSQL ownership"
+fi
 
 if ! bash -c '
   set -euo pipefail
@@ -714,15 +755,178 @@ fi
 grep -q 'is not the writable WAL archive mounted by contract-postgres' "${tmpdir}/mismatched-wal-volume.err" ||
   fail "mismatched WAL volume rejection did not report the live-container boundary"
 
+healthy_archiver_status="$(python3 - <<'PY'
+import json
+
+archive_command = '''sh -c 'dest=/var/lib/postgresql/wal-archive/%f; tmp="$dest.tmp.$$"; if [ -f "$dest" ]; then cmp -s %p "$dest"; else cp %p "$tmp" && mv "$tmp" "$dest"; fi\''''
+print(json.dumps({
+    "archive_mode": "on",
+    "archive_command": archive_command,
+    "archive_timeout": "15min",
+    "archived_count": 2,
+    "failed_count": 0,
+    "last_archived_wal": "000000010000000000000001",
+    "last_archived_epoch": 200,
+    "last_failed_epoch": None,
+    "postmaster_started_epoch": 100,
+}, separators=(",", ":")))
+PY
+)"
+WAL_ARCHIVER_STATUS="${healthy_archiver_status}"
+docker() {
+  if [[ "$1" == exec && "$2" == contract-postgres && "$*" == *json_build_object* ]]; then
+    printf '%s\n' "${WAL_ARCHIVER_STATUS}"
+    return 0
+  fi
+  if [[ "$1" == exec && "$2" == contract-postgres && "$3" == /bin/sh ]]; then
+    return 0
+  fi
+  return 90
+}
+if ! require_live_postgres_wal_archiving contract-postgres contract-admin contract-db; then
+  fail "the live WAL archiver validator rejected current post-start archive progress"
+fi
+
+drifted_archive_command_status="$(python3 - "${healthy_archiver_status}" <<'PY'
+import json
+import sys
+
+document = json.loads(sys.argv[1])
+document["archive_command"] = "cp %p /var/lib/postgresql/wal-archive/%f"
+print(json.dumps(document, separators=(",", ":")))
+PY
+)"
+if python3 "${WAL_ARCHIVER_VALIDATOR}" \
+  --status-json "${drifted_archive_command_status}" \
+  >"${tmpdir}/drifted-archive-command.out" 2>&1; then
+  fail "the live WAL archiver validator accepted a drifted archive command"
+fi
+grep -q 'does not match the protected command' "${tmpdir}/drifted-archive-command.out" ||
+  fail "drifted live archive command did not report the protected-command boundary"
+
+drifted_archive_timeout_status="$(python3 - "${healthy_archiver_status}" <<'PY'
+import json
+import sys
+
+document = json.loads(sys.argv[1])
+document["archive_timeout"] = "1d"
+print(json.dumps(document, separators=(",", ":")))
+PY
+)"
+if python3 "${WAL_ARCHIVER_VALIDATOR}" \
+  --status-json "${drifted_archive_timeout_status}" \
+  >"${tmpdir}/drifted-archive-timeout.out" 2>&1; then
+  fail "the live WAL archiver validator accepted a drifted archive timeout"
+fi
+grep -q 'archive_timeout must be 15min' "${tmpdir}/drifted-archive-timeout.out" ||
+  fail "drifted live archive timeout did not report the canonical timeout boundary"
+
+newer_archive_failure_status="$(python3 - "${healthy_archiver_status}" <<'PY'
+import json
+import sys
+
+document = json.loads(sys.argv[1])
+document["failed_count"] = 1
+document["last_failed_epoch"] = document["last_archived_epoch"]
+print(json.dumps(document, separators=(",", ":")))
+PY
+)"
+if python3 "${WAL_ARCHIVER_VALIDATOR}" \
+  --status-json "${newer_archive_failure_status}" \
+  >"${tmpdir}/newer-archive-failure.out" 2>&1; then
+  fail "the live WAL archiver validator accepted a failure not older than its last success"
+else
+  validator_status=$?
+fi
+[[ "${validator_status}" -eq 2 ]] ||
+  fail "a newer archive failure must request a live probe instead of becoming a hard parse failure"
+
+disabled_archiver_status="$(python3 - <<'PY'
+import json
+
+archive_command = '''sh -c 'dest=/var/lib/postgresql/wal-archive/%f; tmp="$dest.tmp.$$"; if [ -f "$dest" ]; then cmp -s %p "$dest"; else cp %p "$tmp" && mv "$tmp" "$dest"; fi\''''
+print(json.dumps({
+    "archive_mode": "off",
+    "archive_command": archive_command,
+    "archive_timeout": "15min",
+    "archived_count": 0,
+    "failed_count": 0,
+    "last_archived_wal": None,
+    "last_archived_epoch": None,
+    "last_failed_epoch": None,
+    "postmaster_started_epoch": 100,
+}, separators=(",", ":")))
+PY
+)"
+WAL_ARCHIVER_STATUS="${disabled_archiver_status}"
+docker() {
+  if [[ "$1" == exec && "$2" == contract-postgres && "$*" == *json_build_object* ]]; then
+    printf '%s\n' "${WAL_ARCHIVER_STATUS}"
+    return 0
+  fi
+  return 90
+}
+if (require_live_postgres_wal_archiving contract-postgres contract-admin contract-db) \
+  >"${tmpdir}/disabled-wal-archiver.out" 2>"${tmpdir}/disabled-wal-archiver.err"; then
+  fail "the live WAL archiver validator accepted archive_mode=off"
+fi
+grep -q 'WAL archiver settings or status are invalid' "${tmpdir}/disabled-wal-archiver.err" ||
+  fail "disabled WAL archiver rejection did not report the live settings boundary"
+
+wal_probe_state="${tmpdir}/wal-probe-state"
+WAL_PROBE_STATE="${wal_probe_state}"
+WAL_ARCHIVER_STATUS="${healthy_archiver_status}"
+WAL_ARCHIVER_UNPROVEN_STATUS="$(python3 - <<'PY'
+import json
+
+archive_command = '''sh -c 'dest=/var/lib/postgresql/wal-archive/%f; tmp="$dest.tmp.$$"; if [ -f "$dest" ]; then cmp -s %p "$dest"; else cp %p "$tmp" && mv "$tmp" "$dest"; fi\''''
+print(json.dumps({
+    "archive_mode": "on",
+    "archive_command": archive_command,
+    "archive_timeout": "15min",
+    "archived_count": 0,
+    "failed_count": 0,
+    "last_archived_wal": None,
+    "last_archived_epoch": None,
+    "last_failed_epoch": None,
+    "postmaster_started_epoch": 100,
+}, separators=(",", ":")))
+PY
+)"
+docker() {
+  if [[ "$1" == exec && "$2" == contract-postgres && "$*" == *pg_switch_wal* ]]; then
+    : >"${WAL_PROBE_STATE}.switched"
+    return 0
+  fi
+  if [[ "$1" == exec && "$2" == contract-postgres && "$*" == *json_build_object* ]]; then
+    if [[ -f "${WAL_PROBE_STATE}.switched" ]]; then
+      printf '%s\n' "${WAL_ARCHIVER_STATUS}"
+    else
+      printf '%s\n' "${WAL_ARCHIVER_UNPROVEN_STATUS}"
+    fi
+    return 0
+  fi
+  if [[ "$1" == exec && "$2" == contract-postgres && "$3" == /bin/sh ]]; then
+    return 0
+  fi
+  return 90
+}
+if ! require_live_postgres_wal_archiving contract-postgres contract-admin contract-db; then
+  fail "the live WAL archiver validator did not recover by probing a post-start archive"
+fi
+[[ -f "${wal_probe_state}.switched" ]] ||
+  fail "the live WAL archiver validator did not request pg_switch_wal for an unproven server start"
+
 python3 - "${SYNC_BACKUPS}" <<'PY'
 import sys
 from pathlib import Path
 
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
-validation = source.index("require_live_postgres_wal_archive_volume")
-first_transfer = source.index("run_backup_object_storage_rclone", validation)
-if validation >= first_transfer:
-    raise SystemExit("live WAL volume validation must precede every backup transfer")
+volume_validation = source.index("require_live_postgres_wal_archive_volume")
+archiver_validation = source.index("require_live_postgres_wal_archiving")
+first_transfer = source.index("run_backup_object_storage_rclone", volume_validation)
+if not volume_validation < archiver_validation < first_transfer:
+    raise SystemExit("live WAL mount and archiver validation must precede every backup transfer")
 PY
 
 external_fixture="${tmpdir}/external-postgres-sync"

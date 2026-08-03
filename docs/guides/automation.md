@@ -170,7 +170,7 @@ host-local `bridge` 网络还会拒绝整个 IPAM 子网；共享的 `macvlan`�
 
 备份、同步、对象存储取回、证据生成与恢复脚本把调用进程已经确定的 `LOCAL_STATE_DIR` 视为运维控制面值，并在加载共享/秘密/生成配置时显式保留它。生产 systemd 注入的 `/var/lib/stuhelper` 因而不能被配置文件中的同名空值或漂移值覆盖，也不会在已清除 `HOME` 的隔离环境里回退到用户目录推导逻辑。
 
-WAL 同步在任何对象存储传输前还会检查配置卷已经存在、`${STACK_NAME}-postgres` 容器正在运行，并确认该容器把同名 Docker volume 以可写方式挂载到 `/var/lib/postgresql/wal-archive`。缺失卷、空卷自动创建风险、错误 stack/卷名、只读或未挂载状态都会失败关闭，不能在复制空 `/source` 后继续清理本地恢复材料。
+WAL 同步在任何对象存储传输前还会检查配置卷已经存在、`${STACK_NAME}-postgres` 容器正在运行，并确认该容器把同名 Docker volume 以可写方式挂载到 `/var/lib/postgresql/wal-archive`。内置生产 PostgreSQL 强制 `POSTGRES_ARCHIVE_MODE=on` 和 `POSTGRES_ARCHIVE_TIMEOUT=15min`；同步脚本通过容器内本地 socket 查询实时 `archive_mode`、`archive_timeout`、精确的幂等 `archive_command` 和 `pg_stat_archiver`，并确认当前 postmaster 启动后已有成功归档且对应文件真实存在。若本次启动尚无成功记录或最后一次失败不早于成功记录，本次同步最多触发一次 `pg_switch_wal()` 实探并等待 30 秒；没有形成可见 WAL 工件就失败。缺失卷、空卷自动创建风险、错误 stack/卷名、只读或未挂载状态、`archive_mode=off`、超时/命令漂移或伪造/陈旧进度都会失败关闭，不能在复制空 `/source` 后继续清理本地恢复材料。
 
 `EXTERNAL_POSTGRES_ENABLED=true` 时不存在 StuHelper 管理的本地 PostgreSQL 容器或 WAL volume。此模式仍会生成、同步并取回验证逻辑 dump 与使用 `--wal-method=stream` 的一致性 base backup，但明确跳过本地 WAL volume 同步与清理。连续归档和 PITR 保留/演练必须由外部 PostgreSQL 平台或 DBA 单独提供证据；StuHelper 的 logical/base evidence 不能替代该外部 PITR 验收。
 
