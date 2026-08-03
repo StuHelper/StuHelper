@@ -7,7 +7,10 @@ source "${SCRIPT_DIR}/lib/common.sh"
 
 MODE="${1:-dump}"
 
-load_env_preserving BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED
+load_env_preserving \
+  BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED \
+  LOCAL_STATE_DIR \
+  BACKUP_STAGING_DIR
 require_cmd docker
 protected_bash=(
   /usr/bin/env

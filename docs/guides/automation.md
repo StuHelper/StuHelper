@@ -168,6 +168,8 @@ host-local `bridge` 网络还会拒绝整个 IPAM 子网；共享的 `macvlan`�
 
 首次 bootstrap 即使尚未上传 deploy bundle，也会预先创建由部署用户拥有的 `/var/lib/stuhelper/postgres/wal-restore`。因此后备 systemd 单元与后续部署用户执行的远端预检使用同一 local-state 布局，不需要依赖 root 再次运行安装器才能建立恢复目录。
 
+备份、同步、对象存储取回、证据生成与恢复脚本把调用进程已经确定的 `LOCAL_STATE_DIR` 视为运维控制面值，并在加载共享/秘密/生成配置时显式保留它。生产 systemd 注入的 `/var/lib/stuhelper` 因而不能被配置文件中的同名空值或漂移值覆盖，也不会在已清除 `HOME` 的隔离环境里回退到用户目录推导逻辑。
+
 ## 远端部署控制面
 
 远端部署配置由目标机持有，CI / Ansible 不在每次发布时下发 `deploy.remote.env`：

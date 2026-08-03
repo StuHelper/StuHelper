@@ -10,7 +10,10 @@ source "${SCRIPT_DIR}/lib/rclone-object-storage.sh"
 MODE="${1:-all}"
 
 require_cmd docker
-load_env_preserving BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED
+load_env_preserving \
+  BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED \
+  LOCAL_STATE_DIR \
+  POSTGRES_WAL_RESTORE_DIR
 unset BACKUP_OBJECT_STORAGE_PINNED_HOSTS
 
 case "${BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED:-false}" in
