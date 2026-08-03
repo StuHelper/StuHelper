@@ -8,11 +8,16 @@ source "${SCRIPT_DIR}/lib/common.sh"
 source "${SCRIPT_DIR}/lib/rclone-object-storage.sh"
 
 require_cmd docker
-load_env_preserving BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED
+load_env_preserving BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED LOCAL_STATE_DIR
+unset BACKUP_OBJECT_STORAGE_PINNED_HOSTS
 
 case "${BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED:-false}" in
   true) require_off_host_backup_object_storage ;;
-  false|"") ;;
+  false|"")
+    if [[ "${APP_ENV:-}" == "production" ]]; then
+      require_off_host_backup_object_storage
+    fi
+    ;;
   *) die "BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED must be true or false" ;;
 esac
 
@@ -27,11 +32,27 @@ wal_archive_volume="${POSTGRES_WAL_ARCHIVE_VOLUME_NAME:-${STACK_NAME:-stuhelper}
 prefix="${BACKUP_OBJECT_STORAGE_PREFIX:-postgres}"
 host_user="$(id -u):$(id -g)"
 wal_archive_user="${POSTGRES_WAL_ARCHIVE_CONTAINER_USER:-70:70}"
+external_postgres_enabled="${EXTERNAL_POSTGRES_ENABLED:-false}"
 
-[[ "${wal_archive_user}" =~ ^[0-9]+:[0-9]+$ ]] ||
-  die "POSTGRES_WAL_ARCHIVE_CONTAINER_USER must be a numeric uid:gid pair"
+case "${external_postgres_enabled}" in
+  true|false) ;;
+  *) die "EXTERNAL_POSTGRES_ENABLED must be true or false" ;;
+esac
 
 mkdir -p "${logical_dir}" "${base_dir}"
+if [[ "${external_postgres_enabled}" != "true" ]]; then
+  [[ "${wal_archive_user}" =~ ^[0-9]+:[0-9]+$ ]] ||
+    die "POSTGRES_WAL_ARCHIVE_CONTAINER_USER must be a numeric uid:gid pair"
+  require_live_postgres_wal_archive_volume \
+    "${wal_archive_volume}" \
+    "${STACK_NAME:-stuhelper}-postgres"
+  require_live_postgres_wal_archiving \
+    "${STACK_NAME:-stuhelper}-postgres" \
+    "${POSTGRES_USER:-stuhelper}" \
+    "${POSTGRES_DB:-stuhelper}"
+else
+  require_external_postgres_pitr_evidence >/dev/null
+fi
 
 sync_excludes=(
   --exclude '*.partial'
@@ -53,10 +74,14 @@ run_backup_object_storage_rclone \
   "type=bind,src=${base_dir},dst=/source,readonly" \
   copy /source "target:${BACKUP_OBJECT_STORAGE_BUCKET}/${prefix}/base" \
   "${sync_excludes[@]}"
-run_backup_object_storage_rclone \
-  "${wal_archive_user}" \
-  "type=volume,src=${wal_archive_volume},dst=/source,readonly" \
-  copy /source "target:${BACKUP_OBJECT_STORAGE_BUCKET}/${prefix}/wal" \
-  "${sync_excludes[@]}"
+if [[ "${external_postgres_enabled}" == "true" ]]; then
+  log "external PostgreSQL selected; fresh cluster-bound continuous WAL/PITR evidence was verified"
+else
+  run_backup_object_storage_rclone \
+    "${wal_archive_user}" \
+    "type=volume,src=${wal_archive_volume},dst=/source,readonly" \
+    copy /source "target:${BACKUP_OBJECT_STORAGE_BUCKET}/${prefix}/wal" \
+    "${sync_excludes[@]}"
+fi
 
 log "synchronized PostgreSQL backup artifacts to object storage"

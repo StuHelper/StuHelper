@@ -7,11 +7,56 @@ source "${SCRIPT_DIR}/lib/common.sh"
 
 require_cmd python3
 
+# Reject an explicitly requested target before loading any secret-backed
+# environment. The later validation remains necessary for targets derived from
+# loaded deployment state.
+if [[ -n "${ROLLBACK_TAG:-}" ]]; then
+  require_safe_release_tag "${ROLLBACK_TAG}"
+elif [[ -n "${TAG:-}" ]]; then
+  require_safe_release_tag "${TAG}"
+fi
+
 requested_backend_image_ref="${ROLLBACK_BACKEND_IMAGE_REF:-}"
 requested_frontend_image_ref="${ROLLBACK_FRONTEND_IMAGE_REF:-}"
 requested_admin_image_ref="${ROLLBACK_ADMIN_IMAGE_REF:-}"
 
+override_count=0
+[[ -n "${requested_backend_image_ref}" ]] && ((override_count += 1))
+[[ -n "${requested_frontend_image_ref}" ]] && ((override_count += 1))
+[[ -n "${requested_admin_image_ref}" ]] && ((override_count += 1))
+if ((override_count != 0 && override_count != 3)); then
+  die "rollback image override requires backend, frontend, and admin digest references together"
+fi
+if ((override_count == 3)); then
+  require_digest_image_ref ROLLBACK_BACKEND_IMAGE_REF "${requested_backend_image_ref}"
+  require_digest_image_ref ROLLBACK_FRONTEND_IMAGE_REF "${requested_frontend_image_ref}"
+  require_digest_image_ref ROLLBACK_ADMIN_IMAGE_REF "${requested_admin_image_ref}"
+fi
+
+if [[ -n "${ROLLBACK_REVIEW_REASON:-}" && -n "${ROLLBACK_REVIEW_REASON_B64:-}" ]]; then
+  die "set only one of ROLLBACK_REVIEW_REASON or ROLLBACK_REVIEW_REASON_B64"
+fi
+if [[ -n "${ROLLBACK_REVIEW_REASON_B64:-}" ]]; then
+  ROLLBACK_REVIEW_REASON="$(
+    python3 - "${ROLLBACK_REVIEW_REASON_B64}" <<'PY'
+import base64
+import binascii
+import sys
+
+try:
+    decoded = base64.b64decode(sys.argv[1], validate=True).decode("utf-8")
+except (binascii.Error, UnicodeDecodeError) as exc:
+    raise SystemExit(f"invalid ROLLBACK_REVIEW_REASON_B64: {exc}") from exc
+print(decoded, end="")
+PY
+  )"
+fi
+export ROLLBACK_REVIEW_ACTOR="${ROLLBACK_REVIEW_ACTOR:-}"
+export ROLLBACK_REVIEW_REASON="${ROLLBACK_REVIEW_REASON:-}"
+
+acquire_production_deploy_lock
 load_env
+migrate_legacy_release_state_permissions
 
 current_tag="${TAG:-}"
 target_tag="${ROLLBACK_TAG:-${TAG:-}}"
@@ -36,29 +81,34 @@ print(f"{image}:{tag}")
 PY
 }
 
-override_count=0
-[[ -n "${requested_backend_image_ref}" ]] && ((override_count += 1))
-[[ -n "${requested_frontend_image_ref}" ]] && ((override_count += 1))
-[[ -n "${requested_admin_image_ref}" ]] && ((override_count += 1))
-if ((override_count != 0 && override_count != 3)); then
-  die "rollback image override requires backend, frontend, and admin digest references together"
-fi
-
 if [[ -z "${target_tag}" ]]; then
   target_tag="$(resolve_previous_release_tag "${current_tag:-}")" || die "unable to resolve previous release tag; set ROLLBACK_TAG manually"
 fi
+require_safe_release_tag "${target_tag}"
 
 release_file="${DEPLOY_STATE_DIR}/releases/${target_tag}.env"
 if [[ -f "${release_file}" ]]; then
-  # shellcheck disable=SC1090
-  source "${release_file}"
+  allow_legacy_record_images=false
+  ((override_count == 3)) && allow_legacy_record_images=true
+  source_release_record_env_file \
+    "${release_file}" \
+    "${target_tag}" \
+    "${allow_legacy_record_images}"
 else
   BACKEND_IMAGE_REF="$(derive_tagged_image_ref "${BACKEND_IMAGE_REF:-}" "${target_tag}" || true)"
   FRONTEND_IMAGE_REF="$(derive_tagged_image_ref "${FRONTEND_IMAGE_REF:-}" "${target_tag}" || true)"
   ADMIN_IMAGE_REF="$(derive_tagged_image_ref "${ADMIN_IMAGE_REF:-}" "${target_tag}" || true)"
 fi
 
+legacy_migration_required=false
 if ((override_count == 3)); then
+  if [[ -f "${release_file}" ]] && {
+    [[ ! "${BACKEND_IMAGE_REF}" =~ @sha256:[0-9a-f]{64}$ ]] ||
+      [[ ! "${FRONTEND_IMAGE_REF}" =~ @sha256:[0-9a-f]{64}$ ]] ||
+      [[ ! "${ADMIN_IMAGE_REF}" =~ @sha256:[0-9a-f]{64}$ ]];
+  }; then
+    legacy_migration_required=true
+  fi
   BACKEND_IMAGE_REF="${requested_backend_image_ref}"
   FRONTEND_IMAGE_REF="${requested_frontend_image_ref}"
   ADMIN_IMAGE_REF="${requested_admin_image_ref}"
@@ -82,6 +132,7 @@ validator=(
 )
 
 current_policy_output=""
+rollback_exception_required=false
 if current_policy_output="$("${validator[@]}" 2>&1)"; then
   log "runtime-image review windows are current; no rollback exception is needed"
 else
@@ -89,27 +140,6 @@ else
   [[ -f "${release_file}" ]] ||
     die "expired review windows may only be reused for a release previously deployed in this environment"
 
-  if [[ -n "${ROLLBACK_REVIEW_REASON:-}" && -n "${ROLLBACK_REVIEW_REASON_B64:-}" ]]; then
-    die "set only one of ROLLBACK_REVIEW_REASON or ROLLBACK_REVIEW_REASON_B64"
-  fi
-  if [[ -n "${ROLLBACK_REVIEW_REASON_B64:-}" ]]; then
-    ROLLBACK_REVIEW_REASON="$(
-      python3 - "${ROLLBACK_REVIEW_REASON_B64}" <<'PY'
-import base64
-import binascii
-import sys
-
-try:
-    decoded = base64.b64decode(sys.argv[1], validate=True).decode("utf-8")
-except (binascii.Error, UnicodeDecodeError) as exc:
-    raise SystemExit(f"invalid ROLLBACK_REVIEW_REASON_B64: {exc}") from exc
-print(decoded, end="")
-PY
-    )"
-  fi
-
-  export ROLLBACK_REVIEW_ACTOR="${ROLLBACK_REVIEW_ACTOR:-}"
-  export ROLLBACK_REVIEW_REASON="${ROLLBACK_REVIEW_REASON:-}"
   ROLLBACK_REVIEW_AUDIT_ID="$(
     python3 - <<'PY'
 import uuid
@@ -120,6 +150,33 @@ PY
   export ROLLBACK_REVIEW_AUDIT_ID
   export RUNTIME_IMAGE_ROLLBACK_RELEASE_RECORD="${release_file}"
 
+  if [[ "${legacy_migration_required}" == "true" ]]; then
+    "${validator[@]}" \
+      --rollback-release-record "${release_file}" \
+      --allow-legacy-rollback-record
+  else
+    "${validator[@]}"
+  fi
+  rollback_exception_required=true
+fi
+
+# The proposed digest tuple has now passed the current or audited historical
+# runtime-image policy. Only now may a legacy successful-release record be
+# replaced, so a bad override or policy failure leaves the retryable source
+# record and its evidence untouched.
+if ((override_count == 3)) && [[ -f "${release_file}" ]]; then
+  migrate_explicit_legacy_release_identity \
+    "${target_tag}" \
+    "${BACKEND_IMAGE_REF}" \
+    "${FRONTEND_IMAGE_REF}" \
+    "${ADMIN_IMAGE_REF}" \
+    "${ROLLBACK_REVIEW_ACTOR}" \
+    "${ROLLBACK_REVIEW_REASON}"
+fi
+
+if [[ "${rollback_exception_required}" == "true" ]]; then
+  # Revalidate the persisted canonical record before writing the exception
+  # audit event or handing control to the deployment controller.
   "${validator[@]}"
 
   audit_file="${DEPLOY_STATE_DIR}/rollback-review-exceptions.jsonl"

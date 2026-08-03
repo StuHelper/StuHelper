@@ -123,6 +123,71 @@ rollback_output="$(
 [[ "${rollback_output}" == *"audited rollback is reusing review windows valid at 2026-07-30T12:00:00Z"* ]] ||
   fail "audited rollback validation must report the reused historical review date"
 
+legacy_rollback_record="${rollback_state}/releases/legacy-release.env"
+cat >"${legacy_rollback_record}" <<'EOF'
+TAG=legacy-release
+DEPLOYED_AT=2026-07-30T12:00:00Z
+BACKEND_IMAGE_REF=ghcr.io/stuhelper/backend:legacy-release
+FRONTEND_IMAGE_REF=ghcr.io/stuhelper/frontend:legacy-release
+ADMIN_IMAGE_REF=ghcr.io/stuhelper/admin:legacy-release
+EOF
+if TAG=legacy-release \
+  ROLLBACK_TAG=legacy-release \
+  DEPLOY_STATE_DIR="${rollback_state}" \
+  BACKEND_IMAGE_REF="${backend_ref}" \
+  FRONTEND_IMAGE_REF="${frontend_ref}" \
+  ADMIN_IMAGE_REF="${admin_ref}" \
+  ROLLBACK_REVIEW_ACTOR="contract-test" \
+  ROLLBACK_REVIEW_REASON="validate a provenance-verified legacy digest transition" \
+  ROLLBACK_REVIEW_AUDIT_ID="11111111-1111-4111-8111-111111111111" \
+    python3 "${VALIDATOR}" \
+      --repo-root "${REPO_ROOT}" \
+      --policy "${POLICY}" \
+      --policy-only \
+      --effective-environment production \
+      --rollback-release-record "${legacy_rollback_record}" \
+      --today 2026-08-13 >/dev/null 2>&1; then
+  fail "audited rollback accepted a legacy record without the explicit transition gate"
+fi
+
+TAG=legacy-release \
+ROLLBACK_TAG=legacy-release \
+DEPLOY_STATE_DIR="${rollback_state}" \
+BACKEND_IMAGE_REF="${backend_ref}" \
+FRONTEND_IMAGE_REF="${frontend_ref}" \
+ADMIN_IMAGE_REF="${admin_ref}" \
+ROLLBACK_REVIEW_ACTOR="contract-test" \
+ROLLBACK_REVIEW_REASON="validate a provenance-verified legacy digest transition" \
+ROLLBACK_REVIEW_AUDIT_ID="11111111-1111-4111-8111-111111111111" \
+  python3 "${VALIDATOR}" \
+    --repo-root "${REPO_ROOT}" \
+    --policy "${POLICY}" \
+    --policy-only \
+    --effective-environment production \
+    --rollback-release-record "${legacy_rollback_record}" \
+    --allow-legacy-rollback-record \
+    --today 2026-08-13 >/dev/null
+
+if TAG=legacy-release \
+  ROLLBACK_TAG=legacy-release \
+  DEPLOY_STATE_DIR="${rollback_state}" \
+  BACKEND_IMAGE_REF="ghcr.io/other/backend@sha256:1111111111111111111111111111111111111111111111111111111111111111" \
+  FRONTEND_IMAGE_REF="${frontend_ref}" \
+  ADMIN_IMAGE_REF="${admin_ref}" \
+  ROLLBACK_REVIEW_ACTOR="contract-test" \
+  ROLLBACK_REVIEW_REASON="validate a provenance-verified legacy digest transition" \
+  ROLLBACK_REVIEW_AUDIT_ID="11111111-1111-4111-8111-111111111111" \
+    python3 "${VALIDATOR}" \
+      --repo-root "${REPO_ROOT}" \
+      --policy "${POLICY}" \
+      --policy-only \
+      --effective-environment production \
+      --rollback-release-record "${legacy_rollback_record}" \
+      --allow-legacy-rollback-record \
+      --today 2026-08-13 >/dev/null 2>&1; then
+  fail "legacy rollback transition accepted a different application repository"
+fi
+
 if TAG="${rollback_tag}" \
   ROLLBACK_TAG="${rollback_tag}" \
   DEPLOY_STATE_DIR="${rollback_state}" \

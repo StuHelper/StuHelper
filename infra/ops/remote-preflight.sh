@@ -15,12 +15,41 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/common.sh
 source "${SCRIPT_DIR}/lib/common.sh"
 
+preflight_phase="${1:---full}"
+[[ "$#" -le 1 ]] || die "usage: remote-preflight.sh [--pre-deploy|--post-deploy|--timer-activation|--full]"
+case "${preflight_phase}" in
+  --pre-deploy | --post-deploy | --timer-activation | --full) ;;
+  *) die "usage: remote-preflight.sh [--pre-deploy|--post-deploy|--timer-activation|--full]" ;;
+esac
+
 load_remote_deploy_config
+require_protected_backup_environment_paths
+BACKUP_STAGING_DIR="${BACKUP_STAGING_DIR:-/var/lib/stuhelper/postgres/backup-staging}"
 require_cmd docker
 require_cmd curl
 require_cmd jq
 require_cmd python3
 require_cmd openssl
+require_cmd systemctl
+require_cmd id
+require_cmd getent
+require_no_legacy_backup_timer_units
+
+backup_service_user="$(id -un)"
+backup_service_uid="$(id -u)"
+backup_service_group="${BACKUP_SERVICE_GROUP:-}"
+backup_service_group_record=""
+backup_service_gid=""
+[[ "${backup_service_user}" != "root" && "${EUID}" -ne 0 && "${backup_service_uid}" != "0" ]] ||
+  die "remote production preflight must run as the non-root deploy user"
+[[ -n "${backup_service_group}" && "${backup_service_group}" != "root" && \
+  "${backup_service_group}" != "0" ]] ||
+  die "remote production preflight requires BACKUP_SERVICE_GROUP to name the configured non-root service group"
+backup_service_group_record="$(getent group "${backup_service_group}")" ||
+  die "configured backup service group does not exist: ${backup_service_group}"
+IFS=: read -r _ _ backup_service_gid _ <<<"${backup_service_group_record}"
+[[ "${backup_service_gid}" =~ ^[0-9]+$ && "${backup_service_gid}" != "0" ]] ||
+  die "configured backup service group must not resolve to gid 0"
 
 if [[ -n "${SHARED_ENV_SECRET_REF:-}" && -z "${SECRET_BACKEND:-}" ]]; then
   die "SECRET_BACKEND must be set when SHARED_ENV_SECRET_REF is provided"
@@ -66,33 +95,40 @@ if [[ -n "${pending_generated_secret_ref}" ]]; then
 fi
 
 [[ "${APP_ENV:-}" == "production" ]] || die "APP_ENV must be production for remote preflight"
+docker info >/dev/null
+docker compose version >/dev/null
+configure_production_preflight_runtime_checks "${preflight_phase}"
+
 python3 "${REPO_ROOT}/infra/ops/validate-runtime-image-scan.py" \
   --repo-root "${REPO_ROOT}" \
   --policy-only \
   --effective-environment production
 
 require_production_postgres_ssl
+require_production_postgres_archiving
 require_production_external_student_source_security
 require_production_object_storage
 "${SCRIPT_DIR}/prepare-object-storage-client-ca.sh"
 "${SCRIPT_DIR}/prepare-datastore-client-cas.sh"
 require_public_ingress_config_preflight
-require_public_identity_ingress_preflight
-if [[ "${ADMISSION_PUBLIC_SMOKE_ENABLED:-true}" == "true" ]]; then
-  ADMISSION_PUBLIC_SMOKE_RETRIES="${ADMISSION_PUBLIC_SMOKE_PREFLIGHT_RETRIES:-${ADMISSION_PUBLIC_SMOKE_RETRIES:-1}}" \
-    "${SCRIPT_DIR}/admission-public-smoke.sh"
+if [[ "${run_public_runtime_checks}" == "true" ]]; then
+  require_public_identity_ingress_preflight
+  if [[ "${ADMISSION_PUBLIC_SMOKE_ENABLED:-true}" == "true" ]]; then
+    ADMISSION_PUBLIC_SMOKE_RETRIES="${ADMISSION_PUBLIC_SMOKE_PREFLIGHT_RETRIES:-${ADMISSION_PUBLIC_SMOKE_RETRIES:-1}}" \
+      "${SCRIPT_DIR}/admission-public-smoke.sh"
+  else
+    warn "public admission smoke preflight skipped because ADMISSION_PUBLIC_SMOKE_ENABLED is not true"
+  fi
+  if [[ "${PUBLIC_WEB_AUTH_BROWSER_SMOKE_PREFLIGHT_ENABLED:-false}" == "true" ]]; then
+    node "${SCRIPT_DIR}/public-web-auth-browser-smoke.mjs"
+  else
+    warn "public Web auth browser smoke preflight skipped because PUBLIC_WEB_AUTH_BROWSER_SMOKE_PREFLIGHT_ENABLED is not true"
+  fi
 else
-  warn "public admission smoke preflight skipped because ADMISSION_PUBLIC_SMOKE_ENABLED is not true"
-fi
-if [[ "${PUBLIC_WEB_AUTH_BROWSER_SMOKE_PREFLIGHT_ENABLED:-false}" == "true" ]]; then
-  node "${SCRIPT_DIR}/public-web-auth-browser-smoke.mjs"
-else
-  warn "public Web auth browser smoke preflight skipped because PUBLIC_WEB_AUTH_BROWSER_SMOKE_PREFLIGHT_ENABLED is not true"
+  warn "live public runtime checks deferred until the mandatory post-deploy preflight"
 fi
 
 # 校验 Docker 和 Docker Compose 运行环境
-docker info >/dev/null
-docker compose version >/dev/null
 
 # 校验 postgres-client 镜像内 pg_dump 和 pg_basebackup 可用性
 # 备份脚本已容器化，不再依赖宿主机 pg_dump，但需要确保容器镜像中包含这些工具
@@ -122,15 +158,85 @@ mkdir -p \
   "${POSTGRES_WAL_RESTORE_DIR}" \
   "${DEPLOY_STATE_DIR}"
 
-if command -v systemctl >/dev/null 2>&1; then
-  for unit in     stuhelper-postgres-dump-backup.timer     stuhelper-postgres-basebackup.timer     stuhelper-postgres-backup-sync.timer; do
-    if ! systemctl list-unit-files | grep -q "^${unit}"; then
-      die "backup timer ${unit} is not installed on the target host"
-    fi
+backup_service_units=(
+  stuhelper-postgres-dump-backup.service
+  stuhelper-postgres-basebackup.service
+  stuhelper-postgres-backup-sync.service
+)
+backup_service_commands=(
+  "./infra/ops/run-scheduled-backup.sh dump"
+  "./infra/ops/run-scheduled-backup.sh basebackup"
+  "./infra/ops/run-scheduled-backup.sh sync"
+)
+backup_timer_units=(
+  stuhelper-postgres-dump-backup.timer
+  stuhelper-postgres-basebackup.timer
+  stuhelper-postgres-backup-sync.timer
+)
+backup_timer_calendars=(
+  "*-*-* 03:15:00"
+  "Sun *-*-* 03:45:00"
+  "*-*-* *:00/15:00"
+)
+backup_service_start_timeouts=(
+  "18h"
+  "1d 2h"
+  "12h"
+)
+backup_service_common_environment=(
+  "ENV_FILE=${REPO_ROOT}/.env.prod.shared"
+  "SECRETS_ENV_FILE=${REPO_ROOT}/.env.prod.secrets"
+  "GENERATED_ENV_FILE=${REPO_ROOT}/.env.prod.generated"
+  "GENERATED_SECRET_ENV_FILE=${REPO_ROOT}/.env.prod.generated.secrets"
+  "LOCAL_STATE_DIR=/var/lib/stuhelper"
+)
+for unit in "${backup_service_units[@]}" "${backup_timer_units[@]}"; do
+  if ! systemctl list-unit-files | grep -q "^${unit}"; then
+    die "backup unit ${unit} is not installed on the target host"
+  fi
+done
+for index in "${!backup_service_units[@]}"; do
+  unit="${backup_service_units[${index}]}"
+  expected_service_environment=("${backup_service_common_environment[@]}")
+  if ((index < 2)); then
+    expected_service_environment+=("BACKUP_STAGING_DIR=${BACKUP_STAGING_DIR}")
+  fi
+  expected_service_environment+=("BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true")
+  require_systemd_unit_exact_identity \
+    "${unit}" \
+    "${backup_service_user}" \
+    "${backup_service_group}"
+  require_systemd_unit_hardened_lifecycle \
+    "${unit}" \
+    "${backup_service_start_timeouts[${index}]}"
+  require_systemd_unit_without_filesystem_overrides "${unit}"
+  require_systemd_unit_without_conditions "${unit}"
+  require_systemd_unit_exact_environment \
+    "${unit}" \
+    "${expected_service_environment[@]}"
+  require_systemd_unit_hardened_execution \
+    "${unit}" \
+    "${REPO_ROOT}" \
+    "${backup_service_commands[${index}]}" \
+    "${expected_service_environment[@]}"
+done
+for index in "${!backup_timer_units[@]}"; do
+  unit="${backup_timer_units[${index}]}"
+  require_systemd_timer_schedule \
+    "${unit}" \
+    "${backup_service_units[${index}]}" \
+    "${backup_timer_calendars[${index}]}"
+  if [[ "${preflight_phase}" != "--timer-activation" ]]; then
     if ! systemctl is-enabled --quiet "${unit}"; then
       die "backup timer ${unit} is not enabled"
     fi
-  done
+    if ! systemctl is-active --quiet "${unit}"; then
+      die "backup timer ${unit} is not active"
+    fi
+  fi
+done
+if [[ "${preflight_phase}" == "--timer-activation" ]]; then
+  log "backup timer unit/configuration readiness passed; activation state intentionally deferred to the root installer"
 fi
 [[ -n "${BACKUP_DATABASE_URL:-}" ]] || die "BACKUP_DATABASE_URL must be configured"
 [[ -n "${REPLICATION_DATABASE_URL:-}" ]] || die "REPLICATION_DATABASE_URL must be configured"
@@ -173,11 +279,19 @@ else
 fi
 
 # 4. BACKUP_DATABASE_URL 连通性（通过 Compose 网络快速超时检测）
-if compose run --rm --no-deps -T postgres-client \
-  pg_isready -d "${BACKUP_DATABASE_URL}" -t 5 >/dev/null 2>&1; then
-  log "备份数据库连通性: OK"
+if [[ "${run_database_runtime_checks}" == "true" ]]; then
+  if compose run --rm --no-deps -T postgres-client \
+    pg_isready -d "${BACKUP_DATABASE_URL}" -t 5 >/dev/null 2>&1; then
+    log "备份数据库连通性: OK"
+  else
+    die "备份数据库连通性检查失败（pg_isready 超时），请确认 BACKUP_DATABASE_URL 可达"
+  fi
+  if [[ "${EXTERNAL_POSTGRES_ENABLED:-false}" == "true" ]]; then
+    require_external_postgres_pitr_evidence >/dev/null
+    log "外部 PostgreSQL 连续归档和 PITR 证据有效且与当前集群一致"
+  fi
 else
-  die "备份数据库连通性检查失败（pg_isready 超时），请确认 BACKUP_DATABASE_URL 可达"
+  warn "live database connectivity deferred until the mandatory post-deploy preflight"
 fi
 
-log "remote preflight checks passed"
+log "remote preflight checks passed (${preflight_phase})"

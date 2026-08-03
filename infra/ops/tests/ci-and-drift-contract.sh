@@ -88,6 +88,7 @@ assert_contains "${GITHUB_CI_FILE}" 'guards: \$\{\{ steps\.filter\.outputs\.guar
 guards_filter="$(workflow_filter_block guards)"
 assert_text_contains "${guards_filter}" "^[[:space:]]+- 'scripts/\\*\\*'$" "guards path filter"
 assert_text_contains "${guards_filter}" "^[[:space:]]+- 'tools/\\*\\*'$" "guards path filter"
+assert_text_contains "${guards_filter}" "^[[:space:]]+- 'server/tools/dependabotpolicy/\\*\\*'$" "guards path filter"
 assert_text_contains "${guards_filter}" "^[[:space:]]+- '\\.node-version'$" "guards path filter"
 assert_text_contains "${guards_filter}" "^[[:space:]]+- '\\.nvmrc'$" "guards path filter"
 

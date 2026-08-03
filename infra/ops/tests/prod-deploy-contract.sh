@@ -4,10 +4,14 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 PROD_DEPLOY_FILE="${REPO_ROOT}/infra/ops/prod-deploy.sh"
+REMOTE_PROD_DEPLOY_FILE="${REPO_ROOT}/infra/ops/remote-prod-deploy.sh"
+MAKEFILE="${REPO_ROOT}/Makefile"
 PROD_ENV_EXAMPLE_FILE="${REPO_ROOT}/.env.prod.example"
 ADMISSION_READINESS_FILE="${REPO_ROOT}/infra/ops/admission-production-readiness.sh"
 AUTHORIZATION_CUTOVER_FILE="${REPO_ROOT}/infra/ops/authorization-ledger-cutover.sh"
 LEGACY_SUPER_ADMIN_BOOTSTRAP_FILE="${REPO_ROOT}/infra/ops/authorization-bootstrap-super-admin.sh"
+tmpdir="$(mktemp -d)"
+trap 'rm -rf "${tmpdir}"' EXIT
 
 fail() {
   echo "[prod-deploy-contract][error] $*" >&2
@@ -31,19 +35,34 @@ line_number() {
 }
 
 load_env_line="$(line_number 'load_env')"
+caller_tag_validation_line="$(line_number 'require_safe_release_tag "${TAG}" # reject caller-provided tags before config or secret materialization')"
+deployment_lock_line="$(line_number 'acquire_production_deploy_lock # serialize every direct deploy and rollback through release publication')"
+remote_preflight_line="$(line_number '"${SCRIPT_DIR}/remote-preflight.sh" --pre-deploy')"
+postdeploy_preflight_line="$(line_number '"${SCRIPT_DIR}/remote-preflight.sh" --post-deploy')"
+derived_tag_validation_line="$(line_number 'require_safe_release_tag "${TAG}" # validate env-loaded or derived tags before rendering, image pulls, and backups')"
+release_state_migration_line="$(line_number 'migrate_legacy_release_state_permissions # normalize safe legacy 0644 state before canonical read-only validation')"
+release_identity_migration_line="$(line_number 'migrate_verified_legacy_current_release_identity # bind a tag-era current record to the exact deployed container images')"
+release_identity_guard_line="$(line_number 'require_release_tag_identity_available "${TAG}" # reject immutable tag reuse before deployment side effects')"
 remote_config_load_line="$(line_number 'load_remote_deploy_config')"
 generated_secret_ref_require_line="$(line_number 'GENERATED_ENV_SECRET_REF must be configured for production deploy')"
 secret_backend_require_line="$(line_number 'production deploy requires a non-file secret backend for generated secrets')"
-source_bootstrap_line="$(line_number 'source_casdoor_bootstrap_env # load bootstrap credential env')"
+bootstrap_validation_line="$(line_number 'validate_casdoor_bootstrap_env # validate bootstrap credential env in isolated process')"
+bootstrap_parent_clear_line="$(line_number 'clear_casdoor_bootstrap_env # remove any caller-provided bootstrap values from unrelated children')"
+bootstrap_validator_clear_line="$(line_number '  clear_casdoor_bootstrap_env')"
+bootstrap_validator_source_line="$(line_number 'source_casdoor_bootstrap_env # load the file only after inherited values are cleared')"
 postgres_ssl_line="$(line_number 'require_production_postgres_ssl')"
 external_student_source_security_line="$(line_number 'require_production_external_student_source_security')"
 object_storage_gate_line="$(line_number 'require_production_object_storage')"
 public_ingress_config_preflight_line="$(line_number 'require_public_ingress_config_preflight')"
 public_ingress_preflight_line="$(line_number 'require_public_identity_ingress_preflight')"
 render_postgres_tls_line="$(line_number 'render-postgres-tls.sh')"
+prepare_datastore_ca_line="$(line_number 'prepare-datastore-client-cas.sh')"
+external_pitr_evidence_line="$(line_number 'require_external_postgres_pitr_evidence')"
 render_redis_acl_line="$(line_number 'render-redis-acl.sh')"
+pull_release_images_line="$(line_number 'compose --profile prod pull app frontend admin')"
 start_infra_line="$(line_number 'compose --profile prod up -d --wait "${infra_services[@]}"')"
 predeploy_backup_line="$(line_number '"${SCRIPT_DIR}/backup-postgres.sh" "${predeploy_backup_path}"')"
+predeploy_basebackup_line="$(line_number '"${SCRIPT_DIR}/backup-postgres.sh" "${predeploy_basebackup_path}"')"
 sync_backup_line="$(line_number '"${SCRIPT_DIR}/sync-postgres-backups.sh"')"
 postgres_backup_evidence_line="$(line_number '"${SCRIPT_DIR}/postgres-backup-evidence.sh"')"
 migrate_line="$(line_number 'compose --profile prod up --no-deps migrate')"
@@ -58,7 +77,36 @@ admission_public_smoke_line="$(line_number '"${SCRIPT_DIR}/admission-public-smok
 public_web_auth_browser_smoke_line="$(line_number 'node "${SCRIPT_DIR}/public-web-auth-browser-smoke.mjs"')"
 smoke_check_line="$(line_number '"${SCRIPT_DIR}/smoke-check.sh"')"
 observability_smoke_line="$(line_number 'OBS_SMOKE_STRICT=true "${SCRIPT_DIR}/observability-smoke-check.sh"')"
+record_release_line="$(line_number 'record_release "${TAG}"')"
 bootstrap_require_line="$(line_number 'require_nonempty CASDOOR_BOOTSTRAP_CLIENT_SECRET')"
+if (( caller_tag_validation_line >= remote_preflight_line )); then
+  fail "production deploy must reject unsafe caller tags before running remote preflight"
+fi
+if (( deployment_lock_line <= caller_tag_validation_line || deployment_lock_line >= remote_config_load_line || deployment_lock_line >= load_env_line )); then
+  fail "production deploy must acquire its host-wide lock after caller-tag validation and before deploy inputs"
+fi
+if (( remote_preflight_line <= release_identity_guard_line )); then
+  fail "production deploy must reject conflicting immutable release identity before mutating preflight projections"
+fi
+if (( remote_preflight_line >= postgres_ssl_line )); then
+  fail "production deploy must complete remote preflight before production validation and runtime side effects"
+fi
+if (( postdeploy_preflight_line <= observability_smoke_line || postdeploy_preflight_line >= record_release_line )); then
+  fail "production deploy must pass the full online post-deploy preflight before recording the release"
+fi
+grep -qF '"${SCRIPT_DIR}/prod-deploy.sh"' "${REMOTE_PROD_DEPLOY_FILE}" ||
+  fail "the emergency remote production entrypoint must delegate to the preflight-owning prod-deploy script"
+grep -qF '$(PROD_RUNTIME_ENV) ./infra/ops/prod-deploy.sh' "${MAKEFILE}" ||
+  fail "make prod-deploy must delegate to the preflight-owning prod-deploy script"
+grep -qF 'validate_casdoor_bootstrap_env() (' "${PROD_DEPLOY_FILE}" ||
+  fail "production deploy must validate Casdoor bootstrap credentials in a subshell"
+grep -qF '    CASDOOR_BOOTSTRAP_ORGANIZATION' "${PROD_DEPLOY_FILE}" ||
+  fail "production deploy must clear every bootstrap-file key from the parent environment"
+grep -qF 'source_casdoor_bootstrap_env_file "${file}"' "${PROD_DEPLOY_FILE}" ||
+  fail "production deploy must parse the Casdoor bootstrap credential file through its allowlisted loader"
+if grep -qF 'source "${file}"' "${PROD_DEPLOY_FILE}"; then
+  fail "production deploy must not raw-source the Casdoor bootstrap credential file"
+fi
 casdoor_public_auth_require_line="$(line_number 'require_nonempty CASDOOR_PUBLIC_AUTH_BASE_URL')"
 casdoor_public_auth_reject_line="$(line_number 'reject_placeholder CASDOOR_PUBLIC_AUTH_BASE_URL')"
 casdoor_public_auth_local_reject_line="$(line_number 'reject_local_value CASDOOR_PUBLIC_AUTH_BASE_URL')"
@@ -124,19 +172,58 @@ assert_file_not_contains "${PROD_DEPLOY_FILE}" 'STUHELPER_INITIAL_SUPER_ADMINS'
 assert_file_not_contains "${PROD_DEPLOY_FILE}" 'authorization-bootstrap-super-admin.sh'
 assert_file_not_contains "${PROD_ENV_EXAMPLE_FILE}" 'STUHELPER_INITIAL_SUPER_ADMINS'
 
-if (( source_bootstrap_line <= load_env_line )); then
-  fail "Casdoor bootstrap env must be sourced after load_env"
+if (( bootstrap_validation_line <= load_env_line )); then
+  fail "Casdoor bootstrap env must be validated after load_env"
 fi
+if (( caller_tag_validation_line >= remote_config_load_line )); then
+  fail "caller-provided release tags must be validated before remote config or secret materialization"
+fi
+if (( derived_tag_validation_line <= load_env_line || derived_tag_validation_line >= render_postgres_tls_line )); then
+  fail "env-loaded or derived release tags must be validated immediately after derivation and before rendering"
+fi
+if (( derived_tag_validation_line >= pull_release_images_line || derived_tag_validation_line >= predeploy_backup_line )); then
+  fail "release tags must be validated before image pulls and pre-deploy backup path construction"
+fi
+if (( release_identity_guard_line <= derived_tag_validation_line || release_identity_guard_line >= render_postgres_tls_line || release_identity_guard_line >= pull_release_images_line )); then
+  fail "an existing immutable release tag must match the requested image identity before deployment side effects"
+fi
+if (( release_state_migration_line <= derived_tag_validation_line || release_state_migration_line >= release_identity_guard_line )); then
+  fail "safe legacy release-state permissions must be normalized immediately before canonical identity validation"
+fi
+if (( release_identity_migration_line <= release_state_migration_line || release_identity_migration_line >= release_identity_guard_line )); then
+  fail "legacy current-release identity must be verified and migrated after permission normalization and before canonical validation"
+fi
+grep -qF 'deployment_attempt_id="$(new_deployment_attempt_id)"' "${PROD_DEPLOY_FILE}" ||
+  fail "production backups must use a unique activation identifier"
+grep -qF 'predeploy_backup_dir="${BACKUP_LOGICAL_DIR:-${REPO_ROOT}/backups/postgres/logical}"' "${PROD_DEPLOY_FILE}" ||
+  fail "pre-deploy logical backups must use the directory consumed by backup sync and evidence"
+grep -qF 'predeploy_basebackup_dir="${BACKUP_BASE_DIR:-${REPO_ROOT}/backups/postgres/base}"' "${PROD_DEPLOY_FILE}" ||
+  fail "pre-deploy physical backups must use the directory consumed by backup sync and evidence"
+grep -qF 'predeploy-${TAG}-${deployment_attempt_id}.dump' "${PROD_DEPLOY_FILE}" ||
+  fail "pre-deploy backup paths must not collide when a release tag is reactivated"
+grep -qF 'predeploy-${TAG}-${deployment_attempt_id}.tar.gz' "${PROD_DEPLOY_FILE}" ||
+  fail "initial physical recovery anchors must use the unique deployment attempt identifier"
+if grep -qF 'has_fresh_verified_basebackup' "${PROD_DEPLOY_FILE}"; then
+  fail "production deploy must not reuse a base backup whose cluster identity is unknown"
+fi
+grep -qF 'creating a fresh cluster-bound physical base backup recovery anchor before migrations' "${PROD_DEPLOY_FILE}" ||
+  fail "every deployment attempt must create a fresh cluster-bound physical recovery anchor"
 if (( generated_secret_ref_require_line <= remote_config_load_line )); then
   fail "production deploy must load remote.env before requiring GENERATED_ENV_SECRET_REF"
 fi
 if (( secret_backend_require_line <= remote_config_load_line )); then
   fail "production deploy must load remote.env before requiring SECRET_BACKEND"
 fi
-if (( bootstrap_require_line <= source_bootstrap_line )); then
-  fail "Casdoor bootstrap credentials must be validated after sourcing bootstrap env"
+if (( bootstrap_require_line >= bootstrap_validation_line )); then
+  fail "Casdoor bootstrap credential requirements must execute inside the isolated validator"
 fi
-if (( casdoor_public_auth_require_line <= source_bootstrap_line )); then
+if (( bootstrap_validator_clear_line >= bootstrap_validator_source_line )); then
+  fail "Casdoor bootstrap validation must clear inherited values before reading the credential file"
+fi
+if (( bootstrap_parent_clear_line <= bootstrap_validation_line )); then
+  fail "Casdoor bootstrap credentials must be removed from the parent after validation"
+fi
+if (( casdoor_public_auth_require_line <= bootstrap_validation_line )); then
   fail "Casdoor public auth base URL must be validated with identity ingress settings"
 fi
 if (( casdoor_public_auth_reject_line <= casdoor_public_auth_require_line )); then
@@ -290,6 +377,12 @@ fi
 if (( public_ingress_preflight_line <= public_ingress_config_preflight_line )); then
   fail "public SSO/admission ingress preflight must run after local Nginx config preflight"
 fi
+if (( public_ingress_preflight_line <= start_app_line )); then
+  fail "live public ingress preflight must run only after application services are ready"
+fi
+if (( sso_public_smoke_line <= public_ingress_preflight_line )); then
+  fail "public SSO smoke must run after the live public ingress preflight"
+fi
 if (( admission_public_smoke_line <= sso_public_smoke_line )); then
   fail "admission public smoke must run after SSO public smoke"
 fi
@@ -302,14 +395,17 @@ fi
 if (( public_ingress_preflight_line <= postgres_ssl_line )); then
   fail "public SSO/admission ingress preflight must run after production PostgreSQL SSL config validation"
 fi
-if (( render_postgres_tls_line <= public_ingress_preflight_line )); then
-  fail "render-postgres-tls.sh must run after public SSO/admission ingress preflight"
+if (( public_ingress_preflight_line <= render_postgres_tls_line )); then
+  fail "live public ingress preflight must run after production datastore configuration is rendered"
 fi
 if (( render_postgres_tls_line <= postgres_ssl_line )); then
   fail "render-postgres-tls.sh must run after production PostgreSQL SSL config validation"
 fi
 if (( render_redis_acl_line <= postgres_ssl_line )); then
   fail "render-redis-acl.sh must run after production PostgreSQL SSL config validation"
+fi
+if (( external_pitr_evidence_line <= prepare_datastore_ca_line || external_pitr_evidence_line >= pull_release_images_line )); then
+  fail "production deploy must verify live external PITR evidence after preparing the client CA and before pulling release images"
 fi
 
 if ! grep -qF 'reject_local_value BACKUP_OBJECT_STORAGE_ENDPOINT' "${PROD_DEPLOY_FILE}"; then
@@ -324,6 +420,9 @@ fi
 if ! grep -qF 'require_production_postgres_ssl' "${PROD_DEPLOY_FILE}"; then
   fail "production deploy must fail fast on insecure internal PostgreSQL SSL settings"
 fi
+if ! grep -qF 'require_production_postgres_archiving' "${PROD_DEPLOY_FILE}"; then
+  fail "production deploy must fail fast when internal PostgreSQL WAL archiving is disabled"
+fi
 if grep -qF 'external PostgreSQL plaintext transport is explicitly enabled' "${PROD_DEPLOY_FILE}"; then
   fail "production deploy must not retain a plaintext PostgreSQL bypass"
 fi
@@ -336,6 +435,18 @@ fi
 if ! grep -qF 'require_nonempty POSTGRES_PASSWORD' "${PROD_DEPLOY_FILE}"; then
   fail "production deploy must still require a superuser password for internal PostgreSQL"
 fi
+for image_var in BACKEND_IMAGE_REF FRONTEND_IMAGE_REF ADMIN_IMAGE_REF; do
+  grep -qF "require_digest_image_ref ${image_var}" "${PROD_DEPLOY_FILE}" ||
+    fail "production deploy must require a digest-pinned ${image_var}"
+done
+if grep -qF 'require_immutable_image_ref' "${PROD_DEPLOY_FILE}"; then
+  fail "production deploy must not retain the tag-tolerant image reference validator"
+fi
+if TAG='../escape' bash "${PROD_DEPLOY_FILE}" >"${tmpdir}/unsafe-tag.out" 2>"${tmpdir}/unsafe-tag.err"; then
+  fail "production deploy accepted a path-traversing caller-provided release tag"
+fi
+grep -q 'release tag must be 1-128 characters' "${tmpdir}/unsafe-tag.err" ||
+  fail "early production release-tag rejection did not report the canonical constraint"
 if ! grep -qF 'require_public_identity_ingress_preflight' "${PROD_DEPLOY_FILE}"; then
   fail "production deploy must fail fast on missing public web, SSO, and admission ingress"
 fi
@@ -360,6 +471,12 @@ if (( render_redis_acl_line >= start_infra_line )); then
 fi
 if (( predeploy_backup_line <= start_infra_line )); then
   fail "pre-deploy database backup must run after production infrastructure starts"
+fi
+if (( predeploy_basebackup_line <= predeploy_backup_line )); then
+  fail "a fresh physical recovery anchor must be created after the pre-deploy logical backup"
+fi
+if (( sync_backup_line <= predeploy_basebackup_line )); then
+  fail "logical and physical recovery anchors must both exist before off-host synchronization"
 fi
 if (( sync_backup_line <= predeploy_backup_line )); then
   fail "pre-deploy backup artifacts must sync to object storage after backup completes"

@@ -22,21 +22,31 @@ last-verified: 2026-08-03
 - [ ] 涉及运维脚本、部署配置、生产 evidence、Nginx preflight 或 CI 漂移门禁时，本地已执行 `make check-infra-contracts`；该入口同时覆盖 `infra/ops/tests/*.sh` 和 `infra/ops/tests/*.mjs`。
 - [ ] GitHub Actions `Runtime image security` 已通过并保留本次 JSON evidence；`infra/security/runtime-images.json` 中没有过期的 pin review、漏洞例外或 VEX，生产 `.env.prod.shared` 中的基础设施镜像引用与已扫描策略一致。
 - [ ] production `Deploy` 作业已通过受保护 GitHub environment 的人工审批。
-- [ ] 如果包含数据库变更，已完成备份；`prod-deploy.sh` 在迁移前执行 `backup-postgres.sh`。
-- [ ] 生产机上的逻辑备份 / base backup / backup sync timer 已启用。
+- [ ] 如果包含数据库变更，已完成备份；`prod-deploy.sh` 在每次 deployment attempt 的迁移前分别创建新的逻辑 dump 与 `pg_basebackup`，不会把仅有新鲜度/SHA/tar 可读性的旧 base backup 当作当前集群恢复锚点。
+- [ ] 生产机上的逻辑备份 / base backup / backup sync timer 已启用；升级部署 bundle 后已由 root 重新运行 `./infra/ops/install-backup-timers.sh`，三个 service 的完整显式环境、pre-exec `UnsetEnvironment` 和 `env -i` 允许字段与安装器定义精确一致（包括 `BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true`，且 manager defaults 或 drop-in 不能注入额外进程控制变量）。
 - [ ] 承载 `postgres_data` / `redis_data` 的宿主机块设备已启用静态加密；外部 S3 已启用服务端加密、版本/保留和生命周期策略。
 - [ ] 远端部署控制面已核对：`.deploy/remote.env`；GitHub 自动部署要求
   `REGISTRY=ghcr.io`、`REGISTRY_AUTH_MODE=workflow-token`。
+- [ ] 从旧版 tag-only 发布账本首次升级时，保留现有 `${STACK_NAME}-app` / `-frontend` / `-admin`
+  容器和对应 Docker image metadata，直到新部署完成账本迁移。控制器只会在旧记录、Compose
+  project/service、容器创建时镜像引用、实际 image ID 与同仓库唯一 `RepoDigest` 全部相符时，
+  原子写入 digest 记录和 `.deploy/release-migrations/<TAG>.json` 审计证据；不要预先 prune 这些
+  运行镜像，也不要手工改写 `current-release.env` 或 per-tag 文件来绕过失败关闭。
+- [ ] `.deploy/releases.log` 中每个历史 TAG 的 `.deploy/releases/<TAG>.env` 均存在、由部署用户
+  持有且为 `0600`；即使当前发布不回滚到该 TAG，缺失、截断、错 TAG 或非规范历史记录也会阻断
+  新发布。不要把删除旧 per-tag 文件当作常规 retention；账本状态应与异机备份一起保留。
 - [ ] 共享配置已核对：`.env.prod.shared`。
 - [ ] secrets 已核对：`.env.prod.secrets`（本地演练可用 `.env.prod.secrets.local`）；运行时派生 secrets 必须通过 `GENERATED_ENV_SECRET_REF` 写入远端 secret backend，`.env.prod.generated.secrets` 仅保留空占位。
 - [ ] secret backend 已核对：`.deploy/remote.env` 中的 `SECRET_BACKEND` / `*_SECRET_REF` / `GENERATED_ENV_SECRET_REF` / `VAULT_ADDR` / `VAULT_TOKEN_FILE`。
 - [ ] `${DEPLOY_APP_DIR}/.secrets/vault/token` 是无 `default` policy 的专用 periodic token，而不是
   初始化 root token；`stuhelper-vault-token-renewal.timer` 已安装、enabled 且 active，部署用户执行
   `./infra/ops/vault-runtime-token.sh check` 能验证精确路径权限、TTL 与三条 secret ref。
-- [ ] 关键变量已核对：内置 PostgreSQL 模式的 `POSTGRES_PASSWORD`、所有模式的 `POSTGRES_EXPORTER_DB_PASSWORD`、`REDIS_PASSWORD`、`REDIS_EXPORTER_PASSWORD`、`TAG`、`OBJECT_STORAGE_*`、`BACKUP_OBJECT_STORAGE_*`、`ADMISSION_PUBLIC_BASE_URL=https://join.stuhelper.com`、`WEB_VITE_SSO_URL=https://sso.stuhelper.com`、`WEB_VITE_WEB_URL=https://stuhelper.com`。外部 PostgreSQL 模式不生成、不保存也不要求 StuHelper 自建数据库的超级用户密码。`POSTGRES_EXPORTER_DB_PASSWORD` 必须是 PostgreSQL `stuhelper_metrics` 专用值，不与应用、备份或超级用户复用；`REDIS_EXPORTER_PASSWORD` 必须是 Redis `stuhelper_metrics` 专用值，不与 `REDIS_PASSWORD` 复用。生产对象存储与备份端点必须为 HTTPS；公共 CA 场景下 `OBJECT_STORAGE_TLS_CA` / `OBJECT_STORAGE_TLS_CA_HOST_PATH` 都留空。私有 CA 场景下前者固定为 `/object-storage-tls/ca.crt`，后者指向宿主机可读 PEM CA bundle；`BACKUP_OBJECT_STORAGE_TLS_CA` 独立使用宿主机可读路径。只有已验证备份目标可在生产主机完全丢失后继续访问，才设置 `BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED=true`；同机 MinIO 不满足该条件。
+- [ ] 关键变量已核对：内置 PostgreSQL 模式的 `POSTGRES_PASSWORD`、所有模式的 `POSTGRES_EXPORTER_DB_PASSWORD`、`REDIS_PASSWORD`、`REDIS_EXPORTER_PASSWORD`、`TAG`、`OBJECT_STORAGE_*`、`BACKUP_OBJECT_STORAGE_*`、`ADMISSION_PUBLIC_BASE_URL=https://join.stuhelper.com`、`WEB_VITE_SSO_URL=https://sso.stuhelper.com`、`WEB_VITE_WEB_URL=https://stuhelper.com`。外部 PostgreSQL 模式不生成、不保存也不要求 StuHelper 自建数据库的超级用户密码。`POSTGRES_EXPORTER_DB_PASSWORD` 必须是 PostgreSQL `stuhelper_metrics` 专用值，不与应用、备份或超级用户复用；`REDIS_EXPORTER_PASSWORD` 必须是 Redis `stuhelper_metrics` 专用值，不与 `REDIS_PASSWORD` 复用。生产对象存储与备份端点必须为 HTTPS；公共 CA 场景下 `OBJECT_STORAGE_TLS_CA` / `OBJECT_STORAGE_TLS_CA_HOST_PATH` 都留空。私有 CA 场景下前者固定为 `/object-storage-tls/ca.crt`，后者指向宿主机可读 PEM CA bundle；`BACKUP_OBJECT_STORAGE_TLS_CA` 独立使用宿主机可读路径。只有已验证备份目标可在生产主机完全丢失后继续访问，才设置 `BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED=true`；同机 MinIO 不满足该条件。`BACKUP_OBJECT_STORAGE_LOCAL_IDENTITY_CIDRS` 必须列出可路由回生产主机的公网/NAT/LB 地址或 CIDR；经核验不存在时显式填写 `none`。
 - [ ] admission 最小生产数据已通过 `./infra/ops/import-school-directory.sh` 和 `./infra/ops/admission-bootstrap-production-data.sh` 幂等准备：学校目录包含 `school_code=4111010006` 的北京航空航天大学，当前只启用该校，公开学生认证/admission 表单以 `schoolCode=4111010006` 为主识别字段，邮箱域仅 `buaa.edu.cn`，`platform=qq` 的 `178037297` 策略存在，`auto_approve_verified_join=true`、`auto_approve_unverified_join=true`、`forward_raw_material_to_qq=false`。
 - [ ] Koishi/NapCat 独立节点已确认：Koishi service 使用 `env_file` 或等价机制注入 `STUHELPER_PLATFORM_BASE_URL=https://stuhelper.com`、`STUHELPER_PLATFORM_SERVICE_TOKEN`、`STUHELPER_FRESHMAN_MATERIAL_HOSTS=stuhelper.com,join.stuhelper.com`；真实 token 不写入仓库或 runbook。
 - [ ] 生产 PostgreSQL TLS 已核对：默认 `POSTGRES_ENABLE_SSL=on`、`POSTGRES_INTERNAL_SSL_MODE=verify-full`（最低必须为 `verify-ca`）、`DB_SSL_MODE=verify-full`、`DB_SSL_ROOT_CERT=/tls/ca.crt`，且 `DATABASE_URL` / `BACKUP_DATABASE_URL` / `REPLICATION_DATABASE_URL` 都包含 `sslmode=verify-full&sslrootcert=/tls/ca.crt`。若生产机复用宝塔已有 PostgreSQL，必须设置 `EXTERNAL_POSTGRES_ENABLED=true`、`EXTERNAL_DATASTORE_NETWORK=baota_net` 和 `POSTGRES_CLIENT_CA_HOST_PATH`，并先为 StuHelper / OpenFGA 创建独立数据库和独立账号、完成数据迁移；外部实例没有可验证 TLS 时不得上线。`EXTERNAL_POSTGRES_ALLOW_PLAINTEXT` 只允许本地 `prod-parity`，生产必须为 `false`。本地 `render-postgres-tls.sh` 不会为外部数据库生成伪 CA。外部数据库管理员还须预置仅有 `pg_monitor`、连接数上限 5、只能连接 `postgres` 维护库的 `stuhelper_metrics`；部署后的严格观测 smoke 必须显示 `up{job="postgres-exporter"}=1` 和 `pg_up=1`。Redis 不复用全局实例，仍由 StuHelper Compose 以独立实例运行。
+- [ ] 使用内置 PostgreSQL 时 `POSTGRES_ARCHIVE_MODE=on` 且 `POSTGRES_ARCHIVE_TIMEOUT=15min`；发布前同步会核对实时幂等 `archive_command`、当前 postmaster 启动后的 `pg_stat_archiver` 成功记录以及受保护 volume 中对应 WAL 文件。外部 PostgreSQL 的连续 WAL/PITR 证据由其 DBA 或平台另行验收。
+- [ ] 使用外部 PostgreSQL 时，平台已把最新证据原子安装到 root 管理的 `/etc/stuhelper/external-postgres-pitr-evidence.json`：证据绑定当前实时 `system_identifier`，30 分钟内已有异机 WAL，RPO 不大于 15 分钟、保留不少于 7 天，且 90 天内完成隔离 base backup + WAL replay 演练；不要用手工布尔确认替代该证据。
 - [ ] Open Platform runtime token 探针已核对：`OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_REQUIRED=true`、`OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_COMMAND=/app/casdoor-runtime-token-probe-runner.mjs` 且不是 `REPLACE_WITH_OPEN_PLATFORM_TOKEN_PROBE_RUNTIME_COMMAND` 占位符；`OPEN_PLATFORM_PRODUCTION_EVIDENCE_ALLOW_LOCAL_TARGETS=false`；专用低权限 `CASDOOR_TOKEN_PROBE_USERNAME` / `CASDOOR_TOKEN_PROBE_PASSWORD` 已通过 secret backend 注入；`CASDOOR_TOKEN_PROBE_SMOKE_*` 专用 smoke app 已配置，发布时会通过 `open-platform-production-evidence.sh` 自动运行 `casdoor-runtime-token-probe-smoke.sh`，且聚合 evidence 会在子 smoke 前验证强制探针门禁开启并默认拒绝 localhost Casdoor/OpenFGA 目标。
 - [ ] OpenFGA 派生配置已核对：`OPENFGA_STORE_ID` / `OPENFGA_MODEL_ID` 由 `bootstrap-platform.sh` 生成，`OPENFGA_RESOURCE_SMOKE_MODE=container`，发布时会通过 `open-platform-production-evidence.sh` 自动运行 `openfga-resource-access-smoke.sh`。container 模式直接执行 `BACKEND_IMAGE_REF` 内构建期固化的 `/app/openfga-resource-smoke`，不在生产节点下载 Go 模块或现场编译。
 - [ ] Casdoor token/session lease 与撤销契约已核对：发布流程中的 `bootstrap-platform.sh prod` 必须成功把托管 Web/Admin/UniApp application 收敛到 `ExpireInHours=1`，且运行时 `TOKEN_REFRESH_TTL` 不得小于 provider access-token 寿命（默认 7 天，大于 1 小时）。新登录/refresh 会用已验证 `exp` 再次拒绝“access 剩余寿命大于 session lease”或超过 30 天 hard cap 的漂移；不要通过提高 hard cap 或向下截断绕过。滚动升级期间旧 session 没有 `accessTokenExpiresAt`，其 logout-all 仅在上述约束成立时使用真实 Redis PTTL 作为保守黑名单 TTL。`TOKEN_ACCESS_TTL=300` 只是 cookie/`expiresIn` 策略，不是 Casdoor token 自然失效时间。生产 discovery 还必须满足：没有 `revocation_endpoint` 时，`end_session_endpoint` 精确为同 issuer 的 `/api/logout`；受控测试账号执行 login → logout 与 login → logout-all 后，旧 access introspection 均为 inactive、旧 refresh grant 均返回 `invalid_grant`，且应用日志没有 Casdoor `status=error`、畸形 JSON 或 provider revoke partial failure。滚动升级旧 session 的 logout-all 还要留证“refresh rotation 后替代 family 立即失效”；不能只以 HTTP 200、客户端 cookie 清除或本地 Redis session 删除代替 provider 验收。
@@ -96,6 +106,7 @@ git checkout <target-ref>
 make prod-init
 
 # 远端机器需要自持部署控制面
+# 若 systemd 备份单元使用部署用户的非主组，先 export BACKUP_SERVICE_GROUP=<该组>
 ./infra/ops/init-remote-deploy-config.sh
 
 # Vault 初始化、解封并 seed 三条 secret ref 后，以 root 创建 scoped runtime token 并安装续期 timer
@@ -103,12 +114,12 @@ sudo VAULT_ROOT_INIT_FILE=/var/lib/stuhelper/vault-credentials/init.json \
   ./infra/ops/vault-runtime-token.sh configure
 
 # 可选：指定要发布的不可变镜像
-export BACKEND_IMAGE_REF=<registry/backend:sha-or-tag>
-export FRONTEND_IMAGE_REF=<registry/frontend:sha-or-tag>
-export ADMIN_IMAGE_REF=<registry/admin:sha-or-tag>
+export BACKEND_IMAGE_REF=<registry/backend@sha256:64位摘要>
+export FRONTEND_IMAGE_REF=<registry/frontend@sha256:64位摘要>
+export ADMIN_IMAGE_REF=<registry/admin@sha256:64位摘要>
 export TAG=<release-id>
 
-# 远端机器建议先做预检
+# 可单独预览预检结果；prod-deploy 随后仍会强制重新执行，不能跳过
 ./infra/ops/remote-preflight.sh
 
 # 生产发布
@@ -329,6 +340,8 @@ make prod-rollback
 ```
 
 脚本会优先尝试回到 `.deploy/releases.log` 中记录的上一条成功版本。
+
+部署和回滚发布标识只接受 1–128 个 ASCII 字母、数字、点、下划线或连字符，且必须以字母/数字开头；远端 CI 必须显式提供，任何非法值都会在 Docker 登录、配置/凭据物化、拉镜像或构造备份/版本记录路径前失败。本地回滚只接受原子落盘且创建后不可替换的完整成功版本记录：记录必须包含唯一且非空的 `TAG`、`DEPLOYED_AT` 与三个镜像 digest，并且记录 `TAG` 必须等于请求目标。重复部署同一 tag 只允许三个 digest 与原记录完全一致，原始版本记录和时间戳保持不变，本次激活另记入追加日志；任何截断、重复字段、标签不匹配或同 tag 镜像漂移都会在调用部署脚本前失败，不能继承当前环境中的镜像引用拼出混合版本。若目标仍是旧版 tag-only 记录，必须同时提供三个经过 provenance 验证、与旧记录保持同仓库的 `ROLLBACK_*_IMAGE_REF`，并设置 `ROLLBACK_REVIEW_ACTOR` 和 12–500 字符 `ROLLBACK_REVIEW_REASON`（或其 Base64 形式）；控制器会在 host lock 内把目标记录一次性迁移为 digest，并把操作人、原因、旧记录哈希和映射写入 `0600` 的 `.deploy/release-migrations/<TAG>.json`，随后才进入普通回滚。GitHub `Rollback` 会自动传入这些审计字段；本地应急操作不得手改历史文件代替迁移。
 
 ### GitHub 手工回滚
 

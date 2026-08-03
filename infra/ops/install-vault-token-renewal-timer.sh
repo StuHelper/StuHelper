@@ -5,10 +5,9 @@ DEPLOY_USER="${VAULT_RUNTIME_TOKEN_OWNER:-${DEPLOY_USER:-stuhelper}}"
 DEPLOY_GROUP="${VAULT_RUNTIME_TOKEN_GROUP:-${DEPLOY_GROUP:-${DEPLOY_USER}}}"
 DEPLOY_APP_DIR="${DEPLOY_APP_DIR:-/opt/stuhelper}"
 REMOTE_DEPLOY_CONFIG_FILE="${REMOTE_DEPLOY_CONFIG_FILE:-${DEPLOY_APP_DIR}/.deploy/remote.env}"
-SYSTEMD_PREFIX="${SYSTEMD_PREFIX:-stuhelper}"
 
-service_unit="${SYSTEMD_PREFIX}-vault-token-renewal.service"
-timer_unit="${SYSTEMD_PREFIX}-vault-token-renewal.timer"
+service_unit="stuhelper-vault-token-renewal.service"
+timer_unit="stuhelper-vault-token-renewal.timer"
 service_file="/etc/systemd/system/${service_unit}"
 timer_file="/etc/systemd/system/${timer_unit}"
 
