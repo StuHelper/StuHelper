@@ -98,6 +98,7 @@ git checkout <target-ref>
 make prod-init
 
 # 远端机器需要自持部署控制面
+# 若 systemd 备份单元使用部署用户的非主组，先 export BACKUP_SERVICE_GROUP=<该组>
 ./infra/ops/init-remote-deploy-config.sh
 
 # Vault 初始化、解封并 seed 三条 secret ref 后，以 root 创建 scoped runtime token 并安装续期 timer

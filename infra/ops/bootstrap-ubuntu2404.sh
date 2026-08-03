@@ -136,6 +136,7 @@ ensure_remote_deploy_config() {
       REGISTRY_AUTH_MODE='workflow-token' \
       REGISTRY_USERNAME_SECRET_REF='secret/stuhelper/prod/registry-username' \
       REGISTRY_PASSWORD_SECRET_REF='secret/stuhelper/prod/registry-password' \
+      BACKUP_SERVICE_GROUP='${DEPLOY_GROUP}' \
       VAULT_ADDR='REPLACE_WITH_VAULT_ADDR' \
       VAULT_TOKEN_FILE='${DEPLOY_APP_DIR}/.secrets/vault/token' \
       ./infra/ops/init-remote-deploy-config.sh
@@ -150,6 +151,7 @@ REGISTRY=REPLACE_WITH_REGISTRY_HOST
 REGISTRY_AUTH_MODE=workflow-token
 REGISTRY_USERNAME_SECRET_REF=secret/stuhelper/prod/registry-username
 REGISTRY_PASSWORD_SECRET_REF=secret/stuhelper/prod/registry-password
+BACKUP_SERVICE_GROUP=${DEPLOY_GROUP}
 ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.shared
 SECRETS_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.secrets
 GENERATED_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.generated

@@ -92,6 +92,8 @@ assert_contains "${BOOTSTRAP_SCRIPT}" 'ln -sf /usr/local/go/bin/gofmt /usr/local
 assert_contains "${BOOTSTRAP_SCRIPT}" 'stuhelper-postgres-dump-backup\.service'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'stuhelper-postgres-basebackup\.service'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'stuhelper-postgres-backup-sync\.service'
+assert_contains "${BOOTSTRAP_SCRIPT}" 'BACKUP_SERVICE_GROUP=.\$\{DEPLOY_GROUP\}.'
+assert_contains "${BOOTSTRAP_SCRIPT}" '^BACKUP_SERVICE_GROUP=\$\{DEPLOY_GROUP\}$'
 assert_contains "${BOOTSTRAP_SCRIPT}" '^Unit=stuhelper-postgres-dump-backup\.service$'
 assert_contains "${BOOTSTRAP_SCRIPT}" '^Unit=stuhelper-postgres-basebackup\.service$'
 assert_contains "${BOOTSTRAP_SCRIPT}" '^Unit=stuhelper-postgres-backup-sync\.service$'
