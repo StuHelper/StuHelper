@@ -80,6 +80,19 @@ release_backend_ref='ghcr.io/stuhelper/backend@sha256:11111111111111111111111111
 release_frontend_ref='ghcr.io/stuhelper/frontend@sha256:2222222222222222222222222222222222222222222222222222222222222222'
 release_admin_ref='ghcr.io/stuhelper/admin@sha256:3333333333333333333333333333333333333333333333333333333333333333'
 
+cat >"${tmpdir}/release-mutable-image.env" <<EOF
+TAG=contract-release
+DEPLOYED_AT=2026-08-03T00:00:00Z
+BACKEND_IMAGE_REF=ghcr.io/stuhelper/backend:sha-contract
+FRONTEND_IMAGE_REF=${release_frontend_ref}
+ADMIN_IMAGE_REF=${release_admin_ref}
+EOF
+if (source_release_record_env_file "${tmpdir}/release-mutable-image.env" contract-release) >"${tmpdir}/release-mutable-image.log" 2>&1; then
+  fail "release record loader accepted a mutable application image tag"
+fi
+grep -q 'BACKEND_IMAGE_REF must be a complete image@sha256 digest reference' "${tmpdir}/release-mutable-image.log" ||
+  fail "mutable release image rejection did not identify the digest requirement"
+
 cat >"${tmpdir}/release-missing.env" <<EOF
 TAG=contract-release
 DEPLOYED_AT=2026-08-03T00:00:00Z
@@ -154,6 +167,20 @@ done
 if find "${release_state_dir}" -type f -name '.*.??????' -print -quit | grep -q .; then
   fail "atomic release recording left a temporary file behind"
 fi
+
+if (
+  export DEPLOY_STATE_DIR="${tmpdir}/mutable-release-state"
+  export BACKEND_IMAGE_REF=ghcr.io/stuhelper/backend:sha-contract
+  export FRONTEND_IMAGE_REF="${release_frontend_ref}"
+  export ADMIN_IMAGE_REF="${release_admin_ref}"
+  record_release mutable-release
+) >"${tmpdir}/record-mutable.log" 2>&1; then
+  fail "release recorder accepted a mutable application image tag"
+fi
+grep -q 'BACKEND_IMAGE_REF must be a complete image@sha256 digest reference' "${tmpdir}/record-mutable.log" ||
+  fail "release recorder did not report its digest-only boundary"
+[[ ! -e "${tmpdir}/mutable-release-state/current-release.env" ]] ||
+  fail "release recorder published state before rejecting a mutable image"
 
 : >"${tmpdir}/shared.env"
 : >"${tmpdir}/generated.env"

@@ -354,6 +354,13 @@ fi
 if ! grep -qF 'require_nonempty POSTGRES_PASSWORD' "${PROD_DEPLOY_FILE}"; then
   fail "production deploy must still require a superuser password for internal PostgreSQL"
 fi
+for image_var in BACKEND_IMAGE_REF FRONTEND_IMAGE_REF ADMIN_IMAGE_REF; do
+  grep -qF "require_digest_image_ref ${image_var}" "${PROD_DEPLOY_FILE}" ||
+    fail "production deploy must require a digest-pinned ${image_var}"
+done
+if grep -qF 'require_immutable_image_ref' "${PROD_DEPLOY_FILE}"; then
+  fail "production deploy must not retain the tag-tolerant image reference validator"
+fi
 if ! grep -qF 'require_public_identity_ingress_preflight' "${PROD_DEPLOY_FILE}"; then
   fail "production deploy must fail fast on missing public web, SSO, and admission ingress"
 fi

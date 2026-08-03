@@ -194,9 +194,9 @@ WAL 同步在任何对象存储传输前还会检查配置卷已经存在、`${S
 - GitHub Actions 远端发布使用 `REGISTRY_AUTH_MODE=workflow-token`：每个 job 的短期
   `github.token` 经 SSH 标准输入传递，只写入远端临时 `DOCKER_CONFIG` 并在结束时删除；目标机不保存
   个人 PAT 或长期 GHCR pull token。`persistent-secret` 只用于明确管理的非 GitHub 兼容链路
-- CI / Ansible 仅传发布标识与镜像引用；GitHub Actions 传完整 commit SHA、三个
-  `image@sha256:...` 引用和一次性 registry token，仓库本地/Ansible 兼容链路仍可使用
-  `TAG` / `ROLLBACK_TAG`
+- CI / Ansible 仅传发布标识与镜像引用；所有生产 backend/frontend/admin 引用都必须是完整
+  `image@sha256:...`，显式版本标签也不能作为成功发布记录。GitHub Actions 另外传完整 commit SHA
+  和一次性 registry token；仓库本地/Ansible 兼容链路仍可使用 `TAG` / `ROLLBACK_TAG` 标识发布
 
 如果远端部署控制面变更，直接在目标机执行：
 
