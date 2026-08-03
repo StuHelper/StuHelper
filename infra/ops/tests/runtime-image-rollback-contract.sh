@@ -141,6 +141,21 @@ grep -q 'release tag must be 1-128 characters' "${fixture_root}/unsafe.err" ||
 [[ ! -e "${unsafe_load_env_observed_file}" ]] ||
   fail "unsafe rollback target loaded secret-backed environment state"
 
+unsafe_inherited_tag_observed_file="${fixture_root}/unsafe-inherited-tag-load-env-observed"
+if VALIDATOR_CURRENT_OK=true \
+  DEPLOY_STATE_DIR="${fixture_state}" \
+  TAG='../inherited-escape' \
+  ROLLBACK_LOAD_ENV_OBSERVED_FILE="${unsafe_inherited_tag_observed_file}" \
+  ROLLBACK_DEPLOY_OBSERVED_FILE="${fixture_root}/unsafe-inherited-tag-deploy-observed" \
+  "${fixture_repo}/infra/ops/prod-rollback.sh" \
+  >"${fixture_root}/unsafe-inherited-tag.out" 2>"${fixture_root}/unsafe-inherited-tag.err"; then
+  fail "rollback accepted a path-traversing inherited TAG"
+fi
+grep -q 'release tag must be 1-128 characters' "${fixture_root}/unsafe-inherited-tag.err" ||
+  fail "rollback did not report the canonical inherited TAG constraint"
+[[ ! -e "${unsafe_inherited_tag_observed_file}" ]] ||
+  fail "unsafe inherited TAG loaded secret-backed environment state"
+
 cat >"${fixture_state}/releases/${target_tag}.env" <<EOF
 TAG=${target_tag}
 DEPLOYED_AT=2026-07-30T12:00:00Z

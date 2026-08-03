@@ -12,6 +12,8 @@ require_cmd python3
 # loaded deployment state.
 if [[ -n "${ROLLBACK_TAG:-}" ]]; then
   require_safe_release_tag "${ROLLBACK_TAG}"
+elif [[ -n "${TAG:-}" ]]; then
+  require_safe_release_tag "${TAG}"
 fi
 
 requested_backend_image_ref="${ROLLBACK_BACKEND_IMAGE_REF:-}"
