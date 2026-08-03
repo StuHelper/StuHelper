@@ -21,6 +21,7 @@ run_backup_object_storage_rclone() {
   local -x RCLONE_CONFIG_TARGET_REGION="${region}"
   local -x RCLONE_CONFIG_TARGET_FORCE_PATH_STYLE="${force_path_style}"
   local -x RCLONE_CONFIG_TARGET_NO_CHECK_BUCKET="true"
+  local proxy_environment_key
   local -a docker_args=(
     run
     --rm
@@ -52,6 +53,16 @@ run_backup_object_storage_rclone() {
     --stats=30s
     --stats-one-line
   )
+
+  # Docker can inject proxy settings from the deploy user's client config into
+  # every newly created container. Explicit empty values take precedence over
+  # those defaults so the validated --add-host pins remain the actual transfer
+  # route instead of being bypassed by a proxy that resolves the endpoint.
+  for proxy_environment_key in \
+    HTTP_PROXY HTTPS_PROXY FTP_PROXY ALL_PROXY NO_PROXY \
+    http_proxy https_proxy ftp_proxy all_proxy no_proxy; do
+    docker_args+=(--env "${proxy_environment_key}=")
+  done
 
   [[ "${image_ref}" =~ ^.+@sha256:[0-9a-f]{64}$ ]] ||
     die "RCLONE_IMAGE_REF must be a complete image@sha256 reference"
