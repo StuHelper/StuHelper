@@ -2426,6 +2426,8 @@ def read_canonical_release(path: Path) -> tuple[bytes, dict[str, str]]:
         existing[key] = value
     if list(existing) != list(values):
         raise SystemExit(f"existing immutable release record has an unexpected field order: {path}")
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", existing["TAG"]):
+        raise SystemExit(f"existing immutable release record has an unsafe TAG: {path}")
     if not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", existing["DEPLOYED_AT"]):
         raise SystemExit(f"existing immutable release record has an invalid DEPLOYED_AT: {path}")
     for key in ("BACKEND_IMAGE_REF", "FRONTEND_IMAGE_REF", "ADMIN_IMAGE_REF"):
@@ -2503,15 +2505,30 @@ def publish_immutable_release(path: Path, payload: bytes) -> bytes:
 # not permission to reuse the tag.
 release_path = releases_dir / f"{tag}.env"
 if operation == "check":
+    current_release_path = state_dir / "current-release.env"
+    try:
+        current_payload, current_release = read_canonical_release(current_release_path)
+    except FileNotFoundError:
+        current_payload = None
+        current_release = None
+    if current_release is not None:
+        current_immutable_path = releases_dir / f"{current_release['TAG']}.env"
+        try:
+            current_immutable_payload, _ = read_canonical_release(current_immutable_path)
+        except FileNotFoundError:
+            raise SystemExit(
+                f"release tag {current_release['TAG']} was previously used but its immutable record is missing; "
+                f"evidence: {current_release_path}",
+            )
+        if current_payload != current_immutable_payload:
+            raise SystemExit(
+                f"current release pointer does not match its immutable per-tag record: {current_release_path}",
+            )
+
     try:
         read_existing_immutable_release(release_path)
     except FileNotFoundError:
         prior_evidence = []
-        current_release_path = state_dir / "current-release.env"
-        try:
-            _, current_release = read_canonical_release(current_release_path)
-        except FileNotFoundError:
-            current_release = None
         if current_release is not None and current_release["TAG"] == tag:
             prior_evidence.append(str(current_release_path))
 

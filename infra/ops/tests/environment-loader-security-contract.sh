@@ -401,6 +401,25 @@ assert_missing_immutable_record_rejected \
   "${current_only_release_state}" \
   'current-release.env' \
   "${tmpdir}/guard-missing-record-current-evidence.log"
+
+current_only_intervening_state="${tmpdir}/current-only-intervening-state"
+mkdir -p "${current_only_intervening_state}/releases"
+cp "${release_state_dir}/current-release.env" "${current_only_intervening_state}/current-release.env"
+chmod 0600 "${current_only_intervening_state}/current-release.env"
+if (
+  export DEPLOY_STATE_DIR="${current_only_intervening_state}"
+  export BACKEND_IMAGE_REF="${release_backend_ref}"
+  export FRONTEND_IMAGE_REF="${release_frontend_ref}"
+  export ADMIN_IMAGE_REF="${release_admin_ref}"
+  require_release_tag_identity_available intervening-release
+) >"${tmpdir}/guard-current-only-intervening.log" 2>&1; then
+  fail "release identity guard allowed a new tag to overwrite sole current-release evidence"
+fi
+grep -q 'release tag contract-release was previously used but its immutable record is missing' \
+  "${tmpdir}/guard-current-only-intervening.log" ||
+  fail "current-only ledger corruption did not identify the historical release whose evidence would be lost"
+[[ ! -e "${current_only_intervening_state}/releases/intervening-release.env" ]] ||
+  fail "current-only consistency check created candidate release state"
 unset -f assert_missing_immutable_record_rejected
 
 if (
