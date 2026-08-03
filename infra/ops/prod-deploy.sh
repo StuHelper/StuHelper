@@ -378,7 +378,8 @@ compose --profile prod up -d --wait "${infra_services[@]}"
 
 log "creating pre-deploy database backup"
 predeploy_backup_dir="${REPO_ROOT}/backups/postgres/logical"
-predeploy_backup_path="${predeploy_backup_dir}/predeploy-${TAG}.dump"
+deployment_attempt_id="$(new_deployment_attempt_id)"
+predeploy_backup_path="${predeploy_backup_dir}/predeploy-${TAG}-${deployment_attempt_id}.dump"
 mkdir -p "${predeploy_backup_dir}"
 "${SCRIPT_DIR}/backup-postgres.sh" "${predeploy_backup_path}" || die "pre-deploy backup failed; aborting deployment"
 
