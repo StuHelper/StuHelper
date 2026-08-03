@@ -87,4 +87,20 @@ assert_contains "${override_cfg}" "VAULT_RUNTIME_TOKEN_POLICY=custom-prod-deploy
 assert_contains "${override_cfg}" "VAULT_RUNTIME_TOKEN_PERIOD_SECONDS=345600"
 assert_contains "${override_cfg}" "VAULT_RUNTIME_TOKEN_MIN_TTL_SECONDS=86400"
 
+invalid_cfg="${tmpdir}/invalid.remote.env"
+printf 'REGISTRY=ghcr.io\nPATH=/tmp/payload\n' >"${invalid_cfg}"
+invalid_before="$(<"${invalid_cfg}")"
+if REMOTE_DEPLOY_CONFIG_FILE="${invalid_cfg}" bash "${TARGET_SCRIPT}" >"${tmpdir}/invalid.out" 2>"${tmpdir}/invalid.err"; then
+  echo "[init-remote-deploy-config-contract][error] initializer accepted an unknown existing key" >&2
+  exit 1
+fi
+grep -q 'environment key PATH is not allowed in this file' "${tmpdir}/invalid.err" || {
+  echo "[init-remote-deploy-config-contract][error] existing-state rejection was not explicit" >&2
+  exit 1
+}
+[[ "$(<"${invalid_cfg}")" == "${invalid_before}" ]] || {
+  echo "[init-remote-deploy-config-contract][error] initializer rewrote invalid existing state before rejecting it" >&2
+  exit 1
+}
+
 echo "[init-remote-deploy-config-contract] all assertions passed"

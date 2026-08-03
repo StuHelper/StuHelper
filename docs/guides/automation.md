@@ -182,7 +182,7 @@ host-local `bridge` 网络还会拒绝整个 IPAM 子网；共享的 `macvlan`�
   小时，systemd 每 12 小时续期，部署前要求 TTL 至少还有 12 小时。
 - shared env / generated env secrets 由 `${DEPLOY_APP_DIR}/.deploy/remote.env` 中的 secret ref 决定
   （默认 `SECRET_BACKEND=vault-kv-v2`）
-- `.deploy/remote.env` 只接受注册表、环境文件路径、secret backend 和 Vault 运行 token 参数；发布回滚读取的 `releases/*.env` 只接受 `TAG`、`DEPLOYED_AT` 和三个不可变镜像引用。三类低权限状态文件分别使用独立字段白名单，不能注入 `PATH`、`SCRIPT_DIR`、`PYTHONPATH`、`LD_PRELOAD` 等进程控制字段。未知字段会使初始化、部署或回滚立即失败，新增控制面字段时必须同步代码白名单与契约测试。
+- `.deploy/remote.env` 只接受注册表、环境文件路径、secret backend 和 Vault 运行 token 参数；发布回滚读取的 `releases/*.env` 只接受 `TAG`、`DEPLOYED_AT` 和三个不可变镜像引用。三类低权限状态文件分别使用独立字段白名单，不能注入 `PATH`、`SCRIPT_DIR`、`PYTHONPATH`、`LD_PRELOAD` 等进程控制字段。初始化器会在重写已有 `remote.env` 前先验证原文件；未知或拼错字段会保留现场文件并使初始化、部署或回滚立即失败，新增控制面字段时必须同步代码白名单与契约测试。
 - GitHub Actions 远端发布使用 `REGISTRY_AUTH_MODE=workflow-token`：每个 job 的短期
   `github.token` 经 SSH 标准输入传递，只写入远端临时 `DOCKER_CONFIG` 并在结束时删除；目标机不保存
   个人 PAT 或长期 GHCR pull token。`persistent-secret` 只用于明确管理的非 GitHub 兼容链路
