@@ -318,6 +318,7 @@ is_process_control_environment_key() {
       JAVA_TOOL_OPTIONS | _JAVA_OPTIONS | JDK_JAVA_OPTIONS | \
       GIT_EXEC_PATH | GIT_SSH | GIT_SSH_COMMAND | \
       SSH_ASKPASS | SSH_ASKPASS_REQUIRE | \
+      DOCKER_HOST | DOCKER_CONTEXT | DOCKER_CERT_PATH | DOCKER_TLS | DOCKER_TLS_VERIFY | \
       LD_* | DYLD_* | PYTHON*)
       return 0
       ;;
@@ -372,6 +373,8 @@ forbidden_exact_keys = {
     "NODE_PATH", "PERL5LIB", "PERLLIB", "PERL5OPT", "RUBYLIB", "RUBYOPT",
     "JAVA_TOOL_OPTIONS", "_JAVA_OPTIONS", "JDK_JAVA_OPTIONS", "GIT_EXEC_PATH",
     "GIT_SSH", "GIT_SSH_COMMAND", "SSH_ASKPASS", "SSH_ASKPASS_REQUIRE",
+    "DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_CERT_PATH", "DOCKER_TLS",
+    "DOCKER_TLS_VERIFY",
 }
 forbidden_prefixes = ("LD_", "DYLD_", "PYTHON")
 rendered_assignments = []
