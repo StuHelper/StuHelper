@@ -236,6 +236,7 @@ EOF
     GENERATED_ENV_FILE="${DEPLOY_APP_DIR}/.env.prod.generated" \
     GENERATED_SECRET_ENV_FILE="${DEPLOY_APP_DIR}/.env.prod.generated.secrets" \
     LOCAL_STATE_DIR=/var/lib/stuhelper \
+    BACKUP_STAGING_DIR="${BACKUP_STAGING_DIR}" \
     REMOTE_DEPLOY_CONFIG_FILE="${REMOTE_DEPLOY_CONFIG_FILE}" \
     /bin/bash --noprofile --norc "${DEPLOY_APP_DIR}/infra/ops/remote-preflight.sh" --timer-activation
   systemctl enable --now stuhelper-postgres-dump-backup.timer stuhelper-postgres-basebackup.timer stuhelper-postgres-backup-sync.timer

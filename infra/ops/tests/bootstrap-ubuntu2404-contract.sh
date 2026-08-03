@@ -208,6 +208,7 @@ assert_contains "${BACKUP_TIMER_INSTALLER}" '^TimeoutStartSec=12h$'
   fail "backup timer installer must start all backup services with an allowlisted empty environment"
 assert_not_contains "${BACKUP_TIMER_INSTALLER}" 'ExecStart=/bin/bash -lc'
 assert_contains "${BACKUP_TIMER_INSTALLER}" 'runuser -u "\$\{DEPLOY_USER\}" -- env -i'
+assert_contains "${BACKUP_TIMER_INSTALLER}" 'BACKUP_STAGING_DIR="\$\{BACKUP_STAGING_DIR\}"'
 assert_contains "${BACKUP_TIMER_INSTALLER}" 'remote-preflight\.sh" --timer-activation'
 assert_contains "${BACKUP_TIMER_INSTALLER}" 'timers were not activated'
 assert_contains "${BACKUP_TIMER_INSTALLER}" 'systemctl enable --now stuhelper-postgres-dump-backup\.timer'
