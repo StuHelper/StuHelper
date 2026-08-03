@@ -100,14 +100,14 @@
     {
       "id": "CASDOOR_DEV",
       "kind": "registry",
-      "image": "casbin/casdoor:latest@sha256:d7658640aba370495e59dc1464756d2ae7ec66576203b9de0040e9cc37793607",
+      "image": "casbin/casdoor:latest@sha256:53f00e1e69190c8629925a179cd59a10573f7be2764038571906196908cd6579",
       "env_var": "CASDOOR_IMAGE_REF",
       "scope": "optional loopback-only local identity-provider development fixture",
       "owner": "identity",
       "pin_review": {
-        "verified_on": "2026-07-29",
-        "review_by": "2026-08-05",
-        "upstream_evidence": "https://github.com/casdoor/casdoor/releases/tag/v3.125.0"
+        "verified_on": "2026-08-03",
+        "review_by": "2026-08-10",
+        "upstream_evidence": "https://github.com/casdoor/casdoor/releases/tag/v3.140.0"
       }
     },
     {
@@ -298,9 +298,9 @@
     {
       "image_id": "CASDOOR_DEV",
       "owner": "platform-security",
-      "approved_on": "2026-07-29",
-      "expires_on": "2026-08-05",
-      "rationale": "The optional local identity fixture uses the newest upstream image while its next dependency rebuild is pending.",
+      "approved_on": "2026-08-03",
+      "expires_on": "2026-08-10",
+      "rationale": "Casdoor 3.140.0 is the newest upstream image, but its next dependency rebuild is still pending.",
       "mitigations": [
         "The service exists only in the dev-full profile and every published port binds to loopback.",
         "It is not the production identity provider and no production identity data is mounted or queried.",
@@ -564,18 +564,22 @@
       "status": "not_affected",
       "justification": "vulnerable_code_not_present",
       "owner": "platform-security",
-      "assessed_on": "2026-07-29",
-      "review_by": "2026-08-05",
-      "impact_statement": "The image embeds commit 8bb6c391480b, which is 285 commits ahead of the token-exchange fix; Trivy cannot order Casdoor's embedded pseudo-version against product release 2.387.0.",
+      "assessed_on": "2026-08-03",
+      "review_by": "2026-08-10",
+      "impact_statement": "The image provenance binds the build to GitHub Actions run 30801120328 and commit 6876c6196aeb. Reproducing the Dockerfile's TestGetVersionInfo step changes only util/variable.go version metadata before the build; it does not modify the vulnerable token-exchange path. The commit is 304 commits ahead of the fix, while Trivy cannot order the resulting dirty pseudo-version against product release 2.387.0.",
       "evidence": [
-        "https://github.com/casdoor/casdoor/compare/d92b8568686d...8bb6c391480b",
+        "https://github.com/casdoor/casdoor/compare/d92b8568686d...6876c6196aeb",
+        "https://github.com/casdoor/casdoor/actions/runs/30801120328",
+        "https://github.com/casdoor/casdoor/blob/6876c6196aeb537c5bd109f34d4fee13549da9f9/Dockerfile#L15-L22",
+        "https://github.com/casdoor/casdoor/blob/6876c6196aeb537c5bd109f34d4fee13549da9f9/util/system_test.go#L48-L78",
+        "https://hub.docker.com/layers/casbin/casdoor/latest/images/sha256-a4c2f995fe0b120bd714d8b6b05392142b89dc7f9c15e240b85daea2a6c82e52",
         "https://osv.dev/vulnerability/GHSA-c9w5-qp6m-m395"
       ],
       "finding": {
         "id": "CVE-2026-9094",
         "severity": "CRITICAL",
         "package": "github.com/casdoor/casdoor",
-        "installed_version": "v1.1000.1-0.20260724163043-8bb6c391480b+dirty",
+        "installed_version": "v1.1000.1-0.20260803092219-6876c6196aeb+dirty",
         "fixed_version": "2.387.0"
       }
     },
@@ -584,18 +588,22 @@
       "status": "not_affected",
       "justification": "vulnerable_code_not_present",
       "owner": "platform-security",
-      "assessed_on": "2026-07-29",
-      "review_by": "2026-08-05",
-      "impact_statement": "The image embeds commit 8bb6c391480b, which is 770 commits ahead of the authorization fix; Trivy cannot order Casdoor's embedded pseudo-version against product release 2.63.0.",
+      "assessed_on": "2026-08-03",
+      "review_by": "2026-08-10",
+      "impact_statement": "The image provenance binds the build to GitHub Actions run 30801120328 and commit 6876c6196aeb. Reproducing the Dockerfile's TestGetVersionInfo step changes only util/variable.go version metadata before the build; it does not modify the vulnerable authorization path. The commit is 789 commits ahead of the fix, while Trivy cannot order the resulting dirty pseudo-version against product release 2.63.0.",
       "evidence": [
-        "https://github.com/casdoor/casdoor/compare/d883db907bb6e0b95737ef8e8b57b7da9078cbdd...8bb6c391480b",
+        "https://github.com/casdoor/casdoor/compare/d883db907bb6e0b95737ef8e8b57b7da9078cbdd...6876c6196aeb",
+        "https://github.com/casdoor/casdoor/actions/runs/30801120328",
+        "https://github.com/casdoor/casdoor/blob/6876c6196aeb537c5bd109f34d4fee13549da9f9/Dockerfile#L15-L22",
+        "https://github.com/casdoor/casdoor/blob/6876c6196aeb537c5bd109f34d4fee13549da9f9/util/system_test.go#L48-L78",
+        "https://hub.docker.com/layers/casbin/casdoor/latest/images/sha256-a4c2f995fe0b120bd714d8b6b05392142b89dc7f9c15e240b85daea2a6c82e52",
         "https://nvd.nist.gov/vuln/detail/CVE-2025-61524"
       ],
       "finding": {
         "id": "CVE-2025-61524",
         "severity": "HIGH",
         "package": "github.com/casdoor/casdoor",
-        "installed_version": "v1.1000.1-0.20260724163043-8bb6c391480b+dirty",
+        "installed_version": "v1.1000.1-0.20260803092219-6876c6196aeb+dirty",
         "fixed_version": "2.63.0"
       }
     }

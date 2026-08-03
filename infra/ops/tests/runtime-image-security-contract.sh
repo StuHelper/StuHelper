@@ -50,25 +50,52 @@ python3 "${VALIDATOR}" \
   --policy "${POLICY}" \
   --policy-only
 
+contract_fixture="$(mktemp -d)"
+trap 'rm -rf "${contract_fixture}"' EXIT
+review_boundary_policy="${contract_fixture}/runtime-images.json"
+python3 - "${POLICY}" "${review_boundary_policy}" <<'PY'
+import json
+import sys
+
+source, destination = sys.argv[1:]
+with open(source, encoding="utf-8") as handle:
+    policy = json.load(handle)
+
+for image in policy["images"]:
+    review = image.get("pin_review")
+    if review is not None:
+        review["verified_on"] = "2026-07-30"
+        review["review_by"] = "2026-08-06"
+for exception in policy["exceptions"]:
+    exception["approved_on"] = "2026-07-30"
+    exception["expires_on"] = "2026-08-06"
+for record in policy["vex"]:
+    record["assessed_on"] = "2026-07-30"
+    record["review_by"] = "2026-08-06"
+
+with open(destination, "w", encoding="utf-8") as handle:
+    json.dump(policy, handle)
+PY
+
 if python3 "${VALIDATOR}" \
   --repo-root "${REPO_ROOT}" \
-  --policy "${POLICY}" \
+  --policy "${review_boundary_policy}" \
   --policy-only \
-  --today 2026-08-13 >/dev/null 2>&1; then
+  --today 2026-08-07 >/dev/null 2>&1; then
   fail "expired runtime-image review windows must fail normal validation"
 fi
 
 python3 "${VALIDATOR}" \
   --repo-root "${REPO_ROOT}" \
-  --policy "${POLICY}" \
+  --policy "${review_boundary_policy}" \
   --policy-only \
-  --today 2026-07-30 \
+  --today 2026-07-31 \
   --minimum-review-days-remaining 6 >/dev/null
 if python3 "${VALIDATOR}" \
   --repo-root "${REPO_ROOT}" \
-  --policy "${POLICY}" \
+  --policy "${review_boundary_policy}" \
   --policy-only \
-  --today 2026-07-30 \
+  --today 2026-07-31 \
   --minimum-review-days-remaining 7 >/dev/null 2>&1; then
   fail "review-deadline validation must fail before fewer than the requested days remain"
 fi
@@ -85,8 +112,8 @@ python3 "${VALIDATOR}" \
   --policy-only \
   --effective-environment production
 
-rollback_fixture="$(mktemp -d)"
-trap 'rm -rf "${rollback_fixture}"' EXIT
+rollback_fixture="${contract_fixture}/rollback"
+mkdir -p "${rollback_fixture}"
 rollback_tag="0123456789abcdef0123456789abcdef01234567"
 rollback_state="${rollback_fixture}/deploy-state"
 rollback_record="${rollback_state}/releases/${rollback_tag}.env"
@@ -115,7 +142,7 @@ rollback_output="$(
   RUNTIME_IMAGE_ROLLBACK_RELEASE_RECORD="${rollback_record}" \
     python3 "${VALIDATOR}" \
       --repo-root "${REPO_ROOT}" \
-      --policy "${POLICY}" \
+      --policy "${review_boundary_policy}" \
       --policy-only \
       --effective-environment production \
       --today 2026-08-13 2>&1
@@ -142,7 +169,7 @@ if TAG=legacy-release \
   ROLLBACK_REVIEW_AUDIT_ID="11111111-1111-4111-8111-111111111111" \
     python3 "${VALIDATOR}" \
       --repo-root "${REPO_ROOT}" \
-      --policy "${POLICY}" \
+      --policy "${review_boundary_policy}" \
       --policy-only \
       --effective-environment production \
       --rollback-release-record "${legacy_rollback_record}" \
@@ -161,7 +188,7 @@ ROLLBACK_REVIEW_REASON="validate a provenance-verified legacy digest transition"
 ROLLBACK_REVIEW_AUDIT_ID="11111111-1111-4111-8111-111111111111" \
   python3 "${VALIDATOR}" \
     --repo-root "${REPO_ROOT}" \
-    --policy "${POLICY}" \
+    --policy "${review_boundary_policy}" \
     --policy-only \
     --effective-environment production \
     --rollback-release-record "${legacy_rollback_record}" \
@@ -179,7 +206,7 @@ if TAG=legacy-release \
   ROLLBACK_REVIEW_AUDIT_ID="11111111-1111-4111-8111-111111111111" \
     python3 "${VALIDATOR}" \
       --repo-root "${REPO_ROOT}" \
-      --policy "${POLICY}" \
+      --policy "${review_boundary_policy}" \
       --policy-only \
       --effective-environment production \
       --rollback-release-record "${legacy_rollback_record}" \
@@ -200,7 +227,7 @@ if TAG="${rollback_tag}" \
   RUNTIME_IMAGE_ROLLBACK_RELEASE_RECORD="${rollback_record}" \
     python3 "${VALIDATOR}" \
       --repo-root "${REPO_ROOT}" \
-      --policy "${POLICY}" \
+      --policy "${review_boundary_policy}" \
       --policy-only \
       --effective-environment production \
       --today 2026-08-13 >/dev/null 2>&1; then
@@ -219,7 +246,7 @@ if TAG="${rollback_tag}" \
   RUNTIME_IMAGE_ROLLBACK_RELEASE_RECORD="${rollback_record}" \
     python3 "${VALIDATOR}" \
       --repo-root "${REPO_ROOT}" \
-      --policy "${POLICY}" \
+      --policy "${review_boundary_policy}" \
       --policy-only \
       --effective-environment production \
       --today 2026-08-13 >/dev/null 2>&1; then

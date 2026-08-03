@@ -174,6 +174,7 @@ assert_file_contains "${env_file}" '^CASDOOR_TOKEN_PROBE_SMOKE_CLIENT_SECRET=dev
 assert_env_value "${env_file}" "CASDOOR_TOKEN_PROBE_SMOKE_APPLICATION" "casdoor-token-probe-smoke"
 assert_env_value "${env_file}" "CASDOOR_TOKEN_PROBE_SMOKE_REDIRECT_URI" "http://localhost:3000/open-platform/token-probe/callback"
 assert_env_value "${env_file}" "OPENFGA_RESOURCE_SMOKE_MODE" "host"
+assert_env_value "${env_file}" "CASDOOR_IMAGE_REF" "casbin/casdoor:latest@sha256:53f00e1e69190c8629925a179cd59a10573f7be2764038571906196908cd6579"
 
 legacy_dir="$(mktemp -d)"
 cleanup_dirs+=("${legacy_dir}")
@@ -203,6 +204,8 @@ for line in path.read_text().splitlines():
         lines.append("REVIEW_RATE_WRITE_LIMIT=10")
     elif line.startswith("WEB_VITE_API_URL="):
         lines.append("WEB_VITE_API_URL=")
+    elif line.startswith("CASDOOR_IMAGE_REF="):
+        lines.append("CASDOOR_IMAGE_REF=casbin/casdoor:latest@sha256:d7658640aba370495e59dc1464756d2ae7ec66576203b9de0040e9cc37793607")
     else:
         lines.append(line)
 path.write_text("\n".join(lines) + "\n")
@@ -229,6 +232,7 @@ assert_env_value "${legacy_env}" "APP_ENV" "development"
 assert_env_value "${legacy_env}" "CORS_ORIGINS" "http://localhost:3000,http://127.0.0.1:3000,http://join.localhost:3000,http://localhost:3001,http://127.0.0.1:3001"
 assert_env_value "${legacy_env}" "CASDOOR_ADDITIONAL_REDIRECT_URIS" "http://localhost:3000/api/v1/auth/callback,http://127.0.0.1:3000/api/v1/auth/callback,http://join.localhost:3000/api/v1/auth/callback"
 assert_env_value "${legacy_env}" "CASDOOR_ADMIN_ADDITIONAL_REDIRECT_URIS" "http://localhost:3001/api/v1/auth/callback,http://127.0.0.1:3001/api/v1/auth/callback"
+assert_env_value "${legacy_env}" "CASDOOR_IMAGE_REF" "casbin/casdoor:latest@sha256:53f00e1e69190c8629925a179cd59a10573f7be2764038571906196908cd6579"
 assert_env_value "${legacy_env}" "ADMISSION_PUBLIC_BASE_URL" "http://join.localhost:3000"
 assert_env_value "${legacy_env}" "BACKEND_EXTERNAL_PORT" "8080"
 assert_env_value "${legacy_env}" "WEB_EXTERNAL_PORT" "3000"
