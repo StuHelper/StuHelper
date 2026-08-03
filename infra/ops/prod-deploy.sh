@@ -5,6 +5,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/common.sh
 source "${SCRIPT_DIR}/lib/common.sh"
 
+if [[ -n "${TAG:-}" ]]; then
+  require_safe_release_tag "${TAG}" # reject caller-provided tags before config or secret materialization
+fi
+
 require_cmd docker
 require_cmd curl
 require_cmd jq
@@ -310,6 +314,7 @@ require_public_ingress_config_preflight
 require_public_identity_ingress_preflight
 
 export TAG="${TAG:-$(derive_release_id_from_image_ref "${BACKEND_IMAGE_REF:-}" || git_tag_default)}"
+require_safe_release_tag "${TAG}" # validate env-loaded or derived tags before rendering, image pulls, and backups
 export BUILD_TIME="${BUILD_TIME:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
 
 if [[ "${EXTERNAL_POSTGRES_ENABLED:-false}" != "true" ]]; then

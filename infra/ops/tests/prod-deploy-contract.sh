@@ -8,6 +8,8 @@ PROD_ENV_EXAMPLE_FILE="${REPO_ROOT}/.env.prod.example"
 ADMISSION_READINESS_FILE="${REPO_ROOT}/infra/ops/admission-production-readiness.sh"
 AUTHORIZATION_CUTOVER_FILE="${REPO_ROOT}/infra/ops/authorization-ledger-cutover.sh"
 LEGACY_SUPER_ADMIN_BOOTSTRAP_FILE="${REPO_ROOT}/infra/ops/authorization-bootstrap-super-admin.sh"
+tmpdir="$(mktemp -d)"
+trap 'rm -rf "${tmpdir}"' EXIT
 
 fail() {
   echo "[prod-deploy-contract][error] $*" >&2
@@ -31,6 +33,8 @@ line_number() {
 }
 
 load_env_line="$(line_number 'load_env')"
+caller_tag_validation_line="$(line_number 'require_safe_release_tag "${TAG}" # reject caller-provided tags before config or secret materialization')"
+derived_tag_validation_line="$(line_number 'require_safe_release_tag "${TAG}" # validate env-loaded or derived tags before rendering, image pulls, and backups')"
 remote_config_load_line="$(line_number 'load_remote_deploy_config')"
 generated_secret_ref_require_line="$(line_number 'GENERATED_ENV_SECRET_REF must be configured for production deploy')"
 secret_backend_require_line="$(line_number 'production deploy requires a non-file secret backend for generated secrets')"
@@ -141,6 +145,15 @@ assert_file_not_contains "${PROD_ENV_EXAMPLE_FILE}" 'STUHELPER_INITIAL_SUPER_ADM
 
 if (( bootstrap_validation_line <= load_env_line )); then
   fail "Casdoor bootstrap env must be validated after load_env"
+fi
+if (( caller_tag_validation_line >= remote_config_load_line )); then
+  fail "caller-provided release tags must be validated before remote config or secret materialization"
+fi
+if (( derived_tag_validation_line <= load_env_line || derived_tag_validation_line >= render_postgres_tls_line )); then
+  fail "env-loaded or derived release tags must be validated immediately after derivation and before rendering"
+fi
+if (( derived_tag_validation_line >= pull_release_images_line || derived_tag_validation_line >= predeploy_backup_line )); then
+  fail "release tags must be validated before image pulls and pre-deploy backup path construction"
 fi
 if (( generated_secret_ref_require_line <= remote_config_load_line )); then
   fail "production deploy must load remote.env before requiring GENERATED_ENV_SECRET_REF"
@@ -370,6 +383,11 @@ done
 if grep -qF 'require_immutable_image_ref' "${PROD_DEPLOY_FILE}"; then
   fail "production deploy must not retain the tag-tolerant image reference validator"
 fi
+if TAG='../escape' bash "${PROD_DEPLOY_FILE}" >"${tmpdir}/unsafe-tag.out" 2>"${tmpdir}/unsafe-tag.err"; then
+  fail "production deploy accepted a path-traversing caller-provided release tag"
+fi
+grep -q 'release tag must be 1-128 characters' "${tmpdir}/unsafe-tag.err" ||
+  fail "early production release-tag rejection did not report the canonical constraint"
 if ! grep -qF 'require_public_identity_ingress_preflight' "${PROD_DEPLOY_FILE}"; then
   fail "production deploy must fail fast on missing public web, SSO, and admission ingress"
 fi

@@ -5,6 +5,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/common.sh
 source "${SCRIPT_DIR}/lib/common.sh"
 
+if [[ -n "${TAG:-}" ]]; then
+  require_safe_release_tag "${TAG}"
+fi
+
 load_remote_deploy_config
 require_cmd docker
 require_cmd curl

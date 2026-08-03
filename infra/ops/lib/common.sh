@@ -467,6 +467,14 @@ require_digest_image_ref() {
   fi
 }
 
+require_safe_release_tag() {
+  local tag="${1:-}"
+
+  if [[ ! "${tag}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]]; then
+    die "release tag must be 1-128 characters and contain only ASCII letters, digits, dot, underscore, or hyphen, starting with a letter or digit"
+  fi
+}
+
 source_release_record_env_file() {
   local file="$1"
   local expected_tag="${2:-}"
@@ -480,6 +488,9 @@ source_release_record_env_file() {
     ADMIN_IMAGE_REF
   )
 
+  if [[ -n "${expected_tag}" ]]; then
+    require_safe_release_tag "${expected_tag}"
+  fi
   clear_process_control_environment
   if ! diagnostic="$(python3 - "${file}" "${required_keys[@]}" 2>&1 <<'PY'
 import re
@@ -525,6 +536,7 @@ PY
       die "${file}: release record key ${key} must not be empty"
     fi
   done
+  require_safe_release_tag "${TAG}"
   require_digest_image_ref BACKEND_IMAGE_REF "${BACKEND_IMAGE_REF}"
   require_digest_image_ref FRONTEND_IMAGE_REF "${FRONTEND_IMAGE_REF}"
   require_digest_image_ref ADMIN_IMAGE_REF "${ADMIN_IMAGE_REF}"
@@ -2017,6 +2029,7 @@ docker_registry_login() {
 
 record_release() {
   local tag="$1"
+  require_safe_release_tag "${tag}"
   require_digest_image_ref BACKEND_IMAGE_REF "${BACKEND_IMAGE_REF:-}"
   require_digest_image_ref FRONTEND_IMAGE_REF "${FRONTEND_IMAGE_REF:-}"
   require_digest_image_ref ADMIN_IMAGE_REF "${ADMIN_IMAGE_REF:-}"
@@ -2049,7 +2062,7 @@ values = {
 }
 digest_ref_pattern = re.compile(r"^[^\s@]+@sha256:[0-9a-f]{64}$")
 
-if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", tag):
+if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", tag):
     raise SystemExit("release tag contains unsafe path characters")
 for key, value in values.items():
     if not value:
