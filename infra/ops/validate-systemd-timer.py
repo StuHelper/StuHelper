@@ -26,6 +26,9 @@ def main() -> int:
     parser.add_argument("--persistent", required=True)
     parser.add_argument("--timers-calendar", required=True)
     parser.add_argument("--timers-monotonic", required=True)
+    parser.add_argument("--accuracy", required=True)
+    parser.add_argument("--randomized-delay", required=True)
+    parser.add_argument("--fixed-random-delay", required=True)
     parser.add_argument("--expected-target", required=True)
     parser.add_argument("--expected-calendar", required=True)
     args = parser.parse_args()
@@ -40,6 +43,9 @@ def main() -> int:
         and args.persistent == "yes"
         and calendars == [args.expected_calendar]
         and not args.timers_monotonic.strip()
+        and args.accuracy == "1min"
+        and args.randomized_delay == "0"
+        and args.fixed_random_delay == "no"
     )
     return 0 if valid else 1
 
