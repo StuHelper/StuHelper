@@ -660,6 +660,42 @@ require_live_postgres_wal_archiving() {
     die "PostgreSQL reported archived WAL ${archived_wal}, but it is missing from the protected volume"
 }
 
+require_external_postgres_pitr_evidence() {
+  local expected_evidence_file="/etc/stuhelper/external-postgres-pitr-evidence.json"
+  local evidence_file="${EXTERNAL_POSTGRES_PITR_EVIDENCE_FILE:-}"
+  local system_identifier
+
+  [[ "${EXTERNAL_POSTGRES_ENABLED:-false}" == "true" ]] || return 0
+  [[ "${evidence_file}" == "${expected_evidence_file}" ]] ||
+    die "EXTERNAL_POSTGRES_PITR_EVIDENCE_FILE must be ${expected_evidence_file} in production"
+  [[ -n "${BACKUP_DATABASE_URL:-}" ]] ||
+    die "BACKUP_DATABASE_URL is required to bind external PostgreSQL PITR evidence to the live cluster"
+  require_cmd docker
+  require_cmd python3
+
+  if ! system_identifier="$(compose run --rm --no-deps -T \
+    postgres-client \
+    psql \
+    --no-psqlrc \
+    --set=ON_ERROR_STOP=1 \
+    --tuples-only \
+    --no-align \
+    --quiet \
+    --dbname="${BACKUP_DATABASE_URL}" \
+    --command='SELECT system_identifier::text FROM pg_control_system()' 2>/dev/null)"; then
+    die "failed to read the live external PostgreSQL system identifier"
+  fi
+  system_identifier="${system_identifier//[[:space:]]/}"
+  [[ "${system_identifier}" =~ ^[0-9]{10,20}$ ]] ||
+    die "live external PostgreSQL returned an invalid system identifier"
+
+  python3 "${COMMON_LIB_DIR}/../validate-external-postgres-pitr-evidence.py" \
+    --evidence-file "${evidence_file}" \
+    --expected-system-identifier "${system_identifier}" \
+    --expected-owner-uid 0 ||
+    die "external PostgreSQL continuous WAL/PITR evidence is invalid"
+}
+
 require_backup_object_storage_config() {
   local missing=()
   local key
@@ -1173,6 +1209,8 @@ require_production_postgres_ssl() {
 
 require_production_postgres_archiving() {
   if [[ "${EXTERNAL_POSTGRES_ENABLED:-false}" == "true" ]]; then
+    [[ "${EXTERNAL_POSTGRES_PITR_EVIDENCE_FILE:-}" == "/etc/stuhelper/external-postgres-pitr-evidence.json" ]] ||
+      die "EXTERNAL_POSTGRES_PITR_EVIDENCE_FILE must be /etc/stuhelper/external-postgres-pitr-evidence.json for external production PostgreSQL"
     return 0
   fi
   [[ "${POSTGRES_ARCHIVE_MODE:-}" == "on" ]] ||

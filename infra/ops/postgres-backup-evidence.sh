@@ -52,6 +52,11 @@ timer_required="${POSTGRES_BACKUP_EVIDENCE_TIMER_REQUIRED:-false}"
 skip_timers="${POSTGRES_BACKUP_EVIDENCE_SKIP_TIMERS:-false}"
 max_logical_age_seconds="${POSTGRES_BACKUP_EVIDENCE_MAX_LOGICAL_AGE_SECONDS:-129600}"
 max_base_age_seconds="${POSTGRES_BACKUP_EVIDENCE_MAX_BASE_AGE_SECONDS:-691200}"
+external_pitr_evidence_json="null"
+
+if [[ "${EXTERNAL_POSTGRES_ENABLED:-false}" == "true" ]]; then
+  external_pitr_evidence_json="$(require_external_postgres_pitr_evidence)"
+fi
 
 require_positive_seconds() {
   local key="$1"
@@ -336,6 +341,7 @@ bundle="$(
   FETCHED_BACKUP_JSON="${fetched_backup_json}" \
   LOCAL_BASE_BACKUP_JSON="${local_base_backup_json}" \
   FETCHED_BASE_BACKUP_JSON="${fetched_base_backup_json}" \
+  EXTERNAL_PITR_EVIDENCE_JSON="${external_pitr_evidence_json}" \
   python3 - \
     "${generated_at}" \
     "${APP_ENV:-}" \
@@ -361,6 +367,7 @@ bundle = {
     "fetchedLogicalBackup": json.loads(os.environ["FETCHED_BACKUP_JSON"]),
     "localBaseBackup": json.loads(os.environ["LOCAL_BASE_BACKUP_JSON"]),
     "fetchedBaseBackup": json.loads(os.environ["FETCHED_BASE_BACKUP_JSON"]),
+    "externalPITR": json.loads(os.environ["EXTERNAL_PITR_EVIDENCE_JSON"]),
 }
 print(json.dumps(bundle, ensure_ascii=True, indent=2))
 PY

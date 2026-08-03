@@ -216,6 +216,7 @@ ensure_value "LOG_OUTPUT" "${LOG_OUTPUT:-}" "stdout"
 ensure_value "EXTERNAL_POSTGRES_ENABLED" "${EXTERNAL_POSTGRES_ENABLED:-}" "false"
 ensure_prod_default "EXTERNAL_POSTGRES_ALLOW_PLAINTEXT" "${EXTERNAL_POSTGRES_ALLOW_PLAINTEXT:-}" "false" "true"
 ensure_value "EXTERNAL_DATASTORE_NETWORK" "${EXTERNAL_DATASTORE_NETWORK:-}" ""
+ensure_value "EXTERNAL_POSTGRES_PITR_EVIDENCE_FILE" "${EXTERNAL_POSTGRES_PITR_EVIDENCE_FILE:-}" "/etc/stuhelper/external-postgres-pitr-evidence.json"
 ensure_prod_default \
   "DATABASE_URL" \
   "${DATABASE_URL:-}" \

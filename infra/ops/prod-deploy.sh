@@ -319,6 +319,10 @@ else
 fi
 "${SCRIPT_DIR}/render-redis-tls.sh"
 "${SCRIPT_DIR}/prepare-datastore-client-cas.sh"
+if [[ "${EXTERNAL_POSTGRES_ENABLED:-false}" == "true" ]]; then
+  require_external_postgres_pitr_evidence >/dev/null
+  log "verified fresh cluster-bound external PostgreSQL continuous WAL/PITR evidence"
+fi
 "${SCRIPT_DIR}/render-redis-acl.sh"
 "${SCRIPT_DIR}/render-observability.sh" prod
 

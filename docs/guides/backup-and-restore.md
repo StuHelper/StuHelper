@@ -136,7 +136,37 @@ sudo ./infra/ops/install-backup-timers.sh
 **evidence 通过不等于 PITR 已验收。**它证明近期工件存在、完整且能从远端取回；仍须按下方
 演练清单，在隔离实例实际启动恢复后的 PGDATA，并在目标时间点恢复场景中验证 WAL 连续性。
 
-使用 `EXTERNAL_POSTGRES_ENABLED=true` 时，StuHelper 不拥有外部实例的实时 WAL volume，因此仓库脚本只同步 logical dump 和包含流式 WAL 的一致性 base backup，不会创建或读取本地 WAL 卷。外部平台的连续 WAL 归档、保留策略、故障域和 PITR 演练必须由其 DBA/供应商单独验收并留证。
+使用 `EXTERNAL_POSTGRES_ENABLED=true` 时，StuHelper 不拥有外部实例的实时 WAL volume，因此仓库脚本只同步 logical dump 和包含流式 WAL 的一致性 base backup，不会创建或读取本地 WAL 卷。外部平台的连续 WAL 归档、保留策略、故障域和 PITR 演练必须由其 DBA/供应商单独验收并留证；只有下述机器可验证的证据通过，部署和同步才会继续。
+
+外部平台的 root 管理任务必须原子刷新 `/etc/stuhelper/external-postgres-pitr-evidence.json`。目录和文件 owner 必须是 root，且 group/other 不可写；部署用户只需只读权限。该文件不得由 StuHelper 发布流程自我签发，也不得放入 Git 或 secret env。证据结构如下（示例值不是生产事实）：
+
+```json
+{
+  "schemaVersion": 1,
+  "evidenceId": "provider-check-20260803T025000Z",
+  "provider": "external-postgres-platform",
+  "evidenceUri": "https://evidence.example.com/postgres/check-20260803T025000Z",
+  "clusterSystemIdentifier": "1234567890123456789",
+  "observedAt": "2026-08-03T02:50:00Z",
+  "expiresAt": "2026-08-03T03:30:00Z",
+  "continuousArchiving": {
+    "enabled": true,
+    "offHost": true,
+    "rpoSeconds": 900,
+    "retentionHours": 168,
+    "lastArchivedAt": "2026-08-03T02:45:00Z"
+  },
+  "restoreDrill": {
+    "status": "passed",
+    "completedAt": "2026-07-15T12:00:00Z",
+    "isolatedTarget": true,
+    "baseBackupVerified": true,
+    "walReplayVerified": true
+  }
+}
+```
+
+门禁会实时读取当前外部集群的 `pg_control_system().system_identifier` 并与证据精确比较；外部 DBA 需要允许 `stuhelper_backup` 执行这个只读系统信息函数。证据观测与最新 WAL 均不得超过 30 分钟，`rpoSeconds` 不得大于 900，异机保留不得少于 168 小时，证据有效期不得超过一小时，隔离恢复演练不得早于 90 天。`evidenceUri` 必须是无内嵌凭据和 fragment 的 HTTPS 报告地址。任一条件不满足时，不允许用布尔确认或 logical/base backup 绕过。
 
 对象存储“可取回”也不自动代表异机灾备：同一生产主机上的 MinIO 会与数据库一起丢失。生产配置
 只有在备份端点位于独立故障域、且已验证生产主机完全丢失后仍可访问时，才能设置
