@@ -281,9 +281,54 @@ require_integer_range() {
   fi
 }
 
+is_process_control_environment_key() {
+  local key="$1"
+
+  case "${key}" in
+    PATH | IFS | CDPATH | BASH_ENV | ENV | BASHOPTS | SHELLOPTS | GLOBIGNORE | \
+      GCONV_PATH | LOCPATH | NLSPATH | \
+      NODE_OPTIONS | NODE_PATH | \
+      PERL5LIB | PERLLIB | PERL5OPT | \
+      RUBYLIB | RUBYOPT | \
+      JAVA_TOOL_OPTIONS | _JAVA_OPTIONS | JDK_JAVA_OPTIONS | \
+      GIT_EXEC_PATH | GIT_SSH | GIT_SSH_COMMAND | \
+      SSH_ASKPASS | SSH_ASKPASS_REQUIRE | \
+      LD_* | DYLD_* | PYTHON*)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+clear_process_control_environment() {
+  local key
+
+  # PATH is a caller-owned control-plane input and production systemd units pin
+  # it explicitly. Environment files still cannot replace it. BASHOPTS and
+  # SHELLOPTS are readonly Bash state, so they are rejected in files but cannot
+  # be unset after the shell has started.
+  while IFS= read -r key; do
+    case "${key}" in
+      PATH | BASHOPTS | SHELLOPTS)
+        continue
+        ;;
+    esac
+    if is_process_control_environment_key "${key}"; then
+      unset "${key}"
+    fi
+  done < <(compgen -A variable)
+  unset IFS
+}
+
 source_env_file() {
   local file="$1"
   shift
+  # Clear inherited interpreter and dynamic-loader hooks before starting the
+  # Python parser. The validated file is then prevented from reintroducing any
+  # process-control variable before credential-bearing child processes run.
+  clear_process_control_environment
   [[ -f "${file}" ]] || return 0
 
   local rendered
@@ -296,6 +341,14 @@ from pathlib import Path
 path = Path(sys.argv[1])
 allowed_keys = set(sys.argv[2:])
 key_pattern = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+forbidden_exact_keys = {
+    "PATH", "IFS", "CDPATH", "BASH_ENV", "ENV", "BASHOPTS", "SHELLOPTS",
+    "GLOBIGNORE", "GCONV_PATH", "LOCPATH", "NLSPATH", "NODE_OPTIONS",
+    "NODE_PATH", "PERL5LIB", "PERLLIB", "PERL5OPT", "RUBYLIB", "RUBYOPT",
+    "JAVA_TOOL_OPTIONS", "_JAVA_OPTIONS", "JDK_JAVA_OPTIONS", "GIT_EXEC_PATH",
+    "GIT_SSH", "GIT_SSH_COMMAND", "SSH_ASKPASS", "SSH_ASKPASS_REQUIRE",
+}
+forbidden_prefixes = ("LD_", "DYLD_", "PYTHON")
 rendered_assignments = []
 
 for lineno, line in enumerate(path.read_text().splitlines(), 1):
@@ -310,9 +363,9 @@ for lineno, line in enumerate(path.read_text().splitlines(), 1):
     key = key.strip()
     if not key_pattern.fullmatch(key):
         raise SystemExit(f"{path}:{lineno}: invalid env key: {key}")
-    if key in {"BASH_ENV", "ENV"}:
+    if key in forbidden_exact_keys or key.startswith(forbidden_prefixes):
         raise SystemExit(
-            f"{path}:{lineno}: shell startup variable {key} is not allowed in StuHelper environment files"
+            f"{path}:{lineno}: process-control variable {key} is not allowed in StuHelper environment files"
         )
     if allowed_keys and key not in allowed_keys:
         raise SystemExit(
@@ -342,7 +395,7 @@ PY
 
   # shellcheck disable=SC1091
   source /dev/stdin <<<"${rendered}"
-  unset BASH_ENV ENV
+  clear_process_control_environment
 }
 
 source_casdoor_bootstrap_env_file() {
@@ -402,6 +455,7 @@ source_release_record_env_file() {
     ADMIN_IMAGE_REF
   )
 
+  clear_process_control_environment
   if ! diagnostic="$(python3 - "${file}" "${required_keys[@]}" 2>&1 <<'PY'
 import re
 import sys
@@ -1725,7 +1779,7 @@ load_env() {
   if [[ "${preserved_frontend_image_ref}" != "__STUHELPER_UNSET__" ]]; then export FRONTEND_IMAGE_REF="${preserved_frontend_image_ref}"; fi
   if [[ "${preserved_admin_image_ref}" != "__STUHELPER_UNSET__" ]]; then export ADMIN_IMAGE_REF="${preserved_admin_image_ref}"; fi
   set +a
-  unset BASH_ENV ENV
+  clear_process_control_environment
 }
 
 load_env_preserving() {
@@ -1747,7 +1801,7 @@ load_env_preserving() {
     export "${key}"
   done
   materialize_postgres_runtime_urls
-  unset BASH_ENV ENV
+  clear_process_control_environment
 }
 
 load_remote_deploy_config() {
@@ -1773,7 +1827,7 @@ load_remote_deploy_config() {
   if [[ "${preserved_registry_username}" != "__STUHELPER_UNSET__" ]]; then export REGISTRY_USERNAME="${preserved_registry_username}"; fi
   if [[ "${preserved_registry_password}" != "__STUHELPER_UNSET__" ]]; then export REGISTRY_PASSWORD="${preserved_registry_password}"; fi
   set +a
-  unset BASH_ENV ENV
+  clear_process_control_environment
 }
 
 compose() {

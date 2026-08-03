@@ -18,6 +18,11 @@ assert_contains() {
 }
 
 [[ -x "${PROBE_SCRIPT}" ]] || fail "probe script must be executable"
+assert_contains 'source "${SCRIPT_DIR}/lib/common.sh"'
+assert_contains 'source_env_file "${ENV_FILE}"'
+if grep -Fq 'source "${ENV_FILE}"' "${PROBE_SCRIPT}"; then
+  fail "probe script must not execute the environment file as shell code"
+fi
 assert_contains "CASDOOR_TOKEN_PROBE_AUTH_CODE"
 assert_contains "CASDOOR_TOKEN_PROBE_OUTPUT"
 assert_contains "json emits probe evidence on stdout"

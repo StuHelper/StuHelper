@@ -5,6 +5,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 ENV_FILE="${ENV_FILE:-${REPO_ROOT}/.env}"
 CURL_TIMEOUT_SECONDS="${CASDOOR_PROBE_CURL_TIMEOUT_SECONDS:-10}"
+# shellcheck source=lib/common.sh
+source "${SCRIPT_DIR}/lib/common.sh"
 
 usage() {
   cat <<'USAGE'
@@ -57,11 +59,10 @@ require_cmd() {
   command -v "$1" >/dev/null 2>&1 || fail "missing required command: $1"
 }
 
-source_env_file() {
+load_probe_env() {
   if [[ -f "${ENV_FILE}" ]]; then
     set -a
-    # shellcheck disable=SC1090
-    source "${ENV_FILE}"
+    source_env_file "${ENV_FILE}"
     set +a
   else
     warn "env file not found: ${ENV_FILE}; relying on process environment"
@@ -219,7 +220,7 @@ run_refresh_rotation_probe() {
 main() {
   require_cmd curl
   require_cmd python3
-  source_env_file
+  load_probe_env
   require_base_config
 
   local metadata_url metadata authorization_endpoint token_endpoint step_up_url id_token

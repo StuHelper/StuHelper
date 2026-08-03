@@ -14,24 +14,51 @@ fail() {
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "${tmpdir}"' EXIT
 
-for key in BASH_ENV ENV; do
+for key in \
+  BASH_ENV \
+  ENV \
+  PATH \
+  IFS \
+  PYTHONPATH \
+  LD_PRELOAD \
+  DYLD_INSERT_LIBRARIES \
+  GCONV_PATH \
+  NODE_OPTIONS \
+  PERL5OPT \
+  RUBYOPT \
+  JAVA_TOOL_OPTIONS \
+  GIT_EXEC_PATH \
+  SSH_ASKPASS; do
   startup_env="${tmpdir}/${key}.env"
   printf '%s=/dev/null\n' "${key}" >"${startup_env}"
   if (source_env_file "${startup_env}") >"${tmpdir}/${key}.log" 2>&1; then
-    fail "source_env_file accepted forbidden shell startup variable ${key}"
+    fail "source_env_file accepted forbidden process-control variable ${key}"
   fi
-  grep -q "shell startup variable ${key} is not allowed" "${tmpdir}/${key}.log" ||
+  grep -q "process-control variable ${key} is not allowed" "${tmpdir}/${key}.log" ||
     fail "${key} rejection did not explain the protected boundary"
 done
 
 printf 'STACK_NAME=source-env-contract\n' >"${tmpdir}/safe.env"
+mkdir -p "${tmpdir}/python-hook"
+cat >"${tmpdir}/python-hook/sitecustomize.py" <<EOF
+from pathlib import Path
+Path(r"${tmpdir}/python-hook-executed").write_text("unsafe")
+EOF
+original_path="${PATH}"
 export BASH_ENV=/dev/null
 export ENV=/dev/null
+export PYTHONPATH="${tmpdir}/python-hook"
+export LD_LIBRARY_PATH="${tmpdir}/dynamic-loader-hook"
+export NODE_OPTIONS=--require=/dev/null
 source_env_file "${tmpdir}/safe.env"
 [[ "${STACK_NAME}" == "source-env-contract" ]] ||
   fail "source_env_file did not export a validated assignment"
-[[ ! -v BASH_ENV && ! -v ENV ]] ||
-  fail "source_env_file allowed inherited shell startup hooks to survive"
+[[ "${PATH}" == "${original_path}" ]] ||
+  fail "source_env_file changed the caller-owned executable search path"
+[[ ! -v BASH_ENV && ! -v ENV && ! -v PYTHONPATH && ! -v LD_LIBRARY_PATH && ! -v NODE_OPTIONS ]] ||
+  fail "source_env_file allowed inherited process-control hooks to survive"
+[[ ! -e "${tmpdir}/python-hook-executed" ]] ||
+  fail "source_env_file started its Python parser before clearing inherited import hooks"
 
 cat >"${tmpdir}/bootstrap-safe.env" <<'EOF'
 CASDOOR_BOOTSTRAP_CLIENT_ID=contract-client
@@ -63,7 +90,7 @@ fi
 if grep -q 'contract-secret-must-not-leak' "${tmpdir}/bootstrap-secret-error.log"; then
   fail "source_env_file exposed an already parsed credential in its error output"
 fi
-grep -q 'environment key PATH is not allowed in this file' "${tmpdir}/bootstrap-secret-error.log" ||
+grep -q 'process-control variable PATH is not allowed in StuHelper environment files' "${tmpdir}/bootstrap-secret-error.log" ||
   fail "credential-file rejection lost its non-sensitive diagnostic"
 
 cat >"${tmpdir}/release.env" <<'EOF'
