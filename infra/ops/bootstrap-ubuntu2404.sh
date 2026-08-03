@@ -229,7 +229,7 @@ install_backup_timers() {
     return 0
   fi
 
-  log "deploy bundle not present yet, installing backup timers with bootstrap defaults"
+  log "deploy bundle not present yet, installing inactive backup timer units with bootstrap defaults"
 
   cat >/etc/systemd/system/stuhelper-postgres-dump-backup.service <<EOF
 [Unit]
@@ -369,7 +369,9 @@ WantedBy=timers.target
 EOF
 
   systemctl daemon-reload
-  systemctl enable --now stuhelper-postgres-dump-backup.timer stuhelper-postgres-basebackup.timer stuhelper-postgres-backup-sync.timer
+  systemctl disable --now stuhelper-postgres-dump-backup.timer stuhelper-postgres-basebackup.timer stuhelper-postgres-backup-sync.timer
+  systemctl reset-failed stuhelper-postgres-dump-backup.service stuhelper-postgres-basebackup.service stuhelper-postgres-backup-sync.service
+  log "backup timer units remain disabled until the deploy bundle and production configuration exist; re-run bootstrap after uploading the bundle"
 }
 
 main() {

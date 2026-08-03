@@ -201,6 +201,7 @@ WantedBy=timers.target
 EOF
 
   systemctl daemon-reload
+  systemctl reset-failed "${SYSTEMD_PREFIX}-postgres-dump-backup.service" "${SYSTEMD_PREFIX}-postgres-basebackup.service" "${SYSTEMD_PREFIX}-postgres-backup-sync.service"
   systemctl enable --now "${SYSTEMD_PREFIX}-postgres-dump-backup.timer" "${SYSTEMD_PREFIX}-postgres-basebackup.timer" "${SYSTEMD_PREFIX}-postgres-backup-sync.timer"
 
   echo "[install-backup-timers] installed:"
