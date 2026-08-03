@@ -1107,6 +1107,29 @@ assert_contains "${scheduled_fixture}/deferred.out" 'no committed release or dat
 [[ ! -e "${scheduled_capture}" ]] ||
   fail "scheduled sync crossed an operational gate before the first committed release"
 
+deploy_lock_ready="${scheduled_fixture}/deploy-lock-ready.fifo"
+deploy_lock_release="${scheduled_fixture}/deploy-lock-release.fifo"
+mkfifo "${deploy_lock_ready}" "${deploy_lock_release}"
+(
+  exec {fixture_deploy_lock_fd}<"${scheduled_fixture}/.deploy"
+  flock --exclusive "${fixture_deploy_lock_fd}"
+  printf 'ready\n' >"${deploy_lock_ready}"
+  IFS= read -r _ <"${deploy_lock_release}"
+) &
+fixture_deploy_lock_pid=$!
+IFS= read -r _ <"${deploy_lock_ready}"
+PATH="${scheduled_path}" \
+SCHEDULED_CAPTURE_FILE="${scheduled_capture}" \
+SCHEDULED_FAKE_DATABASE_STATE=container \
+STACK_NAME=contract \
+  "${scheduled_fixture}/infra/ops/run-scheduled-backup.sh" sync \
+    >"${scheduled_fixture}/active-deploy.out"
+assert_contains "${scheduled_fixture}/active-deploy.out" 'production deployment holds the release lock'
+[[ ! -e "${scheduled_capture}" ]] ||
+  fail "scheduled sync crossed an operational gate during an active first deployment"
+printf 'release\n' >"${deploy_lock_release}"
+wait "${fixture_deploy_lock_pid}"
+
 if PATH="${scheduled_path}" \
   SCHEDULED_CAPTURE_FILE="${scheduled_capture}" \
   EXTERNAL_POSTGRES_ENABLED=true \
