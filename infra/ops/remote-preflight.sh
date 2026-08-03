@@ -24,15 +24,23 @@ require_cmd python3
 require_cmd openssl
 require_cmd systemctl
 require_cmd id
+require_cmd getent
 
 backup_service_user="$(id -un)"
-backup_service_group="$(id -gn)"
 backup_service_uid="$(id -u)"
-backup_service_gid="$(id -g)"
+backup_service_group="${BACKUP_SERVICE_GROUP:-}"
+backup_service_group_record=""
+backup_service_gid=""
 [[ "${backup_service_user}" != "root" && "${EUID}" -ne 0 && "${backup_service_uid}" != "0" ]] ||
   die "remote production preflight must run as the non-root deploy user"
-[[ "${backup_service_group}" != "root" && "${backup_service_gid}" != "0" ]] ||
-  die "remote production preflight requires a non-root deploy primary group"
+[[ -n "${backup_service_group}" && "${backup_service_group}" != "root" && \
+  "${backup_service_group}" != "0" ]] ||
+  die "remote production preflight requires BACKUP_SERVICE_GROUP to name the configured non-root service group"
+backup_service_group_record="$(getent group "${backup_service_group}")" ||
+  die "configured backup service group does not exist: ${backup_service_group}"
+IFS=: read -r _ _ backup_service_gid _ <<<"${backup_service_group_record}"
+[[ "${backup_service_gid}" =~ ^[0-9]+$ && "${backup_service_gid}" != "0" ]] ||
+  die "configured backup service group must not resolve to gid 0"
 
 if [[ -n "${SHARED_ENV_SECRET_REF:-}" && -z "${SECRET_BACKEND:-}" ]]; then
   die "SECRET_BACKEND must be set when SHARED_ENV_SECRET_REF is provided"

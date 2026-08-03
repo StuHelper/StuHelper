@@ -41,6 +41,11 @@ if [[ -z "${default_secret_backend}" || "${default_secret_backend}" == "none" ]]
   default_secret_backend="vault-kv-v2"
 fi
 
+default_backup_service_group="${BACKUP_SERVICE_GROUP:-$(id -gn)}"
+[[ -n "${default_backup_service_group}" && "${default_backup_service_group}" != "root" && \
+  "${default_backup_service_group}" != "0" ]] ||
+  die "BACKUP_SERVICE_GROUP must identify the configured non-root production backup service group"
+
 if [[ -f "${config_file}" ]]; then
   (source_remote_deploy_config_env_file "${config_file}")
 fi
@@ -51,6 +56,7 @@ DEFAULT_REGISTRY="${REGISTRY:-REPLACE_WITH_REGISTRY_HOST}" \
 DEFAULT_REGISTRY_AUTH_MODE="${REGISTRY_AUTH_MODE:-workflow-token}" \
 DEFAULT_REGISTRY_USERNAME_SECRET_REF="${REGISTRY_USERNAME_SECRET_REF:-secret/stuhelper/prod/registry-username}" \
 DEFAULT_REGISTRY_PASSWORD_SECRET_REF="${REGISTRY_PASSWORD_SECRET_REF:-secret/stuhelper/prod/registry-password}" \
+DEFAULT_BACKUP_SERVICE_GROUP="${default_backup_service_group}" \
 DEFAULT_ENV_FILE="${default_env_file}" \
 DEFAULT_SECRETS_ENV_FILE="${default_secrets_env_file}" \
 DEFAULT_GENERATED_ENV_FILE="${default_generated_env_file}" \
@@ -87,6 +93,7 @@ defaults = {
     "REGISTRY_AUTH_MODE": os.environ["DEFAULT_REGISTRY_AUTH_MODE"],
     "REGISTRY_USERNAME_SECRET_REF": os.environ["DEFAULT_REGISTRY_USERNAME_SECRET_REF"],
     "REGISTRY_PASSWORD_SECRET_REF": os.environ["DEFAULT_REGISTRY_PASSWORD_SECRET_REF"],
+    "BACKUP_SERVICE_GROUP": os.environ["DEFAULT_BACKUP_SERVICE_GROUP"],
     "ENV_FILE": os.environ["DEFAULT_ENV_FILE"],
     "SECRETS_ENV_FILE": os.environ["DEFAULT_SECRETS_ENV_FILE"],
     "GENERATED_ENV_FILE": os.environ["DEFAULT_GENERATED_ENV_FILE"],

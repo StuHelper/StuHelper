@@ -35,6 +35,7 @@ bash "${TARGET_SCRIPT}" >/dev/null
 
 assert_contains "${default_cfg}" "ENV_FILE=${REPO_ROOT}/.env.prod.shared"
 assert_contains "${default_cfg}" "REGISTRY_AUTH_MODE=workflow-token"
+assert_contains "${default_cfg}" "BACKUP_SERVICE_GROUP=$(id -gn)"
 assert_contains "${default_cfg}" "SECRETS_ENV_FILE=${REPO_ROOT}/.env.prod.secrets"
 assert_contains "${default_cfg}" "GENERATED_ENV_FILE=${REPO_ROOT}/.env.prod.generated"
 assert_contains "${default_cfg}" "GENERATED_SECRET_ENV_FILE=${REPO_ROOT}/.env.prod.generated.secrets"
@@ -51,6 +52,7 @@ assert_contains "${default_cfg}" "VAULT_RUNTIME_TOKEN_MIN_TTL_SECONDS=43200"
 override_cfg="${tmpdir}/override.remote.env"
 REMOTE_DEPLOY_CONFIG_FILE="${override_cfg}" \
 REGISTRY_AUTH_MODE="persistent-secret" \
+BACKUP_SERVICE_GROUP="deployment" \
 ENV_FILE="/srv/stuhelper/shared.env" \
 SECRETS_ENV_FILE="/srv/stuhelper/secrets.env" \
 GENERATED_ENV_FILE="/srv/stuhelper/generated.env" \
@@ -71,6 +73,7 @@ bash "${TARGET_SCRIPT}" >/dev/null
 
 assert_contains "${override_cfg}" "ENV_FILE=/srv/stuhelper/shared.env"
 assert_contains "${override_cfg}" "REGISTRY_AUTH_MODE=persistent-secret"
+assert_contains "${override_cfg}" "BACKUP_SERVICE_GROUP=deployment"
 assert_contains "${override_cfg}" "SECRETS_ENV_FILE=/srv/stuhelper/secrets.env"
 assert_contains "${override_cfg}" "GENERATED_ENV_FILE=/srv/stuhelper/generated.env"
 assert_contains "${override_cfg}" "GENERATED_SECRET_ENV_FILE=/srv/stuhelper/generated.secrets.env"
