@@ -49,6 +49,11 @@ assert_contains "${INSTALLER}" 'OnUnitInactiveSec=12h'
 assert_contains "${INSTALLER}" 'NoNewPrivileges=true'
 assert_contains "${INSTALLER}" 'ProtectSystem=strict'
 assert_contains "${INSTALLER}" 'CapabilityBoundingSet='
+assert_contains "${INSTALLER}" 'service_unit="stuhelper-vault-token-renewal\.service"'
+assert_contains "${INSTALLER}" 'timer_unit="stuhelper-vault-token-renewal\.timer"'
+if grep -q 'SYSTEMD_PREFIX' "${INSTALLER}"; then
+  fail "Vault renewal installer must use the fixed unit names required by production preflight"
+fi
 assert_contains "${MAKEFILE}" '^prod-vault-runtime-token:'
 
 tmpdir="$(mktemp -d)"
