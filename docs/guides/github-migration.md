@@ -58,7 +58,7 @@ last-verified: 2026-08-03
 
 所有外部 Action 必须固定到完整 commit SHA，并在注释中保留对应主版本。公开 fork 的 PR 不得使用 `pull_request_target` 检出或运行不受信任代码。
 
-依赖更新由 `.github/dependabot.yml` 每周检查 GitHub Actions、Go modules、三个 JavaScript workspace 和 Docker 基础镜像。Dependabot PR 仍必须经过相同的 review、测试和安全门禁，不允许自动绕过 ruleset。
+依赖更新由 `.github/dependabot.yml` 每周检查 GitHub Actions、Go modules、三个 JavaScript workspace 和 Docker 基础镜像。所有常规 version-update 配置都显式使用 `target-branch: develop`，CI 的 `scripts/check-dependabot-policy.sh` 会逐块验证，避免自动更新绕过集成分支直接进入 `main`。GitHub 的 `target-branch` 不改变 Dependabot security update 的默认分支规则，因此安全更新仍可能直接以 `main` 为目标，必须人工复核后同步回 `develop`。无论目标分支，Dependabot PR 都必须经过相同的 review、测试和安全门禁，不允许自动绕过 ruleset。
 
 ## 仓库设置
 
