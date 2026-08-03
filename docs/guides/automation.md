@@ -207,6 +207,12 @@ cd /opt/stuhelper
 ./infra/ops/init-remote-deploy-config.sh
 ```
 
+完整主机 bootstrap 可以安全重复执行：它调用初始化器时固定使用
+`REMOTE_DEPLOY_CONFIG_PRESERVE_EXISTING=true`，已有 `remote.env` 中已经出现的字段（包括显式空值）
+优先于 bootstrap 的占位/default 输入，仅对新版本新增而现场缺失的键补默认值；deploy bundle 尚不可用的后备路径则
+直接保留已有文件。需要有意修改控制面值时，应由部署用户单独运行初始化器并显式传入新值，不能借重跑 bootstrap
+覆盖现场配置。
+
 Vault 已初始化、解封并写入三条 secret ref 后，由 root 一次性收敛运行权限并安装续期 timer：
 
 ```bash

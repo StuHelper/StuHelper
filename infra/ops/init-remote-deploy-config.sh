@@ -6,6 +6,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/common.sh"
 
 config_file="${REMOTE_DEPLOY_CONFIG_FILE:-${DEPLOY_STATE_DIR}/remote.env}"
+preserve_existing="${REMOTE_DEPLOY_CONFIG_PRESERVE_EXISTING:-false}"
+case "${preserve_existing}" in
+  true | false) ;;
+  *) die "REMOTE_DEPLOY_CONFIG_PRESERVE_EXISTING must be true or false" ;;
+esac
 common_default_env_file="${REPO_ROOT}/.env"
 common_default_generated_env_file="${REPO_ROOT}/.env.generated"
 common_default_generated_secret_env_file="${REPO_ROOT}/.env.generated.secrets"
@@ -73,6 +78,7 @@ DEFAULT_VAULT_KV_MOUNT="${VAULT_KV_MOUNT:-secret}" \
 DEFAULT_VAULT_RUNTIME_TOKEN_POLICY="${VAULT_RUNTIME_TOKEN_POLICY:-stuhelper-production-deploy}" \
 DEFAULT_VAULT_RUNTIME_TOKEN_PERIOD_SECONDS="${VAULT_RUNTIME_TOKEN_PERIOD_SECONDS:-259200}" \
 DEFAULT_VAULT_RUNTIME_TOKEN_MIN_TTL_SECONDS="${VAULT_RUNTIME_TOKEN_MIN_TTL_SECONDS:-43200}" \
+DEFAULT_PRESERVE_EXISTING="${preserve_existing}" \
 python3 - "${config_file}" <<'PY'
 from pathlib import Path
 import os
@@ -114,8 +120,12 @@ defaults = {
 
 keys = list(defaults.keys())
 result = {}
+preserve_existing = os.environ["DEFAULT_PRESERVE_EXISTING"] == "true"
 for key in keys:
-    result[key] = os.environ.get(key, "") or existing.get(key, "") or defaults[key]
+    if preserve_existing and key in existing:
+        result[key] = existing[key]
+    else:
+        result[key] = os.environ.get(key, "") or existing.get(key, "") or defaults[key]
 
 path.write_text(
     "# Remote-owned deploy control plane for StuHelper.\n"
