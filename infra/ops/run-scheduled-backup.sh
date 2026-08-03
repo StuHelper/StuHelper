@@ -21,11 +21,44 @@ protected_bash=(
   --norc
 )
 
+case "${MODE}" in
+  dump | basebackup | sync) ;;
+  *) die "unsupported backup mode: ${MODE} (expected dump, basebackup, or sync)" ;;
+esac
+
+# Timers may be activated after configuration is ready but before the first
+# datastore deployment finishes. In that narrow bootstrap window there is no
+# committed production release to protect, so a scheduled invocation is a
+# successful no-op. Once current-release.env exists, validate that it is the
+# exact immutable per-tag record before allowing any scheduled backup work.
+current_release_file="${DEPLOY_STATE_DIR}/current-release.env"
+if [[ ! -e "${current_release_file}" && ! -L "${current_release_file}" ]]; then
+  log "scheduled PostgreSQL ${MODE} deferred: no committed production release exists yet"
+  exit 0
+fi
+if [[ ! -f "${current_release_file}" || -L "${current_release_file}" ]]; then
+  die "committed release marker must be a regular non-symlink file: ${current_release_file}"
+fi
+(
+  source_release_record_env_file "${current_release_file}"
+  immutable_release_file="${DEPLOY_STATE_DIR}/releases/${TAG}.env"
+  [[ -f "${immutable_release_file}" && ! -L "${immutable_release_file}" ]] ||
+    die "committed release is missing its immutable per-tag record: ${immutable_release_file}"
+  cmp -s "${current_release_file}" "${immutable_release_file}" ||
+    die "committed release marker does not match its immutable per-tag record"
+)
+
 case "${BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED:-false}" in
   true) require_off_host_backup_object_storage ;;
   false|"") ;;
   *) die "BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED must be true or false" ;;
 esac
+
+if [[ "${MODE}" == "sync" ]]; then
+  "${protected_bash[@]}" "${SCRIPT_DIR}/sync-postgres-backups.sh"
+  log "scheduled PostgreSQL backup sync completed"
+  exit 0
+fi
 
 [[ -n "${BACKUP_DATABASE_URL:-}" ]] || die "BACKUP_DATABASE_URL is required"
 [[ -n "${REPLICATION_DATABASE_URL:-}" ]] || die "REPLICATION_DATABASE_URL is required"
@@ -53,9 +86,6 @@ case "${MODE}" in
     backup_dir="${BACKUP_BASE_DIR:-${REPO_ROOT}/backups/postgres/base}"
     backup_extension="tar.gz"
     retention_days="${BACKUP_BASE_RETENTION_DAYS:-30}"
-    ;;
-  *)
-    die "unsupported backup mode: ${MODE} (expected dump or basebackup)"
     ;;
 esac
 

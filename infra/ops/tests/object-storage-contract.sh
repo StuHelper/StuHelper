@@ -1047,6 +1047,68 @@ assert_contains "${external_sync_capture}" '^external-pitr-evidence-verified$'
 assert_not_contains "${external_sync_capture}" 'target:contract-backup/postgres/wal|unexpected-local-wal-validation'
 assert_contains "${external_fixture}/sync.out" 'fresh cluster-bound continuous WAL/PITR evidence was verified'
 
+scheduled_fixture="${tmpdir}/scheduled-fixture"
+scheduled_capture="${scheduled_fixture}/capture"
+mkdir -p "${scheduled_fixture}/infra/ops/lib" "${scheduled_fixture}/.deploy/releases"
+cp "${SCHEDULED_BACKUP}" "${scheduled_fixture}/infra/ops/run-scheduled-backup.sh"
+chmod +x "${scheduled_fixture}/infra/ops/run-scheduled-backup.sh"
+cat >"${scheduled_fixture}/infra/ops/lib/common.sh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+COMMON_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${COMMON_LIB_DIR}/../../.." && pwd)"
+DEPLOY_STATE_DIR="${DEPLOY_STATE_DIR:-${REPO_ROOT}/.deploy}"
+load_env_preserving() { :; }
+require_cmd() { :; }
+require_off_host_backup_object_storage() { printf 'off-host-gate\n' >>"${SCHEDULED_CAPTURE_FILE}"; }
+source_release_record_env_file() {
+  local file="$1"
+  TAG="$(sed -n 's/^TAG=//p' "${file}")"
+  [[ -n "${TAG}" ]] || die "missing fixture release tag"
+  export TAG
+}
+log() { printf '[fixture] %s\n' "$*"; }
+die() { printf '[fixture][error] %s\n' "$*" >&2; exit 1; }
+EOF
+cat >"${scheduled_fixture}/infra/ops/sync-postgres-backups.sh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'sync\n' >>"${SCHEDULED_CAPTURE_FILE}"
+EOF
+chmod +x "${scheduled_fixture}/infra/ops/sync-postgres-backups.sh"
+
+SCHEDULED_CAPTURE_FILE="${scheduled_capture}" \
+BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true \
+  "${scheduled_fixture}/infra/ops/run-scheduled-backup.sh" sync >"${scheduled_fixture}/deferred.out"
+assert_contains "${scheduled_fixture}/deferred.out" 'no committed production release exists yet'
+[[ ! -e "${scheduled_capture}" ]] ||
+  fail "scheduled sync crossed an operational gate before the first committed release"
+
+cat >"${scheduled_fixture}/.deploy/current-release.env" <<'EOF'
+TAG=contract-release
+DEPLOYED_AT=2026-08-03T00:00:00Z
+BACKEND_IMAGE_REF=backend
+FRONTEND_IMAGE_REF=frontend
+ADMIN_IMAGE_REF=admin
+EOF
+cp \
+  "${scheduled_fixture}/.deploy/current-release.env" \
+  "${scheduled_fixture}/.deploy/releases/contract-release.env"
+SCHEDULED_CAPTURE_FILE="${scheduled_capture}" \
+BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true \
+  "${scheduled_fixture}/infra/ops/run-scheduled-backup.sh" sync >"${scheduled_fixture}/committed.out"
+assert_contains "${scheduled_capture}" '^off-host-gate$'
+assert_contains "${scheduled_capture}" '^sync$'
+
+printf '\n' >>"${scheduled_fixture}/.deploy/current-release.env"
+if SCHEDULED_CAPTURE_FILE="${scheduled_capture}" \
+  BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true \
+  "${scheduled_fixture}/infra/ops/run-scheduled-backup.sh" sync \
+  >"${scheduled_fixture}/mismatched.out" 2>"${scheduled_fixture}/mismatched.err"; then
+  fail "scheduled sync accepted a release marker that differs from its immutable record"
+fi
+assert_contains "${scheduled_fixture}/mismatched.err" 'does not match its immutable per-tag record'
+
 if ! python3 - "${FETCH_BACKUPS}" <<'PY'
 from pathlib import Path
 import sys
@@ -1067,9 +1129,10 @@ from pathlib import Path
 import sys
 
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
+release_marker = source.index('current-release.env')
 gate = source.index("true) require_off_host_backup_object_storage")
 backup = source.index('BACKUP_MODE="${MODE}"')
-sync = source.index('"${SCRIPT_DIR}/sync-postgres-backups.sh"')
+sync = source.index('"${SCRIPT_DIR}/sync-postgres-backups.sh"', backup)
 mutations = (
     'mkdir -p "${backup_dir}"',
     'BACKUP_MODE="${MODE}"',
@@ -1078,6 +1141,10 @@ deletions = (
     'prune_old_backups "${backup_dir}"',
     "docker run --rm",
 )
+if release_marker >= gate:
+    raise SystemExit("scheduled work must defer before its off-host gate when no release is committed")
+if 'dump | basebackup | sync' not in source:
+    raise SystemExit("scheduled wrapper must cover dump, basebackup, and sync timer modes")
 for mutation in mutations:
     position = source.index(mutation)
     if gate >= position:

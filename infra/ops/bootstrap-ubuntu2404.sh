@@ -351,7 +351,7 @@ Environment=GENERATED_SECRET_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.generated.secr
 Environment=LOCAL_STATE_DIR=/var/lib/stuhelper
 Environment=BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true
 UnsetEnvironment=LD_PRELOAD LD_LIBRARY_PATH LD_AUDIT GCONV_PATH LOCPATH
-ExecStart=/usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.shared SECRETS_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.secrets GENERATED_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.generated GENERATED_SECRET_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.generated.secrets LOCAL_STATE_DIR=/var/lib/stuhelper BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true /bin/bash --noprofile --norc ./infra/ops/sync-postgres-backups.sh
+ExecStart=/usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.shared SECRETS_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.secrets GENERATED_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.generated GENERATED_SECRET_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.generated.secrets LOCAL_STATE_DIR=/var/lib/stuhelper BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true /bin/bash --noprofile --norc ./infra/ops/run-scheduled-backup.sh sync
 EOF
 
   cat >/etc/systemd/system/stuhelper-postgres-backup-sync.timer <<EOF
