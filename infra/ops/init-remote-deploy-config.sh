@@ -41,6 +41,10 @@ if [[ -z "${default_secret_backend}" || "${default_secret_backend}" == "none" ]]
   default_secret_backend="vault-kv-v2"
 fi
 
+if [[ -f "${config_file}" ]]; then
+  (source_remote_deploy_config_env_file "${config_file}")
+fi
+
 mkdir -p "$(dirname "${config_file}")"
 
 DEFAULT_REGISTRY="${REGISTRY:-REPLACE_WITH_REGISTRY_HOST}" \
