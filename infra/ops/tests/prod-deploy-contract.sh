@@ -195,6 +195,10 @@ if (( release_identity_migration_line <= release_state_migration_line || release
 fi
 grep -qF 'deployment_attempt_id="$(new_deployment_attempt_id)"' "${PROD_DEPLOY_FILE}" ||
   fail "production backups must use a unique activation identifier"
+grep -qF 'predeploy_backup_dir="${BACKUP_LOGICAL_DIR:-${REPO_ROOT}/backups/postgres/logical}"' "${PROD_DEPLOY_FILE}" ||
+  fail "pre-deploy logical backups must use the directory consumed by backup sync and evidence"
+grep -qF 'predeploy_basebackup_dir="${BACKUP_BASE_DIR:-${REPO_ROOT}/backups/postgres/base}"' "${PROD_DEPLOY_FILE}" ||
+  fail "pre-deploy physical backups must use the directory consumed by backup sync and evidence"
 grep -qF 'predeploy-${TAG}-${deployment_attempt_id}.dump' "${PROD_DEPLOY_FILE}" ||
   fail "pre-deploy backup paths must not collide when a release tag is reactivated"
 grep -qF 'predeploy-${TAG}-${deployment_attempt_id}.tar.gz' "${PROD_DEPLOY_FILE}" ||
