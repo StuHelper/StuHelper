@@ -517,6 +517,29 @@ source_remote_deploy_config_env_file() {
     VAULT_RUNTIME_TOKEN_MIN_TTL_SECONDS
 }
 
+require_protected_backup_environment_paths() {
+  local index key actual expected
+  local -a keys=(
+    ENV_FILE
+    SECRETS_ENV_FILE
+    GENERATED_ENV_FILE
+    GENERATED_SECRET_ENV_FILE
+  )
+  local -a expected_paths=(
+    "${REPO_ROOT}/.env.prod.shared"
+    "${REPO_ROOT}/.env.prod.secrets"
+    "${REPO_ROOT}/.env.prod.generated"
+    "${REPO_ROOT}/.env.prod.generated.secrets"
+  )
+  for index in "${!keys[@]}"; do
+    key="${keys[${index}]}"
+    actual="${!key:-}"
+    expected="${expected_paths[${index}]}"
+    [[ "${actual}" == "${expected}" ]] ||
+      die "${key} must be exactly ${expected} for the protected production backup services"
+  done
+}
+
 require_digest_image_ref() {
   local key="$1"
   local value="${2:-}"

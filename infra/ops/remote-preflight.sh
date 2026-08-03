@@ -23,6 +23,7 @@ case "${preflight_phase}" in
 esac
 
 load_remote_deploy_config
+require_protected_backup_environment_paths
 BACKUP_STAGING_DIR="${BACKUP_STAGING_DIR:-/var/lib/stuhelper/postgres/backup-staging}"
 require_cmd docker
 require_cmd curl

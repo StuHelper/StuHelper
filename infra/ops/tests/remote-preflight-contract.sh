@@ -78,6 +78,9 @@ assert_contains "${COMMON_LIB_FILE}" 'discovery did not expose jwks_uri'
 assert_contains "${COMMON_LIB_FILE}" 'require_verified_postgres_ssl_mode "POSTGRES_INTERNAL_SSL_MODE"'
 assert_contains "${COMMON_LIB_FILE}" 'DB_SSL_MODE must be verify-full for production'
 assert_contains "${PREFLIGHT_FILE}" 'APP_ENV must be production for remote preflight'
+assert_contains "${PREFLIGHT_FILE}" 'require_protected_backup_environment_paths'
+assert_contains "${COMMON_LIB_FILE}" 'require_protected_backup_environment_paths\(\)'
+assert_contains "${COMMON_LIB_FILE}" 'must be exactly .*protected production backup services'
 assert_contains "${PREFLIGHT_FILE}" 'vault-runtime-token\.sh" check'
 assert_contains "${PREFLIGHT_FILE}" 'stuhelper-vault-token-renewal\.timer'
 assert_contains "${PREFLIGHT_FILE}" 'Vault runtime token renewal timer is not active'
@@ -273,6 +276,19 @@ cleanup() {
   rm -rf "${tmpdir}"
 }
 trap cleanup EXIT
+
+ENV_FILE="${REPO_ROOT}/.env.prod.shared"
+SECRETS_ENV_FILE="${REPO_ROOT}/.env.prod.secrets"
+GENERATED_ENV_FILE="${REPO_ROOT}/.env.prod.generated"
+GENERATED_SECRET_ENV_FILE="${REPO_ROOT}/.env.prod.generated.secrets"
+require_protected_backup_environment_paths
+ENV_FILE="${tmpdir}/custom-shared.env"
+if (require_protected_backup_environment_paths) >"${tmpdir}/custom-backup-env-path.out" 2>"${tmpdir}/custom-backup-env-path.err"; then
+  fail "protected backup environment accepted a control-plane path that differs from its systemd unit"
+fi
+grep -q 'ENV_FILE must be exactly' "${tmpdir}/custom-backup-env-path.err" ||
+  fail "protected backup environment path mismatch did not identify ENV_FILE"
+ENV_FILE="${REPO_ROOT}/.env.prod.shared"
 
 # Variables in the command string are intentionally expanded by the isolated child shell.
 # shellcheck disable=SC2016
