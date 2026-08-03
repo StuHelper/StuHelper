@@ -27,6 +27,15 @@ assert_not_contains() {
   fi
 }
 
+line_number() {
+  local file="$1"
+  local pattern="$2"
+  local line
+  line="$(grep -nF -- "${pattern}" "${file}" | head -n1 | cut -d: -f1)"
+  [[ -n "${line}" ]] || fail "expected ${file} to contain pattern: ${pattern}"
+  printf '%s\n' "${line}"
+}
+
 [[ -f "${BOOTSTRAP_SCRIPT}" ]] || fail "missing bootstrap script: ${BOOTSTRAP_SCRIPT}"
 
 bash -n "${BOOTSTRAP_SCRIPT}"
@@ -36,6 +45,7 @@ assert_contains "${BOOTSTRAP_SCRIPT}" 'DEPLOY_APP_DIR="\$\{DEPLOY_APP_DIR:-/opt/
 assert_contains "${BOOTSTRAP_SCRIPT}" 'CONFIGURE_UFW="\$\{CONFIGURE_UFW:-true\}"'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'INSTALL_BACKUP_TIMERS="\$\{INSTALL_BACKUP_TIMERS:-true\}"'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'BACKUP_STAGING_DIR="\$\{BACKUP_STAGING_DIR:-/var/lib/stuhelper/postgres/backup-staging\}"'
+assert_contains "${BOOTSTRAP_SCRIPT}" 'BACKUP_TIMERS_ACTIVATE="\$\{BACKUP_TIMERS_ACTIVATE:-false\}"'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'INSTALL_GO="\$\{INSTALL_GO:-true\}"'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'GO_VERSION="\$\{GO_VERSION:-1\.26\.5\}"'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'run as root \(sudo bash infra/ops/bootstrap-ubuntu2404\.sh\)'
@@ -148,6 +158,9 @@ assert_contains "${BACKUP_TIMER_INSTALLER}" 'DEPLOY_GROUP must be an explicit no
 assert_contains "${BACKUP_TIMER_INSTALLER}" 'DEPLOY_USER must not resolve to uid 0'
 assert_contains "${BACKUP_TIMER_INSTALLER}" 'DEPLOY_GROUP must not resolve to gid 0'
 assert_contains "${BACKUP_TIMER_INSTALLER}" 'BACKUP_STAGING_DIR="\$\{BACKUP_STAGING_DIR:-/var/lib/stuhelper/postgres/backup-staging\}"'
+assert_contains "${BACKUP_TIMER_INSTALLER}" 'BACKUP_TIMERS_ACTIVATE="\$\{BACKUP_TIMERS_ACTIVATE:-false\}"'
+assert_contains "${BACKUP_TIMER_INSTALLER}" 'BACKUP_TIMERS_ACTIVATE must be true or false'
+assert_contains "${BACKUP_TIMER_INSTALLER}" 'required deploy-bundle script is not executable'
 assert_contains "${BACKUP_TIMER_INSTALLER}" 'install -d -o "\$\{DEPLOY_USER\}".*-m 0700 "\$\{BACKUP_STAGING_DIR\}"'
 assert_contains "${BACKUP_TIMER_INSTALLER}" 'Environment=BACKUP_STAGING_DIR=\$\{BACKUP_STAGING_DIR\}'
 assert_contains "${BACKUP_TIMER_INSTALLER}" '^Unit=stuhelper-postgres-dump-backup\.service$'
@@ -187,7 +200,19 @@ assert_contains "${BACKUP_TIMER_INSTALLER}" '^TimeoutStartSec=12h$'
   fail "backup timer installer must start all backup services with an allowlisted empty environment"
 assert_not_contains "${BACKUP_TIMER_INSTALLER}" 'ExecStart=/bin/bash -lc'
 assert_contains "${BACKUP_TIMER_INSTALLER}" 'systemctl reset-failed stuhelper-postgres-dump-backup\.service stuhelper-postgres-basebackup\.service stuhelper-postgres-backup-sync\.service'
+assert_contains "${BACKUP_TIMER_INSTALLER}" 'runuser -u "\$\{DEPLOY_USER\}" -- env -i'
+assert_contains "${BACKUP_TIMER_INSTALLER}" 'remote-preflight\.sh" --timer-activation'
+assert_contains "${BACKUP_TIMER_INSTALLER}" 'timers were not activated'
 assert_contains "${BACKUP_TIMER_INSTALLER}" 'systemctl enable --now stuhelper-postgres-dump-backup\.timer'
 assert_not_contains "${BACKUP_TIMER_INSTALLER}" 'SYSTEMD_PREFIX'
+
+inactive_guard_line="$(line_number "${BACKUP_TIMER_INSTALLER}" 'if [[ "${BACKUP_TIMERS_ACTIVATE}" != "true" ]]')"
+disable_timer_line="$(line_number "${BACKUP_TIMER_INSTALLER}" 'systemctl disable --now stuhelper-postgres-dump-backup.timer')"
+reset_service_line="$(line_number "${BACKUP_TIMER_INSTALLER}" 'systemctl reset-failed stuhelper-postgres-dump-backup.service')"
+activation_preflight_line="$(line_number "${BACKUP_TIMER_INSTALLER}" 'remote-preflight.sh" --timer-activation')"
+enable_timer_line="$(line_number "${BACKUP_TIMER_INSTALLER}" 'systemctl enable --now stuhelper-postgres-dump-backup.timer')"
+if (( inactive_guard_line >= disable_timer_line || disable_timer_line >= reset_service_line || reset_service_line >= activation_preflight_line || activation_preflight_line >= enable_timer_line )); then
+  fail "backup timers must remain untouched by default and pass the non-root activation preflight before enablement"
+fi
 
 echo "[bootstrap-ubuntu2404-contract] all assertions passed"

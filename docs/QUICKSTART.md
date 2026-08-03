@@ -225,9 +225,11 @@ sudo bash infra/ops/bootstrap-ubuntu2404.sh
 
 这个脚本会一起装好 Docker / Compose、Go 1.26、部署目录、备份目录、`.deploy/remote.env`、Vault
 runtime token 占位文件，以及 PostgreSQL 逻辑备份 / base backup / backup sync unit。若
-`/opt/stuhelper` 中尚无 deploy bundle，后备 timer 只写入 unit、不会启用或启动；上传首个 bundle 后必须
-以 root 重新运行 bootstrap（或 `infra/ops/install-backup-timers.sh`），由仓库安装器重置预备阶段的历史
-失败状态并启用 timer，随后生产预检才会放行。Vault 初始化、
+`/opt/stuhelper` 中尚无 deploy bundle，后备 timer 只写入 unit、不会启用或启动；上传首个 bundle、完成
+生产配置和 Vault 准备后，必须以 root 执行
+`BACKUP_TIMERS_ACTIVATE=true /opt/stuhelper/infra/ops/install-backup-timers.sh`。安装器先停用目标 timer、重置
+历史失败状态，再以非 root 部署用户运行 `remote-preflight.sh --timer-activation`；只有配置、Vault、对象
+存储和 unit 契约通过后才重新启用 timer，随后生产预检才会放行。Vault 初始化、
 解封并 seed 三条生产 secret ref 后，还必须由 root 执行
 `VAULT_ROOT_INIT_FILE=/var/lib/stuhelper/vault-credentials/init.json ./infra/ops/vault-runtime-token.sh configure`，
 把占位文件替换成专用最小权限 periodic token 并安装自动续期 timer；禁止把初始化 root token 当作

@@ -1964,7 +1964,10 @@ configure_production_preflight_runtime_checks() {
 
   run_database_runtime_checks=true
   run_public_runtime_checks=true
-  [[ "${preflight_phase}" == "--pre-deploy" ]] || return 0
+  case "${preflight_phase}" in
+    --pre-deploy | --timer-activation) ;;
+    *) return 0 ;;
+  esac
 
   run_public_runtime_checks=false
   warn "public application runtime checks are deferred until the mandatory post-deploy preflight"

@@ -159,6 +159,7 @@ assert_contains "${PREFLIGHT_FILE}" 'ADMISSION_PUBLIC_SMOKE_ENABLED'
 assert_contains "${PREFLIGHT_FILE}" 'ADMISSION_PUBLIC_SMOKE_PREFLIGHT_RETRIES'
 assert_contains "${PREFLIGHT_FILE}" 'admission-public-smoke\.sh'
 assert_contains "${PREFLIGHT_FILE}" 'pre-deploy.*post-deploy.*full'
+assert_contains "${PREFLIGHT_FILE}" 'timer-activation'
 assert_contains "${COMMON_LIB_FILE}" 'configure_production_preflight_runtime_checks\(\)'
 assert_contains "${PREFLIGHT_FILE}" 'configure_production_preflight_runtime_checks "\$\{preflight_phase\}"'
 assert_contains "${COMMON_LIB_FILE}" 'run_database_runtime_checks=false'
@@ -258,6 +259,9 @@ assert_runtime_check_state --pre-deploy true false
 EXTERNAL_POSTGRES_ENABLED=false
 assert_runtime_check_state --post-deploy true true
 assert_runtime_check_state --full true true
+
+runtime_postgres_running=false
+assert_runtime_check_state --timer-activation false false
 
 unset -f docker warn assert_runtime_check_state
 unset runtime_postgres_running STACK_NAME EXTERNAL_POSTGRES_ENABLED
