@@ -78,8 +78,11 @@ bootstrap_require_line="$(line_number 'require_nonempty CASDOOR_BOOTSTRAP_CLIENT
 if (( caller_tag_validation_line >= remote_preflight_line )); then
   fail "production deploy must reject unsafe caller tags before running remote preflight"
 fi
-if (( remote_preflight_line >= remote_config_load_line || remote_preflight_line >= load_env_line )); then
-  fail "every production deploy entrypoint must complete remote preflight before loading deploy inputs"
+if (( remote_preflight_line <= release_identity_guard_line )); then
+  fail "production deploy must reject conflicting immutable release identity before mutating preflight projections"
+fi
+if (( remote_preflight_line >= postgres_ssl_line )); then
+  fail "production deploy must complete remote preflight before production validation and runtime side effects"
 fi
 if (( postdeploy_preflight_line <= observability_smoke_line || postdeploy_preflight_line >= record_release_line )); then
   fail "production deploy must pass the full online post-deploy preflight before recording the release"
