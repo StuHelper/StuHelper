@@ -90,6 +90,33 @@ assert_contains "${override_cfg}" "VAULT_RUNTIME_TOKEN_POLICY=custom-prod-deploy
 assert_contains "${override_cfg}" "VAULT_RUNTIME_TOKEN_PERIOD_SECONDS=345600"
 assert_contains "${override_cfg}" "VAULT_RUNTIME_TOKEN_MIN_TTL_SECONDS=86400"
 
+preserved_cfg="${tmpdir}/preserved.remote.env"
+cp "${override_cfg}" "${preserved_cfg}"
+REMOTE_DEPLOY_CONFIG_FILE="${preserved_cfg}" \
+REMOTE_DEPLOY_CONFIG_PRESERVE_EXISTING=true \
+REGISTRY="REPLACE_WITH_REGISTRY_HOST" \
+BACKUP_SERVICE_GROUP="replacement-group" \
+VAULT_ADDR="REPLACE_WITH_VAULT_ADDR" \
+SHARED_ENV_SECRET_REF="secret/stuhelper/prod/shared-env" \
+bash "${TARGET_SCRIPT}" >/dev/null
+
+assert_contains "${preserved_cfg}" "REGISTRY_AUTH_MODE=persistent-secret"
+assert_contains "${preserved_cfg}" "BACKUP_SERVICE_GROUP=deployment"
+assert_contains "${preserved_cfg}" "VAULT_ADDR=https://vault.example.com"
+assert_contains "${preserved_cfg}" "VAULT_NAMESPACE=platform/prod"
+assert_contains "${preserved_cfg}" "SHARED_ENV_SECRET_REF=secret/custom/shared"
+
+if REMOTE_DEPLOY_CONFIG_FILE="${tmpdir}/invalid-preserve.remote.env" \
+  REMOTE_DEPLOY_CONFIG_PRESERVE_EXISTING=maybe \
+  bash "${TARGET_SCRIPT}" >"${tmpdir}/invalid-preserve.out" 2>"${tmpdir}/invalid-preserve.err"; then
+  echo "[init-remote-deploy-config-contract][error] initializer accepted an invalid preservation mode" >&2
+  exit 1
+fi
+grep -q 'REMOTE_DEPLOY_CONFIG_PRESERVE_EXISTING must be true or false' "${tmpdir}/invalid-preserve.err" || {
+  echo "[init-remote-deploy-config-contract][error] invalid preservation mode was not reported" >&2
+  exit 1
+}
+
 invalid_cfg="${tmpdir}/invalid.remote.env"
 printf 'REGISTRY=ghcr.io\nPATH=/tmp/payload\n' >"${invalid_cfg}"
 invalid_before="$(<"${invalid_cfg}")"

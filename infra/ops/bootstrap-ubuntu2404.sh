@@ -140,8 +140,18 @@ ensure_remote_deploy_config() {
       BACKUP_SERVICE_GROUP='${DEPLOY_GROUP}' \
       VAULT_ADDR='REPLACE_WITH_VAULT_ADDR' \
       VAULT_TOKEN_FILE='${DEPLOY_APP_DIR}/.secrets/vault/token' \
+      REMOTE_DEPLOY_CONFIG_PRESERVE_EXISTING='true' \
       ./infra/ops/init-remote-deploy-config.sh
     "
+    return 0
+  fi
+
+  if [[ -e "${remote_config}" || -L "${remote_config}" ]]; then
+    [[ -f "${remote_config}" && ! -L "${remote_config}" ]] ||
+      die "existing remote deploy config must be a regular non-symlink file: ${remote_config}"
+    log "deploy bundle is unavailable; preserving the existing remote deploy control-plane config"
+    chown "${DEPLOY_USER}:${DEPLOY_GROUP}" "${remote_config}"
+    chmod 0600 "${remote_config}"
     return 0
   fi
 

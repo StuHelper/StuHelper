@@ -89,6 +89,14 @@ assert_contains "${BOOTSTRAP_SCRIPT}" 'do not persist the Vault root token'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'REGISTRY_AUTH_MODE=.workflow-token.'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'REGISTRY_USERNAME_SECRET_REF=secret/stuhelper/prod/registry-username'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'REGISTRY_PASSWORD_SECRET_REF=secret/stuhelper/prod/registry-password'
+assert_contains "${BOOTSTRAP_SCRIPT}" 'REMOTE_DEPLOY_CONFIG_PRESERVE_EXISTING=.true.'
+assert_contains "${BOOTSTRAP_SCRIPT}" 'preserving the existing remote deploy control-plane config'
+
+preserve_remote_config_line="$(line_number "${BOOTSTRAP_SCRIPT}" 'if [[ -e "${remote_config}" || -L "${remote_config}" ]]')"
+fallback_remote_config_write_line="$(line_number "${BOOTSTRAP_SCRIPT}" 'cat >"${remote_config}" <<EOF')"
+if (( preserve_remote_config_line >= fallback_remote_config_write_line )); then
+  fail "bootstrap fallback must preserve an existing remote config before rendering defaults"
+fi
 
 assert_contains "${BOOTSTRAP_SCRIPT}" 'ufw --force enable'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'ufw allow OpenSSH'
