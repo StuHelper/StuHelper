@@ -177,4 +177,29 @@ load_remote_deploy_config "${tmpdir}/remote.env"
 [[ ! -v BASH_ENV && ! -v ENV ]] ||
   fail "load_remote_deploy_config allowed shell startup hooks to survive"
 
+cat >"${tmpdir}/local-state-shared.env" <<'EOF'
+LOCAL_STATE_DIR=
+EOF
+: >"${tmpdir}/local-state-generated.env"
+: >"${tmpdir}/local-state-generated-secrets.env"
+# Variables in the command string are intentionally expanded by the isolated child shell.
+# shellcheck disable=SC2016
+if ! env -i \
+  PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+  LOCAL_STATE_DIR=/var/lib/stuhelper \
+  ENV_FILE="${tmpdir}/local-state-shared.env" \
+  SECRETS_ENV_FILE= \
+  GENERATED_ENV_FILE="${tmpdir}/local-state-generated.env" \
+  GENERATED_SECRET_ENV_FILE="${tmpdir}/local-state-generated-secrets.env" \
+  /bin/bash --noprofile --norc -c '
+    set -euo pipefail
+    [[ -z "${HOME+x}" ]]
+    source "$1"
+    load_env_preserving LOCAL_STATE_DIR
+    [[ "${LOCAL_STATE_DIR}" == "/var/lib/stuhelper" ]]
+    [[ "${POSTGRES_WAL_RESTORE_DIR}" == "/var/lib/stuhelper/postgres/wal-restore" ]]
+  ' bash "${REPO_ROOT}/infra/ops/lib/common.sh"; then
+  fail "load_env_preserving did not retain the protected local-state path without HOME"
+fi
+
 printf '[environment-loader-security-contract] all assertions passed\n'

@@ -42,7 +42,7 @@ require_cmd python3
 require_cmd sha256sum
 require_cmd tar
 
-load_env
+load_env_preserving LOCAL_STATE_DIR POSTGRES_WAL_RESTORE_DIR
 
 evidence_file="${POSTGRES_BACKUP_EVIDENCE_FILE:-${REPO_ROOT}/infra/generated/postgres-backup-evidence.json}"
 fetch_command="${POSTGRES_BACKUP_EVIDENCE_FETCH_COMMAND:-${SCRIPT_DIR}/fetch-postgres-backups.sh}"
