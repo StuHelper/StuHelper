@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 PREFLIGHT_FILE="${REPO_ROOT}/infra/ops/remote-preflight.sh"
 COMMON_LIB_FILE="${REPO_ROOT}/infra/ops/lib/common.sh"
+SYSTEMD_EXEC_VALIDATOR="${REPO_ROOT}/infra/ops/validate-systemd-unit-execution.py"
 
 fail() {
   echo "[remote-preflight-contract][error] $*" >&2
@@ -79,6 +80,10 @@ assert_contains "${PREFLIGHT_FILE}" 'stuhelper-vault-token-renewal\.timer'
 assert_contains "${PREFLIGHT_FILE}" 'Vault runtime token renewal timer is not active'
 assert_contains "${COMMON_LIB_FILE}" 'require_systemd_unit_exact_environment\(\)'
 assert_contains "${COMMON_LIB_FILE}" 'require_systemd_unit_hardened_execution\(\)'
+assert_contains "${COMMON_LIB_FILE}" 'property=ExecStartEx'
+assert_contains "${COMMON_LIB_FILE}" 'validate-systemd-unit-execution\.py'
+assert_contains "${SYSTEMD_EXEC_VALIDATOR}" 'exec_fields\.get\("ignore_errors"\) == "no"'
+assert_contains "${SYSTEMD_EXEC_VALIDATOR}" 'exec_ex_fields\.get\("flags"\) == ""'
 assert_contains "${PREFLIGHT_FILE}" 'stuhelper-postgres-dump-backup\.service'
 assert_contains "${PREFLIGHT_FILE}" 'stuhelper-postgres-basebackup\.service'
 assert_contains "${PREFLIGHT_FILE}" 'stuhelper-postgres-backup-sync\.service'
@@ -250,43 +255,38 @@ fi
 grep -q 'must not set UnsetEnvironment' "${tmpdir}/backup-unit-unset-env.err" || \
   fail "the backup unit UnsetEnvironment failure did not report the protected marker policy"
 
-if ! bash -c '
-  set -euo pipefail
-  source "$1"
-  systemctl() {
-    case "$*" in
-      *--property=WorkingDirectory*) printf "%s\n" "/opt/stuhelper" ;;
-      *--property=ExecStart*) printf "%s\n" "{ path=/usr/bin/env ; argv[]=/usr/bin/env --unset=BASH_ENV --unset=ENV /bin/bash --noprofile --norc ./infra/ops/sync-postgres-backups.sh ; ignore_errors=no ; }" ;;
-      *) return 2 ;;
-    esac
-  }
-  require_systemd_unit_hardened_execution \
-    stuhelper-postgres-backup-sync.service \
-    /opt/stuhelper \
-    "./infra/ops/sync-postgres-backups.sh"
-' bash "${COMMON_LIB_FILE}"; then
+valid_exec_start='{ path=/usr/bin/env ; argv[]=/usr/bin/env --unset=BASH_ENV --unset=ENV /bin/bash --noprofile --norc ./infra/ops/sync-postgres-backups.sh ; ignore_errors=no ; }'
+valid_exec_start_ex='{ path=/usr/bin/env ; argv[]=/usr/bin/env --unset=BASH_ENV --unset=ENV /bin/bash --noprofile --norc ./infra/ops/sync-postgres-backups.sh ; flags= ; }'
+if ! python3 "${SYSTEMD_EXEC_VALIDATOR}" \
+  --expected-working-directory /opt/stuhelper \
+  --expected-command "./infra/ops/sync-postgres-backups.sh" \
+  --actual-working-directory /opt/stuhelper \
+  --exec-start "${valid_exec_start}" \
+  --exec-start-ex "${valid_exec_start_ex}"; then
   fail "the systemd execution validator rejected the protected non-login backup command"
 fi
 
-if bash -c '
-  set -euo pipefail
-  source "$1"
-  systemctl() {
-    case "$*" in
-      *--property=WorkingDirectory*) printf "%s\n" "/opt/stuhelper" ;;
-      *--property=ExecStart*) printf "%s\n" "{ path=/bin/bash ; argv[]=/bin/bash -lc cd /opt/stuhelper && ./infra/ops/sync-postgres-backups.sh ; ignore_errors=no ; }" ;;
-      *) return 2 ;;
-    esac
-  }
-  require_systemd_unit_hardened_execution \
-    stuhelper-postgres-backup-sync.service \
-    /opt/stuhelper \
-    "./infra/ops/sync-postgres-backups.sh"
-' bash "${COMMON_LIB_FILE}" >"${tmpdir}/backup-unit-login-shell.out" 2>"${tmpdir}/backup-unit-login-shell.err"; then
+login_exec_start='{ path=/bin/bash ; argv[]=/bin/bash -lc cd /opt/stuhelper && ./infra/ops/sync-postgres-backups.sh ; ignore_errors=no ; }'
+login_exec_start_ex='{ path=/bin/bash ; argv[]=/bin/bash -lc cd /opt/stuhelper && ./infra/ops/sync-postgres-backups.sh ; flags= ; }'
+if python3 "${SYSTEMD_EXEC_VALIDATOR}" \
+  --expected-working-directory /opt/stuhelper \
+  --expected-command "./infra/ops/sync-postgres-backups.sh" \
+  --actual-working-directory /opt/stuhelper \
+  --exec-start "${login_exec_start}" \
+  --exec-start-ex "${login_exec_start_ex}"; then
   fail "the systemd execution validator accepted a login shell that can override the backup gate"
 fi
-grep -q 'protected non-login Bash execution path' "${tmpdir}/backup-unit-login-shell.err" || \
-  fail "the backup unit login-shell failure did not report the protected execution policy"
+
+ignore_exec_start='{ path=/usr/bin/env ; argv[]=/usr/bin/env --unset=BASH_ENV --unset=ENV /bin/bash --noprofile --norc ./infra/ops/sync-postgres-backups.sh ; ignore_errors=yes ; }'
+ignore_exec_start_ex='{ path=/usr/bin/env ; argv[]=/usr/bin/env --unset=BASH_ENV --unset=ENV /bin/bash --noprofile --norc ./infra/ops/sync-postgres-backups.sh ; flags=ignore-failure ; }'
+if python3 "${SYSTEMD_EXEC_VALIDATOR}" \
+  --expected-working-directory /opt/stuhelper \
+  --expected-command "./infra/ops/sync-postgres-backups.sh" \
+  --actual-working-directory /opt/stuhelper \
+  --exec-start "${ignore_exec_start}" \
+  --exec-start-ex "${ignore_exec_start_ex}"; then
+  fail "the systemd execution validator accepted a failure-ignoring ExecStart"
+fi
 
 fake_bin="${tmpdir}/bin"
 mkdir -p "${fake_bin}"
