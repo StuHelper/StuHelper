@@ -97,44 +97,28 @@ require_systemd_unit_hardened_execution() {
   local unit="$1"
   local expected_working_directory="$2"
   local expected_command="$3"
+  local effective_exec_records
   local effective_exec_start
+  local effective_exec_start_ex
   local effective_working_directory
 
   if ! effective_working_directory="$(systemctl show "${unit}" --property=WorkingDirectory --value 2>/dev/null)"; then
     die "failed to inspect WorkingDirectory for systemd unit ${unit}"
   fi
-  if ! effective_exec_start="$(systemctl show "${unit}" --property=ExecStart --value 2>/dev/null)"; then
-    die "failed to inspect ExecStart for systemd unit ${unit}"
+  if ! effective_exec_records="$(systemctl show "${unit}" --property=ExecStart --property=ExecStartEx --value 2>/dev/null)"; then
+    die "failed to inspect ExecStart/ExecStartEx for systemd unit ${unit}"
   fi
+  effective_exec_start="${effective_exec_records%%$'\n'*}"
+  effective_exec_start_ex="${effective_exec_records#*$'\n'}"
+  [[ "${effective_exec_start}" != "${effective_exec_start_ex}" ]] ||
+    die "systemd unit ${unit} did not expose distinct ExecStart and ExecStartEx records"
 
-  if ! python3 - \
-    "${expected_working_directory}" \
-    "${expected_command}" \
-    "${effective_working_directory}" \
-    "${effective_exec_start}" <<'PY'
-import shlex
-import sys
-
-expected_working_directory, expected_command, actual_working_directory, exec_start = sys.argv[1:]
-if actual_working_directory != expected_working_directory:
-    raise SystemExit(1)
-
-marker = " argv[]="
-if marker not in exec_start:
-    raise SystemExit(1)
-argv_text = exec_start.split(marker, 1)[1].split(" ;", 1)[0]
-actual_argv = argv_text.split()
-expected_argv = [
-    "/usr/bin/env",
-    "--unset=BASH_ENV",
-    "--unset=ENV",
-    "/bin/bash",
-    "--noprofile",
-    "--norc",
-    *shlex.split(expected_command),
-]
-raise SystemExit(0 if actual_argv == expected_argv else 1)
-PY
+  if ! python3 "${COMMON_LIB_DIR}/validate-systemd-unit-execution.py" \
+    --expected-working-directory "${expected_working_directory}" \
+    --expected-command "${expected_command}" \
+    --actual-working-directory "${effective_working_directory}" \
+    --exec-start "${effective_exec_start}" \
+    --exec-start-ex "${effective_exec_start_ex}"
   then
     die "systemd unit ${unit} must use the protected non-login Bash execution path in ${expected_working_directory}; reinstall the production backup timers"
   fi
