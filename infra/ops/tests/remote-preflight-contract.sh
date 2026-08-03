@@ -86,6 +86,9 @@ assert_contains "${COMMON_LIB_FILE}" 'SuccessExitStatus'
 assert_contains "${COMMON_LIB_FILE}" 'require_systemd_unit_hardened_execution\(\)'
 assert_contains "${COMMON_LIB_FILE}" 'require_systemd_timer_schedule\(\)'
 assert_contains "${COMMON_LIB_FILE}" 'validate-systemd-timer\.py'
+assert_contains "${COMMON_LIB_FILE}" 'AccuracyUSec'
+assert_contains "${COMMON_LIB_FILE}" 'RandomizedDelayUSec'
+assert_contains "${COMMON_LIB_FILE}" 'FixedRandomDelay'
 assert_contains "${COMMON_LIB_FILE}" 'validate-systemd-unit-environment\.py'
 assert_contains "${COMMON_LIB_FILE}" 'property=ExecStartEx'
 assert_contains "${COMMON_LIB_FILE}" 'validate-systemd-unit-execution\.py'
@@ -369,6 +372,9 @@ if ! python3 "${SYSTEMD_TIMER_VALIDATOR}" \
   --persistent yes \
   --timers-calendar "${valid_calendar}" \
   --timers-monotonic '' \
+  --accuracy 1min \
+  --randomized-delay 0 \
+  --fixed-random-delay no \
   --expected-target stuhelper-postgres-backup-sync.service \
   --expected-calendar '*-*-* *:00/15:00'; then
   fail "the systemd timer validator rejected the exact protected schedule"
@@ -378,6 +384,9 @@ if python3 "${SYSTEMD_TIMER_VALIDATOR}" \
   --persistent yes \
   --timers-calendar "${valid_calendar}" \
   --timers-monotonic '' \
+  --accuracy 1min \
+  --randomized-delay 0 \
+  --fixed-random-delay no \
   --expected-target stuhelper-postgres-backup-sync.service \
   --expected-calendar '*-*-* *:00/15:00'; then
   fail "the systemd timer validator accepted a redirected target"
@@ -387,6 +396,9 @@ if python3 "${SYSTEMD_TIMER_VALIDATOR}" \
   --persistent yes \
   --timers-calendar "${valid_calendar} { OnCalendar=*-*-* 00:00:00 ; next_elapse=Tue 2026-08-04 00:00:00 CST }" \
   --timers-monotonic '' \
+  --accuracy 1min \
+  --randomized-delay 0 \
+  --fixed-random-delay no \
   --expected-target stuhelper-postgres-backup-sync.service \
   --expected-calendar '*-*-* *:00/15:00'; then
   fail "the systemd timer validator accepted an extra calendar"
@@ -396,9 +408,36 @@ if python3 "${SYSTEMD_TIMER_VALIDATOR}" \
   --persistent yes \
   --timers-calendar "${valid_calendar}" \
   --timers-monotonic '{ OnBootSec=1min ; next_elapse=1min }' \
+  --accuracy 1min \
+  --randomized-delay 0 \
+  --fixed-random-delay no \
   --expected-target stuhelper-postgres-backup-sync.service \
   --expected-calendar '*-*-* *:00/15:00'; then
   fail "the systemd timer validator accepted a monotonic trigger bypass"
+fi
+if python3 "${SYSTEMD_TIMER_VALIDATOR}" \
+  --target stuhelper-postgres-backup-sync.service \
+  --persistent yes \
+  --timers-calendar "${valid_calendar}" \
+  --timers-monotonic '' \
+  --accuracy 30min \
+  --randomized-delay 0 \
+  --fixed-random-delay no \
+  --expected-target stuhelper-postgres-backup-sync.service \
+  --expected-calendar '*-*-* *:00/15:00'; then
+  fail "the systemd timer validator accepted an excessive accuracy window"
+fi
+if python3 "${SYSTEMD_TIMER_VALIDATOR}" \
+  --target stuhelper-postgres-backup-sync.service \
+  --persistent yes \
+  --timers-calendar "${valid_calendar}" \
+  --timers-monotonic '' \
+  --accuracy 1min \
+  --randomized-delay 30min \
+  --fixed-random-delay yes \
+  --expected-target stuhelper-postgres-backup-sync.service \
+  --expected-calendar '*-*-* *:00/15:00'; then
+  fail "the systemd timer validator accepted a randomized freshness delay"
 fi
 
 protected_exec_argv='/usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin ENV_FILE=/opt/stuhelper/.env.prod.shared BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true /bin/bash --noprofile --norc ./infra/ops/sync-postgres-backups.sh'

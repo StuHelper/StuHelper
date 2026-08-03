@@ -87,6 +87,7 @@ sudo ./infra/ops/install-backup-timers.sh
 - 每天 `03:15` 做逻辑备份
 - 每周日 `03:45` 做 base backup
 - 每 15 分钟执行一次 backup artifact sync
+- 三个 timer 的 coalescing accuracy 固定为一分钟且不允许 randomized delay，防止 drop-in 将工件新鲜度悄然延后
 - WAL 归档目录按 `WAL_ARCHIVE_RETENTION_DAYS` 清理
 
 ## 从对象存储取回恢复工件

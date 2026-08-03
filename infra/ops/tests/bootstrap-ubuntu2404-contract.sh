@@ -91,6 +91,12 @@ assert_contains "${BOOTSTRAP_SCRIPT}" '^Unit=stuhelper-postgres-dump-backup\.ser
 assert_contains "${BOOTSTRAP_SCRIPT}" '^Unit=stuhelper-postgres-basebackup\.service$'
 assert_contains "${BOOTSTRAP_SCRIPT}" '^Unit=stuhelper-postgres-backup-sync\.service$'
 assert_contains "${BOOTSTRAP_SCRIPT}" '^OnCalendar=\*-\*-\* \*:00/15:00$'
+[[ "$(grep -c '^AccuracySec=1min$' "${BOOTSTRAP_SCRIPT}")" == "3" ]] ||
+  fail "bootstrap fallback must bound timer coalescing accuracy to one minute"
+[[ "$(grep -c '^RandomizedDelaySec=0$' "${BOOTSTRAP_SCRIPT}")" == "3" ]] ||
+  fail "bootstrap fallback must disable randomized timer delays"
+[[ "$(grep -c '^FixedRandomDelay=false$' "${BOOTSTRAP_SCRIPT}")" == "3" ]] ||
+  fail "bootstrap fallback must explicitly disable fixed randomized delays"
 assert_contains "${BOOTSTRAP_SCRIPT}" 'Environment=BACKUP_STAGING_DIR=\$\{BACKUP_STAGING_DIR\}'
 [[ "$(grep -c '^Environment=LOCAL_STATE_DIR=/var/lib/stuhelper$' "${BOOTSTRAP_SCRIPT}")" == "3" ]] ||
   fail "bootstrap fallback must provide a HOME-independent local state path to every isolated backup service"
@@ -118,6 +124,12 @@ assert_contains "${BACKUP_TIMER_INSTALLER}" '^Unit=\$\{SYSTEMD_PREFIX\}-postgres
 assert_contains "${BACKUP_TIMER_INSTALLER}" '^Unit=\$\{SYSTEMD_PREFIX\}-postgres-basebackup\.service$'
 assert_contains "${BACKUP_TIMER_INSTALLER}" '^Unit=\$\{SYSTEMD_PREFIX\}-postgres-backup-sync\.service$'
 assert_contains "${BACKUP_TIMER_INSTALLER}" '^OnCalendar=\*-\*-\* \*:00/15:00$'
+[[ "$(grep -c '^AccuracySec=1min$' "${BACKUP_TIMER_INSTALLER}")" == "3" ]] ||
+  fail "backup timer installer must bound timer coalescing accuracy to one minute"
+[[ "$(grep -c '^RandomizedDelaySec=0$' "${BACKUP_TIMER_INSTALLER}")" == "3" ]] ||
+  fail "backup timer installer must disable randomized timer delays"
+[[ "$(grep -c '^FixedRandomDelay=false$' "${BACKUP_TIMER_INSTALLER}")" == "3" ]] ||
+  fail "backup timer installer must explicitly disable fixed randomized delays"
 [[ "$(grep -c '^Environment=LOCAL_STATE_DIR=/var/lib/stuhelper$' "${BACKUP_TIMER_INSTALLER}")" == "3" ]] ||
   fail "backup timer installer must provide a HOME-independent local state path to every isolated backup service"
 [[ "$(grep -c '^Environment=BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true$' "${BACKUP_TIMER_INSTALLER}")" == "3" ]] ||

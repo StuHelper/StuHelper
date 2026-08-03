@@ -125,9 +125,12 @@ require_systemd_timer_schedule() {
   local timer_unit="$1"
   local expected_target="$2"
   local expected_calendar="$3"
+  local effective_accuracy
   local effective_calendar
+  local effective_fixed_random_delay
   local effective_monotonic
   local effective_persistent
+  local effective_randomized_delay
   local effective_target
 
   if ! effective_target="$(systemctl show "${timer_unit}" --property=Unit --value 2>/dev/null)"; then
@@ -142,16 +145,28 @@ require_systemd_timer_schedule() {
   if ! effective_monotonic="$(systemctl show "${timer_unit}" --property=TimersMonotonic --value 2>/dev/null)"; then
     die "failed to inspect TimersMonotonic for systemd timer ${timer_unit}"
   fi
+  if ! effective_accuracy="$(systemctl show "${timer_unit}" --property=AccuracyUSec --value 2>/dev/null)"; then
+    die "failed to inspect AccuracyUSec for systemd timer ${timer_unit}"
+  fi
+  if ! effective_randomized_delay="$(systemctl show "${timer_unit}" --property=RandomizedDelayUSec --value 2>/dev/null)"; then
+    die "failed to inspect RandomizedDelayUSec for systemd timer ${timer_unit}"
+  fi
+  if ! effective_fixed_random_delay="$(systemctl show "${timer_unit}" --property=FixedRandomDelay --value 2>/dev/null)"; then
+    die "failed to inspect FixedRandomDelay for systemd timer ${timer_unit}"
+  fi
 
   if ! python3 "${COMMON_LIB_DIR}/../validate-systemd-timer.py" \
     --target "${effective_target}" \
     --persistent "${effective_persistent}" \
     --timers-calendar "${effective_calendar}" \
     --timers-monotonic "${effective_monotonic}" \
+    --accuracy "${effective_accuracy}" \
+    --randomized-delay "${effective_randomized_delay}" \
+    --fixed-random-delay "${effective_fixed_random_delay}" \
     --expected-target "${expected_target}" \
     --expected-calendar "${expected_calendar}"
   then
-    die "systemd timer ${timer_unit} must target ${expected_target} with the exact protected calendar ${expected_calendar}; reinstall the production backup timers and remove overriding drop-ins"
+    die "systemd timer ${timer_unit} must target ${expected_target} with the exact protected calendar ${expected_calendar}, one-minute accuracy, and no randomized delay; reinstall the production backup timers and remove overriding drop-ins"
   fi
 }
 

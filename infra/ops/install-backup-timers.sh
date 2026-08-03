@@ -61,6 +61,9 @@ Description=StuHelper PostgreSQL logical backup timer
 Unit=${SYSTEMD_PREFIX}-postgres-dump-backup.service
 OnCalendar=*-*-* 03:15:00
 Persistent=true
+AccuracySec=1min
+RandomizedDelaySec=0
+FixedRandomDelay=false
 
 [Install]
 WantedBy=timers.target
@@ -98,6 +101,9 @@ Description=StuHelper PostgreSQL base backup timer
 Unit=${SYSTEMD_PREFIX}-postgres-basebackup.service
 OnCalendar=Sun *-*-* 03:45:00
 Persistent=true
+AccuracySec=1min
+RandomizedDelaySec=0
+FixedRandomDelay=false
 
 [Install]
 WantedBy=timers.target
@@ -135,6 +141,9 @@ Description=StuHelper PostgreSQL backup artifact sync timer
 Unit=${SYSTEMD_PREFIX}-postgres-backup-sync.service
 OnCalendar=*-*-* *:00/15:00
 Persistent=true
+AccuracySec=1min
+RandomizedDelaySec=0
+FixedRandomDelay=false
 
 [Install]
 WantedBy=timers.target
