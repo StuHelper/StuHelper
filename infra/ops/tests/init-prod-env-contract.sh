@@ -309,6 +309,8 @@ assert_env_value "${fresh_env}" "OBJECT_STORAGE_TLS_CA" ""
 assert_env_value "${fresh_env}" "OBJECT_STORAGE_TLS_CA_HOST_PATH" ""
 assert_env_value "${fresh_env}" "BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED" "false"
 assert_env_value "${fresh_env}" "BACKUP_OBJECT_STORAGE_LOCAL_IDENTITY_CIDRS" ""
+assert_env_value "${fresh_env}" "BACKUP_OBJECT_STORAGE_PROVIDER" "Other"
+assert_env_value "${fresh_env}" "BACKUP_OBJECT_STORAGE_PROVIDER_PRIVATE_ENDPOINT" "none"
 [[ -d "${fresh_dir}/generated/object-storage-client-ca" ]] ||
   fail "expected object-storage client CA mount directory to exist"
 assert_env_value "${fresh_env}" "GRAFANA_ROOT_URL" "REPLACE_WITH_GRAFANA_ROOT_URL"

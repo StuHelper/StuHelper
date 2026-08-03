@@ -188,6 +188,14 @@ defaults 和其他继承环境，只传固定 `PATH`、配置路径与异机门�
 `BACKUP_OBJECT_STORAGE_LOCAL_IDENTITY_CIDRS`；无额外身份时显式写 `none`。该清单用于补足
 `ip address` 看不到的公网身份，但仍不能替代“关闭/丢失生产主机后从独立环境取回并恢复”的演练。
 
+腾讯云同地域 CVM 使用官方 regional COS endpoint 时，DNS 可能返回 provider-private service
+VIP。只有配置 `BACKUP_OBJECT_STORAGE_PROVIDER=TencentCOS`、官方 regional hostname、匹配
+region、完整 `BucketName-APPID`、virtual-hosted addressing、默认 HTTPS 端口和公开 CA 校验后，
+才可显式设置 `BACKUP_OBJECT_STORAGE_PROVIDER_PRIVATE_ENDPOINT=tencent-cos`。该例外仅允许通过
+TLS 主机名验证保护的腾讯云服务 VIP；任意其他 link-local、错误 provider/region/bucket、私有
+CA 或禁用证书校验仍会失败。这个模式不代表灾备已经完成，独立环境取回与
+`BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED=true` 仍需分别验收。
+
 ## 逻辑备份恢复
 
 > 恢复是破坏性操作，必须先确认目标库、确认当前连接字符串、确认业务窗口。
