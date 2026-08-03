@@ -94,7 +94,7 @@ if REMOTE_DEPLOY_CONFIG_FILE="${invalid_cfg}" bash "${TARGET_SCRIPT}" >"${tmpdir
   echo "[init-remote-deploy-config-contract][error] initializer accepted an unknown existing key" >&2
   exit 1
 fi
-grep -q 'environment key PATH is not allowed in this file' "${tmpdir}/invalid.err" || {
+grep -q 'process-control variable PATH is not allowed in StuHelper environment files' "${tmpdir}/invalid.err" || {
   echo "[init-remote-deploy-config-contract][error] existing-state rejection was not explicit" >&2
   exit 1
 }

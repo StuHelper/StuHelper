@@ -9,6 +9,8 @@ STATE="${CASDOOR_TOKEN_PROBE_STATE:-stuhelper-token-minimization-probe}"
 NONCE="${CASDOOR_TOKEN_PROBE_NONCE:-stuhelper-token-minimization-probe}"
 SCOPE="${CASDOOR_TOKEN_PROBE_SCOPE:-openid}"
 OUTPUT="${CASDOOR_TOKEN_PROBE_OUTPUT:-text}"
+# shellcheck source=lib/common.sh
+source "${SCRIPT_DIR}/lib/common.sh"
 
 usage() {
   cat <<'USAGE'
@@ -70,11 +72,10 @@ require_cmd() {
   command -v "$1" >/dev/null 2>&1 || fail "missing required command: $1"
 }
 
-source_env_file() {
+load_probe_env() {
   if [[ -f "${ENV_FILE}" ]]; then
     set -a
-    # shellcheck disable=SC1090
-    source "${ENV_FILE}"
+    source_env_file "${ENV_FILE}"
     set +a
   else
     warn "env file not found: ${ENV_FILE}; relying on process environment"
@@ -274,7 +275,7 @@ PY
 main() {
   require_cmd curl
   require_cmd python3
-  source_env_file
+  load_probe_env
   require_base_config
 
   local metadata_url metadata authorization_endpoint token_endpoint verifier authorize_url

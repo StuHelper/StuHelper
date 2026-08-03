@@ -13,8 +13,7 @@ ensure_dev_runtime_dirs
 
 if [[ -f "${DEV_RUNTIME_ENV}" ]]; then
   set -a
-  # shellcheck disable=SC1090
-  source "${DEV_RUNTIME_ENV}"
+  source_env_file "${DEV_RUNTIME_ENV}"
   set +a
 fi
 
