@@ -119,7 +119,8 @@ assert_contains "${BOOTSTRAP_SCRIPT}" 'Environment=BACKUP_STAGING_DIR=\$\{BACKUP
   fail "bootstrap fallback must pin the canonical service start-limit burst"
 assert_contains "${BOOTSTRAP_SCRIPT}" '^TimeoutStartSec=4h$'
 assert_contains "${BOOTSTRAP_SCRIPT}" '^TimeoutStartSec=12h$'
-assert_contains "${BOOTSTRAP_SCRIPT}" '^TimeoutStartSec=10min$'
+[[ "$(grep -c '^TimeoutStartSec=12h$' "${BOOTSTRAP_SCRIPT}")" == "2" ]] ||
+  fail "bootstrap must give both base backup and off-host sync a 12-hour bounded budget"
 [[ "$(grep -c '^TimeoutStopSec=2min$' "${BOOTSTRAP_SCRIPT}")" == "3" ]] ||
   fail "bootstrap fallback must bound service termination after a backup timeout"
 [[ "$(grep -c '^KillMode=control-group$' "${BOOTSTRAP_SCRIPT}")" == "3" ]] ||
@@ -171,7 +172,8 @@ assert_contains "${BACKUP_TIMER_INSTALLER}" '^OnCalendar=\*-\*-\* \*:00/15:00$'
   fail "backup timer installer must pin the canonical service start-limit burst"
 assert_contains "${BACKUP_TIMER_INSTALLER}" '^TimeoutStartSec=4h$'
 assert_contains "${BACKUP_TIMER_INSTALLER}" '^TimeoutStartSec=12h$'
-assert_contains "${BACKUP_TIMER_INSTALLER}" '^TimeoutStartSec=10min$'
+[[ "$(grep -c '^TimeoutStartSec=12h$' "${BACKUP_TIMER_INSTALLER}")" == "2" ]] ||
+  fail "timer installer must give both base backup and off-host sync a 12-hour bounded budget"
 [[ "$(grep -c '^TimeoutStopSec=2min$' "${BACKUP_TIMER_INSTALLER}")" == "3" ]] ||
   fail "backup timer installer must bound service termination after a backup timeout"
 [[ "$(grep -c '^KillMode=control-group$' "${BACKUP_TIMER_INSTALLER}")" == "3" ]] ||

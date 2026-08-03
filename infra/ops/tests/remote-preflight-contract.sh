@@ -103,7 +103,8 @@ assert_contains "${COMMON_LIB_FILE}" '"Result=success"'
 assert_contains "${PREFLIGHT_FILE}" 'backup_service_start_timeouts='
 assert_contains "${PREFLIGHT_FILE}" '"4h"'
 assert_contains "${PREFLIGHT_FILE}" '"12h"'
-assert_contains "${PREFLIGHT_FILE}" '"10min"'
+[[ "$(grep -c '^  "12h"$' "${PREFLIGHT_FILE}")" == "2" ]] ||
+  fail "remote preflight must require the 12-hour base-backup and sync budgets"
 assert_contains "${COMMON_LIB_FILE}" 'SuccessExitStatus'
 assert_contains "${COMMON_LIB_FILE}" 'ExecReload'
 assert_contains "${COMMON_LIB_FILE}" 'ExecStopPost'
@@ -374,7 +375,7 @@ source "${COMMON_LIB_FILE}"
 lifecycle_type="oneshot"
 lifecycle_remain_after_exit="no"
 lifecycle_restart="no"
-lifecycle_timeout_start="10min"
+lifecycle_timeout_start="12h"
 lifecycle_timeout_stop="2min"
 lifecycle_kill_mode="control-group"
 lifecycle_send_sigkill="yes"
@@ -405,13 +406,13 @@ systemctl() {
 }
 
 if ! require_systemd_unit_hardened_lifecycle \
-  stuhelper-postgres-backup-sync.service 10min; then
+  stuhelper-postgres-backup-sync.service 12h; then
   fail "the systemd lifecycle validator rejected the protected recurring oneshot service"
 fi
 
 lifecycle_remain_after_exit="yes"
 if (require_systemd_unit_hardened_lifecycle \
-  stuhelper-postgres-backup-sync.service 10min) \
+  stuhelper-postgres-backup-sync.service 12h) \
   >"${tmpdir}/backup-unit-remain-after-exit.out" 2>"${tmpdir}/backup-unit-remain-after-exit.err"; then
   fail "the systemd lifecycle validator accepted RemainAfterExit=yes"
 fi
@@ -421,17 +422,17 @@ lifecycle_remain_after_exit="no"
 
 lifecycle_timeout_start="30s"
 if (require_systemd_unit_hardened_lifecycle \
-  stuhelper-postgres-backup-sync.service 10min) \
+  stuhelper-postgres-backup-sync.service 12h) \
   >"${tmpdir}/backup-unit-timeout.out" 2>"${tmpdir}/backup-unit-timeout.err"; then
   fail "the systemd lifecycle validator accepted a non-canonical backup start timeout"
 fi
-grep -q 'TimeoutStartUSec=10min' "${tmpdir}/backup-unit-timeout.err" || \
+grep -q 'TimeoutStartUSec=12h' "${tmpdir}/backup-unit-timeout.err" || \
   fail "the start-timeout failure did not report the service-specific finite deadline"
-lifecycle_timeout_start="10min"
+lifecycle_timeout_start="12h"
 
 lifecycle_timeout_stop="infinity"
 if (require_systemd_unit_hardened_lifecycle \
-  stuhelper-postgres-backup-sync.service 10min) \
+  stuhelper-postgres-backup-sync.service 12h) \
   >"${tmpdir}/backup-unit-stop-timeout.out" 2>"${tmpdir}/backup-unit-stop-timeout.err"; then
   fail "the systemd lifecycle validator accepted an unbounded stop timeout"
 fi
@@ -441,7 +442,7 @@ lifecycle_timeout_stop="2min"
 
 lifecycle_kill_mode="process"
 if (require_systemd_unit_hardened_lifecycle \
-  stuhelper-postgres-backup-sync.service 10min) \
+  stuhelper-postgres-backup-sync.service 12h) \
   >"${tmpdir}/backup-unit-kill-mode.out" 2>"${tmpdir}/backup-unit-kill-mode.err"; then
   fail "the systemd lifecycle validator accepted process-only timeout termination"
 fi
@@ -451,7 +452,7 @@ lifecycle_kill_mode="control-group"
 
 lifecycle_send_sigkill="no"
 if (require_systemd_unit_hardened_lifecycle \
-  stuhelper-postgres-backup-sync.service 10min) \
+  stuhelper-postgres-backup-sync.service 12h) \
   >"${tmpdir}/backup-unit-sigkill.out" 2>"${tmpdir}/backup-unit-sigkill.err"; then
   fail "the systemd lifecycle validator accepted a non-enforceable finite deadline"
 fi
@@ -461,7 +462,7 @@ lifecycle_send_sigkill="yes"
 
 lifecycle_start_limit_interval="1h"
 if (require_systemd_unit_hardened_lifecycle \
-  stuhelper-postgres-backup-sync.service 10min) \
+  stuhelper-postgres-backup-sync.service 12h) \
   >"${tmpdir}/backup-unit-start-limit.out" 2>"${tmpdir}/backup-unit-start-limit.err"; then
   fail "the systemd lifecycle validator accepted a rate-limited recurring backup service"
 fi
@@ -471,7 +472,7 @@ lifecycle_start_limit_interval="0"
 
 lifecycle_result="start-limit-hit"
 if (require_systemd_unit_hardened_lifecycle \
-  stuhelper-postgres-backup-sync.service 10min) \
+  stuhelper-postgres-backup-sync.service 12h) \
   >"${tmpdir}/backup-unit-rate-limited-result.out" 2>"${tmpdir}/backup-unit-rate-limited-result.err"; then
   fail "the systemd lifecycle validator accepted a currently rate-limited backup service"
 fi
@@ -481,7 +482,7 @@ lifecycle_result="success"
 
 lifecycle_exec_condition="{ path=/bin/false ; argv[]=/bin/false ; ignore_errors=no ; }"
 if (require_systemd_unit_hardened_lifecycle \
-  stuhelper-postgres-backup-sync.service 10min) \
+  stuhelper-postgres-backup-sync.service 12h) \
   >"${tmpdir}/backup-unit-exec-condition.out" 2>"${tmpdir}/backup-unit-exec-condition.err"; then
   fail "the systemd lifecycle validator accepted a backup-skipping ExecCondition"
 fi
@@ -491,7 +492,7 @@ lifecycle_exec_condition=""
 
 lifecycle_success_exit_status="1"
 if (require_systemd_unit_hardened_lifecycle \
-  stuhelper-postgres-backup-sync.service 10min) \
+  stuhelper-postgres-backup-sync.service 12h) \
   >"${tmpdir}/backup-unit-success-status.out" 2>"${tmpdir}/backup-unit-success-status.err"; then
   fail "the systemd lifecycle validator accepted an extended success exit status"
 fi
@@ -501,7 +502,7 @@ lifecycle_success_exit_status=""
 
 lifecycle_exec_stop_post="{ path=/bin/sh ; argv[]=/bin/sh -c true ; ignore_errors=no ; }"
 if (require_systemd_unit_hardened_lifecycle \
-  stuhelper-postgres-backup-sync.service 10min) \
+  stuhelper-postgres-backup-sync.service 12h) \
   >"${tmpdir}/backup-unit-stop-post.out" 2>"${tmpdir}/backup-unit-stop-post.err"; then
   fail "the systemd lifecycle validator accepted an extra ExecStopPost hook"
 fi
