@@ -3229,12 +3229,6 @@ for logged_tag in sorted(logged_tags):
             f"{logged_release_path}",
         )
 
-if current_release is not None and current_release["TAG"] not in logged_tags:
-    raise SystemExit(
-        f"current release tag {current_release['TAG']} is missing from the activation log: "
-        f"{release_log_path}",
-    )
-
 try:
     read_existing_immutable_release(release_path)
 except FileNotFoundError:
@@ -3250,6 +3244,17 @@ except FileNotFoundError:
             f"release tag {tag} was previously used but its immutable record is missing; evidence: {evidence}",
         )
 
+# Older publishers wrote current-release.env before releases.log. If they were
+# interrupted between those writes, only an exact retry of that same immutable
+# identity may proceed and complete the activation ledger. A different tag
+# remains blocked so it cannot overwrite the sole unlogged-current evidence.
+if current_release is not None and current_release["TAG"] not in logged_tags:
+    if current_release["TAG"] != tag:
+        raise SystemExit(
+            f"current release tag {current_release['TAG']} is missing from the activation log: "
+            f"{release_log_path}; retry that exact release identity before deploying another tag",
+        )
+
 if operation == "check":
     raise SystemExit(0)
 
@@ -3260,7 +3265,6 @@ releases_dir.mkdir(parents=True, exist_ok=True)
 # allowed only for the same complete release identity; its original timestamp
 # remains immutable while releases.log records each later activation.
 release_payload = publish_immutable_release(release_path, candidate_payload)
-atomic_write(state_dir / "current-release.env", release_payload)
 
 log_path = state_dir / "releases.log"
 log_fd = os.open(log_path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
@@ -3270,6 +3274,11 @@ with os.fdopen(log_fd, "ab") as stream:
     stream.flush()
     os.fsync(stream.fileno())
 fsync_directory(state_dir)
+
+# The activation ledger becomes durable before the replaceable current
+# pointer. A termination after the log fsync therefore leaves a retryable
+# logged release, never an unlogged current pointer.
+atomic_write(state_dir / "current-release.env", release_payload)
 PY
 }
 

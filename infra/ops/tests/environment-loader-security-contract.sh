@@ -535,6 +535,21 @@ grep -q 'must not be a symlink' "${tmpdir}/symlink-permission.err" ||
 
 release_state_dir="${tmpdir}/release-state"
 fresh_release_guard_state="${tmpdir}/fresh-release-guard-state"
+python3 - "${REPO_ROOT}/infra/ops/lib/common.sh" <<'PY'
+import sys
+from pathlib import Path
+
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+function_start = source.index("_release_record_operation()")
+immutable = source.index("release_payload = publish_immutable_release", function_start)
+activation_log = source.index('log_path = state_dir / "releases.log"', immutable)
+current_pointer = source.index(
+    'atomic_write(state_dir / "current-release.env", release_payload)',
+    activation_log,
+)
+if not immutable < activation_log < current_pointer:
+    raise SystemExit("release publication must durably log activation before replacing current")
+PY
 (
   export DEPLOY_STATE_DIR="${fresh_release_guard_state}"
   export BACKEND_IMAGE_REF="${release_backend_ref}"
@@ -589,6 +604,47 @@ cmp -s "${release_state_dir}/current-release.env" "${immutable_release_path}" ||
 )
 [[ "$(wc -l <"${release_state_dir}/releases.log")" == "2" ]] ||
   fail "read-only release identity validation changed the activation log"
+
+interrupted_current_state="${tmpdir}/interrupted-current-state"
+mkdir -p "${interrupted_current_state}/releases"
+cp "${release_state_dir}/current-release.env" \
+  "${interrupted_current_state}/current-release.env"
+cp "${release_state_dir}/releases/contract-release.env" \
+  "${interrupted_current_state}/releases/contract-release.env"
+chmod 0600 \
+  "${interrupted_current_state}/current-release.env" \
+  "${interrupted_current_state}/releases/contract-release.env"
+(
+  export DEPLOY_STATE_DIR="${interrupted_current_state}"
+  export BACKEND_IMAGE_REF="${release_backend_ref}"
+  export FRONTEND_IMAGE_REF="${release_frontend_ref}"
+  export ADMIN_IMAGE_REF="${release_admin_ref}"
+  require_release_tag_identity_available contract-release
+  record_release contract-release
+)
+[[ "$(wc -l <"${interrupted_current_state}/releases.log")" == "1" ]] ||
+  fail "exact retry did not repair an unlogged current release"
+cmp -s \
+  "${interrupted_current_state}/current-release.env" \
+  "${interrupted_current_state}/releases/contract-release.env" ||
+  fail "unlogged-current repair changed the immutable release identity"
+
+unlogged_other_tag_state="${tmpdir}/unlogged-other-tag-state"
+cp -a "${interrupted_current_state}" "${unlogged_other_tag_state}"
+: >"${unlogged_other_tag_state}/releases.log"
+chmod 0600 "${unlogged_other_tag_state}/releases.log"
+if (
+  export DEPLOY_STATE_DIR="${unlogged_other_tag_state}"
+  export BACKEND_IMAGE_REF="${release_backend_ref}"
+  export FRONTEND_IMAGE_REF="${release_frontend_ref}"
+  export ADMIN_IMAGE_REF="${release_admin_ref}"
+  require_release_tag_identity_available future-release
+) >"${tmpdir}/guard-unlogged-other-tag.out" 2>"${tmpdir}/guard-unlogged-other-tag.err"; then
+  fail "unlogged current release allowed a different tag to replace its sole evidence"
+fi
+grep -q 'retry that exact release identity before deploying another tag' \
+  "${tmpdir}/guard-unlogged-other-tag.err" ||
+  fail "unlogged-current rejection did not explain the exact retry recovery path"
 
 malformed_log_existing_state="${tmpdir}/malformed-log-existing-state"
 mkdir -p "${malformed_log_existing_state}/releases"
