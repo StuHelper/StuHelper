@@ -2690,6 +2690,11 @@ values = {
     "ADMIN_IMAGE_REF": admin_ref,
 }
 digest_ref_pattern = re.compile(r"^[^\s@]+@sha256:[0-9a-f]{64}$")
+legacy_ref_pattern = re.compile(
+    r"^[A-Za-z0-9][A-Za-z0-9._-]*(?::[0-9]+)?"
+    r"(?:/[A-Za-z0-9][A-Za-z0-9._-]*)*"
+    r":[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$",
+)
 
 if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", tag):
     raise SystemExit("release tag contains unsafe path characters")
@@ -2743,7 +2748,11 @@ def atomic_write(path: Path, payload: bytes) -> None:
         raise
 
 
-def read_canonical_release(path: Path) -> tuple[bytes, dict[str, str]]:
+def read_canonical_release(
+    path: Path,
+    *,
+    allow_legacy_image_refs: bool = False,
+) -> tuple[bytes, dict[str, str]]:
     flags = os.O_RDONLY
     if hasattr(os, "O_NOFOLLOW"):
         flags |= os.O_NOFOLLOW
@@ -2752,6 +2761,8 @@ def read_canonical_release(path: Path) -> tuple[bytes, dict[str, str]]:
         metadata = os.fstat(fd)
         if not stat.S_ISREG(metadata.st_mode):
             raise SystemExit(f"existing immutable release record is not a regular file: {path}")
+        if metadata.st_uid != os.geteuid():
+            raise SystemExit(f"existing immutable release record must be owned by the deploy user: {path}")
         if stat.S_IMODE(metadata.st_mode) != 0o600:
             raise SystemExit(f"existing immutable release record must use mode 0600: {path}")
         with os.fdopen(fd, "rb", closefd=False) as stream:
@@ -2784,7 +2795,12 @@ def read_canonical_release(path: Path) -> tuple[bytes, dict[str, str]]:
     if not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", existing["DEPLOYED_AT"]):
         raise SystemExit(f"existing immutable release record has an invalid DEPLOYED_AT: {path}")
     for key in ("BACKEND_IMAGE_REF", "FRONTEND_IMAGE_REF", "ADMIN_IMAGE_REF"):
-        if not digest_ref_pattern.fullmatch(existing[key]):
+        is_digest = digest_ref_pattern.fullmatch(existing[key]) is not None
+        is_supported_legacy = (
+            allow_legacy_image_refs
+            and legacy_ref_pattern.fullmatch(existing[key]) is not None
+        )
+        if not is_digest and not is_supported_legacy:
             raise SystemExit(f"existing immutable release record has an invalid {key}: {path}")
     canonical_payload = "".join(f"{key}={existing[key]}\n" for key in values).encode()
     if payload != canonical_payload:
@@ -2811,6 +2827,8 @@ def read_release_log_tags(path: Path) -> set[str]:
         metadata = os.fstat(fd)
         if not stat.S_ISREG(metadata.st_mode):
             raise SystemExit(f"release activation log is not a regular file: {path}")
+        if metadata.st_uid != os.geteuid():
+            raise SystemExit(f"release activation log must be owned by the deploy user: {path}")
         if stat.S_IMODE(metadata.st_mode) != 0o600:
             raise SystemExit(f"release activation log must use mode 0600: {path}")
         with os.fdopen(fd, "rb", closefd=False) as stream:
@@ -2882,6 +2900,34 @@ try:
     logged_tags = read_release_log_tags(release_log_path)
 except FileNotFoundError:
     logged_tags = set()
+
+# releases.log is the activation ledger, not merely a syntactic index. Every
+# referenced tag must still have a structurally canonical immutable record.
+# Historical tag-only records remain readable for migration/audit purposes,
+# but the current pointer and every newly published candidate stay digest-only.
+for logged_tag in sorted(logged_tags):
+    logged_release_path = releases_dir / f"{logged_tag}.env"
+    try:
+        _, logged_release = read_canonical_release(
+            logged_release_path,
+            allow_legacy_image_refs=True,
+        )
+    except FileNotFoundError as exc:
+        raise SystemExit(
+            f"release tag {logged_tag} was previously used but its immutable record is missing; "
+            f"evidence: {release_log_path}",
+        ) from exc
+    if logged_release["TAG"] != logged_tag:
+        raise SystemExit(
+            f"release activation log tag {logged_tag} does not match its immutable record: "
+            f"{logged_release_path}",
+        )
+
+if current_release is not None and current_release["TAG"] not in logged_tags:
+    raise SystemExit(
+        f"current release tag {current_release['TAG']} is missing from the activation log: "
+        f"{release_log_path}",
+    )
 
 try:
     read_existing_immutable_release(release_path)

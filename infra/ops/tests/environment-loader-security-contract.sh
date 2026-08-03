@@ -526,6 +526,86 @@ grep -q 'release activation log is truncated' "${tmpdir}/record-malformed-existi
 [[ "$(sha256sum "${malformed_log_existing_state}/releases.log" | cut -d ' ' -f 1)" == "${malformed_log_before}" ]] ||
   fail "failed malformed-ledger publication changed the activation log"
 
+legacy_history_state="${tmpdir}/legacy-history-state"
+mkdir -p "${legacy_history_state}/releases"
+cp "${release_state_dir}/current-release.env" "${legacy_history_state}/current-release.env"
+cp \
+  "${release_state_dir}/releases/contract-release.env" \
+  "${legacy_history_state}/releases/contract-release.env"
+cat >"${legacy_history_state}/releases/legacy-history.env" <<'EOF'
+TAG=legacy-history
+DEPLOYED_AT=2026-08-01T00:00:00Z
+BACKEND_IMAGE_REF=ghcr.io/stuhelper/backend:legacy-history
+FRONTEND_IMAGE_REF=ghcr.io/stuhelper/frontend:legacy-history
+ADMIN_IMAGE_REF=ghcr.io/stuhelper/admin:legacy-history
+EOF
+printf '%s\n' \
+  $'2026-08-01T00:00:00Z\tlegacy-history' \
+  $'2026-08-03T00:00:00Z\tcontract-release' \
+  >"${legacy_history_state}/releases.log"
+chmod 0600 \
+  "${legacy_history_state}/current-release.env" \
+  "${legacy_history_state}/releases/contract-release.env" \
+  "${legacy_history_state}/releases/legacy-history.env" \
+  "${legacy_history_state}/releases.log"
+legacy_history_log_before="$(sha256sum "${legacy_history_state}/releases.log" | cut -d ' ' -f 1)"
+(
+  export DEPLOY_STATE_DIR="${legacy_history_state}"
+  export BACKEND_IMAGE_REF="${release_backend_ref}"
+  export FRONTEND_IMAGE_REF="${release_frontend_ref}"
+  export ADMIN_IMAGE_REF="${release_admin_ref}"
+  require_release_tag_identity_available future-release
+)
+[[ "$(sha256sum "${legacy_history_state}/releases.log" | cut -d ' ' -f 1)" == "${legacy_history_log_before}" ]] ||
+  fail "semantic ledger validation changed a valid activation log"
+
+missing_history_state="${tmpdir}/missing-history-state"
+cp -a "${legacy_history_state}" "${missing_history_state}"
+rm -f "${missing_history_state}/releases/legacy-history.env"
+missing_history_log_before="$(sha256sum "${missing_history_state}/releases.log" | cut -d ' ' -f 1)"
+if (
+  export DEPLOY_STATE_DIR="${missing_history_state}"
+  export BACKEND_IMAGE_REF="${release_backend_ref}"
+  export FRONTEND_IMAGE_REF="${release_frontend_ref}"
+  export ADMIN_IMAGE_REF="${release_admin_ref}"
+  require_release_tag_identity_available future-release
+) >"${tmpdir}/guard-missing-history.out" 2>"${tmpdir}/guard-missing-history.err"; then
+  fail "release identity guard accepted a log whose historical per-tag record was missing"
+fi
+grep -q 'release tag legacy-history was previously used but its immutable record is missing' \
+  "${tmpdir}/guard-missing-history.err" ||
+  fail "missing historical record rejection did not identify the logged tag"
+if (
+  export DEPLOY_STATE_DIR="${missing_history_state}"
+  export BACKEND_IMAGE_REF="${release_backend_ref}"
+  export FRONTEND_IMAGE_REF="${release_frontend_ref}"
+  export ADMIN_IMAGE_REF="${release_admin_ref}"
+  record_release future-release
+) >"${tmpdir}/record-missing-history.out" 2>"${tmpdir}/record-missing-history.err"; then
+  fail "release recorder appended to a semantically incomplete historical ledger"
+fi
+[[ "$(sha256sum "${missing_history_state}/releases.log" | cut -d ' ' -f 1)" == "${missing_history_log_before}" ]] ||
+  fail "failed historical-ledger publication changed the activation log"
+[[ ! -e "${missing_history_state}/releases/future-release.env" ]] ||
+  fail "failed historical-ledger publication created a candidate record"
+
+mismatched_history_state="${tmpdir}/mismatched-history-state"
+cp -a "${legacy_history_state}" "${mismatched_history_state}"
+sed -i 's/^TAG=legacy-history$/TAG=other-history/' \
+  "${mismatched_history_state}/releases/legacy-history.env"
+if (
+  export DEPLOY_STATE_DIR="${mismatched_history_state}"
+  export BACKEND_IMAGE_REF="${release_backend_ref}"
+  export FRONTEND_IMAGE_REF="${release_frontend_ref}"
+  export ADMIN_IMAGE_REF="${release_admin_ref}"
+  require_release_tag_identity_available future-release
+) >"${tmpdir}/guard-mismatched-history.out" 2>"${tmpdir}/guard-mismatched-history.err"; then
+  fail "release identity guard accepted a logged tag whose per-tag TAG differed"
+fi
+grep -q 'release activation log tag legacy-history does not match its immutable record' \
+  "${tmpdir}/guard-mismatched-history.err" ||
+  fail "historical tag mismatch did not identify the semantic ledger inconsistency"
+
 if (
   export DEPLOY_STATE_DIR="${release_state_dir}"
   export BACKEND_IMAGE_REF=ghcr.io/stuhelper/backend@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
