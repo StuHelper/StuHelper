@@ -170,6 +170,8 @@ host-local `bridge` 网络还会拒绝整个 IPAM 子网；共享的 `macvlan`�
 
 备份、同步、对象存储取回、证据生成与恢复脚本把调用进程已经确定的 `LOCAL_STATE_DIR` 视为运维控制面值，并在加载共享/秘密/生成配置时显式保留它。生产 systemd 注入的 `/var/lib/stuhelper` 因而不能被配置文件中的同名空值或漂移值覆盖，也不会在已清除 `HOME` 的隔离环境里回退到用户目录推导逻辑。
 
+WAL 同步在任何对象存储传输前还会检查配置卷已经存在、`${STACK_NAME}-postgres` 容器正在运行，并确认该容器把同名 Docker volume 以可写方式挂载到 `/var/lib/postgresql/wal-archive`。缺失卷、空卷自动创建风险、错误 stack/卷名、只读或未挂载状态都会失败关闭，不能在复制空 `/source` 后继续清理本地恢复材料。
+
 ## 远端部署控制面
 
 远端部署配置由目标机持有，CI / Ansible 不在每次发布时下发 `deploy.remote.env`：

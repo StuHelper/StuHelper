@@ -37,6 +37,9 @@ wal_archive_user="${POSTGRES_WAL_ARCHIVE_CONTAINER_USER:-70:70}"
   die "POSTGRES_WAL_ARCHIVE_CONTAINER_USER must be a numeric uid:gid pair"
 
 mkdir -p "${logical_dir}" "${base_dir}"
+require_live_postgres_wal_archive_volume \
+  "${wal_archive_volume}" \
+  "${STACK_NAME:-stuhelper}-postgres"
 
 sync_excludes=(
   --exclude '*.partial'
