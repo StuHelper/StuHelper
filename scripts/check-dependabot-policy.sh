@@ -9,32 +9,12 @@ CONFIG_FILE="${1:-${REPO_ROOT}/.github/dependabot.yml}"
   echo "[dependabot-policy][error] missing ${CONFIG_FILE}" >&2
   exit 1
 }
+command -v go >/dev/null 2>&1 || {
+  echo "[dependabot-policy][error] Go is required to parse Dependabot YAML" >&2
+  exit 1
+}
 
-awk '
-  function finish_update() {
-    if (in_update && !targets_develop) {
-      printf "[dependabot-policy][error] %s must set target-branch: develop\n", ecosystem > "/dev/stderr"
-      invalid = 1
-    }
-  }
-
-  /^  - package-ecosystem: / {
-    finish_update()
-    in_update = 1
-    targets_develop = 0
-    ecosystem = $0
-    sub(/^  - package-ecosystem: /, "", ecosystem)
-    next
-  }
-
-  /^    target-branch: develop$/ && in_update {
-    targets_develop = 1
-  }
-
-  END {
-    finish_update()
-    exit invalid
-  }
-' "${CONFIG_FILE}"
-
-echo "[dependabot-policy] all version-update ecosystems target develop"
+(
+  cd "${REPO_ROOT}/server"
+  go run ./tools/dependabotpolicy --config "${CONFIG_FILE}"
+)

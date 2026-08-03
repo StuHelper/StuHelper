@@ -29,6 +29,17 @@ EOF
 bash "${POLICY_SCRIPT}" "${tmpdir}/valid.yml" >/dev/null ||
   fail "policy validator rejected complete develop-targeted update blocks"
 
+cat >"${tmpdir}/valid-alternative-format.yml" <<'EOF'
+version: 2
+updates:
+    - {package-ecosystem: gomod, directory: /server, target-branch: develop}
+    - package-ecosystem: npm
+      directory: /clients
+      target-branch: develop
+EOF
+bash "${POLICY_SCRIPT}" "${tmpdir}/valid-alternative-format.yml" >/dev/null ||
+  fail "policy validator rejected valid alternative YAML formatting"
+
 cat >"${tmpdir}/missing-target.yml" <<'EOF'
 version: 2
 updates:
@@ -56,5 +67,19 @@ if bash "${POLICY_SCRIPT}" "${tmpdir}/wrong-target.yml" >"${tmpdir}/wrong.out" 2
 fi
 grep -q 'docker must set target-branch: develop' "${tmpdir}/wrong.err" ||
   fail "wrong target-branch rejection did not identify the affected ecosystem"
+
+cat >"${tmpdir}/reindented-wrong-target.yml" <<'EOF'
+version: 2
+updates:
+    - package-ecosystem: npm
+      directory: /clients
+      target-branch: main
+EOF
+if bash "${POLICY_SCRIPT}" "${tmpdir}/reindented-wrong-target.yml" \
+  >"${tmpdir}/reindented-wrong.out" 2>"${tmpdir}/reindented-wrong.err"; then
+  fail "policy validator ignored a reindented update block targeting main"
+fi
+grep -q 'npm must set target-branch: develop' "${tmpdir}/reindented-wrong.err" ||
+  fail "reindented wrong-target rejection did not identify the affected ecosystem"
 
 echo "[dependabot-policy-contract] all assertions passed"
