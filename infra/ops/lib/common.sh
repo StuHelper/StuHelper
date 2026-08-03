@@ -573,6 +573,94 @@ PY
   printf '%s\n' "${attempt_id}"
 }
 
+migrate_legacy_release_state_permissions() {
+  local migrated_count
+  migrated_count="$(python3 - "${DEPLOY_STATE_DIR}" <<'PY'
+import errno
+import os
+import re
+import stat
+import sys
+from pathlib import Path
+
+state_dir = Path(sys.argv[1])
+try:
+    state_metadata = state_dir.lstat()
+except FileNotFoundError:
+    print(0)
+    raise SystemExit(0)
+if not stat.S_ISDIR(state_metadata.st_mode) or state_dir.is_symlink():
+    raise SystemExit(f"deployment state path must be a regular directory: {state_dir}")
+if state_metadata.st_uid != os.geteuid():
+    raise SystemExit(f"deployment state directory must be owned by the deploy user: {state_dir}")
+
+candidates = [state_dir / "current-release.env", state_dir / "releases.log"]
+releases_dir = state_dir / "releases"
+try:
+    releases_metadata = releases_dir.lstat()
+except FileNotFoundError:
+    releases_metadata = None
+if releases_metadata is not None:
+    if not stat.S_ISDIR(releases_metadata.st_mode) or releases_dir.is_symlink():
+        raise SystemExit(f"release record path must be a regular directory: {releases_dir}")
+    if releases_metadata.st_uid != os.geteuid():
+        raise SystemExit(f"release record directory must be owned by the deploy user: {releases_dir}")
+    tag_record = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\.env")
+    with os.scandir(releases_dir) as entries:
+        for entry in entries:
+            if entry.name.endswith(".env") and not tag_record.fullmatch(entry.name):
+                raise SystemExit(f"release record has an unsafe filename: {entry.path}")
+            if tag_record.fullmatch(entry.name):
+                candidates.append(Path(entry.path))
+
+migrated = 0
+directory_fsync = set()
+for path in candidates:
+    flags = os.O_RDONLY
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    try:
+        fd = os.open(path, flags)
+    except FileNotFoundError:
+        continue
+    except OSError as exc:
+        if exc.errno == errno.ELOOP:
+            raise SystemExit(f"release state entry must not be a symlink: {path}") from exc
+        raise
+    try:
+        metadata = os.fstat(fd)
+        if not stat.S_ISREG(metadata.st_mode):
+            raise SystemExit(f"release state entry is not a regular file: {path}")
+        if metadata.st_uid != os.geteuid():
+            raise SystemExit(f"release state entry must be owned by the deploy user: {path}")
+        mode = stat.S_IMODE(metadata.st_mode)
+        if mode == 0o600:
+            continue
+        if mode != 0o644:
+            raise SystemExit(
+                f"release state entry has an unsafe mode {mode:04o}; expected legacy 0644 or canonical 0600: {path}",
+            )
+        os.fchmod(fd, 0o600)
+        os.fsync(fd)
+        migrated += 1
+        directory_fsync.add(path.parent)
+    finally:
+        os.close(fd)
+
+for directory in directory_fsync:
+    directory_fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(directory_fd)
+    finally:
+        os.close(directory_fd)
+print(migrated)
+PY
+)" || die "failed to normalize legacy release-state permissions"
+  if [[ "${migrated_count}" != "0" ]]; then
+    log "normalized ${migrated_count} legacy release-state file(s) from 0644 to 0600"
+  fi
+}
+
 source_release_record_env_file() {
   local file="$1"
   local expected_tag="${2:-}"

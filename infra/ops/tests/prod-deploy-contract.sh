@@ -39,6 +39,7 @@ caller_tag_validation_line="$(line_number 'require_safe_release_tag "${TAG}" # r
 remote_preflight_line="$(line_number '"${SCRIPT_DIR}/remote-preflight.sh" --pre-deploy')"
 postdeploy_preflight_line="$(line_number '"${SCRIPT_DIR}/remote-preflight.sh" --post-deploy')"
 derived_tag_validation_line="$(line_number 'require_safe_release_tag "${TAG}" # validate env-loaded or derived tags before rendering, image pulls, and backups')"
+release_state_migration_line="$(line_number 'migrate_legacy_release_state_permissions # normalize safe legacy 0644 state before canonical read-only validation')"
 release_identity_guard_line="$(line_number 'require_release_tag_identity_available "${TAG}" # reject immutable tag reuse before deployment side effects')"
 remote_config_load_line="$(line_number 'load_remote_deploy_config')"
 generated_secret_ref_require_line="$(line_number 'GENERATED_ENV_SECRET_REF must be configured for production deploy')"
@@ -180,6 +181,9 @@ if (( derived_tag_validation_line >= pull_release_images_line || derived_tag_val
 fi
 if (( release_identity_guard_line <= derived_tag_validation_line || release_identity_guard_line >= render_postgres_tls_line || release_identity_guard_line >= pull_release_images_line )); then
   fail "an existing immutable release tag must match the requested image identity before deployment side effects"
+fi
+if (( release_state_migration_line <= derived_tag_validation_line || release_state_migration_line >= release_identity_guard_line )); then
+  fail "safe legacy release-state permissions must be normalized immediately before canonical identity validation"
 fi
 grep -qF 'deployment_attempt_id="$(new_deployment_attempt_id)"' "${PROD_DEPLOY_FILE}" ||
   fail "production backups must use a unique activation identifier"
