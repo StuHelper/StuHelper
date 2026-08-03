@@ -92,6 +92,7 @@ require_systemd_unit_hardened_lifecycle() {
     "Type=oneshot"
     "RemainAfterExit=no"
     "Restart=no"
+    "TimeoutStartUSec=infinity"
   )
   local -a empty_properties=(
     ExecCondition

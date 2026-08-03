@@ -149,6 +149,7 @@ defaults 和其他继承环境，只传固定 `PATH`、配置路径与异机门�
 等进程控制变量会失败关闭。预检同时拒绝 `EnvironmentFile=`、`PassEnvironment=` 以及不精确的
 `UnsetEnvironment=` unit/drop-in，不能继续使用缺少或可降级门禁的旧单元。
 服务生命周期还必须没有 `ExecReload`、`ExecStop` 或 `ExecStopPost` 钩子，避免额外命令在备份退出或人工停止时改写恢复工件。
+三个 oneshot 的 `TimeoutStartUSec` 必须保持 `infinity`，不能用 drop-in 为大型 base backup 注入有限启动超时。
 
 生产主机位于 1:1 NAT、hairpin LB 或公网边缘之后时，还必须把所有能路由回本机的地址/CIDR 写入
 `BACKUP_OBJECT_STORAGE_LOCAL_IDENTITY_CIDRS`；无额外身份时显式写 `none`。该清单用于补足
