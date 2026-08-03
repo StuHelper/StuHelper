@@ -22,6 +22,17 @@ require_cmd curl
 require_cmd jq
 require_cmd python3
 require_cmd openssl
+require_cmd systemctl
+require_cmd id
+
+backup_service_user="$(id -un)"
+backup_service_group="$(id -gn)"
+backup_service_uid="$(id -u)"
+backup_service_gid="$(id -g)"
+[[ "${backup_service_user}" != "root" && "${EUID}" -ne 0 && "${backup_service_uid}" != "0" ]] ||
+  die "remote production preflight must run as the non-root deploy user"
+[[ "${backup_service_group}" != "root" && "${backup_service_gid}" != "0" ]] ||
+  die "remote production preflight requires a non-root deploy primary group"
 
 if [[ -n "${SHARED_ENV_SECRET_REF:-}" && -z "${SECRET_BACKEND:-}" ]]; then
   die "SECRET_BACKEND must be set when SHARED_ENV_SECRET_REF is provided"
@@ -124,78 +135,80 @@ mkdir -p \
   "${POSTGRES_WAL_RESTORE_DIR}" \
   "${DEPLOY_STATE_DIR}"
 
-if command -v systemctl >/dev/null 2>&1; then
-  backup_service_units=(
-    stuhelper-postgres-dump-backup.service
-    stuhelper-postgres-basebackup.service
-    stuhelper-postgres-backup-sync.service
-  )
-  backup_service_commands=(
-    "./infra/ops/run-scheduled-backup.sh dump"
-    "./infra/ops/run-scheduled-backup.sh basebackup"
-    "./infra/ops/sync-postgres-backups.sh"
-  )
-  backup_timer_units=(
-    stuhelper-postgres-dump-backup.timer
-    stuhelper-postgres-basebackup.timer
-    stuhelper-postgres-backup-sync.timer
-  )
-  backup_timer_calendars=(
-    "*-*-* 03:15:00"
-    "Sun *-*-* 03:45:00"
-    "*-*-* *:00/15:00"
-  )
-  backup_service_start_timeouts=(
-    "4h"
-    "12h"
-    "10min"
-  )
-  backup_service_common_environment=(
-    "ENV_FILE=${REPO_ROOT}/.env.prod.shared"
-    "SECRETS_ENV_FILE=${REPO_ROOT}/.env.prod.secrets"
-    "GENERATED_ENV_FILE=${REPO_ROOT}/.env.prod.generated"
-    "GENERATED_SECRET_ENV_FILE=${REPO_ROOT}/.env.prod.generated.secrets"
-    "LOCAL_STATE_DIR=/var/lib/stuhelper"
-  )
-  for unit in "${backup_service_units[@]}" "${backup_timer_units[@]}"; do
-    if ! systemctl list-unit-files | grep -q "^${unit}"; then
-      die "backup unit ${unit} is not installed on the target host"
-    fi
-  done
-  for index in "${!backup_service_units[@]}"; do
-    unit="${backup_service_units[${index}]}"
-    expected_service_environment=("${backup_service_common_environment[@]}")
-    if ((index < 2)); then
-      expected_service_environment+=("BACKUP_STAGING_DIR=${BACKUP_STAGING_DIR}")
-    fi
-    expected_service_environment+=("BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true")
-    require_systemd_unit_hardened_lifecycle \
-      "${unit}" \
-      "${backup_service_start_timeouts[${index}]}"
-    require_systemd_unit_without_conditions "${unit}"
-    require_systemd_unit_exact_environment \
-      "${unit}" \
-      "${expected_service_environment[@]}"
-    require_systemd_unit_hardened_execution \
-      "${unit}" \
-      "${REPO_ROOT}" \
-      "${backup_service_commands[${index}]}" \
-      "${expected_service_environment[@]}"
-  done
-  for index in "${!backup_timer_units[@]}"; do
-    unit="${backup_timer_units[${index}]}"
-    require_systemd_timer_schedule \
-      "${unit}" \
-      "${backup_service_units[${index}]}" \
-      "${backup_timer_calendars[${index}]}"
-    if ! systemctl is-enabled --quiet "${unit}"; then
-      die "backup timer ${unit} is not enabled"
-    fi
-    if ! systemctl is-active --quiet "${unit}"; then
-      die "backup timer ${unit} is not active"
-    fi
-  done
-fi
+backup_service_units=(
+  stuhelper-postgres-dump-backup.service
+  stuhelper-postgres-basebackup.service
+  stuhelper-postgres-backup-sync.service
+)
+backup_service_commands=(
+  "./infra/ops/run-scheduled-backup.sh dump"
+  "./infra/ops/run-scheduled-backup.sh basebackup"
+  "./infra/ops/sync-postgres-backups.sh"
+)
+backup_timer_units=(
+  stuhelper-postgres-dump-backup.timer
+  stuhelper-postgres-basebackup.timer
+  stuhelper-postgres-backup-sync.timer
+)
+backup_timer_calendars=(
+  "*-*-* 03:15:00"
+  "Sun *-*-* 03:45:00"
+  "*-*-* *:00/15:00"
+)
+backup_service_start_timeouts=(
+  "4h"
+  "12h"
+  "10min"
+)
+backup_service_common_environment=(
+  "ENV_FILE=${REPO_ROOT}/.env.prod.shared"
+  "SECRETS_ENV_FILE=${REPO_ROOT}/.env.prod.secrets"
+  "GENERATED_ENV_FILE=${REPO_ROOT}/.env.prod.generated"
+  "GENERATED_SECRET_ENV_FILE=${REPO_ROOT}/.env.prod.generated.secrets"
+  "LOCAL_STATE_DIR=/var/lib/stuhelper"
+)
+for unit in "${backup_service_units[@]}" "${backup_timer_units[@]}"; do
+  if ! systemctl list-unit-files | grep -q "^${unit}"; then
+    die "backup unit ${unit} is not installed on the target host"
+  fi
+done
+for index in "${!backup_service_units[@]}"; do
+  unit="${backup_service_units[${index}]}"
+  expected_service_environment=("${backup_service_common_environment[@]}")
+  if ((index < 2)); then
+    expected_service_environment+=("BACKUP_STAGING_DIR=${BACKUP_STAGING_DIR}")
+  fi
+  expected_service_environment+=("BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true")
+  require_systemd_unit_exact_identity \
+    "${unit}" \
+    "${backup_service_user}" \
+    "${backup_service_group}"
+  require_systemd_unit_hardened_lifecycle \
+    "${unit}" \
+    "${backup_service_start_timeouts[${index}]}"
+  require_systemd_unit_without_conditions "${unit}"
+  require_systemd_unit_exact_environment \
+    "${unit}" \
+    "${expected_service_environment[@]}"
+  require_systemd_unit_hardened_execution \
+    "${unit}" \
+    "${REPO_ROOT}" \
+    "${backup_service_commands[${index}]}" \
+    "${expected_service_environment[@]}"
+done
+for index in "${!backup_timer_units[@]}"; do
+  unit="${backup_timer_units[${index}]}"
+  require_systemd_timer_schedule \
+    "${unit}" \
+    "${backup_service_units[${index}]}" \
+    "${backup_timer_calendars[${index}]}"
+  if ! systemctl is-enabled --quiet "${unit}"; then
+    die "backup timer ${unit} is not enabled"
+  fi
+  if ! systemctl is-active --quiet "${unit}"; then
+    die "backup timer ${unit} is not active"
+  fi
+done
 [[ -n "${BACKUP_DATABASE_URL:-}" ]] || die "BACKUP_DATABASE_URL must be configured"
 [[ -n "${REPLICATION_DATABASE_URL:-}" ]] || die "REPLICATION_DATABASE_URL must be configured"
 

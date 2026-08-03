@@ -21,8 +21,41 @@ require_root() {
   fi
 }
 
+require_service_identity() {
+  local deploy_uid
+  local deploy_group_record
+  local deploy_gid
+
+  [[ -n "${DEPLOY_USER}" && "${DEPLOY_USER}" != "root" && "${DEPLOY_USER}" != "0" ]] || {
+    echo "[install-backup-timers][error] DEPLOY_USER must be an explicit non-root account" >&2
+    exit 1
+  }
+  [[ -n "${DEPLOY_GROUP}" && "${DEPLOY_GROUP}" != "root" && "${DEPLOY_GROUP}" != "0" ]] || {
+    echo "[install-backup-timers][error] DEPLOY_GROUP must be an explicit non-root group" >&2
+    exit 1
+  }
+  deploy_uid="$(id -u "${DEPLOY_USER}" 2>/dev/null)" || {
+    echo "[install-backup-timers][error] deploy user does not exist: ${DEPLOY_USER}" >&2
+    exit 1
+  }
+  [[ "${deploy_uid}" != "0" ]] || {
+    echo "[install-backup-timers][error] DEPLOY_USER must not resolve to uid 0" >&2
+    exit 1
+  }
+  deploy_group_record="$(getent group "${DEPLOY_GROUP}")" || {
+    echo "[install-backup-timers][error] deploy group does not exist: ${DEPLOY_GROUP}" >&2
+    exit 1
+  }
+  IFS=: read -r _ _ deploy_gid _ <<<"${deploy_group_record}"
+  [[ "${deploy_gid}" =~ ^[0-9]+$ && "${deploy_gid}" != "0" ]] || {
+    echo "[install-backup-timers][error] DEPLOY_GROUP must not resolve to gid 0" >&2
+    exit 1
+  }
+}
+
 main() {
   require_root
+  require_service_identity
 
   install -d -o "${DEPLOY_USER}" -g "${DEPLOY_GROUP}" -m 0755 "${DEPLOY_APP_DIR}/backups/postgres/logical"
   install -d -o "${DEPLOY_USER}" -g "${DEPLOY_GROUP}" -m 0755 "${DEPLOY_APP_DIR}/backups/postgres/base"

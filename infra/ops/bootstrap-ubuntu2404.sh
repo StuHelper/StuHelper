@@ -27,6 +27,25 @@ require_root() {
   fi
 }
 
+require_non_root_deploy_identity() {
+  local deploy_uid
+  local deploy_group_record
+  local deploy_gid
+
+  [[ -n "${DEPLOY_USER}" && "${DEPLOY_USER}" != "root" && "${DEPLOY_USER}" != "0" ]] ||
+    die "DEPLOY_USER must be an explicit non-root account"
+  [[ -n "${DEPLOY_GROUP}" && "${DEPLOY_GROUP}" != "root" && "${DEPLOY_GROUP}" != "0" ]] ||
+    die "DEPLOY_GROUP must be an explicit non-root group"
+  if deploy_uid="$(id -u "${DEPLOY_USER}" 2>/dev/null)"; then
+    [[ "${deploy_uid}" != "0" ]] || die "DEPLOY_USER must not resolve to uid 0"
+  fi
+  if deploy_group_record="$(getent group "${DEPLOY_GROUP}")"; then
+    IFS=: read -r _ _ deploy_gid _ <<<"${deploy_group_record}"
+    [[ "${deploy_gid}" =~ ^[0-9]+$ && "${deploy_gid}" != "0" ]] ||
+      die "DEPLOY_GROUP must not resolve to gid 0"
+  fi
+}
+
 apt_install() {
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -y
@@ -347,6 +366,7 @@ EOF
 
 main() {
   require_root
+  require_non_root_deploy_identity
 
   log "installing base packages"
   apt_install ca-certificates curl gnupg iproute2 jq openssl git bash python3
