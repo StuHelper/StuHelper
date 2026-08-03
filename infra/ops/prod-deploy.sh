@@ -388,36 +388,14 @@ predeploy_basebackup_path="${predeploy_basebackup_dir}/predeploy-${TAG}-${deploy
 mkdir -p "${predeploy_backup_dir}" "${predeploy_basebackup_dir}"
 "${SCRIPT_DIR}/backup-postgres.sh" "${predeploy_backup_path}" || die "pre-deploy backup failed; aborting deployment"
 
-has_fresh_verified_basebackup() {
-  local max_age_seconds="${POSTGRES_BACKUP_EVIDENCE_MAX_BASE_AGE_SECONDS:-691200}"
-  local now candidate sidecar modified_at age expected actual
-  [[ "${max_age_seconds}" =~ ^[0-9]+$ && "${max_age_seconds}" != "0" ]] ||
-    die "POSTGRES_BACKUP_EVIDENCE_MAX_BASE_AGE_SECONDS must be a positive integer"
-  now="$(date +%s)"
-  while IFS= read -r -d '' candidate; do
-    sidecar="${candidate}.sha256"
-    [[ -s "${candidate}" && -s "${sidecar}" ]] || continue
-    modified_at="$(stat -c '%Y' "${candidate}")" || continue
-    age=$((10#${now} - 10#${modified_at}))
-    ((age >= 0 && age <= 10#${max_age_seconds})) || continue
-    expected="$(awk 'NR == 1 { print $1 }' "${sidecar}")"
-    [[ "${expected}" =~ ^[0-9a-f]{64}$ ]] || continue
-    actual="$(sha256sum "${candidate}" | awk '{ print $1 }')"
-    [[ "${actual}" == "${expected}" ]] || continue
-    tar -tzf "${candidate}" >/dev/null || continue
-    return 0
-  done < <(find "${predeploy_basebackup_dir}" -maxdepth 1 -type f -name '*.tar.gz' -print0)
-  return 1
-}
-
-if has_fresh_verified_basebackup; then
-  log "reusing a fresh verified physical base backup recovery anchor"
-else
-  log "creating a fresh physical base backup recovery anchor before migrations"
-  BACKUP_MODE=basebackup \
-    "${SCRIPT_DIR}/backup-postgres.sh" "${predeploy_basebackup_path}" ||
-    die "pre-deploy physical base backup failed; aborting deployment"
-fi
+# A file's age, checksum, and tar readability do not prove that it belongs to
+# the PostgreSQL cluster currently receiving migrations. Create a new
+# pg_basebackup for every deployment attempt so this recovery anchor is
+# necessarily bound to the live replication endpoint used by this rollout.
+log "creating a fresh cluster-bound physical base backup recovery anchor before migrations"
+BACKUP_MODE=basebackup \
+  "${SCRIPT_DIR}/backup-postgres.sh" "${predeploy_basebackup_path}" ||
+  die "pre-deploy physical base backup failed; aborting deployment"
 
 log "syncing pre-deploy PostgreSQL backup artifacts to object storage"
 "${SCRIPT_DIR}/sync-postgres-backups.sh"

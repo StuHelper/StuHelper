@@ -199,8 +199,11 @@ grep -qF 'predeploy-${TAG}-${deployment_attempt_id}.dump' "${PROD_DEPLOY_FILE}" 
   fail "pre-deploy backup paths must not collide when a release tag is reactivated"
 grep -qF 'predeploy-${TAG}-${deployment_attempt_id}.tar.gz' "${PROD_DEPLOY_FILE}" ||
   fail "initial physical recovery anchors must use the unique deployment attempt identifier"
-grep -qF 'has_fresh_verified_basebackup' "${PROD_DEPLOY_FILE}" ||
-  fail "production deploy must create a physical recovery anchor when no fresh verified base backup exists"
+if grep -qF 'has_fresh_verified_basebackup' "${PROD_DEPLOY_FILE}"; then
+  fail "production deploy must not reuse a base backup whose cluster identity is unknown"
+fi
+grep -qF 'creating a fresh cluster-bound physical base backup recovery anchor before migrations' "${PROD_DEPLOY_FILE}" ||
+  fail "every deployment attempt must create a fresh cluster-bound physical recovery anchor"
 if (( generated_secret_ref_require_line <= remote_config_load_line )); then
   fail "production deploy must load remote.env before requiring GENERATED_ENV_SECRET_REF"
 fi
@@ -466,7 +469,7 @@ if (( predeploy_backup_line <= start_infra_line )); then
   fail "pre-deploy database backup must run after production infrastructure starts"
 fi
 if (( predeploy_basebackup_line <= predeploy_backup_line )); then
-  fail "a missing physical recovery anchor must be created after the pre-deploy logical backup"
+  fail "a fresh physical recovery anchor must be created after the pre-deploy logical backup"
 fi
 if (( sync_backup_line <= predeploy_basebackup_line )); then
   fail "logical and physical recovery anchors must both exist before off-host synchronization"
