@@ -272,13 +272,65 @@ source_remote_deploy_config_env_file() {
 }
 
 source_release_record_env_file() {
-  source_env_file \
-    "$1" \
-    TAG \
-    DEPLOYED_AT \
-    BACKEND_IMAGE_REF \
-    FRONTEND_IMAGE_REF \
+  local file="$1"
+  local expected_tag="${2:-}"
+  local diagnostic
+  local key
+  local -a required_keys=(
+    TAG
+    DEPLOYED_AT
+    BACKEND_IMAGE_REF
+    FRONTEND_IMAGE_REF
     ADMIN_IMAGE_REF
+  )
+
+  if ! diagnostic="$(python3 - "${file}" "${required_keys[@]}" 2>&1 <<'PY'
+import re
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+required_keys = tuple(sys.argv[2:])
+required = set(required_keys)
+key_pattern = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+seen = set()
+
+for lineno, line in enumerate(path.read_text().splitlines(), 1):
+    stripped = line.strip()
+    if not stripped or stripped.startswith("#"):
+        continue
+    if stripped.startswith("export "):
+        stripped = stripped[len("export "):].lstrip()
+    if "=" not in stripped:
+        raise SystemExit(f"{path}:{lineno}: expected KEY=VALUE")
+    key = stripped.split("=", 1)[0].strip()
+    if not key_pattern.fullmatch(key):
+        raise SystemExit(f"{path}:{lineno}: invalid env key: {key}")
+    if key not in required:
+        raise SystemExit(f"{path}:{lineno}: environment key {key} is not allowed in this release record")
+    if key in seen:
+        raise SystemExit(f"{path}:{lineno}: duplicate release record key: {key}")
+    seen.add(key)
+
+missing = [key for key in required_keys if key not in seen]
+if missing:
+    raise SystemExit(f"{path}: release record is missing required keys: {', '.join(missing)}")
+PY
+)"; then
+    die "${diagnostic}"
+  fi
+
+  unset TAG DEPLOYED_AT BACKEND_IMAGE_REF FRONTEND_IMAGE_REF ADMIN_IMAGE_REF
+  source_env_file "${file}" "${required_keys[@]}"
+
+  for key in "${required_keys[@]}"; do
+    if [[ -z "${!key:-}" ]]; then
+      die "${file}: release record key ${key} must not be empty"
+    fi
+  done
+  if [[ -n "${expected_tag}" && "${TAG}" != "${expected_tag}" ]]; then
+    die "${file}: release record TAG does not match rollback target ${expected_tag}"
+  fi
 }
 
 default_local_state_dir() {
@@ -1589,21 +1641,85 @@ record_release() {
   mkdir -p "${DEPLOY_STATE_DIR}/releases"
   local now
   now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  printf '%s\t%s\n' "${now}" "${tag}" >> "${DEPLOY_STATE_DIR}/releases.log"
-  cat > "${DEPLOY_STATE_DIR}/current-release.env" <<EOF
-TAG=${tag}
-DEPLOYED_AT=${now}
-BACKEND_IMAGE_REF=${BACKEND_IMAGE_REF:-}
-FRONTEND_IMAGE_REF=${FRONTEND_IMAGE_REF:-}
-ADMIN_IMAGE_REF=${ADMIN_IMAGE_REF:-}
-EOF
-  cat > "${DEPLOY_STATE_DIR}/releases/${tag}.env" <<EOF
-TAG=${tag}
-DEPLOYED_AT=${now}
-BACKEND_IMAGE_REF=${BACKEND_IMAGE_REF:-}
-FRONTEND_IMAGE_REF=${FRONTEND_IMAGE_REF:-}
-ADMIN_IMAGE_REF=${ADMIN_IMAGE_REF:-}
-EOF
+  python3 - \
+    "${DEPLOY_STATE_DIR}" \
+    "${tag}" \
+    "${now}" \
+    "${BACKEND_IMAGE_REF:-}" \
+    "${FRONTEND_IMAGE_REF:-}" \
+    "${ADMIN_IMAGE_REF:-}" <<'PY'
+import os
+import re
+import sys
+import tempfile
+from pathlib import Path
+
+state_dir = Path(sys.argv[1])
+tag, deployed_at, backend_ref, frontend_ref, admin_ref = sys.argv[2:]
+values = {
+    "TAG": tag,
+    "DEPLOYED_AT": deployed_at,
+    "BACKEND_IMAGE_REF": backend_ref,
+    "FRONTEND_IMAGE_REF": frontend_ref,
+    "ADMIN_IMAGE_REF": admin_ref,
+}
+
+if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", tag):
+    raise SystemExit("release tag contains unsafe path characters")
+for key, value in values.items():
+    if not value:
+        raise SystemExit(f"release record field {key} must not be empty")
+    if "\n" in value or "\r" in value:
+        raise SystemExit(f"release record field {key} must be a single line")
+
+releases_dir = state_dir / "releases"
+state_dir.mkdir(parents=True, exist_ok=True)
+releases_dir.mkdir(parents=True, exist_ok=True)
+payload = "".join(f"{key}={value}\n" for key, value in values.items()).encode()
+
+
+def atomic_write(path: Path) -> None:
+    fd, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    temporary_path = Path(temporary_name)
+    try:
+        os.fchmod(fd, 0o600)
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary_path, path)
+        directory_fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+    except BaseException:
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+        temporary_path.unlink(missing_ok=True)
+        raise
+
+
+# Publish the immutable per-release record first. A crash before the current
+# pointer or append-only index is updated cannot expose a partial record.
+atomic_write(releases_dir / f"{tag}.env")
+atomic_write(state_dir / "current-release.env")
+
+log_path = state_dir / "releases.log"
+log_fd = os.open(log_path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+os.fchmod(log_fd, 0o600)
+with os.fdopen(log_fd, "ab") as stream:
+    stream.write(f"{deployed_at}\t{tag}\n".encode())
+    stream.flush()
+    os.fsync(stream.fileno())
+directory_fd = os.open(state_dir, os.O_RDONLY | os.O_DIRECTORY)
+try:
+    os.fsync(directory_fd)
+finally:
+    os.close(directory_fd)
+PY
 }
 
 resolve_previous_release_tag() {

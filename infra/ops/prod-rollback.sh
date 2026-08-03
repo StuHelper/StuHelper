@@ -50,7 +50,7 @@ fi
 
 release_file="${DEPLOY_STATE_DIR}/releases/${target_tag}.env"
 if [[ -f "${release_file}" ]]; then
-  source_release_record_env_file "${release_file}"
+  source_release_record_env_file "${release_file}" "${target_tag}"
 else
   BACKEND_IMAGE_REF="$(derive_tagged_image_ref "${BACKEND_IMAGE_REF:-}" "${target_tag}" || true)"
   FRONTEND_IMAGE_REF="$(derive_tagged_image_ref "${FRONTEND_IMAGE_REF:-}" "${target_tag}" || true)"

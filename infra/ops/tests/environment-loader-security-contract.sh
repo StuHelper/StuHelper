@@ -73,13 +73,87 @@ EOF
 if (source_release_record_env_file "${tmpdir}/release.env") >"${tmpdir}/release.log" 2>&1; then
   fail "release record loader accepted a process-control key"
 fi
-grep -q 'environment key PATH is not allowed in this file' "${tmpdir}/release.log" ||
+grep -q 'environment key PATH is not allowed in this release record' "${tmpdir}/release.log" ||
   fail "release record allowlist rejection was not explicit"
 
-printf 'TAG=contract-release\n' >"${tmpdir}/release-safe.env"
-source_release_record_env_file "${tmpdir}/release-safe.env"
+release_backend_ref='ghcr.io/stuhelper/backend@sha256:1111111111111111111111111111111111111111111111111111111111111111'
+release_frontend_ref='ghcr.io/stuhelper/frontend@sha256:2222222222222222222222222222222222222222222222222222222222222222'
+release_admin_ref='ghcr.io/stuhelper/admin@sha256:3333333333333333333333333333333333333333333333333333333333333333'
+
+cat >"${tmpdir}/release-missing.env" <<EOF
+TAG=contract-release
+DEPLOYED_AT=2026-08-03T00:00:00Z
+BACKEND_IMAGE_REF=${release_backend_ref}
+FRONTEND_IMAGE_REF=${release_frontend_ref}
+EOF
+if (source_release_record_env_file "${tmpdir}/release-missing.env" contract-release) >"${tmpdir}/release-missing.log" 2>&1; then
+  fail "release record loader accepted a truncated record"
+fi
+grep -q 'missing required keys: ADMIN_IMAGE_REF' "${tmpdir}/release-missing.log" ||
+  fail "truncated release record rejection did not identify the missing field"
+
+cat >"${tmpdir}/release-duplicate.env" <<EOF
+TAG=contract-release
+DEPLOYED_AT=2026-08-03T00:00:00Z
+BACKEND_IMAGE_REF=${release_backend_ref}
+FRONTEND_IMAGE_REF=${release_frontend_ref}
+ADMIN_IMAGE_REF=${release_admin_ref}
+TAG=contract-release
+EOF
+if (source_release_record_env_file "${tmpdir}/release-duplicate.env" contract-release) >"${tmpdir}/release-duplicate.log" 2>&1; then
+  fail "release record loader accepted a duplicate field"
+fi
+grep -q 'duplicate release record key: TAG' "${tmpdir}/release-duplicate.log" ||
+  fail "duplicate release record rejection did not identify the repeated field"
+
+cat >"${tmpdir}/release-safe.env" <<EOF
+TAG=contract-release
+DEPLOYED_AT=2026-08-03T00:00:00Z
+BACKEND_IMAGE_REF=${release_backend_ref}
+FRONTEND_IMAGE_REF=${release_frontend_ref}
+ADMIN_IMAGE_REF=${release_admin_ref}
+EOF
+if (source_release_record_env_file "${tmpdir}/release-safe.env" wrong-release) >"${tmpdir}/release-tag-mismatch.log" 2>&1; then
+  fail "release record loader accepted a mismatched target tag"
+fi
+grep -q 'TAG does not match rollback target wrong-release' "${tmpdir}/release-tag-mismatch.log" ||
+  fail "release record tag mismatch did not report the expected target"
+
+export TAG=stale-release
+export DEPLOYED_AT=2026-01-01T00:00:00Z
+export BACKEND_IMAGE_REF=stale-backend
+export FRONTEND_IMAGE_REF=stale-frontend
+export ADMIN_IMAGE_REF=stale-admin
+source_release_record_env_file "${tmpdir}/release-safe.env" contract-release
 [[ "${TAG}" == "contract-release" ]] ||
-  fail "release record loader rejected or changed an allowed key"
+  fail "release record loader rejected or changed the target tag"
+[[ "${BACKEND_IMAGE_REF}" == "${release_backend_ref}" ]] ||
+  fail "release record loader retained an inherited backend image"
+[[ "${FRONTEND_IMAGE_REF}" == "${release_frontend_ref}" ]] ||
+  fail "release record loader retained an inherited frontend image"
+[[ "${ADMIN_IMAGE_REF}" == "${release_admin_ref}" ]] ||
+  fail "release record loader retained an inherited admin image"
+
+release_state_dir="${tmpdir}/release-state"
+(
+  export DEPLOY_STATE_DIR="${release_state_dir}"
+  export BACKEND_IMAGE_REF="${release_backend_ref}"
+  export FRONTEND_IMAGE_REF="${release_frontend_ref}"
+  export ADMIN_IMAGE_REF="${release_admin_ref}"
+  record_release contract-release
+)
+cmp -s "${release_state_dir}/current-release.env" "${release_state_dir}/releases/contract-release.env" ||
+  fail "atomic current and immutable release records diverged"
+for release_record_path in \
+  "${release_state_dir}/current-release.env" \
+  "${release_state_dir}/releases/contract-release.env" \
+  "${release_state_dir}/releases.log"; do
+  [[ "$(stat -c '%a' "${release_record_path}")" == "600" ]] ||
+    fail "release record ${release_record_path} must use mode 0600"
+done
+if find "${release_state_dir}" -type f -name '.*.??????' -print -quit | grep -q .; then
+  fail "atomic release recording left a temporary file behind"
+fi
 
 : >"${tmpdir}/shared.env"
 : >"${tmpdir}/generated.env"
