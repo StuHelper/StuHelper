@@ -121,6 +121,40 @@ require_systemd_unit_hardened_lifecycle() {
   done
 }
 
+require_systemd_timer_schedule() {
+  local timer_unit="$1"
+  local expected_target="$2"
+  local expected_calendar="$3"
+  local effective_calendar
+  local effective_monotonic
+  local effective_persistent
+  local effective_target
+
+  if ! effective_target="$(systemctl show "${timer_unit}" --property=Unit --value 2>/dev/null)"; then
+    die "failed to inspect Unit for systemd timer ${timer_unit}"
+  fi
+  if ! effective_persistent="$(systemctl show "${timer_unit}" --property=Persistent --value 2>/dev/null)"; then
+    die "failed to inspect Persistent for systemd timer ${timer_unit}"
+  fi
+  if ! effective_calendar="$(systemctl show "${timer_unit}" --property=TimersCalendar --value 2>/dev/null)"; then
+    die "failed to inspect TimersCalendar for systemd timer ${timer_unit}"
+  fi
+  if ! effective_monotonic="$(systemctl show "${timer_unit}" --property=TimersMonotonic --value 2>/dev/null)"; then
+    die "failed to inspect TimersMonotonic for systemd timer ${timer_unit}"
+  fi
+
+  if ! python3 "${COMMON_LIB_DIR}/../validate-systemd-timer.py" \
+    --target "${effective_target}" \
+    --persistent "${effective_persistent}" \
+    --timers-calendar "${effective_calendar}" \
+    --timers-monotonic "${effective_monotonic}" \
+    --expected-target "${expected_target}" \
+    --expected-calendar "${expected_calendar}"
+  then
+    die "systemd timer ${timer_unit} must target ${expected_target} with the exact protected calendar ${expected_calendar}; reinstall the production backup timers and remove overriding drop-ins"
+  fi
+}
+
 require_systemd_unit_hardened_execution() {
   local unit="$1"
   local expected_working_directory="$2"
