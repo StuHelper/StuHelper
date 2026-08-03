@@ -224,13 +224,11 @@ fi
 
 source "${COMMON_LIB_FILE}"
 runtime_postgres_running=false
-runtime_app_running=false
 docker() {
   [[ "${1:-}" == "inspect" ]] || return 90
   local target="${!#}"
   case "${target}" in
     contract-postgres) printf '%s\n' "${runtime_postgres_running}" ;;
-    contract-app) printf '%s\n' "${runtime_app_running}" ;;
     *) return 1 ;;
   esac
 }
@@ -251,11 +249,9 @@ EXTERNAL_POSTGRES_ENABLED=false
 assert_runtime_check_state --pre-deploy false false
 
 runtime_postgres_running=true
-runtime_app_running=true
-assert_runtime_check_state --pre-deploy true true
+assert_runtime_check_state --pre-deploy true false
 
 runtime_postgres_running=false
-runtime_app_running=false
 EXTERNAL_POSTGRES_ENABLED=true
 assert_runtime_check_state --pre-deploy true false
 
@@ -264,7 +260,7 @@ assert_runtime_check_state --post-deploy true true
 assert_runtime_check_state --full true true
 
 unset -f docker warn assert_runtime_check_state
-unset runtime_postgres_running runtime_app_running STACK_NAME EXTERNAL_POSTGRES_ENABLED
+unset runtime_postgres_running STACK_NAME EXTERNAL_POSTGRES_ENABLED
 unset run_database_runtime_checks run_public_runtime_checks
 source "${COMMON_LIB_FILE}"
 
