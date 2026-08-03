@@ -106,8 +106,15 @@ assert_contains "${BOOTSTRAP_SCRIPT}" 'Environment=BACKUP_STAGING_DIR=\$\{BACKUP
   fail "bootstrap fallback must keep all backup oneshot services restartable by their timers"
 [[ "$(grep -c '^Restart=no$' "${BOOTSTRAP_SCRIPT}")" == "3" ]] ||
   fail "bootstrap fallback must leave retries under timer control"
-[[ "$(grep -c '^TimeoutStartSec=infinity$' "${BOOTSTRAP_SCRIPT}")" == "3" ]] ||
-  fail "bootstrap fallback must not truncate large backups with a startup timeout"
+assert_contains "${BOOTSTRAP_SCRIPT}" '^TimeoutStartSec=4h$'
+assert_contains "${BOOTSTRAP_SCRIPT}" '^TimeoutStartSec=12h$'
+assert_contains "${BOOTSTRAP_SCRIPT}" '^TimeoutStartSec=10min$'
+[[ "$(grep -c '^TimeoutStopSec=2min$' "${BOOTSTRAP_SCRIPT}")" == "3" ]] ||
+  fail "bootstrap fallback must bound service termination after a backup timeout"
+[[ "$(grep -c '^KillMode=control-group$' "${BOOTSTRAP_SCRIPT}")" == "3" ]] ||
+  fail "bootstrap fallback must terminate the complete backup service cgroup"
+[[ "$(grep -c '^SendSIGKILL=yes$' "${BOOTSTRAP_SCRIPT}")" == "3" ]] ||
+  fail "bootstrap fallback must make the finite backup deadline enforceable"
 [[ "$(grep -c '^UnsetEnvironment=LD_PRELOAD LD_LIBRARY_PATH LD_AUDIT GCONV_PATH LOCPATH$' "${BOOTSTRAP_SCRIPT}")" == "3" ]] ||
   fail "bootstrap fallback must clear dynamic-loader inputs before all three backup services start"
 [[ "$(grep -Ec '^ExecStart=/usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin .* BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true /bin/bash --noprofile --norc \./infra/ops/' "${BOOTSTRAP_SCRIPT}")" == "3" ]] ||
@@ -140,8 +147,15 @@ assert_contains "${BACKUP_TIMER_INSTALLER}" '^OnCalendar=\*-\*-\* \*:00/15:00$'
   fail "backup timer installer must keep all backup oneshot services restartable by their timers"
 [[ "$(grep -c '^Restart=no$' "${BACKUP_TIMER_INSTALLER}")" == "3" ]] ||
   fail "backup timer installer must leave retries under timer control"
-[[ "$(grep -c '^TimeoutStartSec=infinity$' "${BACKUP_TIMER_INSTALLER}")" == "3" ]] ||
-  fail "backup timer installer must not truncate large backups with a startup timeout"
+assert_contains "${BACKUP_TIMER_INSTALLER}" '^TimeoutStartSec=4h$'
+assert_contains "${BACKUP_TIMER_INSTALLER}" '^TimeoutStartSec=12h$'
+assert_contains "${BACKUP_TIMER_INSTALLER}" '^TimeoutStartSec=10min$'
+[[ "$(grep -c '^TimeoutStopSec=2min$' "${BACKUP_TIMER_INSTALLER}")" == "3" ]] ||
+  fail "backup timer installer must bound service termination after a backup timeout"
+[[ "$(grep -c '^KillMode=control-group$' "${BACKUP_TIMER_INSTALLER}")" == "3" ]] ||
+  fail "backup timer installer must terminate the complete backup service cgroup"
+[[ "$(grep -c '^SendSIGKILL=yes$' "${BACKUP_TIMER_INSTALLER}")" == "3" ]] ||
+  fail "backup timer installer must make the finite backup deadline enforceable"
 [[ "$(grep -c '^UnsetEnvironment=LD_PRELOAD LD_LIBRARY_PATH LD_AUDIT GCONV_PATH LOCPATH$' "${BACKUP_TIMER_INSTALLER}")" == "3" ]] ||
   fail "backup timer installer must clear dynamic-loader inputs before all three backup services start"
 [[ "$(grep -Ec '^ExecStart=/usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin .* BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true /bin/bash --noprofile --norc \./infra/ops/' "${BACKUP_TIMER_INSTALLER}")" == "3" ]] ||

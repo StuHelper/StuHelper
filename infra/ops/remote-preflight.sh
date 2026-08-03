@@ -145,6 +145,11 @@ if command -v systemctl >/dev/null 2>&1; then
     "Sun *-*-* 03:45:00"
     "*-*-* *:00/15:00"
   )
+  backup_service_start_timeouts=(
+    "4h"
+    "12h"
+    "10min"
+  )
   backup_service_common_environment=(
     "ENV_FILE=${REPO_ROOT}/.env.prod.shared"
     "SECRETS_ENV_FILE=${REPO_ROOT}/.env.prod.secrets"
@@ -164,7 +169,9 @@ if command -v systemctl >/dev/null 2>&1; then
       expected_service_environment+=("BACKUP_STAGING_DIR=${BACKUP_STAGING_DIR}")
     fi
     expected_service_environment+=("BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true")
-    require_systemd_unit_hardened_lifecycle "${unit}"
+    require_systemd_unit_hardened_lifecycle \
+      "${unit}" \
+      "${backup_service_start_timeouts[${index}]}"
     require_systemd_unit_without_conditions "${unit}"
     require_systemd_unit_exact_environment \
       "${unit}" \
