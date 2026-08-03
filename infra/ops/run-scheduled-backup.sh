@@ -10,7 +10,10 @@ MODE="${1:-dump}"
 load_env_preserving \
   BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED \
   LOCAL_STATE_DIR \
-  BACKUP_STAGING_DIR
+  BACKUP_STAGING_DIR \
+  EXTERNAL_POSTGRES_ENABLED \
+  STACK_NAME \
+  POSTGRES_CONTAINER_NAME
 require_cmd docker
 protected_bash=(
   /usr/bin/env
@@ -27,13 +30,42 @@ case "${MODE}" in
 esac
 
 # Timers may be activated after configuration is ready but before the first
-# datastore deployment finishes. In that narrow bootstrap window there is no
-# committed production release to protect, so a scheduled invocation is a
-# successful no-op. Once current-release.env exists, validate that it is the
-# exact immutable per-tag record before allowing any scheduled backup work.
+# datastore deployment starts. A missing marker is a successful no-op only
+# while the host is demonstrably empty: no surviving release evidence, no
+# external PostgreSQL selection, and no local PostgreSQL container or data
+# volume. Once any datastore can contain production data, losing the marker is
+# a control-plane inconsistency and must make systemd/alerting fail closed.
 current_release_file="${DEPLOY_STATE_DIR}/current-release.env"
 if [[ ! -e "${current_release_file}" && ! -L "${current_release_file}" ]]; then
-  log "scheduled PostgreSQL ${MODE} deferred: no committed production release exists yet"
+  releases_dir="${DEPLOY_STATE_DIR}/releases"
+  releases_log="${DEPLOY_STATE_DIR}/releases.log"
+  if [[ -e "${releases_log}" || -L "${releases_log}" ]]; then
+    die "committed release marker is missing while release-log evidence survives: ${releases_log}"
+  fi
+  if [[ -L "${releases_dir}" || ( -e "${releases_dir}" && ! -d "${releases_dir}" ) ]]; then
+    die "release record path is not a regular directory: ${releases_dir}"
+  fi
+  shopt -s nullglob
+  surviving_release_records=("${releases_dir}"/*.env)
+  shopt -u nullglob
+  if ((${#surviving_release_records[@]} != 0)); then
+    die "committed release marker is missing while immutable per-tag evidence survives"
+  fi
+  if [[ "${EXTERNAL_POSTGRES_ENABLED:-false}" == "true" ]]; then
+    die "committed release marker is missing while external PostgreSQL is selected"
+  fi
+  docker info --format '{{json .ServerVersion}}' >/dev/null 2>&1 ||
+    die "cannot verify an empty bootstrap host because the Docker daemon is unavailable"
+  stack_name="${STACK_NAME:-stuhelper}"
+  postgres_container="${POSTGRES_CONTAINER_NAME:-${stack_name}-postgres}"
+  postgres_data_volume="${stack_name}-postgres-data"
+  if docker container inspect "${postgres_container}" >/dev/null 2>&1; then
+    die "committed release marker is missing while PostgreSQL container evidence survives: ${postgres_container}"
+  fi
+  if docker volume inspect "${postgres_data_volume}" >/dev/null 2>&1; then
+    die "committed release marker is missing while PostgreSQL data-volume evidence survives: ${postgres_data_volume}"
+  fi
+  log "scheduled PostgreSQL ${MODE} deferred: no committed release or datastore evidence exists yet"
   exit 0
 fi
 if [[ ! -f "${current_release_file}" || -L "${current_release_file}" ]]; then

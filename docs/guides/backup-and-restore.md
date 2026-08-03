@@ -74,6 +74,7 @@ BACKUP_MODE=basebackup ./infra/ops/backup-postgres.sh backups/stuhelper-$(date +
 - 只有本轮全部远端复制成功后，它才会清理超出保留期的本地 logical / base / WAL 文件；认证、网络或对象存储故障不会触发本地删除
 - 同步器显式排除 `*.partial*`、WAL 归档的 `*.tmp*` 和 staging 路径；只有已经原子发布的工件会上传
 - 生产 systemd unit 固定要求异机门禁；门禁会在创建备份或执行 logical / base / WAL 保留期清理之前检查，失败时不会删除任何尚未上传的本地工件
+- `current-release.env` 尚未产生时，只有 Docker daemon 可确认本机 PostgreSQL 容器和 data volume 都不存在、未选择外部 PostgreSQL，且没有 `releases.log` 或 per-tag 历史证据，timer 才允许在真正空白的 bootstrap 主机上成功延期；任何数据库/账本证据仍存而 marker 缺失都会失败并告警，防止首次部署在写 marker 前失败后长期显示“备份成功”
 - StuHelper 环境加载器将配置文件按数据解析，拒绝 `PATH`、`PYTHON*`、`LD_*`、`DYLD_*`、`BASH_ENV` / `ENV`、`GCONV_PATH`、`NODE_OPTIONS` 等进程控制变量，并在解析前与加载后清除父进程继承的同类变量；定时任务调用备份和同步子脚本时仍使用非登录、无 profile 的隔离 Bash，防止子进程启动钩子改变门禁或清理顺序
 
 生产机建议直接安装 systemd timer：

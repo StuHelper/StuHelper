@@ -1049,7 +1049,10 @@ assert_contains "${external_fixture}/sync.out" 'fresh cluster-bound continuous W
 
 scheduled_fixture="${tmpdir}/scheduled-fixture"
 scheduled_capture="${scheduled_fixture}/capture"
-mkdir -p "${scheduled_fixture}/infra/ops/lib" "${scheduled_fixture}/.deploy/releases"
+mkdir -p \
+  "${scheduled_fixture}/bin" \
+  "${scheduled_fixture}/infra/ops/lib" \
+  "${scheduled_fixture}/.deploy/releases"
 cp "${SCHEDULED_BACKUP}" "${scheduled_fixture}/infra/ops/run-scheduled-backup.sh"
 chmod +x "${scheduled_fixture}/infra/ops/run-scheduled-backup.sh"
 cat >"${scheduled_fixture}/infra/ops/lib/common.sh" <<'EOF'
@@ -1076,13 +1079,82 @@ set -euo pipefail
 printf 'sync\n' >>"${SCHEDULED_CAPTURE_FILE}"
 EOF
 chmod +x "${scheduled_fixture}/infra/ops/sync-postgres-backups.sh"
+cat >"${scheduled_fixture}/bin/docker" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
 
+case "${1:-} ${2:-}" in
+  "info --format")
+    printf '"contract"\n'
+    ;;
+  "container inspect")
+    [[ "${SCHEDULED_FAKE_DATABASE_STATE:-empty}" == "container" ]]
+    ;;
+  "volume inspect")
+    [[ "${SCHEDULED_FAKE_DATABASE_STATE:-empty}" == "volume" ]]
+    ;;
+  *) exit 1 ;;
+esac
+EOF
+chmod +x "${scheduled_fixture}/bin/docker"
+scheduled_path="${scheduled_fixture}/bin:${PATH}"
+
+PATH="${scheduled_path}" \
 SCHEDULED_CAPTURE_FILE="${scheduled_capture}" \
 BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true \
   "${scheduled_fixture}/infra/ops/run-scheduled-backup.sh" sync >"${scheduled_fixture}/deferred.out"
-assert_contains "${scheduled_fixture}/deferred.out" 'no committed production release exists yet'
+assert_contains "${scheduled_fixture}/deferred.out" 'no committed release or datastore evidence exists yet'
 [[ ! -e "${scheduled_capture}" ]] ||
   fail "scheduled sync crossed an operational gate before the first committed release"
+
+if PATH="${scheduled_path}" \
+  SCHEDULED_CAPTURE_FILE="${scheduled_capture}" \
+  EXTERNAL_POSTGRES_ENABLED=true \
+  "${scheduled_fixture}/infra/ops/run-scheduled-backup.sh" sync \
+  >"${scheduled_fixture}/external-without-marker.out" \
+  2>"${scheduled_fixture}/external-without-marker.err"; then
+  fail "scheduled sync silently deferred when an external database lacked a release marker"
+fi
+assert_contains "${scheduled_fixture}/external-without-marker.err" 'external PostgreSQL is selected'
+
+for scheduled_database_state in container volume; do
+  if PATH="${scheduled_path}" \
+    SCHEDULED_CAPTURE_FILE="${scheduled_capture}" \
+    SCHEDULED_FAKE_DATABASE_STATE="${scheduled_database_state}" \
+    STACK_NAME=contract \
+    "${scheduled_fixture}/infra/ops/run-scheduled-backup.sh" sync \
+    >"${scheduled_fixture}/${scheduled_database_state}-without-marker.out" \
+    2>"${scheduled_fixture}/${scheduled_database_state}-without-marker.err"; then
+    fail "scheduled sync silently deferred when PostgreSQL ${scheduled_database_state} evidence survived"
+  fi
+  scheduled_database_diagnostic="PostgreSQL container"
+  [[ "${scheduled_database_state}" != "volume" ]] || scheduled_database_diagnostic="PostgreSQL data-volume"
+  assert_contains \
+    "${scheduled_fixture}/${scheduled_database_state}-without-marker.err" \
+    "${scheduled_database_diagnostic}"
+done
+
+printf '2026-08-03T00:00:00Z\tcontract-release\n' >"${scheduled_fixture}/.deploy/releases.log"
+if PATH="${scheduled_path}" \
+  SCHEDULED_CAPTURE_FILE="${scheduled_capture}" \
+  "${scheduled_fixture}/infra/ops/run-scheduled-backup.sh" sync \
+  >"${scheduled_fixture}/log-without-marker.out" \
+  2>"${scheduled_fixture}/log-without-marker.err"; then
+  fail "scheduled sync silently deferred when release-log evidence survived"
+fi
+assert_contains "${scheduled_fixture}/log-without-marker.err" 'release-log evidence survives'
+rm -f "${scheduled_fixture}/.deploy/releases.log"
+
+printf 'legacy\n' >"${scheduled_fixture}/.deploy/releases/contract-release.env"
+if PATH="${scheduled_path}" \
+  SCHEDULED_CAPTURE_FILE="${scheduled_capture}" \
+  "${scheduled_fixture}/infra/ops/run-scheduled-backup.sh" sync \
+  >"${scheduled_fixture}/record-without-marker.out" \
+  2>"${scheduled_fixture}/record-without-marker.err"; then
+  fail "scheduled sync silently deferred when immutable per-tag evidence survived"
+fi
+assert_contains "${scheduled_fixture}/record-without-marker.err" 'immutable per-tag evidence survives'
+rm -f "${scheduled_fixture}/.deploy/releases/contract-release.env"
 
 cat >"${scheduled_fixture}/.deploy/current-release.env" <<'EOF'
 TAG=contract-release
