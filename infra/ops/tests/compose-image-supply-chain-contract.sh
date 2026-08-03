@@ -71,6 +71,8 @@ casdoor_block="$(service_block "${BASE_COMPOSE}" casdoor)"
   fail "Mailpit must not start in the production profile"
 [[ "${casdoor_block}" == *"profiles: [dev-full]"* ]] ||
   fail "the repository-local Casdoor must not start in the production profile"
+[[ "${casdoor_block}" == *'image: ${CASDOOR_IMAGE_REF:-casbin/casdoor:latest@sha256:53f00e1e69190c8629925a179cd59a10573f7be2764038571906196908cd6579}'* ]] ||
+  fail "the repository-local Casdoor fallback must match the reviewed runtime-image policy"
 
 for image_var in \
   POSTGRES_IMAGE_REF \
