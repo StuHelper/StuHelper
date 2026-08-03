@@ -220,6 +220,52 @@ source_release_record_env_file "${tmpdir}/release-safe.env" contract-release
 [[ "${ADMIN_IMAGE_REF}" == "${release_admin_ref}" ]] ||
   fail "release record loader retained an inherited admin image"
 
+legacy_permission_state="${tmpdir}/legacy-permission-state"
+mkdir -p "${legacy_permission_state}/releases"
+cp "${tmpdir}/release-safe.env" "${legacy_permission_state}/current-release.env"
+cp "${tmpdir}/release-safe.env" "${legacy_permission_state}/releases/contract-release.env"
+printf '2026-08-03T00:00:00Z\tcontract-release\n' >"${legacy_permission_state}/releases.log"
+chmod 0644 \
+  "${legacy_permission_state}/current-release.env" \
+  "${legacy_permission_state}/releases/contract-release.env" \
+  "${legacy_permission_state}/releases.log"
+(
+  export DEPLOY_STATE_DIR="${legacy_permission_state}"
+  migrate_legacy_release_state_permissions
+)
+for migrated_release_state_file in \
+  "${legacy_permission_state}/current-release.env" \
+  "${legacy_permission_state}/releases/contract-release.env" \
+  "${legacy_permission_state}/releases.log"; do
+  [[ "$(stat -c '%a' "${migrated_release_state_file}")" == "600" ]] ||
+    fail "legacy release-state permission migration did not normalize ${migrated_release_state_file}"
+done
+
+unsafe_permission_state="${tmpdir}/unsafe-permission-state"
+mkdir -p "${unsafe_permission_state}"
+cp "${tmpdir}/release-safe.env" "${unsafe_permission_state}/current-release.env"
+chmod 0664 "${unsafe_permission_state}/current-release.env"
+if (
+  export DEPLOY_STATE_DIR="${unsafe_permission_state}"
+  migrate_legacy_release_state_permissions
+) >"${tmpdir}/unsafe-permission.out" 2>"${tmpdir}/unsafe-permission.err"; then
+  fail "legacy release-state permission migration accepted a group-writable file"
+fi
+grep -q 'unsafe mode 0664' "${tmpdir}/unsafe-permission.err" ||
+  fail "unsafe legacy release-state mode rejection was not explicit"
+
+symlink_permission_state="${tmpdir}/symlink-permission-state"
+mkdir -p "${symlink_permission_state}"
+ln -s "${tmpdir}/release-safe.env" "${symlink_permission_state}/current-release.env"
+if (
+  export DEPLOY_STATE_DIR="${symlink_permission_state}"
+  migrate_legacy_release_state_permissions
+) >"${tmpdir}/symlink-permission.out" 2>"${tmpdir}/symlink-permission.err"; then
+  fail "legacy release-state permission migration followed a symlink"
+fi
+grep -q 'must not be a symlink' "${tmpdir}/symlink-permission.err" ||
+  fail "legacy release-state symlink rejection was not explicit"
+
 release_state_dir="${tmpdir}/release-state"
 fresh_release_guard_state="${tmpdir}/fresh-release-guard-state"
 (

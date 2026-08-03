@@ -41,6 +41,7 @@ fi
 
 export TAG="${TAG:-$(derive_release_id_from_image_ref "${BACKEND_IMAGE_REF:-}" || git_tag_default)}"
 require_safe_release_tag "${TAG}" # validate env-loaded or derived tags before rendering, image pulls, and backups
+migrate_legacy_release_state_permissions # normalize safe legacy 0644 state before canonical read-only validation
 require_release_tag_identity_available "${TAG}" # reject immutable tag reuse before deployment side effects
 
 # Preflight refreshes generated CA/config projections used by the running
