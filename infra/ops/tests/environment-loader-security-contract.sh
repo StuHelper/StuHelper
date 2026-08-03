@@ -28,7 +28,12 @@ for key in \
   RUBYOPT \
   JAVA_TOOL_OPTIONS \
   GIT_EXEC_PATH \
-  SSH_ASKPASS; do
+  SSH_ASKPASS \
+  DOCKER_HOST \
+  DOCKER_CONTEXT \
+  DOCKER_CERT_PATH \
+  DOCKER_TLS \
+  DOCKER_TLS_VERIFY; do
   startup_env="${tmpdir}/${key}.env"
   printf '%s=/dev/null\n' "${key}" >"${startup_env}"
   if (source_env_file "${startup_env}") >"${tmpdir}/${key}.log" 2>&1; then
@@ -50,12 +55,19 @@ export ENV=/dev/null
 export PYTHONPATH="${tmpdir}/python-hook"
 export LD_LIBRARY_PATH="${tmpdir}/dynamic-loader-hook"
 export NODE_OPTIONS=--require=/dev/null
+export DOCKER_HOST=tcp://127.0.0.1:2375
+export DOCKER_CONTEXT=untrusted-context
+export DOCKER_CERT_PATH="${tmpdir}/docker-certs"
+export DOCKER_TLS=1
+export DOCKER_TLS_VERIFY=1
 source_env_file "${tmpdir}/safe.env"
 [[ "${STACK_NAME}" == "source-env-contract" ]] ||
   fail "source_env_file did not export a validated assignment"
 [[ "${PATH}" == "${original_path}" ]] ||
   fail "source_env_file changed the caller-owned executable search path"
-[[ ! -v BASH_ENV && ! -v ENV && ! -v PYTHONPATH && ! -v LD_LIBRARY_PATH && ! -v NODE_OPTIONS ]] ||
+[[ ! -v BASH_ENV && ! -v ENV && ! -v PYTHONPATH && ! -v LD_LIBRARY_PATH && ! -v NODE_OPTIONS && \
+  ! -v DOCKER_HOST && ! -v DOCKER_CONTEXT && ! -v DOCKER_CERT_PATH && ! -v DOCKER_TLS && \
+  ! -v DOCKER_TLS_VERIFY ]] ||
   fail "source_env_file allowed inherited process-control hooks to survive"
 [[ ! -e "${tmpdir}/python-hook-executed" ]] ||
   fail "source_env_file started its Python parser before clearing inherited import hooks"
