@@ -41,6 +41,10 @@ if [[ -n "${pending_generated_secret_ref}" ]]; then
   export GENERATED_ENV_SECRET_REF="${pending_generated_secret_ref}"
 fi
 
+export TAG="${TAG:-$(derive_release_id_from_image_ref "${BACKEND_IMAGE_REF:-}" || git_tag_default)}"
+require_safe_release_tag "${TAG}" # validate env-loaded or derived tags before rendering, image pulls, and backups
+require_release_tag_identity_available "${TAG}" # reject immutable tag reuse before deployment side effects
+
 python3 "${REPO_ROOT}/infra/ops/validate-runtime-image-scan.py" \
   --repo-root "${REPO_ROOT}" \
   --policy-only \
@@ -314,8 +318,6 @@ require_production_external_student_source_security
 [[ "${REDIS_TLS_ENABLED:-false}" == "true" ]] || die "REDIS_TLS_ENABLED must be true for production deploy"
 require_public_ingress_config_preflight
 
-export TAG="${TAG:-$(derive_release_id_from_image_ref "${BACKEND_IMAGE_REF:-}" || git_tag_default)}"
-require_safe_release_tag "${TAG}" # validate env-loaded or derived tags before rendering, image pulls, and backups
 export BUILD_TIME="${BUILD_TIME:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
 
 if [[ "${EXTERNAL_POSTGRES_ENABLED:-false}" != "true" ]]; then

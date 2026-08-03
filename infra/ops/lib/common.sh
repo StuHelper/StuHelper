@@ -2137,18 +2137,22 @@ docker_registry_login() {
   esac
 }
 
-record_release() {
-  local tag="$1"
+_release_record_operation() {
+  local operation="$1"
+  local tag="$2"
+  case "${operation}" in
+    check | publish) ;;
+    *) die "unsupported release record operation: ${operation}" ;;
+  esac
   require_safe_release_tag "${tag}"
   require_digest_image_ref BACKEND_IMAGE_REF "${BACKEND_IMAGE_REF:-}"
   require_digest_image_ref FRONTEND_IMAGE_REF "${FRONTEND_IMAGE_REF:-}"
   require_digest_image_ref ADMIN_IMAGE_REF "${ADMIN_IMAGE_REF:-}"
-  mkdir -p "${DEPLOY_STATE_DIR}"
-  mkdir -p "${DEPLOY_STATE_DIR}/releases"
   local now
   now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   python3 - \
     "${DEPLOY_STATE_DIR}" \
+    "${operation}" \
     "${tag}" \
     "${now}" \
     "${BACKEND_IMAGE_REF:-}" \
@@ -2162,7 +2166,10 @@ import tempfile
 from pathlib import Path
 
 state_dir = Path(sys.argv[1])
-tag, deployed_at, backend_ref, frontend_ref, admin_ref = sys.argv[2:]
+operation = sys.argv[2]
+tag, deployed_at, backend_ref, frontend_ref, admin_ref = sys.argv[3:]
+if operation not in {"check", "publish"}:
+    raise SystemExit(f"unsupported release record operation: {operation}")
 values = {
     "TAG": tag,
     "DEPLOYED_AT": deployed_at,
@@ -2184,8 +2191,6 @@ for key in ("BACKEND_IMAGE_REF", "FRONTEND_IMAGE_REF", "ADMIN_IMAGE_REF"):
         raise SystemExit(f"release record field {key} must be a complete image@sha256 digest reference")
 
 releases_dir = state_dir / "releases"
-state_dir.mkdir(parents=True, exist_ok=True)
-releases_dir.mkdir(parents=True, exist_ok=True)
 candidate_payload = "".join(f"{key}={value}\n" for key, value in values.items()).encode()
 
 
@@ -2291,10 +2296,23 @@ def publish_immutable_release(path: Path, payload: bytes) -> bytes:
         temporary_path.unlink(missing_ok=True)
 
 
+# The pre-deploy check is read-only. A missing tag is available; an existing
+# record must already describe exactly the requested immutable image identity.
+release_path = releases_dir / f"{tag}.env"
+if operation == "check":
+    try:
+        read_existing_immutable_release(release_path)
+    except FileNotFoundError:
+        pass
+    raise SystemExit(0)
+
+state_dir.mkdir(parents=True, exist_ok=True)
+releases_dir.mkdir(parents=True, exist_ok=True)
+
 # Link the per-release record into place without replacement. Reusing a tag is
 # allowed only for the same complete release identity; its original timestamp
 # remains immutable while releases.log records each later activation.
-release_payload = publish_immutable_release(releases_dir / f"{tag}.env", candidate_payload)
+release_payload = publish_immutable_release(release_path, candidate_payload)
 atomic_write(state_dir / "current-release.env", release_payload)
 
 log_path = state_dir / "releases.log"
@@ -2306,6 +2324,14 @@ with os.fdopen(log_fd, "ab") as stream:
     os.fsync(stream.fileno())
 fsync_directory(state_dir)
 PY
+}
+
+require_release_tag_identity_available() {
+  _release_record_operation check "$1"
+}
+
+record_release() {
+  _release_record_operation publish "$1"
 }
 
 resolve_previous_release_tag() {
