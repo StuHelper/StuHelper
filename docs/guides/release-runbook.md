@@ -57,6 +57,20 @@ last-verified: 2026-08-03
 
 ## GitHub 自动发布链路
 
+### 分支晋级
+
+1. 功能、安全和运维变更先通过 PR 以 squash merge 进入 `develop`；不得直接把常规功能 PR
+   合入 `main`。
+2. `develop` 的可信 push 完成全套 CI 后，创建 `develop -> main` 发布 PR；逐项核对最新 HEAD、
+   必需检查、Bot 意见和未解决 review thread。
+3. 发布 PR 只能使用 merge commit，不能 squash 或 rebase。`main` ruleset 应只允许 merge，
+   `develop` ruleset 应只允许 squash，并继续要求线性历史。
+4. 合并后执行 `git merge-base --is-ancestor origin/develop origin/main` 和
+   `git diff --exit-code origin/develop origin/main`；两项都通过，才能把 `main` 视为与
+   `develop` 同步并进入镜像发布或环境晋级。
+5. 若事故修复先进入 `main`，必须在下一次发布前通过 PR 回同步到 `develop`，避免长期分支再次
+   分叉。
+
 ### 构建与发布镜像
 
 1. Pull Request、`develop` 或 `main` push 运行按路径选择的 `CI`。
