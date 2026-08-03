@@ -32,14 +32,21 @@ wal_archive_volume="${POSTGRES_WAL_ARCHIVE_VOLUME_NAME:-${STACK_NAME:-stuhelper}
 prefix="${BACKUP_OBJECT_STORAGE_PREFIX:-postgres}"
 host_user="$(id -u):$(id -g)"
 wal_archive_user="${POSTGRES_WAL_ARCHIVE_CONTAINER_USER:-70:70}"
+external_postgres_enabled="${EXTERNAL_POSTGRES_ENABLED:-false}"
 
-[[ "${wal_archive_user}" =~ ^[0-9]+:[0-9]+$ ]] ||
-  die "POSTGRES_WAL_ARCHIVE_CONTAINER_USER must be a numeric uid:gid pair"
+case "${external_postgres_enabled}" in
+  true|false) ;;
+  *) die "EXTERNAL_POSTGRES_ENABLED must be true or false" ;;
+esac
 
 mkdir -p "${logical_dir}" "${base_dir}"
-require_live_postgres_wal_archive_volume \
-  "${wal_archive_volume}" \
-  "${STACK_NAME:-stuhelper}-postgres"
+if [[ "${external_postgres_enabled}" != "true" ]]; then
+  [[ "${wal_archive_user}" =~ ^[0-9]+:[0-9]+$ ]] ||
+    die "POSTGRES_WAL_ARCHIVE_CONTAINER_USER must be a numeric uid:gid pair"
+  require_live_postgres_wal_archive_volume \
+    "${wal_archive_volume}" \
+    "${STACK_NAME:-stuhelper}-postgres"
+fi
 
 sync_excludes=(
   --exclude '*.partial'
@@ -61,10 +68,14 @@ run_backup_object_storage_rclone \
   "type=bind,src=${base_dir},dst=/source,readonly" \
   copy /source "target:${BACKUP_OBJECT_STORAGE_BUCKET}/${prefix}/base" \
   "${sync_excludes[@]}"
-run_backup_object_storage_rclone \
-  "${wal_archive_user}" \
-  "type=volume,src=${wal_archive_volume},dst=/source,readonly" \
-  copy /source "target:${BACKUP_OBJECT_STORAGE_BUCKET}/${prefix}/wal" \
-  "${sync_excludes[@]}"
+if [[ "${external_postgres_enabled}" == "true" ]]; then
+  log "external PostgreSQL selected; its provider/DBA owns continuous WAL archival and PITR evidence"
+else
+  run_backup_object_storage_rclone \
+    "${wal_archive_user}" \
+    "type=volume,src=${wal_archive_volume},dst=/source,readonly" \
+    copy /source "target:${BACKUP_OBJECT_STORAGE_BUCKET}/${prefix}/wal" \
+    "${sync_excludes[@]}"
+fi
 
 log "synchronized PostgreSQL backup artifacts to object storage"

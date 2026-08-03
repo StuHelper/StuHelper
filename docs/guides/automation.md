@@ -172,6 +172,8 @@ host-local `bridge` 网络还会拒绝整个 IPAM 子网；共享的 `macvlan`�
 
 WAL 同步在任何对象存储传输前还会检查配置卷已经存在、`${STACK_NAME}-postgres` 容器正在运行，并确认该容器把同名 Docker volume 以可写方式挂载到 `/var/lib/postgresql/wal-archive`。缺失卷、空卷自动创建风险、错误 stack/卷名、只读或未挂载状态都会失败关闭，不能在复制空 `/source` 后继续清理本地恢复材料。
 
+`EXTERNAL_POSTGRES_ENABLED=true` 时不存在 StuHelper 管理的本地 PostgreSQL 容器或 WAL volume。此模式仍会生成、同步并取回验证逻辑 dump 与使用 `--wal-method=stream` 的一致性 base backup，但明确跳过本地 WAL volume 同步与清理。连续归档和 PITR 保留/演练必须由外部 PostgreSQL 平台或 DBA 单独提供证据；StuHelper 的 logical/base evidence 不能替代该外部 PITR 验收。
+
 ## 远端部署控制面
 
 远端部署配置由目标机持有，CI / Ansible 不在每次发布时下发 `deploy.remote.env`：

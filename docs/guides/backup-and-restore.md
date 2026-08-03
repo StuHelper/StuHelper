@@ -134,6 +134,8 @@ sudo ./infra/ops/install-backup-timers.sh
 **evidence 通过不等于 PITR 已验收。**它证明近期工件存在、完整且能从远端取回；仍须按下方
 演练清单，在隔离实例实际启动恢复后的 PGDATA，并在目标时间点恢复场景中验证 WAL 连续性。
 
+使用 `EXTERNAL_POSTGRES_ENABLED=true` 时，StuHelper 不拥有外部实例的实时 WAL volume，因此仓库脚本只同步 logical dump 和包含流式 WAL 的一致性 base backup，不会创建或读取本地 WAL 卷。外部平台的连续 WAL 归档、保留策略、故障域和 PITR 演练必须由其 DBA/供应商单独验收并留证。
+
 对象存储“可取回”也不自动代表异机灾备：同一生产主机上的 MinIO 会与数据库一起丢失。生产配置
 只有在备份端点位于独立故障域、且已验证生产主机完全丢失后仍可访问时，才能设置
 `BACKUP_OBJECT_STORAGE_OFF_HOST_CONFIRMED=true`。`remote-preflight.sh` 和 `prod-deploy.sh` 会对此
