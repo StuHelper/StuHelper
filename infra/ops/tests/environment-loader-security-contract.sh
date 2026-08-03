@@ -349,6 +349,42 @@ cmp -s "${release_state_dir}/current-release.env" "${immutable_release_path}" ||
 [[ "$(wc -l <"${release_state_dir}/releases.log")" == "2" ]] ||
   fail "read-only release identity validation changed the activation log"
 
+malformed_log_existing_state="${tmpdir}/malformed-log-existing-state"
+mkdir -p "${malformed_log_existing_state}/releases"
+cp "${release_state_dir}/current-release.env" "${malformed_log_existing_state}/current-release.env"
+cp "${release_state_dir}/releases/contract-release.env" \
+  "${malformed_log_existing_state}/releases/contract-release.env"
+printf '2026-08-03T00:00:00Z\tcontract-release' >"${malformed_log_existing_state}/releases.log"
+chmod 0600 \
+  "${malformed_log_existing_state}/current-release.env" \
+  "${malformed_log_existing_state}/releases/contract-release.env" \
+  "${malformed_log_existing_state}/releases.log"
+if (
+  export DEPLOY_STATE_DIR="${malformed_log_existing_state}"
+  export BACKEND_IMAGE_REF="${release_backend_ref}"
+  export FRONTEND_IMAGE_REF="${release_frontend_ref}"
+  export ADMIN_IMAGE_REF="${release_admin_ref}"
+  require_release_tag_identity_available contract-release
+) >"${tmpdir}/guard-malformed-existing-log.out" 2>"${tmpdir}/guard-malformed-existing-log.err"; then
+  fail "release identity guard accepted a truncated activation log when the per-tag record existed"
+fi
+grep -q 'release activation log is truncated' "${tmpdir}/guard-malformed-existing-log.err" ||
+  fail "existing-tag guard did not report the truncated activation log"
+malformed_log_before="$(sha256sum "${malformed_log_existing_state}/releases.log" | cut -d ' ' -f 1)"
+if (
+  export DEPLOY_STATE_DIR="${malformed_log_existing_state}"
+  export BACKEND_IMAGE_REF="${release_backend_ref}"
+  export FRONTEND_IMAGE_REF="${release_frontend_ref}"
+  export ADMIN_IMAGE_REF="${release_admin_ref}"
+  record_release contract-release
+) >"${tmpdir}/record-malformed-existing-log.out" 2>"${tmpdir}/record-malformed-existing-log.err"; then
+  fail "release recorder appended to a malformed activation log"
+fi
+grep -q 'release activation log is truncated' "${tmpdir}/record-malformed-existing-log.err" ||
+  fail "release recorder did not validate the existing activation log before publication"
+[[ "$(sha256sum "${malformed_log_existing_state}/releases.log" | cut -d ' ' -f 1)" == "${malformed_log_before}" ]] ||
+  fail "failed malformed-ledger publication changed the activation log"
+
 if (
   export DEPLOY_STATE_DIR="${release_state_dir}"
   export BACKEND_IMAGE_REF=ghcr.io/stuhelper/backend@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
