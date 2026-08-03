@@ -53,6 +53,19 @@ fi
 grep -q 'environment key SCRIPT_DIR is not allowed in this file' "${tmpdir}/bootstrap.log" ||
   fail "Casdoor bootstrap allowlist rejection was not explicit"
 
+cat >"${tmpdir}/bootstrap-secret-before-error.env" <<'EOF'
+CASDOOR_BOOTSTRAP_CLIENT_SECRET=contract-secret-must-not-leak
+PATH=/tmp/payload
+EOF
+if (source_casdoor_bootstrap_env_file "${tmpdir}/bootstrap-secret-before-error.env") >"${tmpdir}/bootstrap-secret-error.log" 2>&1; then
+  fail "Casdoor bootstrap loader accepted an unexpected key after a credential"
+fi
+if grep -q 'contract-secret-must-not-leak' "${tmpdir}/bootstrap-secret-error.log"; then
+  fail "source_env_file exposed an already parsed credential in its error output"
+fi
+grep -q 'environment key PATH is not allowed in this file' "${tmpdir}/bootstrap-secret-error.log" ||
+  fail "credential-file rejection lost its non-sensitive diagnostic"
+
 cat >"${tmpdir}/release.env" <<'EOF'
 TAG=contract-release
 PATH=/tmp/payload
