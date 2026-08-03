@@ -148,6 +148,7 @@ systemd/告警处理，而不是继续把同机副本计作灾备。升级已有
 defaults 和其他继承环境，只传固定 `PATH`、配置路径与异机门禁；额外的 `LD_PRELOAD`、`PYTHONPATH`、`PATH`
 等进程控制变量会失败关闭。预检同时拒绝 `EnvironmentFile=`、`PassEnvironment=` 以及不精确的
 `UnsetEnvironment=` unit/drop-in，不能继续使用缺少或可降级门禁的旧单元。
+服务生命周期还必须没有 `ExecReload`、`ExecStop` 或 `ExecStopPost` 钩子，避免额外命令在备份退出或人工停止时改写恢复工件。
 
 生产主机位于 1:1 NAT、hairpin LB 或公网边缘之后时，还必须把所有能路由回本机的地址/CIDR 写入
 `BACKUP_OBJECT_STORAGE_LOCAL_IDENTITY_CIDRS`；无额外身份时显式写 `none`。该清单用于补足
