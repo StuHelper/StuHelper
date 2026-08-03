@@ -33,6 +33,7 @@ require_cmd openssl
 require_cmd systemctl
 require_cmd id
 require_cmd getent
+require_no_legacy_backup_timer_units
 
 backup_service_user="$(id -un)"
 backup_service_uid="$(id -u)"

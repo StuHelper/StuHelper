@@ -85,6 +85,9 @@ assert_contains "${PREFLIGHT_FILE}" 'vault-runtime-token\.sh" check'
 assert_contains "${PREFLIGHT_FILE}" 'stuhelper-vault-token-renewal\.timer'
 assert_contains "${PREFLIGHT_FILE}" 'Vault runtime token renewal timer is not active'
 assert_contains "${COMMON_LIB_FILE}" 'require_systemd_unit_exact_environment\(\)'
+assert_contains "${COMMON_LIB_FILE}" 'require_no_legacy_backup_timer_units\(\)'
+assert_contains "${PREFLIGHT_FILE}" 'require_no_legacy_backup_timer_units'
+assert_contains "${COMMON_LIB_FILE}" 'legacy prefixed PostgreSQL backup timer units must be disabled and removed'
 assert_contains "${COMMON_LIB_FILE}" 'require_systemd_unit_exact_identity\(\)'
 assert_contains "${COMMON_LIB_FILE}" 'require_systemd_unit_hardened_lifecycle\(\)'
 assert_contains "${COMMON_LIB_FILE}" 'require_systemd_unit_without_filesystem_overrides\(\)'
@@ -276,6 +279,25 @@ cleanup() {
   rm -rf "${tmpdir}"
 }
 trap cleanup EXIT
+
+systemctl() {
+  printf '%s\n' \
+    'stuhelper-postgres-dump-backup.timer enabled enabled' \
+    'stuhelper-postgres-basebackup.timer enabled enabled' \
+    'stuhelper-postgres-backup-sync.timer enabled enabled'
+}
+require_no_legacy_backup_timer_units
+systemctl() {
+  printf '%s\n' \
+    'stuhelper-postgres-dump-backup.timer enabled enabled' \
+    'custom-postgres-backup-sync.timer enabled enabled'
+}
+if (require_no_legacy_backup_timer_units) >"${tmpdir}/legacy-timer.out" 2>"${tmpdir}/legacy-timer.err"; then
+  fail "production backup gate accepted a legacy prefixed timer beside the canonical units"
+fi
+grep -q 'custom-postgres-backup-sync.timer' "${tmpdir}/legacy-timer.err" ||
+  fail "legacy timer rejection did not report the conflicting unit"
+unset -f systemctl
 
 ENV_FILE="${REPO_ROOT}/.env.prod.shared"
 SECRETS_ENV_FILE="${REPO_ROOT}/.env.prod.secrets"

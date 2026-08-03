@@ -82,6 +82,29 @@ require_systemd_unit_exact_environment() {
   fi
 }
 
+require_no_legacy_backup_timer_units() {
+  local listing unit _state
+  local -a legacy_units=()
+  listing="$(systemctl list-unit-files --type=timer --all --no-legend --no-pager)" ||
+    die "failed to enumerate installed systemd timer units"
+  while read -r unit _state _; do
+    [[ -n "${unit}" ]] || continue
+    case "${unit}" in
+      stuhelper-postgres-dump-backup.timer | \
+      stuhelper-postgres-basebackup.timer | \
+      stuhelper-postgres-backup-sync.timer)
+        ;;
+      *-postgres-dump-backup.timer | \
+      *-postgres-basebackup.timer | \
+      *-postgres-backup-sync.timer)
+        legacy_units+=("${unit}")
+        ;;
+    esac
+  done <<<"${listing}"
+  ((${#legacy_units[@]} == 0)) ||
+    die "legacy prefixed PostgreSQL backup timer units must be disabled and removed before canonical activation: ${legacy_units[*]}"
+}
+
 require_systemd_unit_exact_identity() {
   local unit="$1"
   local expected_user="$2"
