@@ -87,7 +87,14 @@ assert_contains "${COMMON_LIB_FILE}" 'require_systemd_unit_without_conditions\(\
 assert_contains "${COMMON_LIB_FILE}" 'org\.freedesktop\.systemd1\.Unit Conditions'
 assert_contains "${COMMON_LIB_FILE}" 'org\.freedesktop\.systemd1\.Unit Asserts'
 assert_contains "${COMMON_LIB_FILE}" '"RemainAfterExit=no"'
-assert_contains "${COMMON_LIB_FILE}" '"TimeoutStartUSec=infinity"'
+assert_contains "${COMMON_LIB_FILE}" 'TimeoutStartUSec=\$\{expected_start_timeout\}'
+assert_contains "${COMMON_LIB_FILE}" '"TimeoutStopUSec=2min"'
+assert_contains "${COMMON_LIB_FILE}" '"KillMode=control-group"'
+assert_contains "${COMMON_LIB_FILE}" '"SendSIGKILL=yes"'
+assert_contains "${PREFLIGHT_FILE}" 'backup_service_start_timeouts='
+assert_contains "${PREFLIGHT_FILE}" '"4h"'
+assert_contains "${PREFLIGHT_FILE}" '"12h"'
+assert_contains "${PREFLIGHT_FILE}" '"10min"'
 assert_contains "${COMMON_LIB_FILE}" 'SuccessExitStatus'
 assert_contains "${COMMON_LIB_FILE}" 'ExecReload'
 assert_contains "${COMMON_LIB_FILE}" 'ExecStopPost'
@@ -304,126 +311,118 @@ fi
 grep -q 'pre-exec unset list' "${tmpdir}/backup-unit-unset-env.err" || \
   fail "the backup unit UnsetEnvironment failure did not report the protected boundary"
 
-if ! bash -c '
-  set -euo pipefail
-  source "$1"
-  systemctl() {
-    case "$*" in
-      *--property=Type*) printf "%s\n" oneshot ;;
-      *--property=RemainAfterExit*) printf "%s\n" no ;;
-      *--property=Restart*) printf "%s\n" no ;;
-      *--property=TimeoutStartUSec*) printf "%s\n" infinity ;;
-      *--property=ExecCondition*|*--property=ExecReload*|*--property=ExecStartPre*|*--property=ExecStartPost*|*--property=ExecStop*|*--property=ExecStopPost*|*--property=SuccessExitStatus*) printf "\n" ;;
-      *) return 90 ;;
-    esac
-  }
-  require_systemd_unit_hardened_lifecycle stuhelper-postgres-backup-sync.service
-' bash "${COMMON_LIB_FILE}"; then
+source "${COMMON_LIB_FILE}"
+lifecycle_type="oneshot"
+lifecycle_remain_after_exit="no"
+lifecycle_restart="no"
+lifecycle_timeout_start="10min"
+lifecycle_timeout_stop="2min"
+lifecycle_kill_mode="control-group"
+lifecycle_send_sigkill="yes"
+lifecycle_exec_condition=""
+lifecycle_success_exit_status=""
+lifecycle_exec_stop_post=""
+systemctl() {
+  case "$*" in
+    *--property=Type*) printf '%s\n' "${lifecycle_type}" ;;
+    *--property=RemainAfterExit*) printf '%s\n' "${lifecycle_remain_after_exit}" ;;
+    *--property=Restart*) printf '%s\n' "${lifecycle_restart}" ;;
+    *--property=TimeoutStartUSec*) printf '%s\n' "${lifecycle_timeout_start}" ;;
+    *--property=TimeoutStopUSec*) printf '%s\n' "${lifecycle_timeout_stop}" ;;
+    *--property=KillMode*) printf '%s\n' "${lifecycle_kill_mode}" ;;
+    *--property=SendSIGKILL*) printf '%s\n' "${lifecycle_send_sigkill}" ;;
+    *--property=ExecCondition*) printf '%s\n' "${lifecycle_exec_condition}" ;;
+    *--property=SuccessExitStatus*) printf '%s\n' "${lifecycle_success_exit_status}" ;;
+    *--property=ExecStopPost*) printf '%s\n' "${lifecycle_exec_stop_post}" ;;
+    *--property=ExecReload*|*--property=ExecStartPre*|*--property=ExecStartPost*|*--property=ExecStop*) printf '\n' ;;
+    *) return 90 ;;
+  esac
+}
+
+if ! require_systemd_unit_hardened_lifecycle \
+  stuhelper-postgres-backup-sync.service 10min; then
   fail "the systemd lifecycle validator rejected the protected recurring oneshot service"
 fi
 
-if bash -c '
-  set -euo pipefail
-  source "$1"
-  systemctl() {
-    case "$*" in
-      *--property=Type*) printf "%s\n" oneshot ;;
-      *--property=RemainAfterExit*) printf "%s\n" yes ;;
-      *--property=Restart*) printf "%s\n" no ;;
-      *--property=TimeoutStartUSec*) printf "%s\n" infinity ;;
-      *--property=ExecCondition*|*--property=ExecReload*|*--property=ExecStartPre*|*--property=ExecStartPost*|*--property=ExecStop*|*--property=ExecStopPost*|*--property=SuccessExitStatus*) printf "\n" ;;
-      *) return 90 ;;
-    esac
-  }
-  require_systemd_unit_hardened_lifecycle stuhelper-postgres-backup-sync.service
-' bash "${COMMON_LIB_FILE}" >"${tmpdir}/backup-unit-remain-after-exit.out" 2>"${tmpdir}/backup-unit-remain-after-exit.err"; then
+lifecycle_remain_after_exit="yes"
+if (require_systemd_unit_hardened_lifecycle \
+  stuhelper-postgres-backup-sync.service 10min) \
+  >"${tmpdir}/backup-unit-remain-after-exit.out" 2>"${tmpdir}/backup-unit-remain-after-exit.err"; then
   fail "the systemd lifecycle validator accepted RemainAfterExit=yes"
 fi
 grep -q 'RemainAfterExit=no' "${tmpdir}/backup-unit-remain-after-exit.err" || \
   fail "the RemainAfterExit failure did not report the timer-safe lifecycle requirement"
+lifecycle_remain_after_exit="no"
 
-if bash -c '
-  set -euo pipefail
-  source "$1"
-  systemctl() {
-    case "$*" in
-      *--property=Type*) printf "%s\n" oneshot ;;
-      *--property=RemainAfterExit*) printf "%s\n" no ;;
-      *--property=Restart*) printf "%s\n" no ;;
-      *--property=TimeoutStartUSec*) printf "%s\n" 30s ;;
-      *--property=ExecCondition*|*--property=ExecReload*|*--property=ExecStartPre*|*--property=ExecStartPost*|*--property=ExecStop*|*--property=ExecStopPost*|*--property=SuccessExitStatus*) printf "\n" ;;
-      *) return 90 ;;
-    esac
-  }
-  require_systemd_unit_hardened_lifecycle stuhelper-postgres-backup-sync.service
-' bash "${COMMON_LIB_FILE}" >"${tmpdir}/backup-unit-timeout.out" 2>"${tmpdir}/backup-unit-timeout.err"; then
-  fail "the systemd lifecycle validator accepted a finite backup start timeout"
+lifecycle_timeout_start="30s"
+if (require_systemd_unit_hardened_lifecycle \
+  stuhelper-postgres-backup-sync.service 10min) \
+  >"${tmpdir}/backup-unit-timeout.out" 2>"${tmpdir}/backup-unit-timeout.err"; then
+  fail "the systemd lifecycle validator accepted a non-canonical backup start timeout"
 fi
-grep -q 'TimeoutStartUSec=infinity' "${tmpdir}/backup-unit-timeout.err" || \
-  fail "the finite start-timeout failure did not report the unbounded backup requirement"
+grep -q 'TimeoutStartUSec=10min' "${tmpdir}/backup-unit-timeout.err" || \
+  fail "the start-timeout failure did not report the service-specific finite deadline"
+lifecycle_timeout_start="10min"
 
-if bash -c '
-  set -euo pipefail
-  source "$1"
-  systemctl() {
-    case "$*" in
-      *--property=Type*) printf "%s\n" oneshot ;;
-      *--property=RemainAfterExit*) printf "%s\n" no ;;
-      *--property=Restart*) printf "%s\n" no ;;
-      *--property=TimeoutStartUSec*) printf "%s\n" infinity ;;
-      *--property=ExecCondition*) printf "%s\n" "{ path=/bin/false ; argv[]=/bin/false ; ignore_errors=no ; }" ;;
-      *--property=ExecReload*|*--property=ExecStartPre*|*--property=ExecStartPost*|*--property=ExecStop*|*--property=ExecStopPost*|*--property=SuccessExitStatus*) printf "\n" ;;
-      *) return 90 ;;
-    esac
-  }
-  require_systemd_unit_hardened_lifecycle stuhelper-postgres-backup-sync.service
-' bash "${COMMON_LIB_FILE}" >"${tmpdir}/backup-unit-exec-condition.out" 2>"${tmpdir}/backup-unit-exec-condition.err"; then
+lifecycle_timeout_stop="infinity"
+if (require_systemd_unit_hardened_lifecycle \
+  stuhelper-postgres-backup-sync.service 10min) \
+  >"${tmpdir}/backup-unit-stop-timeout.out" 2>"${tmpdir}/backup-unit-stop-timeout.err"; then
+  fail "the systemd lifecycle validator accepted an unbounded stop timeout"
+fi
+grep -q 'TimeoutStopUSec=2min' "${tmpdir}/backup-unit-stop-timeout.err" ||
+  fail "the stop-timeout failure did not report the enforced termination deadline"
+lifecycle_timeout_stop="2min"
+
+lifecycle_kill_mode="process"
+if (require_systemd_unit_hardened_lifecycle \
+  stuhelper-postgres-backup-sync.service 10min) \
+  >"${tmpdir}/backup-unit-kill-mode.out" 2>"${tmpdir}/backup-unit-kill-mode.err"; then
+  fail "the systemd lifecycle validator accepted process-only timeout termination"
+fi
+grep -q 'KillMode=control-group' "${tmpdir}/backup-unit-kill-mode.err" ||
+  fail "the kill-mode failure did not report the complete-cgroup boundary"
+lifecycle_kill_mode="control-group"
+
+lifecycle_send_sigkill="no"
+if (require_systemd_unit_hardened_lifecycle \
+  stuhelper-postgres-backup-sync.service 10min) \
+  >"${tmpdir}/backup-unit-sigkill.out" 2>"${tmpdir}/backup-unit-sigkill.err"; then
+  fail "the systemd lifecycle validator accepted a non-enforceable finite deadline"
+fi
+grep -q 'SendSIGKILL=yes' "${tmpdir}/backup-unit-sigkill.err" ||
+  fail "the SIGKILL failure did not report the enforceable-timeout boundary"
+lifecycle_send_sigkill="yes"
+
+lifecycle_exec_condition="{ path=/bin/false ; argv[]=/bin/false ; ignore_errors=no ; }"
+if (require_systemd_unit_hardened_lifecycle \
+  stuhelper-postgres-backup-sync.service 10min) \
+  >"${tmpdir}/backup-unit-exec-condition.out" 2>"${tmpdir}/backup-unit-exec-condition.err"; then
   fail "the systemd lifecycle validator accepted a backup-skipping ExecCondition"
 fi
 grep -q 'must not set ExecCondition' "${tmpdir}/backup-unit-exec-condition.err" || \
   fail "the ExecCondition failure did not report the lifecycle override"
+lifecycle_exec_condition=""
 
-if bash -c '
-  set -euo pipefail
-  source "$1"
-  systemctl() {
-    case "$*" in
-      *--property=Type*) printf "%s\n" oneshot ;;
-      *--property=RemainAfterExit*) printf "%s\n" no ;;
-      *--property=Restart*) printf "%s\n" no ;;
-      *--property=TimeoutStartUSec*) printf "%s\n" infinity ;;
-      *--property=SuccessExitStatus*) printf "%s\n" 1 ;;
-      *--property=ExecCondition*|*--property=ExecReload*|*--property=ExecStartPre*|*--property=ExecStartPost*|*--property=ExecStop*|*--property=ExecStopPost*) printf "\n" ;;
-      *) return 90 ;;
-    esac
-  }
-  require_systemd_unit_hardened_lifecycle stuhelper-postgres-backup-sync.service
-' bash "${COMMON_LIB_FILE}" >"${tmpdir}/backup-unit-success-status.out" 2>"${tmpdir}/backup-unit-success-status.err"; then
+lifecycle_success_exit_status="1"
+if (require_systemd_unit_hardened_lifecycle \
+  stuhelper-postgres-backup-sync.service 10min) \
+  >"${tmpdir}/backup-unit-success-status.out" 2>"${tmpdir}/backup-unit-success-status.err"; then
   fail "the systemd lifecycle validator accepted an extended success exit status"
 fi
 grep -q 'must not set SuccessExitStatus' "${tmpdir}/backup-unit-success-status.err" || \
   fail "the SuccessExitStatus failure did not report the failure-masking override"
+lifecycle_success_exit_status=""
 
-if bash -c '
-  set -euo pipefail
-  source "$1"
-  systemctl() {
-    case "$*" in
-      *--property=Type*) printf "%s\n" oneshot ;;
-      *--property=RemainAfterExit*) printf "%s\n" no ;;
-      *--property=Restart*) printf "%s\n" no ;;
-      *--property=TimeoutStartUSec*) printf "%s\n" infinity ;;
-      *--property=ExecStopPost*) printf "%s\n" "{ path=/bin/sh ; argv[]=/bin/sh -c true ; ignore_errors=no ; }" ;;
-      *--property=ExecCondition*|*--property=ExecReload*|*--property=ExecStartPre*|*--property=ExecStartPost*|*--property=ExecStop*|*--property=SuccessExitStatus*) printf "\n" ;;
-      *) return 90 ;;
-    esac
-  }
-  require_systemd_unit_hardened_lifecycle stuhelper-postgres-backup-sync.service
-' bash "${COMMON_LIB_FILE}" >"${tmpdir}/backup-unit-stop-post.out" 2>"${tmpdir}/backup-unit-stop-post.err"; then
+lifecycle_exec_stop_post="{ path=/bin/sh ; argv[]=/bin/sh -c true ; ignore_errors=no ; }"
+if (require_systemd_unit_hardened_lifecycle \
+  stuhelper-postgres-backup-sync.service 10min) \
+  >"${tmpdir}/backup-unit-stop-post.out" 2>"${tmpdir}/backup-unit-stop-post.err"; then
   fail "the systemd lifecycle validator accepted an extra ExecStopPost hook"
 fi
 grep -q 'must not set ExecStopPost' "${tmpdir}/backup-unit-stop-post.err" || \
   fail "the ExecStopPost failure did not report the lifecycle override"
+unset -f systemctl
 
 empty_conditions='{"type":"a(sbbsi)","data":[]}'
 if ! python3 "${SYSTEMD_CONDITION_VALIDATOR}" \

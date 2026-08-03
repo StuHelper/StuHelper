@@ -84,6 +84,7 @@ require_systemd_unit_exact_environment() {
 
 require_systemd_unit_hardened_lifecycle() {
   local unit="$1"
+  local expected_start_timeout="$2"
   local actual_value
   local expected_value
   local property
@@ -92,7 +93,10 @@ require_systemd_unit_hardened_lifecycle() {
     "Type=oneshot"
     "RemainAfterExit=no"
     "Restart=no"
-    "TimeoutStartUSec=infinity"
+    "TimeoutStartUSec=${expected_start_timeout}"
+    "TimeoutStopUSec=2min"
+    "KillMode=control-group"
+    "SendSIGKILL=yes"
   )
   local -a empty_properties=(
     ExecCondition

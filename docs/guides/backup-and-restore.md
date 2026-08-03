@@ -150,7 +150,7 @@ defaults 和其他继承环境，只传固定 `PATH`、配置路径与异机门�
 等进程控制变量会失败关闭。预检同时拒绝 `EnvironmentFile=`、`PassEnvironment=` 以及不精确的
 `UnsetEnvironment=` unit/drop-in，不能继续使用缺少或可降级门禁的旧单元。
 服务生命周期还必须没有 `ExecReload`、`ExecStop` 或 `ExecStopPost` 钩子，避免额外命令在备份退出或人工停止时改写恢复工件。
-三个 oneshot 的 `TimeoutStartUSec` 必须保持 `infinity`，不能用 drop-in 为大型 base backup 注入有限启动超时。
+三个 oneshot 分别使用逻辑备份 `4h`、base backup `12h`、同步 `10min` 的有限启动上限，并固定 `TimeoutStopUSec=2min`、`KillMode=control-group`、`SendSIGKILL=yes`；预检拒绝 drop-in 缩短、延长或关闭上限，避免挂死任务永久吞掉后续 timer。
 预检还通过 systemd D-Bus 校验有效 `Conditions` 与 `Asserts` 都为空，避免 `ConditionPathExists` 等 drop-in 把每次备份静默变成 skipped activation。
 
 生产主机位于 1:1 NAT、hairpin LB 或公网边缘之后时，还必须把所有能路由回本机的地址/CIDR 写入
