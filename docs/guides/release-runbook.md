@@ -330,6 +330,8 @@ make prod-rollback
 
 脚本会优先尝试回到 `.deploy/releases.log` 中记录的上一条成功版本。
 
+本地回滚只接受原子落盘的完整成功版本记录：记录必须包含唯一且非空的 `TAG`、`DEPLOYED_AT` 与三个镜像 digest，并且记录 `TAG` 必须等于请求目标。任何截断、重复字段或标签不匹配都会在调用部署脚本前失败，不能继承当前环境中的镜像引用拼出混合版本。
+
 ### GitHub 手工回滚
 
 优先在 GitHub Actions 运行 `Rollback`，选择 `staging` 或 `production` environment，并输入：

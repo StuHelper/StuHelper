@@ -381,6 +381,8 @@ GitHub `Rollback` 手工作业选择 `staging` 或 `production` environment，�
 make prod-rollback
 ```
 
+成功发布记录先以 `0600` 临时文件写入并 `fsync`，再原子替换不可变版本记录与 `current-release.env`，最后同步追加索引。回滚读取版本记录时会先清除当前环境里的镜像引用，并要求 `TAG`、`DEPLOYED_AT`、backend/frontend/admin 三个 digest 字段各出现一次、非空且 `TAG` 与目标完全一致；截断、重复字段、错标签或混入当前版本引用都会失败关闭。
+
 ## Ansible 入口
 
 如果你希望把远端机器准备、发布和回滚都纳入 playbook，可以直接用：

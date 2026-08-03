@@ -53,20 +53,29 @@ load_env() {
 }
 source_release_record_env_file() {
   local file="$1"
+  local expected_tag="$2"
   local key value
+  local -A seen=()
+  unset TAG DEPLOYED_AT BACKEND_IMAGE_REF FRONTEND_IMAGE_REF ADMIN_IMAGE_REF
   while IFS='=' read -r key value; do
     [[ -n "${key}" ]] || continue
+    [[ -z "${seen[${key}]:-}" ]] || die "duplicate release record key ${key}"
+    seen["${key}"]=true
     printf -v "${key}" '%s' "${value}"
     export "${key}"
   done <"${file}"
+  for key in TAG DEPLOYED_AT BACKEND_IMAGE_REF FRONTEND_IMAGE_REF ADMIN_IMAGE_REF; do
+    [[ -n "${!key:-}" ]] || die "missing release record key ${key}"
+  done
+  [[ "${TAG}" == "${expected_tag}" ]] || die "release record TAG does not match rollback target"
 }
 resolve_previous_release_tag() {
   return 1
 }
 EOF
 
-grep -qF 'source_release_record_env_file "${release_file}"' "${ROLLBACK_SCRIPT}" ||
-  fail "rollback release records must use their allowlisted loader"
+grep -qF 'source_release_record_env_file "${release_file}" "${target_tag}"' "${ROLLBACK_SCRIPT}" ||
+  fail "rollback release records must use their exact target-bound loader"
 if grep -qF 'source "${release_file}"' "${ROLLBACK_SCRIPT}"; then
   fail "rollback release records must not be raw-sourced"
 fi
@@ -116,6 +125,44 @@ BACKEND_IMAGE_REF=${backend_ref}
 FRONTEND_IMAGE_REF=${frontend_ref}
 ADMIN_IMAGE_REF=${admin_ref}
 EOF
+
+truncated_tag="1111111111111111111111111111111111111111"
+cat >"${fixture_state}/releases/${truncated_tag}.env" <<EOF
+TAG=${truncated_tag}
+DEPLOYED_AT=2026-07-30T12:00:00Z
+BACKEND_IMAGE_REF=${backend_ref}
+FRONTEND_IMAGE_REF=${frontend_ref}
+EOF
+truncated_observed_file="${fixture_root}/truncated-deploy-observed"
+if VALIDATOR_CURRENT_OK=true \
+  DEPLOY_STATE_DIR="${fixture_state}" \
+  ROLLBACK_TAG="${truncated_tag}" \
+  ROLLBACK_DEPLOY_OBSERVED_FILE="${truncated_observed_file}" \
+  "${fixture_repo}/infra/ops/prod-rollback.sh" >"${fixture_root}/truncated.out" 2>"${fixture_root}/truncated.err"; then
+  fail "rollback accepted a release record missing one image reference"
+fi
+grep -q 'missing release record key ADMIN_IMAGE_REF' "${fixture_root}/truncated.err" ||
+  fail "truncated rollback record failure did not identify the missing image reference"
+[[ ! -e "${truncated_observed_file}" ]] ||
+  fail "truncated rollback record reached prod-deploy"
+
+mismatched_tag="2222222222222222222222222222222222222222"
+cat >"${fixture_state}/releases/${mismatched_tag}.env" <<EOF
+TAG=${target_tag}
+DEPLOYED_AT=2026-07-30T12:00:00Z
+BACKEND_IMAGE_REF=${backend_ref}
+FRONTEND_IMAGE_REF=${frontend_ref}
+ADMIN_IMAGE_REF=${admin_ref}
+EOF
+if VALIDATOR_CURRENT_OK=true \
+  DEPLOY_STATE_DIR="${fixture_state}" \
+  ROLLBACK_TAG="${mismatched_tag}" \
+  ROLLBACK_DEPLOY_OBSERVED_FILE="${fixture_root}/mismatched-deploy-observed" \
+  "${fixture_repo}/infra/ops/prod-rollback.sh" >"${fixture_root}/mismatched.out" 2>"${fixture_root}/mismatched.err"; then
+  fail "rollback accepted a release record for a different tag"
+fi
+grep -q 'TAG does not match rollback target' "${fixture_root}/mismatched.err" ||
+  fail "rollback record tag mismatch did not report the target binding"
 
 reason="incident rollback to a previously successful immutable release"
 reason_b64="$(python3 - "${reason}" <<'PY'
