@@ -167,6 +167,7 @@ from pathlib import Path
 path = Path(sys.argv[1])
 allowed_keys = set(sys.argv[2:])
 key_pattern = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+rendered_assignments = []
 
 for lineno, line in enumerate(path.read_text().splitlines(), 1):
     stripped = line.strip()
@@ -202,7 +203,9 @@ for lineno, line in enumerate(path.read_text().splitlines(), 1):
     else:
         value = ""
 
-    print(f"export {key}={shlex.quote(value)}")
+    rendered_assignments.append(f"export {key}={shlex.quote(value)}")
+
+print("\n".join(rendered_assignments))
 PY
 )"; then
     die "${rendered}"

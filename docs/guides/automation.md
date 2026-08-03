@@ -147,7 +147,7 @@ make prod-deploy
 - `.env.prod.secrets.local`：本机或临时环境使用的 secrets 文件
 - `.env.prod.generated`：运行时派生配置
 - `.env.prod.generated.secrets`：生产保留空占位；真实运行时派生 secrets 写入远端 secret backend，避免本地明文落盘
-- `.env.casdoor-bootstrap.local`：一次性 Casdoor bootstrap admin credential；只按受限 `KEY=VALUE` 环境文件解析，不执行 shell 语法，只接受 `CASDOOR_BOOTSTRAP_CLIENT_ID`、`CASDOOR_BOOTSTRAP_CLIENT_SECRET`、`CASDOOR_BOOTSTRAP_APPLICATION`、`CASDOOR_BOOTSTRAP_CERTIFICATE`、`CASDOOR_BOOTSTRAP_ORGANIZATION`，拒绝其他字段及 `BASH_ENV` / `ENV`，且不挂载到运行时 app 容器。生产父部署进程只在隔离子 Shell 中验证该文件并立即清除可能继承的同名变量；真正需要凭据的 bootstrap/cutover 子进程各自重新读取，备份、渲染、迁移、Docker 和 smoke 子进程不会继承 bootstrap credential
+- `.env.casdoor-bootstrap.local`：一次性 Casdoor bootstrap admin credential；只按受限 `KEY=VALUE` 环境文件解析，不执行 shell 语法，只接受 `CASDOOR_BOOTSTRAP_CLIENT_ID`、`CASDOOR_BOOTSTRAP_CLIENT_SECRET`、`CASDOOR_BOOTSTRAP_APPLICATION`、`CASDOOR_BOOTSTRAP_CERTIFICATE`、`CASDOOR_BOOTSTRAP_ORGANIZATION`，拒绝其他字段及 `BASH_ENV` / `ENV`，且不挂载到运行时 app 容器。解析器会先验证完整文件再输出赋值；失败诊断只含文件、行号和字段名，不会连带输出此前已解析的 credential。生产父部署进程只在隔离子 Shell 中验证该文件并立即清除可能继承的同名变量；真正需要凭据的 bootstrap/cutover 子进程各自重新读取，备份、渲染、迁移、Docker 和 smoke 子进程不会继承 bootstrap credential
 
 `make prod-deploy` 会自动完成：
 
