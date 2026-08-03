@@ -50,6 +50,8 @@ if [[ "${external_postgres_enabled}" != "true" ]]; then
     "${STACK_NAME:-stuhelper}-postgres" \
     "${POSTGRES_USER:-stuhelper}" \
     "${POSTGRES_DB:-stuhelper}"
+else
+  require_external_postgres_pitr_evidence >/dev/null
 fi
 
 sync_excludes=(
@@ -73,7 +75,7 @@ run_backup_object_storage_rclone \
   copy /source "target:${BACKUP_OBJECT_STORAGE_BUCKET}/${prefix}/base" \
   "${sync_excludes[@]}"
 if [[ "${external_postgres_enabled}" == "true" ]]; then
-  log "external PostgreSQL selected; its provider/DBA owns continuous WAL archival and PITR evidence"
+  log "external PostgreSQL selected; fresh cluster-bound continuous WAL/PITR evidence was verified"
 else
   run_backup_object_storage_rclone \
     "${wal_archive_user}" \

@@ -44,7 +44,10 @@ object_storage_gate_line="$(line_number 'require_production_object_storage')"
 public_ingress_config_preflight_line="$(line_number 'require_public_ingress_config_preflight')"
 public_ingress_preflight_line="$(line_number 'require_public_identity_ingress_preflight')"
 render_postgres_tls_line="$(line_number 'render-postgres-tls.sh')"
+prepare_datastore_ca_line="$(line_number 'prepare-datastore-client-cas.sh')"
+external_pitr_evidence_line="$(line_number 'require_external_postgres_pitr_evidence')"
 render_redis_acl_line="$(line_number 'render-redis-acl.sh')"
+pull_release_images_line="$(line_number 'compose --profile prod pull app frontend admin')"
 start_infra_line="$(line_number 'compose --profile prod up -d --wait "${infra_services[@]}"')"
 predeploy_backup_line="$(line_number '"${SCRIPT_DIR}/backup-postgres.sh" "${predeploy_backup_path}"')"
 sync_backup_line="$(line_number '"${SCRIPT_DIR}/sync-postgres-backups.sh"')"
@@ -328,6 +331,9 @@ if (( render_postgres_tls_line <= postgres_ssl_line )); then
 fi
 if (( render_redis_acl_line <= postgres_ssl_line )); then
   fail "render-redis-acl.sh must run after production PostgreSQL SSL config validation"
+fi
+if (( external_pitr_evidence_line <= prepare_datastore_ca_line || external_pitr_evidence_line >= pull_release_images_line )); then
+  fail "production deploy must verify live external PITR evidence after preparing the client CA and before pulling release images"
 fi
 
 if ! grep -qF 'reject_local_value BACKUP_OBJECT_STORAGE_ENDPOINT' "${PROD_DEPLOY_FILE}"; then

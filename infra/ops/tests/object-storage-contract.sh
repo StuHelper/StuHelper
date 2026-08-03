@@ -632,7 +632,7 @@ assert_contains "${COMMON_LIB}" 'last_archived_wal'
 assert_contains "${WAL_ARCHIVER_VALIDATOR}" 'archive_mode != "on"'
 assert_contains "${WAL_ARCHIVER_VALIDATOR}" 'archive_timeout != "15min"'
 assert_contains "${WAL_ARCHIVER_VALIDATOR}" '/var/lib/postgresql/wal-archive/%f'
-assert_contains "${SYNC_BACKUPS}" 'external PostgreSQL selected; its provider/DBA owns continuous WAL archival and PITR evidence'
+assert_contains "${SYNC_BACKUPS}" 'fresh cluster-bound continuous WAL/PITR evidence was verified'
 assert_contains "${FETCH_BACKUPS}" 'load_env_preserving \\'
 assert_contains "${FETCH_BACKUPS}" 'BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED \\'
 assert_contains "${FETCH_BACKUPS}" 'LOCAL_STATE_DIR \\'
@@ -685,7 +685,19 @@ if POSTGRES_ARCHIVE_MODE=on POSTGRES_ARCHIVE_TIMEOUT=1d EXTERNAL_POSTGRES_ENABLE
 fi
 grep -q 'POSTGRES_ARCHIVE_TIMEOUT must be 15min' "${tmpdir}/archive-timeout-invalid.err" ||
   fail "invalid production archive timeout did not report the configuration boundary"
-if ! POSTGRES_ARCHIVE_MODE=off EXTERNAL_POSTGRES_ENABLED=true bash -c '
+if POSTGRES_ARCHIVE_MODE=off EXTERNAL_POSTGRES_ENABLED=true bash -c '
+  set -euo pipefail
+  source "$1"
+  require_production_postgres_archiving
+' bash "${COMMON_LIB}" >"${tmpdir}/external-pitr-evidence-missing.out" 2>"${tmpdir}/external-pitr-evidence-missing.err"; then
+  fail "the production archiving config gate accepted external PostgreSQL without its fixed PITR evidence path"
+fi
+grep -q 'EXTERNAL_POSTGRES_PITR_EVIDENCE_FILE must be' "${tmpdir}/external-pitr-evidence-missing.err" ||
+  fail "missing external PITR evidence path did not report the production boundary"
+if ! POSTGRES_ARCHIVE_MODE=off \
+  EXTERNAL_POSTGRES_ENABLED=true \
+  EXTERNAL_POSTGRES_PITR_EVIDENCE_FILE=/etc/stuhelper/external-postgres-pitr-evidence.json \
+  bash -c '
   set -euo pipefail
   source "$1"
   require_production_postgres_archiving
@@ -924,9 +936,12 @@ from pathlib import Path
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
 volume_validation = source.index("require_live_postgres_wal_archive_volume")
 archiver_validation = source.index("require_live_postgres_wal_archiving")
+external_pitr_validation = source.index("require_external_postgres_pitr_evidence")
 first_transfer = source.index("run_backup_object_storage_rclone", volume_validation)
 if not volume_validation < archiver_validation < first_transfer:
     raise SystemExit("live WAL mount and archiver validation must precede every backup transfer")
+if external_pitr_validation >= first_transfer:
+    raise SystemExit("external PITR evidence validation must precede every backup transfer")
 PY
 
 external_fixture="${tmpdir}/external-postgres-sync"
@@ -947,6 +962,9 @@ require_off_host_backup_object_storage() { :; }
 require_live_postgres_wal_archive_volume() {
   printf 'unexpected-local-wal-validation\n' >>"${SYNC_CAPTURE_FILE}"
   return 91
+}
+require_external_postgres_pitr_evidence() {
+  printf 'external-pitr-evidence-verified\n' >>"${SYNC_CAPTURE_FILE}"
 }
 die() { printf '[fixture][error] %s\n' "$*" >&2; exit 1; }
 log() { printf '[fixture] %s\n' "$*"; }
@@ -972,8 +990,9 @@ BACKUP_BASE_DIR="${external_fixture}/backups/postgres/base" \
   "${external_fixture}/infra/ops/sync-postgres-backups.sh" >"${external_fixture}/sync.out"
 assert_contains "${external_sync_capture}" 'target:contract-backup/postgres/logical'
 assert_contains "${external_sync_capture}" 'target:contract-backup/postgres/base'
+assert_contains "${external_sync_capture}" '^external-pitr-evidence-verified$'
 assert_not_contains "${external_sync_capture}" 'target:contract-backup/postgres/wal|unexpected-local-wal-validation'
-assert_contains "${external_fixture}/sync.out" 'external PostgreSQL selected; its provider/DBA owns continuous WAL archival and PITR evidence'
+assert_contains "${external_fixture}/sync.out" 'fresh cluster-bound continuous WAL/PITR evidence was verified'
 
 if ! python3 - "${FETCH_BACKUPS}" <<'PY'
 from pathlib import Path

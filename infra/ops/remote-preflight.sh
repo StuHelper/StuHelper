@@ -243,5 +243,9 @@ if compose run --rm --no-deps -T postgres-client \
 else
   die "备份数据库连通性检查失败（pg_isready 超时），请确认 BACKUP_DATABASE_URL 可达"
 fi
+if [[ "${EXTERNAL_POSTGRES_ENABLED:-false}" == "true" ]]; then
+  require_external_postgres_pitr_evidence >/dev/null
+  log "外部 PostgreSQL 连续归档和 PITR 证据有效且与当前集群一致"
+fi
 
 log "remote preflight checks passed"

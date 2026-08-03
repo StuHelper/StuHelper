@@ -128,6 +128,7 @@ assert_contains "${PREFLIGHT_FILE}" 'require_systemd_timer_schedule'
 assert_contains "${PREFLIGHT_FILE}" 'systemctl is-active --quiet'
 assert_contains "${PREFLIGHT_FILE}" 'require_production_postgres_ssl'
 assert_contains "${PREFLIGHT_FILE}" 'require_production_postgres_archiving'
+assert_contains "${PREFLIGHT_FILE}" 'require_external_postgres_pitr_evidence'
 assert_contains "${PREFLIGHT_FILE}" 'require_production_external_student_source_security'
 assert_contains "${COMMON_LIB_FILE}" 'EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_MODE must be verify-full in production'
 assert_contains "${PREFLIGHT_FILE}" 'require_public_ingress_config_preflight'
@@ -146,6 +147,8 @@ backup_staging_default_line="$(line_number "${PREFLIGHT_FILE}" 'BACKUP_STAGING_D
 backup_staging_use_line="$(line_number "${PREFLIGHT_FILE}" 'expected_service_environment+=("BACKUP_STAGING_DIR=${BACKUP_STAGING_DIR}")')"
 docker_info_line="$(line_number "${PREFLIGHT_FILE}" 'docker info >/dev/null')"
 pg_isready_line="$(line_number "${PREFLIGHT_FILE}" 'pg_isready -d "${BACKUP_DATABASE_URL}" -t 5')"
+external_pitr_evidence_line="$(line_number "${PREFLIGHT_FILE}" 'require_external_postgres_pitr_evidence')"
+preflight_complete_line="$(line_number "${PREFLIGHT_FILE}" 'remote preflight checks passed')"
 public_dns_web_line="$(line_number "${COMMON_LIB_FILE}" 'require_public_dns_resolved "Web"')"
 public_dns_admission_line="$(line_number "${COMMON_LIB_FILE}" 'require_public_dns_resolved "Admission"')"
 public_http_web_line="$(line_number "${COMMON_LIB_FILE}" 'require_public_http_reachable "Web"')"
@@ -182,6 +185,9 @@ if (( admission_public_smoke_line >= docker_info_line )); then
 fi
 if (( ssl_gate_line >= pg_isready_line )); then
   fail "remote preflight must validate production PostgreSQL SSL before pg_isready"
+fi
+if (( external_pitr_evidence_line <= pg_isready_line || external_pitr_evidence_line >= preflight_complete_line )); then
+  fail "remote preflight must bind external PITR evidence to the reachable live cluster before passing"
 fi
 if (( public_dns_web_line >= public_http_web_line )); then
   fail "public DNS preflight must run before public HTTP/TLS reachability checks"

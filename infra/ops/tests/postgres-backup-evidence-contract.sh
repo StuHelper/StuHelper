@@ -124,6 +124,7 @@ assert file_bundle["freshnessPolicySeconds"] == {
     "logical": 129600,
     "physicalBase": 691200,
 }
+assert file_bundle["externalPITR"] is None
 
 expected = {
     "localLogicalBackup": ("predeploy-test.dump", False),
