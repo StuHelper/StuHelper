@@ -1966,14 +1966,12 @@ configure_production_preflight_runtime_checks() {
   run_public_runtime_checks=true
   [[ "${preflight_phase}" == "--pre-deploy" ]] || return 0
 
+  run_public_runtime_checks=false
+  warn "public application runtime checks are deferred until the mandatory post-deploy preflight"
   if [[ "${EXTERNAL_POSTGRES_ENABLED:-false}" != "true" ]] && \
     [[ "$(docker inspect --format '{{.State.Running}}' "${stack_name}-postgres" 2>/dev/null || true)" != "true" ]]; then
     run_database_runtime_checks=false
     warn "local PostgreSQL is not running; deferring database connectivity to mandatory post-deploy preflight"
-  fi
-  if [[ "$(docker inspect --format '{{.State.Running}}' "${stack_name}-app" 2>/dev/null || true)" != "true" ]]; then
-    run_public_runtime_checks=false
-    warn "application runtime is not running; deferring public ingress and application smokes to mandatory post-deploy preflight"
   fi
 }
 
