@@ -624,6 +624,7 @@ assert_contains "${SYNC_BACKUPS}" 'require_off_host_backup_object_storage'
 assert_contains "${SYNC_BACKUPS}" 'APP_ENV:-.*production'
 assert_contains "${SYNC_BACKUPS}" 'unset BACKUP_OBJECT_STORAGE_PINNED_HOSTS'
 assert_contains "${SYNC_BACKUPS}" 'require_live_postgres_wal_archive_volume'
+assert_contains "${SYNC_BACKUPS}" 'external PostgreSQL selected; its provider/DBA owns continuous WAL archival and PITR evidence'
 assert_contains "${FETCH_BACKUPS}" 'load_env_preserving \\'
 assert_contains "${FETCH_BACKUPS}" 'BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED \\'
 assert_contains "${FETCH_BACKUPS}" 'LOCAL_STATE_DIR \\'
@@ -635,6 +636,7 @@ assert_contains "${SCHEDULED_BACKUP}" 'load_env_preserving \\'
 assert_contains "${SCHEDULED_BACKUP}" 'BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED \\'
 assert_contains "${SCHEDULED_BACKUP}" 'LOCAL_STATE_DIR \\'
 assert_contains "${SCHEDULED_BACKUP}" 'BACKUP_STAGING_DIR'
+assert_contains "${SCHEDULED_BACKUP}" 'external PostgreSQL selected; skipping local WAL archive pruning'
 assert_contains "${SCHEDULED_BACKUP}" 'true\) require_off_host_backup_object_storage'
 assert_contains "${SCHEDULED_BACKUP}" 'protected_bash=\('
 assert_contains "${SCHEDULED_BACKUP}" '--unset=BASH_ENV'
@@ -722,6 +724,52 @@ first_transfer = source.index("run_backup_object_storage_rclone", validation)
 if validation >= first_transfer:
     raise SystemExit("live WAL volume validation must precede every backup transfer")
 PY
+
+external_fixture="${tmpdir}/external-postgres-sync"
+mkdir -p \
+  "${external_fixture}/infra/ops/lib" \
+  "${external_fixture}/backups/postgres/logical" \
+  "${external_fixture}/backups/postgres/base"
+cp "${SYNC_BACKUPS}" "${external_fixture}/infra/ops/sync-postgres-backups.sh"
+chmod +x "${external_fixture}/infra/ops/sync-postgres-backups.sh"
+cat >"${external_fixture}/infra/ops/lib/common.sh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+COMMON_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${COMMON_LIB_DIR}/../../.." && pwd)"
+require_cmd() { :; }
+load_env_preserving() { :; }
+require_off_host_backup_object_storage() { :; }
+require_live_postgres_wal_archive_volume() {
+  printf 'unexpected-local-wal-validation\n' >>"${SYNC_CAPTURE_FILE}"
+  return 91
+}
+die() { printf '[fixture][error] %s\n' "$*" >&2; exit 1; }
+log() { printf '[fixture] %s\n' "$*"; }
+EOF
+cat >"${external_fixture}/infra/ops/lib/rclone-object-storage.sh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+run_backup_object_storage_rclone() {
+  printf '%s\n' "$*" >>"${SYNC_CAPTURE_FILE}"
+}
+EOF
+external_sync_capture="${external_fixture}/sync-capture"
+SYNC_CAPTURE_FILE="${external_sync_capture}" \
+EXTERNAL_POSTGRES_ENABLED=true \
+APP_ENV=production \
+BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true \
+BACKUP_OBJECT_STORAGE_ENDPOINT=https://backup.example.test \
+BACKUP_OBJECT_STORAGE_BUCKET=contract-backup \
+BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID=contract-key \
+BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY=contract-secret \
+BACKUP_LOGICAL_DIR="${external_fixture}/backups/postgres/logical" \
+BACKUP_BASE_DIR="${external_fixture}/backups/postgres/base" \
+  "${external_fixture}/infra/ops/sync-postgres-backups.sh" >"${external_fixture}/sync.out"
+assert_contains "${external_sync_capture}" 'target:contract-backup/postgres/logical'
+assert_contains "${external_sync_capture}" 'target:contract-backup/postgres/base'
+assert_not_contains "${external_sync_capture}" 'target:contract-backup/postgres/wal|unexpected-local-wal-validation'
+assert_contains "${external_fixture}/sync.out" 'external PostgreSQL selected; its provider/DBA owns continuous WAL archival and PITR evidence'
 
 if ! python3 - "${FETCH_BACKUPS}" <<'PY'
 from pathlib import Path

@@ -71,19 +71,23 @@ BACKUP_MODE="${MODE}" \
 
 prune_old_backups "${backup_dir}" "${retention_days}"
 
-docker run --rm \
-  --read-only \
-  --cap-drop ALL \
-  --security-opt no-new-privileges \
-  --user 70:70 \
-  --mount "type=volume,src=${wal_archive_volume},dst=/wal" \
-  --entrypoint /bin/sh \
-  "${postgres_image_ref}" -ec "
-    if [ -d /wal ]; then
-      find /wal \
-        -path '/wal/quarantine-incomplete-*' -prune -o \
-        -type f -mtime +${WAL_ARCHIVE_RETENTION_DAYS:-14} -print -delete
-    fi
-  "
+if [[ "${EXTERNAL_POSTGRES_ENABLED:-false}" == "true" ]]; then
+  log "external PostgreSQL selected; skipping local WAL archive pruning"
+else
+  docker run --rm \
+    --read-only \
+    --cap-drop ALL \
+    --security-opt no-new-privileges \
+    --user 70:70 \
+    --mount "type=volume,src=${wal_archive_volume},dst=/wal" \
+    --entrypoint /bin/sh \
+    "${postgres_image_ref}" -ec "
+      if [ -d /wal ]; then
+        find /wal \
+          -path '/wal/quarantine-incomplete-*' -prune -o \
+          -type f -mtime +${WAL_ARCHIVE_RETENTION_DAYS:-14} -print -delete
+      fi
+    "
+fi
 
 log "scheduled PostgreSQL ${MODE} backup completed"
