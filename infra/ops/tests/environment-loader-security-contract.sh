@@ -120,6 +120,12 @@ release_frontend_ref='ghcr.io/stuhelper/frontend@sha256:222222222222222222222222
 release_admin_ref='ghcr.io/stuhelper/admin@sha256:3333333333333333333333333333333333333333333333333333333333333333'
 
 require_safe_release_tag release_2026.08-03
+deployment_attempt_one="$(new_deployment_attempt_id)"
+deployment_attempt_two="$(new_deployment_attempt_id)"
+[[ "${deployment_attempt_one}" =~ ^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{32}$ ]] ||
+  fail "deployment attempt identifier did not use the canonical safe format"
+[[ "${deployment_attempt_one}" != "${deployment_attempt_two}" ]] ||
+  fail "two deployment attempts unexpectedly reused the same identifier"
 for unsafe_release_tag in \
   '' \
   '../escape' \

@@ -388,6 +388,10 @@ GitHub `Rollback` 手工作业选择 `staging` 或 `production` environment，�
    backend / frontend / admin 镜像
 5. 重新执行当前 rollback controller，并再次跑业务与严格可观测性 smoke check
 
+每次前滚、同版本重激活或回滚都会生成独立的 `UTC timestamp + UUID` deployment attempt ID，并把它加入
+`predeploy-<release-tag>-<attempt-id>.dump`。release tag 继续作为不可变镜像身份和审计元数据，但不再充当备份
+文件的唯一名，因此正常 retention 窗口内回滚到旧 tag 不会撞上原发布备份；备份脚本仍拒绝覆盖任何既有制品。
+
 本地应急入口仍保留；未传 `ROLLBACK_TAG` 时会尝试读取 `.deploy/releases.log` 的上一条成功版本：
 
 ```bash

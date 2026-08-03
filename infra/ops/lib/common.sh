@@ -534,6 +534,22 @@ require_safe_release_tag() {
   fi
 }
 
+new_deployment_attempt_id() {
+  local attempt_id
+  attempt_id="$(python3 - <<'PY'
+from datetime import datetime, timezone
+import uuid
+
+timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+print(f"{timestamp}-{uuid.uuid4().hex}")
+PY
+)"
+  if [[ ! "${attempt_id}" =~ ^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{32}$ ]]; then
+    die "failed to generate a safe deployment attempt identifier"
+  fi
+  printf '%s\n' "${attempt_id}"
+}
+
 source_release_record_env_file() {
   local file="$1"
   local expected_tag="${2:-}"

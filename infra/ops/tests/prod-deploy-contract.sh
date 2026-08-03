@@ -180,6 +180,10 @@ fi
 if (( release_identity_guard_line <= derived_tag_validation_line || release_identity_guard_line >= render_postgres_tls_line || release_identity_guard_line >= pull_release_images_line )); then
   fail "an existing immutable release tag must match the requested image identity before deployment side effects"
 fi
+grep -qF 'deployment_attempt_id="$(new_deployment_attempt_id)"' "${PROD_DEPLOY_FILE}" ||
+  fail "production backups must use a unique activation identifier"
+grep -qF 'predeploy-${TAG}-${deployment_attempt_id}.dump' "${PROD_DEPLOY_FILE}" ||
+  fail "pre-deploy backup paths must not collide when a release tag is reactivated"
 if (( generated_secret_ref_require_line <= remote_config_load_line )); then
   fail "production deploy must load remote.env before requiring GENERATED_ENV_SECRET_REF"
 fi
