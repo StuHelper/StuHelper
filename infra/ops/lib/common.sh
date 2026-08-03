@@ -572,6 +572,90 @@ PY
   fi
 }
 
+postgres_wal_archiver_status() {
+  local postgres_container="$1"
+  local postgres_user="$2"
+  local postgres_database="$3"
+  local status_json
+
+  if ! status_json="$(docker exec "${postgres_container}" \
+    psql \
+    --no-psqlrc \
+    --set=ON_ERROR_STOP=1 \
+    --username="${postgres_user}" \
+    --dbname="${postgres_database}" \
+    --tuples-only \
+    --no-align \
+    --command="SELECT json_build_object(
+      'archive_mode', current_setting('archive_mode'),
+      'archive_command', current_setting('archive_command'),
+      'archive_timeout', current_setting('archive_timeout'),
+      'archived_count', archived_count,
+      'failed_count', failed_count,
+      'last_archived_wal', last_archived_wal,
+      'last_archived_epoch', EXTRACT(EPOCH FROM last_archived_time),
+      'last_failed_epoch', EXTRACT(EPOCH FROM last_failed_time),
+      'postmaster_started_epoch', EXTRACT(EPOCH FROM pg_postmaster_start_time())
+    )::text FROM pg_stat_archiver" 2>/dev/null)"; then
+    return 1
+  fi
+  python3 "${COMMON_LIB_DIR}/../validate-postgres-wal-archiver.py" \
+    --status-json "${status_json}"
+}
+
+require_live_postgres_wal_archiving() {
+  local postgres_container="$1"
+  local postgres_user="${2:-${POSTGRES_USER:-stuhelper}}"
+  local postgres_database="${3:-${POSTGRES_DB:-stuhelper}}"
+  local archived_wal
+  local attempt
+  local status
+
+  [[ -n "${postgres_container}" ]] || die "PostgreSQL container name must not be empty"
+  [[ -n "${postgres_user}" ]] || die "PostgreSQL archive probe user must not be empty"
+  [[ -n "${postgres_database}" ]] || die "PostgreSQL archive probe database must not be empty"
+
+  if archived_wal="$(postgres_wal_archiver_status \
+    "${postgres_container}" "${postgres_user}" "${postgres_database}")"; then
+    :
+  else
+    status=$?
+    if [[ "${status}" -ne 2 ]]; then
+      die "live PostgreSQL WAL archiver settings or status are invalid"
+    fi
+
+    log "probing PostgreSQL WAL archival after the current server start"
+    docker exec "${postgres_container}" \
+      psql \
+      --no-psqlrc \
+      --set=ON_ERROR_STOP=1 \
+      --username="${postgres_user}" \
+      --dbname="${postgres_database}" \
+      --tuples-only \
+      --no-align \
+      --command='SELECT pg_switch_wal()' >/dev/null 2>&1 ||
+      die "failed to request a PostgreSQL WAL archive probe"
+
+    archived_wal=""
+    for ((attempt = 1; attempt <= 30; attempt++)); do
+      if archived_wal="$(postgres_wal_archiver_status \
+        "${postgres_container}" "${postgres_user}" "${postgres_database}")"; then
+        break
+      else
+        status=$?
+      fi
+      [[ "${status}" -eq 2 ]] || die "PostgreSQL WAL archiver became invalid during the live probe"
+      sleep 1
+    done
+    [[ -n "${archived_wal}" ]] ||
+      die "PostgreSQL did not archive a WAL segment after the live probe"
+  fi
+
+  docker exec "${postgres_container}" /bin/sh -c \
+    'test -f "/var/lib/postgresql/wal-archive/$1"' sh "${archived_wal}" >/dev/null 2>&1 ||
+    die "PostgreSQL reported archived WAL ${archived_wal}, but it is missing from the protected volume"
+}
+
 require_backup_object_storage_config() {
   local missing=()
   local key
@@ -1081,6 +1165,16 @@ require_production_postgres_ssl() {
   require_production_postgres_url "DATABASE_URL" "${DATABASE_URL:-}"
   require_production_postgres_url "BACKUP_DATABASE_URL" "${BACKUP_DATABASE_URL:-}"
   require_production_postgres_url "REPLICATION_DATABASE_URL" "${REPLICATION_DATABASE_URL:-}"
+}
+
+require_production_postgres_archiving() {
+  if [[ "${EXTERNAL_POSTGRES_ENABLED:-false}" == "true" ]]; then
+    return 0
+  fi
+  [[ "${POSTGRES_ARCHIVE_MODE:-}" == "on" ]] ||
+    die "POSTGRES_ARCHIVE_MODE must be on for the internal production PostgreSQL service"
+  [[ "${POSTGRES_ARCHIVE_TIMEOUT:-}" == "15min" ]] ||
+    die "POSTGRES_ARCHIVE_TIMEOUT must be 15min for the internal production PostgreSQL service"
 }
 
 require_production_external_student_source_security() {
