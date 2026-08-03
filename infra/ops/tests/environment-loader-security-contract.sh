@@ -202,6 +202,17 @@ source_release_record_env_file "${tmpdir}/release-safe.env" contract-release
   fail "release record loader retained an inherited admin image"
 
 release_state_dir="${tmpdir}/release-state"
+fresh_release_guard_state="${tmpdir}/fresh-release-guard-state"
+(
+  export DEPLOY_STATE_DIR="${fresh_release_guard_state}"
+  export BACKEND_IMAGE_REF="${release_backend_ref}"
+  export FRONTEND_IMAGE_REF="${release_frontend_ref}"
+  export ADMIN_IMAGE_REF="${release_admin_ref}"
+  require_release_tag_identity_available contract-release
+)
+[[ ! -e "${fresh_release_guard_state}" ]] ||
+  fail "checking a previously unused release tag created deployment state"
+
 (
   export DEPLOY_STATE_DIR="${release_state_dir}"
   export BACKEND_IMAGE_REF="${release_backend_ref}"
@@ -236,6 +247,30 @@ cmp -s "${release_state_dir}/current-release.env" "${immutable_release_path}" ||
   fail "reusing an identical release did not restore its original immutable payload"
 [[ "$(wc -l <"${release_state_dir}/releases.log")" == "2" ]] ||
   fail "release activation log did not record the repeated activation"
+
+(
+  export DEPLOY_STATE_DIR="${release_state_dir}"
+  export BACKEND_IMAGE_REF="${release_backend_ref}"
+  export FRONTEND_IMAGE_REF="${release_frontend_ref}"
+  export ADMIN_IMAGE_REF="${release_admin_ref}"
+  require_release_tag_identity_available contract-release
+)
+[[ "$(wc -l <"${release_state_dir}/releases.log")" == "2" ]] ||
+  fail "read-only release identity validation changed the activation log"
+
+if (
+  export DEPLOY_STATE_DIR="${release_state_dir}"
+  export BACKEND_IMAGE_REF=ghcr.io/stuhelper/backend@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  export FRONTEND_IMAGE_REF="${release_frontend_ref}"
+  export ADMIN_IMAGE_REF="${release_admin_ref}"
+  require_release_tag_identity_available contract-release
+) >"${tmpdir}/guard-conflicting-release.log" 2>&1; then
+  fail "pre-deploy release identity guard accepted a reused tag with a different image tuple"
+fi
+grep -q 'release field BACKEND_IMAGE_REF does not match existing immutable release record' "${tmpdir}/guard-conflicting-release.log" ||
+  fail "pre-deploy conflicting release-tag rejection did not identify the changed image"
+[[ "$(wc -l <"${release_state_dir}/releases.log")" == "2" ]] ||
+  fail "failed read-only release identity validation changed the activation log"
 
 if (
   export DEPLOY_STATE_DIR="${release_state_dir}"
