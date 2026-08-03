@@ -610,7 +610,7 @@ importers:
         version: 4.3.3
       tsdown:
         specifier: 'catalog:'
-        version: 0.22.14(@tsdown/css@0.22.14)(@volar/typescript@2.4.28)(publint@0.3.22)(typescript@5.9.3)(unrun@0.2.32(@emnapi/core@2.0.0-alpha.3)(@emnapi/runtime@2.0.0-alpha.3)(synckit@0.11.13))(vue-tsc@3.3.9(typescript@5.9.3))
+        version: 0.22.14(@tsdown/css@0.22.14)(@volar/typescript@2.4.28)(publint@0.3.22)(typescript@5.9.3)(unrun@0.2.32(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(synckit@0.11.13))(vue-tsc@3.3.9(typescript@5.9.3))
       turbo:
         specifier: 'catalog:'
         version: 2.10.7
@@ -13320,9 +13320,9 @@ snapshots:
   '@rolldown/binding-openharmony-arm64@1.2.1':
     optional: true
 
-  '@rolldown/binding-wasm32-wasi@1.0.0-rc.9(@emnapi/core@2.0.0-alpha.3)(@emnapi/runtime@2.0.0-alpha.3)':
+  '@rolldown/binding-wasm32-wasi@1.0.0-rc.9(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)':
     dependencies:
-      '@napi-rs/wasm-runtime': 1.1.6(@emnapi/core@2.0.0-alpha.3)(@emnapi/runtime@2.0.0-alpha.3)
+      '@napi-rs/wasm-runtime': 1.1.6(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)
     transitivePeerDependencies:
       - '@emnapi/core'
       - '@emnapi/runtime'
@@ -13894,7 +13894,7 @@ snapshots:
       lightningcss: 1.33.0
       postcss-load-config: 6.0.1(jiti@2.7.0)(postcss@8.5.25)(yaml@2.9.0)
       rolldown: 1.2.1
-      tsdown: 0.22.14(@tsdown/css@0.22.14)(@volar/typescript@2.4.28)(publint@0.3.22)(typescript@5.9.3)(unrun@0.2.32(@emnapi/core@2.0.0-alpha.3)(@emnapi/runtime@2.0.0-alpha.3)(synckit@0.11.13))(vue-tsc@3.3.9(typescript@5.9.3))
+      tsdown: 0.22.14(@tsdown/css@0.22.14)(@volar/typescript@2.4.28)(publint@0.3.22)(typescript@5.9.3)(unrun@0.2.32(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(synckit@0.11.13))(vue-tsc@3.3.9(typescript@5.9.3))
     optionalDependencies:
       postcss: 8.5.25
       sass: 1.102.0
@@ -18473,7 +18473,7 @@ snapshots:
     dependencies:
       magic-string: 0.30.21
 
-  rolldown@1.0.0-rc.9(@emnapi/core@2.0.0-alpha.3)(@emnapi/runtime@2.0.0-alpha.3):
+  rolldown@1.0.0-rc.9(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1):
     dependencies:
       '@oxc-project/types': 0.115.0
       '@rolldown/pluginutils': 1.0.0-rc.9
@@ -18490,7 +18490,7 @@ snapshots:
       '@rolldown/binding-linux-x64-gnu': 1.0.0-rc.9
       '@rolldown/binding-linux-x64-musl': 1.0.0-rc.9
       '@rolldown/binding-openharmony-arm64': 1.0.0-rc.9
-      '@rolldown/binding-wasm32-wasi': 1.0.0-rc.9(@emnapi/core@2.0.0-alpha.3)(@emnapi/runtime@2.0.0-alpha.3)
+      '@rolldown/binding-wasm32-wasi': 1.0.0-rc.9(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)
       '@rolldown/binding-win32-arm64-msvc': 1.0.0-rc.9
       '@rolldown/binding-win32-x64-msvc': 1.0.0-rc.9
     transitivePeerDependencies:
@@ -19411,7 +19411,7 @@ snapshots:
       minimist: 1.2.8
       strip-bom: 3.0.0
 
-  tsdown@0.22.14(@tsdown/css@0.22.14)(@volar/typescript@2.4.28)(publint@0.3.22)(typescript@5.9.3)(unrun@0.2.32(@emnapi/core@2.0.0-alpha.3)(@emnapi/runtime@2.0.0-alpha.3)(synckit@0.11.13))(vue-tsc@3.3.9(typescript@5.9.3)):
+  tsdown@0.22.14(@tsdown/css@0.22.14)(@volar/typescript@2.4.28)(publint@0.3.22)(typescript@5.9.3)(unrun@0.2.32(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(synckit@0.11.13))(vue-tsc@3.3.9(typescript@5.9.3)):
     dependencies:
       ansis: 4.3.1
       cac: 7.0.0
@@ -19432,7 +19432,7 @@ snapshots:
       '@tsdown/css': 0.22.14(jiti@2.7.0)(postcss@8.5.25)(sass-embedded@1.100.0)(sass@1.102.0)(tsdown@0.22.14)(yaml@2.9.0)
       publint: 0.3.22
       typescript: 5.9.3
-      unrun: 0.2.32(@emnapi/core@2.0.0-alpha.3)(@emnapi/runtime@2.0.0-alpha.3)(synckit@0.11.13)
+      unrun: 0.2.32(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(synckit@0.11.13)
     transitivePeerDependencies:
       - '@typescript/native-preview'
       - '@volar/typescript'
@@ -19724,9 +19724,9 @@ snapshots:
       rollup: 4.62.4
       vite: 8.1.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.4)(sass-embedded@1.100.0)(sass@1.102.0)(terser@5.46.1)(yaml@2.9.0)
 
-  unrun@0.2.32(@emnapi/core@2.0.0-alpha.3)(@emnapi/runtime@2.0.0-alpha.3)(synckit@0.11.13):
+  unrun@0.2.32(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(synckit@0.11.13):
     dependencies:
-      rolldown: 1.0.0-rc.9(@emnapi/core@2.0.0-alpha.3)(@emnapi/runtime@2.0.0-alpha.3)
+      rolldown: 1.0.0-rc.9(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)
     optionalDependencies:
       synckit: 0.11.13
     transitivePeerDependencies:
