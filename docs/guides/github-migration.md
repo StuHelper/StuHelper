@@ -132,7 +132,7 @@ SSH known_hosts 必须预先固定真实 host public key，且条目必须与 `D
 
 ### Branch protection
 
-对 `develop` 和 `main` 配置 ruleset：
+`develop` 和 `main` 使用独立 ruleset。两者共同要求：
 
 - 禁止 force push 和删除；
 - 合并必须经过 Pull Request；
@@ -143,6 +143,27 @@ SSH known_hosts 必须预先固定真实 host public key，且条目必须与 `D
 - 必须通过 CodeQL 的 Go 与 JavaScript/TypeScript 检查；
 - 要求分支在合并前更新；
 - 高风险路径由 `.github/CODEOWNERS` 审批。
+
+合并方法按分支职责区分：
+
+- `develop` 是短期功能 PR 的集成分支，要求线性历史，并且只允许 squash merge；
+- `main` 是 `develop` 的发布晋级分支，不要求线性历史，并且只允许 merge commit；正常发布 PR
+  的 head 必须是 `develop`。merge commit 保留两个长期分支的祖先关系；
+- 不得对 `develop -> main` 的长期分支 PR 使用 squash 或 rebase。GitHub 会在后续 PR 中再次列出
+  已被 squash 的提交，并可能让同一批冲突反复出现；
+- 紧急修复仍应优先进入 `develop` 后晋级。若事故中必须先修 `main`，恢复后必须通过 PR 把该提交
+  同步回 `develop`，再开始下一轮发布。
+
+每次 `develop -> main` 发布合并后必须验证：
+
+```bash
+git fetch origin --prune
+git merge-base --is-ancestor origin/develop origin/main
+git diff --exit-code origin/develop origin/main
+```
+
+第一条证明发布时的 `develop` HEAD 已成为 `main` 的祖先，第二条证明两个长期分支在发布点的
+内容完全一致。仅比较文件树而不验证祖先关系，不能防止下一轮 PR 重复历史变更。
 
 仓库采用一项明确、最小的单维护者例外：ruleset bypass list 只包含 GitHub 用户
 `Xauryan`（user ID `268165484`），且 `bypass_mode` 必须保持为 `pull_request`。这意味着
