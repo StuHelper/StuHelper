@@ -3233,6 +3233,48 @@ for logged_tag in sorted(logged_tags):
             f"{logged_release_path}",
         )
 
+# Validate the reverse edge as well: an immutable per-tag record is release
+# history, so it must not silently disappear from releases.log. The only
+# recoverable exception is the exact candidate being retried; publication then
+# appends its missing activation before changing the current pointer.
+immutable_tags = set()
+try:
+    releases_metadata = releases_dir.lstat()
+except FileNotFoundError:
+    releases_metadata = None
+if releases_metadata is not None:
+    if not stat.S_ISDIR(releases_metadata.st_mode) or releases_dir.is_symlink():
+        raise SystemExit(f"release record path must be a regular directory: {releases_dir}")
+    tag_record_pattern = re.compile(r"([A-Za-z0-9][A-Za-z0-9._-]{0,127})\.env")
+    with os.scandir(releases_dir) as entries:
+        for entry in entries:
+            if not entry.name.endswith(".env"):
+                continue
+            match = tag_record_pattern.fullmatch(entry.name)
+            if match is None:
+                raise SystemExit(f"release record has an unsafe filename: {entry.path}")
+            immutable_tag = match.group(1)
+            immutable_path = Path(entry.path)
+            _, immutable_release = read_canonical_release(
+                immutable_path,
+                allow_legacy_image_refs=True,
+            )
+            if immutable_release["TAG"] != immutable_tag:
+                raise SystemExit(
+                    f"immutable release filename tag {immutable_tag} does not match its record: "
+                    f"{immutable_path}",
+                )
+            immutable_tags.add(immutable_tag)
+
+unlogged_immutable_tags = sorted(immutable_tags - logged_tags)
+blocking_unlogged_tags = [unlogged_tag for unlogged_tag in unlogged_immutable_tags if unlogged_tag != tag]
+if blocking_unlogged_tags:
+    unlogged_tag = blocking_unlogged_tags[0]
+    raise SystemExit(
+        f"immutable release tag {unlogged_tag} is missing from the activation log: "
+        f"{release_log_path}; retry that exact release identity before deploying another tag",
+    )
+
 try:
     read_existing_immutable_release(release_path)
 except FileNotFoundError:
