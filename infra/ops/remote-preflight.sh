@@ -16,10 +16,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/common.sh"
 
 preflight_phase="${1:---full}"
-[[ "$#" -le 1 ]] || die "usage: remote-preflight.sh [--pre-deploy|--post-deploy|--full]"
+[[ "$#" -le 1 ]] || die "usage: remote-preflight.sh [--pre-deploy|--post-deploy|--timer-activation|--full]"
 case "${preflight_phase}" in
-  --pre-deploy | --post-deploy | --full) ;;
-  *) die "usage: remote-preflight.sh [--pre-deploy|--post-deploy|--full]" ;;
+  --pre-deploy | --post-deploy | --timer-activation | --full) ;;
+  *) die "usage: remote-preflight.sh [--pre-deploy|--post-deploy|--timer-activation|--full]" ;;
 esac
 
 load_remote_deploy_config
@@ -224,13 +224,18 @@ for index in "${!backup_timer_units[@]}"; do
     "${unit}" \
     "${backup_service_units[${index}]}" \
     "${backup_timer_calendars[${index}]}"
-  if ! systemctl is-enabled --quiet "${unit}"; then
-    die "backup timer ${unit} is not enabled"
-  fi
-  if ! systemctl is-active --quiet "${unit}"; then
-    die "backup timer ${unit} is not active"
+  if [[ "${preflight_phase}" != "--timer-activation" ]]; then
+    if ! systemctl is-enabled --quiet "${unit}"; then
+      die "backup timer ${unit} is not enabled"
+    fi
+    if ! systemctl is-active --quiet "${unit}"; then
+      die "backup timer ${unit} is not active"
+    fi
   fi
 done
+if [[ "${preflight_phase}" == "--timer-activation" ]]; then
+  log "backup timer unit/configuration readiness passed; activation state intentionally deferred to the root installer"
+fi
 [[ -n "${BACKUP_DATABASE_URL:-}" ]] || die "BACKUP_DATABASE_URL must be configured"
 [[ -n "${REPLICATION_DATABASE_URL:-}" ]] || die "REPLICATION_DATABASE_URL must be configured"
 

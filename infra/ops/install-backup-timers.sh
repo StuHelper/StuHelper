@@ -5,6 +5,8 @@ DEPLOY_USER="${DEPLOY_USER:-stuhelper}"
 DEPLOY_GROUP="${DEPLOY_GROUP:-${DEPLOY_USER}}"
 DEPLOY_APP_DIR="${DEPLOY_APP_DIR:-/opt/stuhelper}"
 BACKUP_STAGING_DIR="${BACKUP_STAGING_DIR:-/var/lib/stuhelper/postgres/backup-staging}"
+BACKUP_TIMERS_ACTIVATE="${BACKUP_TIMERS_ACTIVATE:-false}"
+REMOTE_DEPLOY_CONFIG_FILE="${REMOTE_DEPLOY_CONFIG_FILE:-${DEPLOY_APP_DIR}/.deploy/remote.env}"
 
 dump_service="/etc/systemd/system/stuhelper-postgres-dump-backup.service"
 dump_timer="/etc/systemd/system/stuhelper-postgres-dump-backup.timer"
@@ -55,6 +57,23 @@ require_service_identity() {
 main() {
   require_root
   require_service_identity
+  local required_script
+  case "${BACKUP_TIMERS_ACTIVATE}" in
+    true | false) ;;
+    *)
+      echo "[install-backup-timers][error] BACKUP_TIMERS_ACTIVATE must be true or false" >&2
+      exit 1
+      ;;
+  esac
+  for required_script in \
+    "${DEPLOY_APP_DIR}/infra/ops/run-scheduled-backup.sh" \
+    "${DEPLOY_APP_DIR}/infra/ops/sync-postgres-backups.sh" \
+    "${DEPLOY_APP_DIR}/infra/ops/remote-preflight.sh"; do
+    [[ -x "${required_script}" ]] || {
+      echo "[install-backup-timers][error] required deploy-bundle script is not executable: ${required_script}" >&2
+      exit 1
+    }
+  done
 
   install -d -o "${DEPLOY_USER}" -g "${DEPLOY_GROUP}" -m 0755 "${DEPLOY_APP_DIR}/backups/postgres/logical"
   install -d -o "${DEPLOY_USER}" -g "${DEPLOY_GROUP}" -m 0755 "${DEPLOY_APP_DIR}/backups/postgres/base"
@@ -200,7 +219,27 @@ WantedBy=timers.target
 EOF
 
   systemctl daemon-reload
+  if [[ "${BACKUP_TIMERS_ACTIVATE}" != "true" ]]; then
+    echo "[install-backup-timers] units installed; timers were not activated"
+    echo "[install-backup-timers] after production configuration and Vault are ready, run again with BACKUP_TIMERS_ACTIVATE=true"
+    return 0
+  fi
+
+  command -v runuser >/dev/null 2>&1 || {
+    echo "[install-backup-timers][error] runuser is required for non-root activation preflight" >&2
+    exit 1
+  }
+  systemctl disable --now stuhelper-postgres-dump-backup.timer stuhelper-postgres-basebackup.timer stuhelper-postgres-backup-sync.timer
   systemctl reset-failed stuhelper-postgres-dump-backup.service stuhelper-postgres-basebackup.service stuhelper-postgres-backup-sync.service
+  runuser -u "${DEPLOY_USER}" -- env -i \
+    PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+    ENV_FILE="${DEPLOY_APP_DIR}/.env.prod.shared" \
+    SECRETS_ENV_FILE="${DEPLOY_APP_DIR}/.env.prod.secrets" \
+    GENERATED_ENV_FILE="${DEPLOY_APP_DIR}/.env.prod.generated" \
+    GENERATED_SECRET_ENV_FILE="${DEPLOY_APP_DIR}/.env.prod.generated.secrets" \
+    LOCAL_STATE_DIR=/var/lib/stuhelper \
+    REMOTE_DEPLOY_CONFIG_FILE="${REMOTE_DEPLOY_CONFIG_FILE}" \
+    /bin/bash --noprofile --norc "${DEPLOY_APP_DIR}/infra/ops/remote-preflight.sh" --timer-activation
   systemctl enable --now stuhelper-postgres-dump-backup.timer stuhelper-postgres-basebackup.timer stuhelper-postgres-backup-sync.timer
 
   echo "[install-backup-timers] installed:"

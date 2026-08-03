@@ -9,6 +9,7 @@ CONFIGURE_UFW="${CONFIGURE_UFW:-true}"
 ALLOW_HTTP_PORTS="${ALLOW_HTTP_PORTS:-80,443}"
 INSTALL_BACKUP_TIMERS="${INSTALL_BACKUP_TIMERS:-true}"
 BACKUP_STAGING_DIR="${BACKUP_STAGING_DIR:-/var/lib/stuhelper/postgres/backup-staging}"
+BACKUP_TIMERS_ACTIVATE="${BACKUP_TIMERS_ACTIVATE:-false}"
 INSTALL_GO="${INSTALL_GO:-true}"
 GO_VERSION="${GO_VERSION:-1.26.5}"
 
@@ -225,6 +226,7 @@ install_backup_timers() {
     DEPLOY_GROUP="${DEPLOY_GROUP}" \
     DEPLOY_APP_DIR="${DEPLOY_APP_DIR}" \
     BACKUP_STAGING_DIR="${BACKUP_STAGING_DIR}" \
+    BACKUP_TIMERS_ACTIVATE="${BACKUP_TIMERS_ACTIVATE}" \
     "${backup_timer_installer}"
     return 0
   fi
@@ -414,7 +416,8 @@ Next steps:
 4. Review the remote deploy control plane in ${DEPLOY_APP_DIR}/.deploy/remote.env
    - set REGISTRY=ghcr.io and REGISTRY_AUTH_MODE=workflow-token for GitHub Actions
    - shared/generated secret refs should point to your remote secret backend
-5. Ensure the deploy bundle is synced to ${DEPLOY_APP_DIR}; re-run bootstrap or install-backup-timers.sh afterwards if you want systemd timers installed from the repo
+5. Ensure the deploy bundle and production configuration are ready, then activate the protected backup timers explicitly:
+   - sudo BACKUP_TIMERS_ACTIVATE=true ${DEPLOY_APP_DIR}/infra/ops/install-backup-timers.sh
 6. Configure the production GitHub environment secrets (and isolated staging secrets when staging is enabled):
    - DEPLOY_HOST / DEPLOY_PORT / DEPLOY_USER / DEPLOY_APP_DIR / DEPLOY_SSH_KEY
    - DEPLOY_SSH_KNOWN_HOSTS
