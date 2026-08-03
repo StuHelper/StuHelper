@@ -194,6 +194,7 @@ for index in "${!backup_service_units[@]}"; do
   require_systemd_unit_hardened_lifecycle \
     "${unit}" \
     "${backup_service_start_timeouts[${index}]}"
+  require_systemd_unit_without_filesystem_overrides "${unit}"
   require_systemd_unit_without_conditions "${unit}"
   require_systemd_unit_exact_environment \
     "${unit}" \
