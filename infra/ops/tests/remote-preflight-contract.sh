@@ -80,6 +80,7 @@ assert_contains "${PREFLIGHT_FILE}" 'stuhelper-vault-token-renewal\.timer'
 assert_contains "${PREFLIGHT_FILE}" 'Vault runtime token renewal timer is not active'
 assert_contains "${COMMON_LIB_FILE}" 'require_systemd_unit_exact_environment\(\)'
 assert_contains "${COMMON_LIB_FILE}" 'require_systemd_unit_hardened_execution\(\)'
+assert_contains "${COMMON_LIB_FILE}" 'validate-systemd-unit-environment\.py'
 assert_contains "${COMMON_LIB_FILE}" 'property=ExecStartEx'
 assert_contains "${COMMON_LIB_FILE}" 'validate-systemd-unit-execution\.py'
 assert_contains "${SYSTEMD_EXEC_VALIDATOR}" 'exec_fields\.get\("ignore_errors"\) == "no"'
@@ -91,6 +92,8 @@ assert_contains "${PREFLIGHT_FILE}" 'backup_service_common_environment=\('
 assert_contains "${PREFLIGHT_FILE}" '"ENV_FILE=\$\{REPO_ROOT\}/\.env\.prod\.shared"'
 assert_contains "${PREFLIGHT_FILE}" 'BACKUP_STAGING_DIR="\$\{BACKUP_STAGING_DIR:-/var/lib/stuhelper/postgres/backup-staging\}"'
 assert_contains "${PREFLIGHT_FILE}" 'expected_service_environment\+=\("BACKUP_STAGING_DIR=\$\{BACKUP_STAGING_DIR\}"\)'
+[[ "$(grep -Fc '"${expected_service_environment[@]}"' "${PREFLIGHT_FILE}")" == "2" ]] || \
+  fail "remote preflight must validate the same environment allowlist in systemd properties and ExecStart argv"
 [[ "$(grep -c 'BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true' "${PREFLIGHT_FILE}")" == "1" ]] || \
   fail "remote preflight must require the off-host marker for every backup service"
 assert_contains "${PREFLIGHT_FILE}" 'require_systemd_unit_hardened_execution'
@@ -167,7 +170,8 @@ if ! bash -c '
   source "$1"
   systemctl() {
     case "$*" in
-      *--property=EnvironmentFiles*|*--property=UnsetEnvironment*|*--property=PassEnvironment*) printf "\n" ;;
+      *--property=UnsetEnvironment*) printf "%s\n" "LD_PRELOAD LD_LIBRARY_PATH LD_AUDIT GCONV_PATH LOCPATH" ;;
+      *--property=EnvironmentFiles*|*--property=PassEnvironment*) printf "\n" ;;
       *) printf "%s\n" "ENV_FILE=/opt/stuhelper/.env.prod.shared BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true" ;;
     esac
   }
@@ -184,7 +188,8 @@ if bash -c '
   source "$1"
   systemctl() {
     case "$*" in
-      *--property=EnvironmentFiles*|*--property=UnsetEnvironment*|*--property=PassEnvironment*) printf "\n" ;;
+      *--property=UnsetEnvironment*) printf "%s\n" "LD_PRELOAD LD_LIBRARY_PATH LD_AUDIT GCONV_PATH LOCPATH" ;;
+      *--property=EnvironmentFiles*|*--property=PassEnvironment*) printf "\n" ;;
       *) printf "%s\n" "ENV_FILE=/opt/stuhelper/.env.prod.shared BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=false" ;;
     esac
   }
@@ -203,7 +208,8 @@ if bash -c '
   source "$1"
   systemctl() {
     case "$*" in
-      *--property=EnvironmentFiles*|*--property=UnsetEnvironment*|*--property=PassEnvironment*) printf "\n" ;;
+      *--property=UnsetEnvironment*) printf "%s\n" "LD_PRELOAD LD_LIBRARY_PATH LD_AUDIT GCONV_PATH LOCPATH" ;;
+      *--property=EnvironmentFiles*|*--property=PassEnvironment*) printf "\n" ;;
       *) printf "%s\n" "ENV_FILE=/opt/stuhelper/.env.prod.shared BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true PYTHONPATH=/tmp/payload LD_PRELOAD=/tmp/payload.so" ;;
     esac
   }
@@ -223,7 +229,8 @@ if bash -c '
   systemctl() {
     case "$*" in
       *--property=EnvironmentFiles*) printf "%s\n" "/opt/stuhelper/.env.prod.shared (ignore_errors=no)" ;;
-      *--property=UnsetEnvironment*|*--property=PassEnvironment*) printf "\n" ;;
+      *--property=UnsetEnvironment*) printf "%s\n" "LD_PRELOAD LD_LIBRARY_PATH LD_AUDIT GCONV_PATH LOCPATH" ;;
+      *--property=PassEnvironment*) printf "\n" ;;
       *) printf "%s\n" "BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true" ;;
     esac
   }
@@ -241,7 +248,7 @@ if bash -c '
   source "$1"
   systemctl() {
     case "$*" in
-      *--property=UnsetEnvironment*) printf "%s\n" "BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED" ;;
+      *--property=UnsetEnvironment*) printf "%s\n" "LD_PRELOAD LD_LIBRARY_PATH LD_AUDIT GCONV_PATH" ;;
       *--property=EnvironmentFiles*|*--property=PassEnvironment*) printf "\n" ;;
       *) printf "%s\n" "BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true" ;;
     esac
@@ -250,19 +257,22 @@ if bash -c '
     stuhelper-postgres-backup-sync.service \
     BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true
 ' bash "${COMMON_LIB_FILE}" >"${tmpdir}/backup-unit-unset-env.out" 2>"${tmpdir}/backup-unit-unset-env.err"; then
-  fail "the systemd environment validator accepted an UnsetEnvironment override"
+  fail "the systemd environment validator accepted an incomplete pre-exec unset list"
 fi
-grep -q 'must not set UnsetEnvironment' "${tmpdir}/backup-unit-unset-env.err" || \
-  fail "the backup unit UnsetEnvironment failure did not report the protected marker policy"
+grep -q 'pre-exec unset list' "${tmpdir}/backup-unit-unset-env.err" || \
+  fail "the backup unit UnsetEnvironment failure did not report the protected boundary"
 
-valid_exec_start='{ path=/usr/bin/env ; argv[]=/usr/bin/env --unset=BASH_ENV --unset=ENV /bin/bash --noprofile --norc ./infra/ops/sync-postgres-backups.sh ; ignore_errors=no ; }'
-valid_exec_start_ex='{ path=/usr/bin/env ; argv[]=/usr/bin/env --unset=BASH_ENV --unset=ENV /bin/bash --noprofile --norc ./infra/ops/sync-postgres-backups.sh ; flags= ; }'
+protected_exec_argv='/usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin ENV_FILE=/opt/stuhelper/.env.prod.shared BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true /bin/bash --noprofile --norc ./infra/ops/sync-postgres-backups.sh'
+valid_exec_start="{ path=/usr/bin/env ; argv[]=${protected_exec_argv} ; ignore_errors=no ; }"
+valid_exec_start_ex="{ path=/usr/bin/env ; argv[]=${protected_exec_argv} ; flags= ; }"
 if ! python3 "${SYSTEMD_EXEC_VALIDATOR}" \
   --expected-working-directory /opt/stuhelper \
   --expected-command "./infra/ops/sync-postgres-backups.sh" \
   --actual-working-directory /opt/stuhelper \
   --exec-start "${valid_exec_start}" \
-  --exec-start-ex "${valid_exec_start_ex}"; then
+  --exec-start-ex "${valid_exec_start_ex}" \
+  --expected-environment ENV_FILE=/opt/stuhelper/.env.prod.shared \
+  --expected-environment BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true; then
   fail "the systemd execution validator rejected the protected non-login backup command"
 fi
 
@@ -273,18 +283,22 @@ if python3 "${SYSTEMD_EXEC_VALIDATOR}" \
   --expected-command "./infra/ops/sync-postgres-backups.sh" \
   --actual-working-directory /opt/stuhelper \
   --exec-start "${login_exec_start}" \
-  --exec-start-ex "${login_exec_start_ex}"; then
+  --exec-start-ex "${login_exec_start_ex}" \
+  --expected-environment ENV_FILE=/opt/stuhelper/.env.prod.shared \
+  --expected-environment BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true; then
   fail "the systemd execution validator accepted a login shell that can override the backup gate"
 fi
 
-ignore_exec_start='{ path=/usr/bin/env ; argv[]=/usr/bin/env --unset=BASH_ENV --unset=ENV /bin/bash --noprofile --norc ./infra/ops/sync-postgres-backups.sh ; ignore_errors=yes ; }'
-ignore_exec_start_ex='{ path=/usr/bin/env ; argv[]=/usr/bin/env --unset=BASH_ENV --unset=ENV /bin/bash --noprofile --norc ./infra/ops/sync-postgres-backups.sh ; flags=ignore-failure ; }'
+ignore_exec_start="{ path=/usr/bin/env ; argv[]=${protected_exec_argv} ; ignore_errors=yes ; }"
+ignore_exec_start_ex="{ path=/usr/bin/env ; argv[]=${protected_exec_argv} ; flags=ignore-failure ; }"
 if python3 "${SYSTEMD_EXEC_VALIDATOR}" \
   --expected-working-directory /opt/stuhelper \
   --expected-command "./infra/ops/sync-postgres-backups.sh" \
   --actual-working-directory /opt/stuhelper \
   --exec-start "${ignore_exec_start}" \
-  --exec-start-ex "${ignore_exec_start_ex}"; then
+  --exec-start-ex "${ignore_exec_start_ex}" \
+  --expected-environment ENV_FILE=/opt/stuhelper/.env.prod.shared \
+  --expected-environment BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true; then
   fail "the systemd execution validator accepted a failure-ignoring ExecStart"
 fi
 

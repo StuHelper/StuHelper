@@ -144,7 +144,6 @@ if command -v systemctl >/dev/null 2>&1; then
     "SECRETS_ENV_FILE=${REPO_ROOT}/.env.prod.secrets"
     "GENERATED_ENV_FILE=${REPO_ROOT}/.env.prod.generated"
     "GENERATED_SECRET_ENV_FILE=${REPO_ROOT}/.env.prod.generated.secrets"
-    "BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true"
   )
   for unit in "${backup_service_units[@]}" "${backup_timer_units[@]}"; do
     if ! systemctl list-unit-files | grep -q "^${unit}"; then
@@ -157,13 +156,15 @@ if command -v systemctl >/dev/null 2>&1; then
     if ((index < 2)); then
       expected_service_environment+=("BACKUP_STAGING_DIR=${BACKUP_STAGING_DIR}")
     fi
+    expected_service_environment+=("BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true")
     require_systemd_unit_exact_environment \
       "${unit}" \
       "${expected_service_environment[@]}"
     require_systemd_unit_hardened_execution \
       "${unit}" \
       "${REPO_ROOT}" \
-      "${backup_service_commands[${index}]}"
+      "${backup_service_commands[${index}]}" \
+      "${expected_service_environment[@]}"
   done
   for unit in "${backup_timer_units[@]}"; do
     if ! systemctl is-enabled --quiet "${unit}"; then

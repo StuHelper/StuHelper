@@ -48,10 +48,12 @@ require_systemd_unit_exact_environment() {
   shift
   (($# > 0)) || die "at least one expected environment assignment is required for systemd unit ${unit}"
   local effective_environment
+  local effective_unset_environment
   local protected_property
   local protected_property_value
+  local -a validator_args
 
-  for protected_property in EnvironmentFiles UnsetEnvironment PassEnvironment; do
+  for protected_property in EnvironmentFiles PassEnvironment; do
     if ! protected_property_value="$(systemctl show "${unit}" --property="${protected_property}" --value 2>/dev/null)"; then
       die "failed to inspect ${protected_property} for systemd unit ${unit}"
     fi
@@ -63,33 +65,20 @@ require_systemd_unit_exact_environment() {
   if ! effective_environment="$(systemctl show "${unit}" --property=Environment --value 2>/dev/null)"; then
     die "failed to inspect effective environment for systemd unit ${unit}"
   fi
-  if ! python3 - "${effective_environment}" "$@" <<'PY'
-import shlex
-import sys
+  if ! effective_unset_environment="$(systemctl show "${unit}" --property=UnsetEnvironment --value 2>/dev/null)"; then
+    die "failed to inspect UnsetEnvironment for systemd unit ${unit}"
+  fi
 
-effective = sys.argv[1]
-expected_assignments = sys.argv[2:]
-
-def assignments_to_environment(assignments):
-    environment = {}
-    for assignment in assignments:
-        if "=" not in assignment:
-            raise ValueError
-        key, value = assignment.split("=", 1)
-        if not key or key in environment:
-            raise ValueError
-        environment[key] = value
-    return environment
-
-try:
-    actual = assignments_to_environment(shlex.split(effective))
-    expected = assignments_to_environment(expected_assignments)
-except ValueError:
-    raise SystemExit(1) from None
-raise SystemExit(0 if actual == expected else 1)
-PY
+  validator_args=(
+    --environment "${effective_environment}"
+    --unset-environment "${effective_unset_environment}"
+  )
+  for protected_property_value in "$@"; do
+    validator_args+=(--expected-environment "${protected_property_value}")
+  done
+  if ! python3 "${COMMON_LIB_DIR}/../validate-systemd-unit-environment.py" "${validator_args[@]}"
   then
-    die "systemd unit ${unit} must use the exact protected environment; reinstall the production backup timers and remove overriding drop-ins"
+    die "systemd unit ${unit} must use the exact protected environment and pre-exec unset list; reinstall the production backup timers and remove overriding drop-ins"
   fi
 }
 
@@ -97,10 +86,13 @@ require_systemd_unit_hardened_execution() {
   local unit="$1"
   local expected_working_directory="$2"
   local expected_command="$3"
+  shift 3
   local effective_exec_records
   local effective_exec_start
   local effective_exec_start_ex
   local effective_working_directory
+  local expected_environment
+  local -a validator_args
 
   if ! effective_working_directory="$(systemctl show "${unit}" --property=WorkingDirectory --value 2>/dev/null)"; then
     die "failed to inspect WorkingDirectory for systemd unit ${unit}"
@@ -113,12 +105,17 @@ require_systemd_unit_hardened_execution() {
   [[ "${effective_exec_start}" != "${effective_exec_start_ex}" ]] ||
     die "systemd unit ${unit} did not expose distinct ExecStart and ExecStartEx records"
 
-  if ! python3 "${COMMON_LIB_DIR}/validate-systemd-unit-execution.py" \
-    --expected-working-directory "${expected_working_directory}" \
-    --expected-command "${expected_command}" \
-    --actual-working-directory "${effective_working_directory}" \
-    --exec-start "${effective_exec_start}" \
+  validator_args=(
+    --expected-working-directory "${expected_working_directory}"
+    --expected-command "${expected_command}"
+    --actual-working-directory "${effective_working_directory}"
+    --exec-start "${effective_exec_start}"
     --exec-start-ex "${effective_exec_start_ex}"
+  )
+  for expected_environment in "$@"; do
+    validator_args+=(--expected-environment "${expected_environment}")
+  done
+  if ! python3 "${COMMON_LIB_DIR}/../validate-systemd-unit-execution.py" "${validator_args[@]}"
   then
     die "systemd unit ${unit} must use the protected non-login Bash execution path in ${expected_working_directory}; reinstall the production backup timers"
   fi
