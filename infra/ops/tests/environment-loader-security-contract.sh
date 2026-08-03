@@ -33,10 +33,15 @@ source_env_file "${tmpdir}/safe.env"
 [[ ! -v BASH_ENV && ! -v ENV ]] ||
   fail "source_env_file allowed inherited shell startup hooks to survive"
 
-printf 'CASDOOR_BOOTSTRAP_CLIENT_ID=contract-client\n' >"${tmpdir}/bootstrap-safe.env"
+cat >"${tmpdir}/bootstrap-safe.env" <<'EOF'
+CASDOOR_BOOTSTRAP_CLIENT_ID=contract-client
+CASDOOR_BOOTSTRAP_ORGANIZATION=built-in
+EOF
 source_casdoor_bootstrap_env_file "${tmpdir}/bootstrap-safe.env"
 [[ "${CASDOOR_BOOTSTRAP_CLIENT_ID}" == "contract-client" ]] ||
   fail "Casdoor bootstrap loader rejected or changed an allowed key"
+[[ "${CASDOOR_BOOTSTRAP_ORGANIZATION}" == "built-in" ]] ||
+  fail "Casdoor bootstrap loader rejected the generated organization key"
 
 cat >"${tmpdir}/bootstrap.env" <<'EOF'
 CASDOOR_BOOTSTRAP_CLIENT_ID=contract-client
