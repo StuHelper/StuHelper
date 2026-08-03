@@ -87,6 +87,8 @@ assert_contains "${BOOTSTRAP_SCRIPT}" 'stuhelper-postgres-dump-backup\.service'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'stuhelper-postgres-basebackup\.service'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'stuhelper-postgres-backup-sync\.service'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'Environment=BACKUP_STAGING_DIR=\$\{BACKUP_STAGING_DIR\}'
+[[ "$(grep -c '^Environment=LOCAL_STATE_DIR=/var/lib/stuhelper$' "${BOOTSTRAP_SCRIPT}")" == "3" ]] ||
+  fail "bootstrap fallback must provide a HOME-independent local state path to every isolated backup service"
 [[ "$(grep -c '^Environment=BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true$' "${BOOTSTRAP_SCRIPT}")" == "3" ]] ||
   fail "bootstrap fallback must require off-host storage in all three backup services"
 [[ "$(grep -c '^UnsetEnvironment=LD_PRELOAD LD_LIBRARY_PATH LD_AUDIT GCONV_PATH LOCPATH$' "${BOOTSTRAP_SCRIPT}")" == "3" ]] ||
@@ -103,6 +105,8 @@ bash -n "${BACKUP_TIMER_INSTALLER}"
 assert_contains "${BACKUP_TIMER_INSTALLER}" 'BACKUP_STAGING_DIR="\$\{BACKUP_STAGING_DIR:-/var/lib/stuhelper/postgres/backup-staging\}"'
 assert_contains "${BACKUP_TIMER_INSTALLER}" 'install -d -o "\$\{DEPLOY_USER\}".*-m 0700 "\$\{BACKUP_STAGING_DIR\}"'
 assert_contains "${BACKUP_TIMER_INSTALLER}" 'Environment=BACKUP_STAGING_DIR=\$\{BACKUP_STAGING_DIR\}'
+[[ "$(grep -c '^Environment=LOCAL_STATE_DIR=/var/lib/stuhelper$' "${BACKUP_TIMER_INSTALLER}")" == "3" ]] ||
+  fail "backup timer installer must provide a HOME-independent local state path to every isolated backup service"
 [[ "$(grep -c '^Environment=BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true$' "${BACKUP_TIMER_INSTALLER}")" == "3" ]] ||
   fail "backup timer installer must require off-host storage in all three services"
 [[ "$(grep -c '^UnsetEnvironment=LD_PRELOAD LD_LIBRARY_PATH LD_AUDIT GCONV_PATH LOCPATH$' "${BACKUP_TIMER_INSTALLER}")" == "3" ]] ||

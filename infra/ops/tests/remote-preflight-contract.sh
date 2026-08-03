@@ -90,6 +90,7 @@ assert_contains "${PREFLIGHT_FILE}" 'stuhelper-postgres-basebackup\.service'
 assert_contains "${PREFLIGHT_FILE}" 'stuhelper-postgres-backup-sync\.service'
 assert_contains "${PREFLIGHT_FILE}" 'backup_service_common_environment=\('
 assert_contains "${PREFLIGHT_FILE}" '"ENV_FILE=\$\{REPO_ROOT\}/\.env\.prod\.shared"'
+assert_contains "${PREFLIGHT_FILE}" '"LOCAL_STATE_DIR=/var/lib/stuhelper"'
 assert_contains "${PREFLIGHT_FILE}" 'BACKUP_STAGING_DIR="\$\{BACKUP_STAGING_DIR:-/var/lib/stuhelper/postgres/backup-staging\}"'
 assert_contains "${PREFLIGHT_FILE}" 'expected_service_environment\+=\("BACKUP_STAGING_DIR=\$\{BACKUP_STAGING_DIR\}"\)'
 [[ "$(grep -Fc '"${expected_service_environment[@]}"' "${PREFLIGHT_FILE}")" == "2" ]] || \
@@ -164,6 +165,21 @@ cleanup() {
   rm -rf "${tmpdir}"
 }
 trap cleanup EXIT
+
+# Variables in the command string are intentionally expanded by the isolated child shell.
+# shellcheck disable=SC2016
+if ! env -i \
+  PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+  LOCAL_STATE_DIR=/var/lib/stuhelper \
+  /bin/bash --noprofile --norc -c '
+    set -euo pipefail
+    [[ -z "${HOME+x}" ]]
+    source "$1"
+    [[ "${LOCAL_STATE_DIR}" == "/var/lib/stuhelper" ]]
+    [[ "${POSTGRES_WAL_RESTORE_DIR}" == "/var/lib/stuhelper/postgres/wal-restore" ]]
+  ' bash "${COMMON_LIB_FILE}"; then
+  fail "the isolated backup-service environment could not initialize common.sh without HOME"
+fi
 
 if ! bash -c '
   set -euo pipefail

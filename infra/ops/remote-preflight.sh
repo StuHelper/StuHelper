@@ -144,6 +144,7 @@ if command -v systemctl >/dev/null 2>&1; then
     "SECRETS_ENV_FILE=${REPO_ROOT}/.env.prod.secrets"
     "GENERATED_ENV_FILE=${REPO_ROOT}/.env.prod.generated"
     "GENERATED_SECRET_ENV_FILE=${REPO_ROOT}/.env.prod.generated.secrets"
+    "LOCAL_STATE_DIR=/var/lib/stuhelper"
   )
   for unit in "${backup_service_units[@]}" "${backup_timer_units[@]}"; do
     if ! systemctl list-unit-files | grep -q "^${unit}"; then
