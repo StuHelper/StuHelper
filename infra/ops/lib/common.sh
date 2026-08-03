@@ -157,6 +157,48 @@ require_systemd_unit_hardened_lifecycle() {
   done
 }
 
+require_systemd_unit_without_filesystem_overrides() {
+  local unit="$1"
+  local actual_value
+  local expected_value
+  local property
+  local property_spec
+  local -a empty_properties=(
+    RootDirectory
+    RootImage
+    BindPaths
+    BindReadOnlyPaths
+    TemporaryFileSystem
+    MountImages
+    ExtensionImages
+    ExtensionDirectories
+  )
+  local -a exact_properties=(
+    "RootEphemeral=no"
+    "RootDirectoryStartOnly=no"
+  )
+
+  for property in "${empty_properties[@]}"; do
+    if ! actual_value="$(systemctl show "${unit}" --property="${property}" --value 2>/dev/null)"; then
+      die "failed to inspect ${property} for systemd unit ${unit}"
+    fi
+    if [[ -n "${actual_value//[[:space:]]/}" ]]; then
+      die "systemd unit ${unit} must not set ${property}; filesystem namespace overrides can replace protected backup code"
+    fi
+  done
+
+  for property_spec in "${exact_properties[@]}"; do
+    property="${property_spec%%=*}"
+    expected_value="${property_spec#*=}"
+    if ! actual_value="$(systemctl show "${unit}" --property="${property}" --value 2>/dev/null)"; then
+      die "failed to inspect ${property} for systemd unit ${unit}"
+    fi
+    if [[ "${actual_value}" != "${expected_value}" ]]; then
+      die "systemd unit ${unit} must set ${property}=${expected_value}; filesystem namespace overrides can replace protected backup code"
+    fi
+  done
+}
+
 require_systemd_unit_without_conditions() {
   local unit="$1"
   local asserts_json

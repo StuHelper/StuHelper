@@ -84,6 +84,11 @@ assert_contains "${PREFLIGHT_FILE}" 'Vault runtime token renewal timer is not ac
 assert_contains "${COMMON_LIB_FILE}" 'require_systemd_unit_exact_environment\(\)'
 assert_contains "${COMMON_LIB_FILE}" 'require_systemd_unit_exact_identity\(\)'
 assert_contains "${COMMON_LIB_FILE}" 'require_systemd_unit_hardened_lifecycle\(\)'
+assert_contains "${COMMON_LIB_FILE}" 'require_systemd_unit_without_filesystem_overrides\(\)'
+assert_contains "${COMMON_LIB_FILE}" 'BindReadOnlyPaths'
+assert_contains "${COMMON_LIB_FILE}" 'TemporaryFileSystem'
+assert_contains "${COMMON_LIB_FILE}" 'MountImages'
+assert_contains "${COMMON_LIB_FILE}" 'ExtensionImages'
 assert_contains "${COMMON_LIB_FILE}" 'require_systemd_unit_without_conditions\(\)'
 assert_contains "${COMMON_LIB_FILE}" 'org\.freedesktop\.systemd1\.Unit Conditions'
 assert_contains "${COMMON_LIB_FILE}" 'org\.freedesktop\.systemd1\.Unit Asserts'
@@ -134,6 +139,7 @@ assert_contains "${PREFLIGHT_FILE}" 'BACKUP_SERVICE_GROUP to name the configured
 assert_contains "${PREFLIGHT_FILE}" 'configured backup service group does not exist'
 assert_contains "${PREFLIGHT_FILE}" 'require_systemd_unit_exact_identity'
 assert_contains "${PREFLIGHT_FILE}" 'require_systemd_unit_hardened_lifecycle'
+assert_contains "${PREFLIGHT_FILE}" 'require_systemd_unit_without_filesystem_overrides'
 assert_contains "${PREFLIGHT_FILE}" 'require_systemd_unit_without_conditions'
 assert_contains "${PREFLIGHT_FILE}" 'require_systemd_timer_schedule'
 assert_contains "${PREFLIGHT_FILE}" 'systemctl is-active --quiet'
@@ -501,6 +507,78 @@ if (require_systemd_unit_hardened_lifecycle \
 fi
 grep -q 'must not set ExecStopPost' "${tmpdir}/backup-unit-stop-post.err" || \
   fail "the ExecStopPost failure did not report the lifecycle override"
+unset -f systemctl
+
+source "${COMMON_LIB_FILE}"
+namespace_root_directory=""
+namespace_root_image=""
+namespace_bind_paths=""
+namespace_bind_read_only_paths=""
+namespace_temporary_file_system=""
+namespace_mount_images=""
+namespace_extension_images=""
+namespace_extension_directories=""
+namespace_root_ephemeral="no"
+namespace_root_directory_start_only="no"
+systemctl() {
+  case "$*" in
+    *--property=RootDirectoryStartOnly*) printf '%s\n' "${namespace_root_directory_start_only}" ;;
+    *--property=RootDirectory*) printf '%s\n' "${namespace_root_directory}" ;;
+    *--property=RootImage*) printf '%s\n' "${namespace_root_image}" ;;
+    *--property=BindPaths*) printf '%s\n' "${namespace_bind_paths}" ;;
+    *--property=BindReadOnlyPaths*) printf '%s\n' "${namespace_bind_read_only_paths}" ;;
+    *--property=TemporaryFileSystem*) printf '%s\n' "${namespace_temporary_file_system}" ;;
+    *--property=MountImages*) printf '%s\n' "${namespace_mount_images}" ;;
+    *--property=ExtensionImages*) printf '%s\n' "${namespace_extension_images}" ;;
+    *--property=ExtensionDirectories*) printf '%s\n' "${namespace_extension_directories}" ;;
+    *--property=RootEphemeral*) printf '%s\n' "${namespace_root_ephemeral}" ;;
+    *) return 90 ;;
+  esac
+}
+
+if ! require_systemd_unit_without_filesystem_overrides \
+  stuhelper-postgres-backup-sync.service; then
+  fail "the systemd filesystem validator rejected an unmodified service namespace"
+fi
+
+namespace_bind_read_only_paths="/tmp/noop:/opt/stuhelper/infra/ops/sync-postgres-backups.sh"
+if (require_systemd_unit_without_filesystem_overrides \
+  stuhelper-postgres-backup-sync.service) \
+  >"${tmpdir}/backup-unit-bind-path.out" 2>"${tmpdir}/backup-unit-bind-path.err"; then
+  fail "the systemd filesystem validator accepted a protected-script bind replacement"
+fi
+grep -q 'must not set BindReadOnlyPaths' "${tmpdir}/backup-unit-bind-path.err" || \
+  fail "the bind-path failure did not report the filesystem namespace override"
+namespace_bind_read_only_paths=""
+
+namespace_root_image="/var/lib/machines/replacement.raw"
+if (require_systemd_unit_without_filesystem_overrides \
+  stuhelper-postgres-backup-sync.service) \
+  >"${tmpdir}/backup-unit-root-image.out" 2>"${tmpdir}/backup-unit-root-image.err"; then
+  fail "the systemd filesystem validator accepted an alternate root image"
+fi
+grep -q 'must not set RootImage' "${tmpdir}/backup-unit-root-image.err" || \
+  fail "the root-image failure did not report the filesystem namespace override"
+namespace_root_image=""
+
+namespace_temporary_file_system="/opt/stuhelper:ro"
+if (require_systemd_unit_without_filesystem_overrides \
+  stuhelper-postgres-backup-sync.service) \
+  >"${tmpdir}/backup-unit-tmpfs.out" 2>"${tmpdir}/backup-unit-tmpfs.err"; then
+  fail "the systemd filesystem validator accepted a temporary filesystem override"
+fi
+grep -q 'must not set TemporaryFileSystem' "${tmpdir}/backup-unit-tmpfs.err" || \
+  fail "the temporary-filesystem failure did not report the namespace override"
+namespace_temporary_file_system=""
+
+namespace_root_ephemeral="yes"
+if (require_systemd_unit_without_filesystem_overrides \
+  stuhelper-postgres-backup-sync.service) \
+  >"${tmpdir}/backup-unit-root-ephemeral.out" 2>"${tmpdir}/backup-unit-root-ephemeral.err"; then
+  fail "the systemd filesystem validator accepted an ephemeral root override"
+fi
+grep -q 'RootEphemeral=no' "${tmpdir}/backup-unit-root-ephemeral.err" || \
+  fail "the ephemeral-root failure did not report the expected disabled value"
 unset -f systemctl
 
 empty_conditions='{"type":"a(sbbsi)","data":[]}'
