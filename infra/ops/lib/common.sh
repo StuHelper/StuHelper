@@ -659,6 +659,7 @@ if state_metadata.st_uid != os.geteuid():
 
 candidates = [state_dir / "current-release.env", state_dir / "releases.log"]
 releases_dir = state_dir / "releases"
+release_directory_migrated = False
 try:
     releases_metadata = releases_dir.lstat()
 except FileNotFoundError:
@@ -668,6 +669,9 @@ if releases_metadata is not None:
         raise SystemExit(f"release record path must be a regular directory: {releases_dir}")
     if releases_metadata.st_uid != os.geteuid():
         raise SystemExit(f"release record directory must be owned by the deploy user: {releases_dir}")
+    if stat.S_IMODE(releases_metadata.st_mode) != 0o700:
+        os.chmod(releases_dir, 0o700)
+        release_directory_migrated = True
     tag_record = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\.env")
     with os.scandir(releases_dir) as entries:
         for entry in entries:
@@ -676,8 +680,8 @@ if releases_metadata is not None:
             if tag_record.fullmatch(entry.name):
                 candidates.append(Path(entry.path))
 
-migrated = 0
-directory_fsync = set()
+migrated = 1 if release_directory_migrated else 0
+directory_fsync = {state_dir, releases_dir} if release_directory_migrated else set()
 for path in candidates:
     flags = os.O_RDONLY
     if hasattr(os, "O_NOFOLLOW"):
@@ -720,7 +724,7 @@ print(migrated)
 PY
 )" || die "failed to normalize legacy release-state permissions"
   if [[ "${migrated_count}" != "0" ]]; then
-    log "normalized ${migrated_count} legacy release-state file(s) from 0644 to 0600"
+    log "normalized ${migrated_count} legacy release-state path(s) to protected modes"
   fi
 }
 
@@ -3258,8 +3262,16 @@ if current_release is not None and current_release["TAG"] not in logged_tags:
 if operation == "check":
     raise SystemExit(0)
 
-state_dir.mkdir(parents=True, exist_ok=True)
-releases_dir.mkdir(parents=True, exist_ok=True)
+state_dir.mkdir(parents=True, mode=0o700, exist_ok=True)
+releases_dir.mkdir(mode=0o700, exist_ok=True)
+releases_metadata = releases_dir.lstat()
+if not stat.S_ISDIR(releases_metadata.st_mode) or releases_dir.is_symlink():
+    raise SystemExit(f"release record path must be a regular directory: {releases_dir}")
+if releases_metadata.st_uid != os.geteuid():
+    raise SystemExit(f"release record directory must be owned by the deploy user: {releases_dir}")
+if stat.S_IMODE(releases_metadata.st_mode) != 0o700:
+    os.chmod(releases_dir, 0o700)
+    fsync_directory(state_dir)
 
 # Link the per-release record into place without replacement. Reusing a tag is
 # allowed only for the same complete release identity; its original timestamp

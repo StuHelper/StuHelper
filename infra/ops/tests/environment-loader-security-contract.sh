@@ -268,6 +268,7 @@ chmod 0644 \
   "${legacy_permission_state}/current-release.env" \
   "${legacy_permission_state}/releases/contract-release.env" \
   "${legacy_permission_state}/releases.log"
+chmod 0775 "${legacy_permission_state}/releases"
 (
   export DEPLOY_STATE_DIR="${legacy_permission_state}"
   migrate_legacy_release_state_permissions
@@ -279,6 +280,8 @@ for migrated_release_state_file in \
   [[ "$(stat -c '%a' "${migrated_release_state_file}")" == "600" ]] ||
     fail "legacy release-state permission migration did not normalize ${migrated_release_state_file}"
 done
+[[ "$(stat -c '%a' "${legacy_permission_state}/releases")" == "700" ]] ||
+  fail "legacy release-state permission migration did not protect the immutable-record directory"
 
 legacy_identity_backend_ref='ghcr.io/stuhelper/backend:legacy-release'
 legacy_identity_frontend_ref='ghcr.io/stuhelper/frontend:legacy-release'
@@ -561,12 +564,15 @@ PY
   fail "checking a previously unused release tag created deployment state"
 
 (
+  umask 0002
   export DEPLOY_STATE_DIR="${release_state_dir}"
   export BACKEND_IMAGE_REF="${release_backend_ref}"
   export FRONTEND_IMAGE_REF="${release_frontend_ref}"
   export ADMIN_IMAGE_REF="${release_admin_ref}"
   record_release contract-release
 )
+[[ "$(stat -c '%a' "${release_state_dir}/releases")" == "700" ]] ||
+  fail "immutable release directory must use mode 0700 under a collaborative umask"
 cmp -s "${release_state_dir}/current-release.env" "${release_state_dir}/releases/contract-release.env" ||
   fail "atomic current and immutable release records diverged"
 for release_record_path in \
