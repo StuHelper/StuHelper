@@ -50,6 +50,7 @@ postgres_data_volume="${stack_name}-postgres-data"
 postgres_wal_volume="${POSTGRES_WAL_ARCHIVE_VOLUME_NAME:-${stack_name}-postgres-wal-archive}"
 
 require_live_canonical_postgres_datastore
+require_internal_postgres_backup_sources_match_live_datastore
 require_live_postgres_wal_archiving \
   "${postgres_container}" "${POSTGRES_USER:-stuhelper}" "${POSTGRES_DB:-stuhelper}"
 system_identifier="$(live_postgres_system_identifier \

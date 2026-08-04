@@ -25,7 +25,7 @@ export BACKUP_DATABASE_URL='postgres://...'
 ./infra/ops/backup-postgres.sh backups/stuhelper-$(date +%F-%H%M%S).dump
 ```
 
-命令行显式导出的 `BACKUP_DATABASE_URL` / `REPLICATION_DATABASE_URL` 优先于环境文件；未显式导出时才读取标准 StuHelper 环境与 secret backend。样板 URL 中的密码占位符只在进程内展开并进行 URL 编码，不会把真实密码回写到共享配置文件。
+命令行显式导出的 `BACKUP_DATABASE_URL` / `REPLICATION_DATABASE_URL` 优先于环境文件；未显式导出时才读取标准 StuHelper 环境与 secret backend。样板 URL 中的密码占位符只在进程内展开并进行 URL 编码，不会把真实密码回写到共享配置文件。生产使用内置 PostgreSQL 时，两条 URL 还必须固定到受检 Compose `postgres` 服务、配置的数据库和默认服务端口，不允许用 query 参数改写路由；实际连接返回的服务端 IP 必须属于同一个健康的规范 PostgreSQL 容器，且不能是 standby。该检查在每次实际生成备份前重新执行，避免首次激活后配置漂移到另一个可达集群。
 
 脚本会：
 
