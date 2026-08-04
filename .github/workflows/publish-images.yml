@@ -63,6 +63,11 @@ jobs:
       artifact-metadata: write # Link each published digest to the organization artifact inventory
     strategy:
       fail-fast: false
+      # Package writes and attestations share one repository token. Serializing
+      # the matrix avoids creating the burst that triggered GHCR secondary
+      # rate limiting while separate trusted workflow runs are already
+      # serialized by the workflow-level concurrency group.
+      max-parallel: 1
       matrix:
         include:
           - name: backend
@@ -198,19 +203,7 @@ jobs:
             exit 0
           fi
 
-          immutable_ref="${IMAGE_NAME}:${COMMIT_SHA}"
-          docker push "${immutable_ref}"
-          digest="$(
-            docker buildx imagetools inspect \
-              "${immutable_ref}" \
-              --format '{{json .Manifest}}' |
-              jq -er '.digest'
-          )"
-          if [[ ! "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
-            echo "published image returned an invalid manifest digest" >&2
-            exit 1
-          fi
-          printf 'digest=%s\n' "${digest}" >>"${GITHUB_OUTPUT}"
+          ./infra/ops/publish-scanned-image.sh
 
       - name: Attest image provenance
         uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4.2.1
