@@ -636,6 +636,50 @@ PY
   printf '%s\n' "${attempt_id}"
 }
 
+require_no_surviving_release_records() {
+  local releases_dir="${1:-}"
+  local diagnostic
+
+  [[ -n "${releases_dir}" ]] || die "release record directory path must not be empty"
+  require_cmd python3
+  if ! diagnostic="$(python3 - "${releases_dir}" 2>&1 <<'PY'
+import os
+import re
+import stat
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+try:
+    metadata = path.lstat()
+except FileNotFoundError:
+    raise SystemExit(0)
+if not stat.S_ISDIR(metadata.st_mode) or path.is_symlink():
+    raise SystemExit(f"release record path must be a regular directory: {path}")
+if metadata.st_uid != os.geteuid():
+    raise SystemExit(f"release record directory must be owned by the deploy user: {path}")
+if stat.S_IMODE(metadata.st_mode) != 0o700:
+    raise SystemExit(f"release record directory must use mode 0700: {path}")
+
+safe_record = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\.env")
+try:
+    with os.scandir(path) as entries:
+        records = list(entries)
+except OSError as exc:
+    raise SystemExit(f"release record directory cannot be enumerated: {path}") from exc
+if records:
+    entry = records[0]
+    if not safe_record.fullmatch(entry.name):
+        raise SystemExit(f"release record directory contains unexpected evidence: {entry.path}")
+    raise SystemExit(
+        f"committed release marker is missing while immutable per-tag evidence survives: {entry.path}"
+    )
+PY
+  )"; then
+    die "${diagnostic}"
+  fi
+}
+
 migrate_legacy_release_state_permissions() {
   local migrated_count
   migrated_count="$(python3 - "${DEPLOY_STATE_DIR}" <<'PY'

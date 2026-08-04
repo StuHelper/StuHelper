@@ -31,14 +31,7 @@ activation_file="${DEPLOY_STATE_DIR}/postgres-backup-activation.json"
   die "a committed application release already exists; a separate PostgreSQL backup activation is neither required nor allowed"
 [[ ! -e "${release_log_file}" && ! -L "${release_log_file}" ]] ||
   die "release-log evidence survives without a current release; reconcile the application release ledger first"
-if [[ -L "${release_records_dir}" || ( -e "${release_records_dir}" && ! -d "${release_records_dir}" ) ]]; then
-  die "release record path is not a regular directory: ${release_records_dir}"
-fi
-shopt -s nullglob
-surviving_release_records=("${release_records_dir}"/*.env)
-shopt -u nullglob
-((${#surviving_release_records[@]} == 0)) ||
-  die "immutable application release evidence survives without a current release; reconcile the application release ledger first"
+require_no_surviving_release_records "${release_records_dir}"
 
 require_backup_object_storage_config
 require_off_host_backup_object_storage

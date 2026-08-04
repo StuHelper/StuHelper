@@ -68,15 +68,7 @@ if [[ ! -e "${current_release_file}" && ! -L "${current_release_file}" ]]; then
   if [[ -e "${releases_log}" || -L "${releases_log}" ]]; then
     die "committed release marker is missing while release-log evidence survives: ${releases_log}"
   fi
-  if [[ -L "${releases_dir}" || ( -e "${releases_dir}" && ! -d "${releases_dir}" ) ]]; then
-    die "release record path is not a regular directory: ${releases_dir}"
-  fi
-  shopt -s nullglob
-  surviving_release_records=("${releases_dir}"/*.env)
-  shopt -u nullglob
-  if ((${#surviving_release_records[@]} != 0)); then
-    die "committed release marker is missing while immutable per-tag evidence survives"
-  fi
+  require_no_surviving_release_records "${releases_dir}"
   backup_activation_file="${DEPLOY_STATE_DIR}/postgres-backup-activation.json"
   backup_activation_records_dir="${DEPLOY_STATE_DIR}/postgres-backup-activations"
   if [[ -e "${backup_activation_file}" || -L "${backup_activation_file}" ]]; then
