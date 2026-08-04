@@ -2776,11 +2776,80 @@ print(parsed.hostname or "")
 PY
 }
 
+_public_dns_response_address_count() {
+  local name="$1"
+  local host="$2"
+  local record_type="$3"
+  local response_file="$4"
+  python3 - "${name}" "${host}" "${record_type}" "${response_file}" <<'PY'
+import ipaddress
+import json
+import sys
+from pathlib import Path
+
+name, host, record_type, response_path = sys.argv[1:5]
+record_numbers = {"A": 1, "AAAA": 28}
+record_number = record_numbers.get(record_type)
+if record_number is None:
+    raise SystemExit(f"unsupported public DNS record type: {record_type}")
+
+try:
+    payload = json.loads(Path(response_path).read_text())
+except json.JSONDecodeError as exc:
+    raise SystemExit(f"{name} public DNS preflight got invalid JSON for {host} {record_type}: {exc}")
+if not isinstance(payload, dict):
+    raise SystemExit(f"{name} public DNS preflight got non-object JSON for {host} {record_type}")
+
+status = payload.get("Status")
+if isinstance(status, bool) or not isinstance(status, int):
+    raise SystemExit(
+        f"{name} public DNS preflight failed for {host} {record_type}: "
+        f"public resolver returned invalid DNS status {status!r}"
+    )
+if status == 3:
+    raise SystemExit(f"{name} public DNS preflight failed for {host}: NXDOMAIN from public resolver")
+if status != 0:
+    raise SystemExit(
+        f"{name} public DNS preflight failed for {host} {record_type}: "
+        f"public resolver returned DNS status {status!r}"
+    )
+
+answers = payload.get("Answer") or []
+if not isinstance(answers, list):
+    raise SystemExit(f"{name} public DNS preflight got invalid Answer data for {host} {record_type}")
+addresses = sorted(
+    {
+        answer["data"]
+        for answer in answers
+        if isinstance(answer, dict)
+        and answer.get("type") == record_number
+        and isinstance(answer.get("data"), str)
+    }
+)
+non_public: list[str] = []
+for address in addresses:
+    try:
+        literal = ipaddress.ip_address(address.split("%", 1)[0])
+    except ValueError:
+        non_public.append(address)
+    else:
+        if not literal.is_global:
+            non_public.append(address)
+if non_public:
+    raise SystemExit(
+        f"{name} public DNS preflight failed for {host}: "
+        f"non-public A/AAAA records: {', '.join(non_public)}"
+    )
+print(len(addresses))
+PY
+}
+
 require_public_dns_resolved() {
   local name="$1"
   local url="$2"
   local timeout="${PUBLIC_INGRESS_PREFLIGHT_TIMEOUT_SECONDS:-10}"
   local enabled="${PUBLIC_INGRESS_PUBLIC_DNS_ENABLED:-true}"
+  local resolver_config="${PUBLIC_INGRESS_PUBLIC_DNS_RESOLVERS:-https://doh.pub/dns-query,https://dns.alidns.com/resolve,https://dns.google/resolve}"
   local host
   local a_file
   local aaaa_file
@@ -2821,88 +2890,103 @@ PY
     return 0
   fi
 
+  local resolver_output
+  if ! resolver_output="$(python3 - "${resolver_config}" 2>&1 <<'PY'
+import ipaddress
+import sys
+from urllib.parse import urlsplit
+
+raw = sys.argv[1]
+values = [value.strip() for value in raw.split(",")]
+if not values or any(not value for value in values):
+    raise SystemExit("PUBLIC_INGRESS_PUBLIC_DNS_RESOLVERS must be a non-empty comma-separated list")
+if len(values) > 5:
+    raise SystemExit("PUBLIC_INGRESS_PUBLIC_DNS_RESOLVERS must contain at most 5 endpoints")
+
+seen: set[str] = set()
+for value in values:
+    parsed = urlsplit(value)
+    if parsed.scheme != "https":
+        raise SystemExit("PUBLIC_INGRESS_PUBLIC_DNS_RESOLVERS endpoints must use https")
+    if not parsed.hostname or parsed.username is not None or parsed.password is not None:
+        raise SystemExit("PUBLIC_INGRESS_PUBLIC_DNS_RESOLVERS endpoints must not contain credentials")
+    if parsed.query or parsed.fragment:
+        raise SystemExit("PUBLIC_INGRESS_PUBLIC_DNS_RESOLVERS endpoints must not contain a query or fragment")
+    normalized_path = parsed.path.rstrip("/")
+    if not normalized_path:
+        raise SystemExit("PUBLIC_INGRESS_PUBLIC_DNS_RESOLVERS endpoints must include a DoH JSON path")
+    try:
+        literal = ipaddress.ip_address(parsed.hostname.strip("[]").split("%", 1)[0])
+    except ValueError:
+        pass
+    else:
+        if not literal.is_global:
+            raise SystemExit("PUBLIC_INGRESS_PUBLIC_DNS_RESOLVERS endpoints must not use non-public IP literals")
+    normalized = parsed._replace(path=normalized_path).geturl()
+    if normalized not in seen:
+        seen.add(normalized)
+        print(normalized)
+PY
+  )"; then
+    die "${resolver_output}"
+  fi
+
+  local -a resolvers=()
+  mapfile -t resolvers <<<"${resolver_output}"
+  [[ "${#resolvers[@]}" -gt 0 ]] || die "PUBLIC_INGRESS_PUBLIC_DNS_RESOLVERS did not contain a usable endpoint"
+
   a_file="$(mktemp)"
   aaaa_file="$(mktemp)"
   error_file="$(mktemp)"
-  if ! curl -fsS --max-time "${timeout}" -o "${a_file}" "https://dns.google/resolve?name=${host}&type=A" 2>"${error_file}"; then
-    local curl_error
-    curl_error="$(_public_ingress_body_snippet "${error_file}")"
+  local resolver
+  local resolver_host
+  local curl_error
+  local a_address_count
+  local aaaa_address_count
+  local attempted=0
+  for resolver in "${resolvers[@]}"; do
+    attempted=$((attempted + 1))
+    resolver_host="$(_public_ingress_host "${resolver}")"
+    : >"${a_file}"
+    : >"${aaaa_file}"
+    : >"${error_file}"
+    if ! curl -fsS --max-time "${timeout}" \
+      -H "Accept: application/dns-json" \
+      --get --data-urlencode "name=${host}" --data-urlencode "type=A" \
+      -o "${a_file}" "${resolver}" 2>"${error_file}"; then
+      curl_error="$(_public_ingress_body_snippet "${error_file}")"
+      warn "${name} public DNS resolver ${resolver_host} unavailable for ${host} A: ${curl_error:-curl failed}; trying the next configured resolver"
+      continue
+    fi
+    if ! a_address_count="$(_public_dns_response_address_count "${name}" "${host}" A "${a_file}" 2>&1)"; then
+      rm -f "${a_file}" "${aaaa_file}" "${error_file}"
+      die "${a_address_count}"
+    fi
+    : >"${error_file}"
+    if ! curl -fsS --max-time "${timeout}" \
+      -H "Accept: application/dns-json" \
+      --get --data-urlencode "name=${host}" --data-urlencode "type=AAAA" \
+      -o "${aaaa_file}" "${resolver}" 2>"${error_file}"; then
+      curl_error="$(_public_ingress_body_snippet "${error_file}")"
+      warn "${name} public DNS resolver ${resolver_host} unavailable for ${host} AAAA: ${curl_error:-curl failed}; trying the next configured resolver"
+      continue
+    fi
+    if ! aaaa_address_count="$(_public_dns_response_address_count "${name}" "${host}" AAAA "${aaaa_file}" 2>&1)"; then
+      rm -f "${a_file}" "${aaaa_file}" "${error_file}"
+      die "${aaaa_address_count}"
+    fi
+    if (( a_address_count + aaaa_address_count == 0 )); then
+      rm -f "${a_file}" "${aaaa_file}" "${error_file}"
+      die "${name} public DNS preflight failed for ${host}: no public A/AAAA records from public resolver"
+    fi
     rm -f "${a_file}" "${aaaa_file}" "${error_file}"
-    die "${name} public DNS preflight failed for ${host} A: ${curl_error:-curl failed}"
-  fi
-  if ! curl -fsS --max-time "${timeout}" -o "${aaaa_file}" "https://dns.google/resolve?name=${host}&type=AAAA" 2>"${error_file}"; then
-    local curl_error
-    curl_error="$(_public_ingress_body_snippet "${error_file}")"
-    rm -f "${a_file}" "${aaaa_file}" "${error_file}"
-    die "${name} public DNS preflight failed for ${host} AAAA: ${curl_error:-curl failed}"
-  fi
-  rm -f "${error_file}"
+    log "${name} public DNS ready: ${host} (resolver: ${resolver_host})"
+    return 0
+  done
 
-  local dns_validation_output
-  if ! dns_validation_output="$(python3 - "${name}" "${host}" "${a_file}" "${aaaa_file}" 2>&1 <<'PY'
-import ipaddress
-import json
-import sys
-from pathlib import Path
-
-name, host, a_path, aaaa_path = sys.argv[1:5]
-
-def fail(message: str) -> None:
-    raise SystemExit(message)
-
-def load(path: str) -> dict:
-    try:
-        payload = json.loads(Path(path).read_text())
-    except json.JSONDecodeError as exc:
-        fail(f"{name} public DNS preflight got invalid JSON for {host}: {exc}")
-    if not isinstance(payload, dict):
-        fail(f"{name} public DNS preflight got non-object JSON for {host}")
-    return payload
-
-def is_global(value: str) -> bool:
-    try:
-        return ipaddress.ip_address(value.split("%", 1)[0]).is_global
-    except ValueError:
-        return False
-
-def ip_literal(value: str):
-    try:
-        return ipaddress.ip_address(value.strip("[]").split("%", 1)[0])
-    except ValueError:
-        return None
-
-literal = ip_literal(host)
-if literal is not None:
-    if not literal.is_global:
-        fail(f"{name} public DNS preflight resolved to non-public IP literal for {host}")
-    raise SystemExit(0)
-
-payloads = {"A": load(a_path), "AAAA": load(aaaa_path)}
-addresses: list[str] = []
-statuses: dict[str, object] = {}
-for rrtype, rrnumber in (("A", 1), ("AAAA", 28)):
-    payload = payloads[rrtype]
-    statuses[rrtype] = payload.get("Status")
-    for answer in payload.get("Answer") or []:
-        if isinstance(answer, dict) and answer.get("type") == rrnumber and isinstance(answer.get("data"), str):
-            addresses.append(answer["data"])
-
-addresses = sorted(set(addresses))
-if not addresses:
-    if any(status == 3 for status in statuses.values()):
-        fail(f"{name} public DNS preflight failed for {host}: NXDOMAIN from public resolver")
-    fail(f"{name} public DNS preflight failed for {host}: no public A/AAAA records from public resolver")
-
-non_public = [address for address in addresses if not is_global(address)]
-if non_public:
-    fail(f"{name} public DNS preflight failed for {host}: non-public A/AAAA records: {', '.join(non_public)}")
-PY
-  )"; then
-    rm -f "${a_file}" "${aaaa_file}"
-    die "${dns_validation_output}"
-  fi
   rm -f "${a_file}" "${aaaa_file}"
-  log "${name} public DNS ready: ${host}"
+  rm -f "${error_file}"
+  die "${name} public DNS preflight failed for ${host}: all ${attempted} configured public resolvers were unavailable"
 }
 
 require_public_http_reachable() {
