@@ -1941,7 +1941,8 @@ require_live_postgres_wal_archiving() {
   local postgres_container="$1"
   local postgres_user="${2:-${POSTGRES_USER:-stuhelper}}"
   local postgres_database="${3:-${POSTGRES_DB:-stuhelper}}"
-  local archived_wal
+  local archive_probe_verified="false"
+  local archive_probe_wal
   local attempt
   local baseline_archived_count
   local status
@@ -1963,7 +1964,25 @@ require_live_postgres_wal_archiving() {
     "${postgres_container}" "${postgres_user}" "${postgres_database}")" ||
     die "failed to read the live PostgreSQL WAL archive counter"
 
-  log "forcing a fresh PostgreSQL WAL archive probe for this production gate"
+  # pg_switch_wal() is explicitly a no-op when no WAL has been generated since
+  # the previous switch. Emit a unique named restore-point record first so an
+  # otherwise idle production cluster still has a concrete segment to archive.
+  # The marker lives only in WAL and does not mutate application tables.
+  log "forcing fresh PostgreSQL WAL activity and an archive probe for this production gate"
+  if ! archive_probe_wal="$(docker exec "${postgres_container}" \
+    psql \
+    --no-psqlrc \
+    --set=ON_ERROR_STOP=1 \
+    --username="${postgres_user}" \
+    --dbname="${postgres_database}" \
+    --tuples-only \
+    --no-align \
+    --command="SELECT pg_create_restore_point(
+      'stuhelper_archive_probe_' ||
+      to_char(clock_timestamp(), 'YYYYMMDDHH24MISSUS') ||
+      '_' || pg_backend_pid()::text
+    )" >/dev/null 2>&1 ||
+    die "failed to create a PostgreSQL WAL archive probe restore point"
   docker exec "${postgres_container}" \
     psql \
     --no-psqlrc \
@@ -1972,27 +1991,31 @@ require_live_postgres_wal_archiving() {
     --dbname="${postgres_database}" \
     --tuples-only \
     --no-align \
-    --command='SELECT pg_switch_wal()' >/dev/null 2>&1 ||
+    --command='SELECT pg_walfile_name(pg_switch_wal())' 2>/dev/null)"; then
     die "failed to request a PostgreSQL WAL archive probe"
+  fi
+  [[ "${archive_probe_wal}" =~ ^[0-9A-F]{24}$ ]] ||
+    die "PostgreSQL WAL archive probe returned an unsafe segment name"
 
-  archived_wal=""
   for ((attempt = 1; attempt <= 30; attempt++)); do
-    if archived_wal="$(postgres_wal_archiver_status \
+    if postgres_wal_archiver_status \
       "${postgres_container}" "${postgres_user}" "${postgres_database}" \
-      "${baseline_archived_count}")"; then
-      break
+      "${baseline_archived_count}" >/dev/null; then
+      if docker exec "${postgres_container}" /bin/sh -c \
+        'test -f "/var/lib/postgresql/wal-archive/$1"' \
+        sh "${archive_probe_wal}" >/dev/null 2>&1; then
+        archive_probe_verified="true"
+        break
+      fi
+      status=2
     else
       status=$?
     fi
     [[ "${status}" -eq 2 ]] || die "PostgreSQL WAL archiver became invalid during the live probe"
     sleep 1
   done
-  [[ -n "${archived_wal}" ]] ||
-    die "PostgreSQL did not archive a new WAL segment after the live probe"
-
-  docker exec "${postgres_container}" /bin/sh -c \
-    'test -f "/var/lib/postgresql/wal-archive/$1"' sh "${archived_wal}" >/dev/null 2>&1 ||
-    die "PostgreSQL reported archived WAL ${archived_wal}, but it is missing from the protected volume"
+  [[ "${archive_probe_verified}" == "true" ]] ||
+    die "PostgreSQL did not archive the exact live-probe WAL segment ${archive_probe_wal}"
 }
 
 require_external_postgres_pitr_evidence() {
