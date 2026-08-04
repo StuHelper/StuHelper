@@ -41,7 +41,9 @@ last-verified: 2026-08-03
   datastore 后强制新建 logical/base backup，同步 logical/base/WAL，从 COS 取回两份新工件并
   以一小时新鲜度、精确文件名和 SHA256 验证后，才把恢复工件摘要写入激活记录。该记录只恢复
   备份调度授权，不证明应用发布成功；若仍有 `releases.log`、per-tag 记录或使用外部 PostgreSQL，
-  脚本必须拒绝。
+  脚本必须拒绝。以后若正常发布升级了 PostgreSQL 镜像而 release ledger 再次完整丢失，先重新
+  完成隔离恢复审计再运行同一脚本；它只允许在旧记录链完整时生成并取回一组新备份，然后追加
+  带 predecessor ID/摘要的 superseding 记录，不允许删除旧证据或把身份漂移静默视为有效。
 - [ ] 共享配置已核对：`.env.prod.shared`。
 - [ ] secrets 已核对：`.env.prod.secrets`（本地演练可用 `.env.prod.secrets.local`）；运行时派生 secrets 必须通过 `GENERATED_ENV_SECRET_REF` 写入远端 secret backend，`.env.prod.generated.secrets` 仅保留空占位。
 - [ ] secret backend 已核对：`.deploy/remote.env` 中的 `SECRET_BACKEND` / `*_SECRET_REF` / `GENERATED_ENV_SECRET_REF` / `VAULT_ADDR` / `VAULT_TOKEN_FILE`。

@@ -50,18 +50,35 @@ postgres_data_volume="${stack_name}-postgres-data"
 postgres_wal_volume="${POSTGRES_WAL_ARCHIVE_VOLUME_NAME:-${stack_name}-postgres-wal-archive}"
 
 require_live_canonical_postgres_datastore
-
-if [[ -e "${activation_file}" || -L "${activation_file}" ]]; then
-  require_live_postgres_backup_activation
-  "${SCRIPT_DIR}/sync-postgres-backups.sh"
-  log "existing PostgreSQL backup activation remains valid and an off-host synchronization completed"
-  exit 0
-fi
-
 require_live_postgres_wal_archiving \
   "${postgres_container}" "${POSTGRES_USER:-stuhelper}" "${POSTGRES_DB:-stuhelper}"
 system_identifier="$(live_postgres_system_identifier \
   "${postgres_container}" "${POSTGRES_USER:-stuhelper}" "${POSTGRES_DB:-stuhelper}")"
+activation_identity_args=(
+  --state-dir "${DEPLOY_STATE_DIR}"
+  --stack-name "${stack_name}"
+  --postgres-container-name "${postgres_container}"
+  --postgres-image-ref "${POSTGRES_IMAGE_REF}"
+  --postgres-system-identifier "${system_identifier}"
+  --postgres-data-volume "${postgres_data_volume}"
+  --postgres-wal-archive-volume "${postgres_wal_volume}"
+)
+supersede_args=()
+
+if [[ -e "${activation_file}" || -L "${activation_file}" ]]; then
+  if python3 "${SCRIPT_DIR}/manage-postgres-backup-activation.py" validate \
+    "${activation_identity_args[@]}" >/dev/null 2>&1; then
+    require_live_postgres_backup_activation
+    "${SCRIPT_DIR}/sync-postgres-backups.sh"
+    log "existing PostgreSQL backup activation remains valid and an off-host synchronization completed"
+    exit 0
+  fi
+  python3 "${SCRIPT_DIR}/manage-postgres-backup-activation.py" validate-chain \
+    --state-dir "${DEPLOY_STATE_DIR}" >/dev/null ||
+    die "existing PostgreSQL backup activation history is not a valid supersession chain"
+  supersede_args=(--supersede)
+  log "live PostgreSQL identity changed; preparing fresh recovery evidence for an audited superseding activation"
+fi
 
 activation_id="postgres-$(new_deployment_attempt_id)"
 logical_dir="${BACKUP_LOGICAL_DIR:-${REPO_ROOT}/backups/postgres/logical}"
@@ -127,14 +144,9 @@ PY
 )
 
 python3 "${SCRIPT_DIR}/manage-postgres-backup-activation.py" publish \
-  --state-dir "${DEPLOY_STATE_DIR}" \
+  "${activation_identity_args[@]}" \
+  "${supersede_args[@]}" \
   --activation-id "${activation_id}" \
-  --stack-name "${stack_name}" \
-  --postgres-container-name "${postgres_container}" \
-  --postgres-image-ref "${POSTGRES_IMAGE_REF}" \
-  --postgres-system-identifier "${system_identifier}" \
-  --postgres-data-volume "${postgres_data_volume}" \
-  --postgres-wal-archive-volume "${postgres_wal_volume}" \
   --logical-backup-file "$(basename "${logical_file}")" \
   --logical-backup-sha256 "${logical_sha256}" \
   --base-backup-file "$(basename "${base_file}")" \

@@ -27,14 +27,17 @@ release_guard = source.index("current_release_file=")
 off_host = source.index("require_off_host_backup_object_storage")
 canonical = source.index("require_live_canonical_postgres_datastore")
 wal_probe = source.index("require_live_postgres_wal_archiving")
+chain_validation = source.index("validate-chain", wal_probe)
 logical = source.index("BACKUP_MODE=dump", wal_probe)
 base = source.index("BACKUP_MODE=basebackup", logical)
 sync = source.index('"${SCRIPT_DIR}/sync-postgres-backups.sh"', base)
 evidence = source.index("postgres-backup-evidence.sh", sync)
 publish = source.index("manage-postgres-backup-activation.py\" publish")
 final_validation = source.rindex("require_live_postgres_backup_activation")
-if not lock < environment < release_guard < off_host < canonical < wal_probe < logical < base < sync < evidence < publish < final_validation:
+if not lock < environment < release_guard < off_host < canonical < wal_probe < chain_validation < logical < base < sync < evidence < publish < final_validation:
     raise SystemExit("activation must serialize before config, reject release evidence, protect off-host data, then publish and revalidate")
+if "--supersede" not in source:
+    raise SystemExit("activation must support an audited superseding record after live identity changes")
 if "record_release" in source or "current-release.env\" >" in source:
     raise SystemExit("backup activation must not publish or rewrite an application release")
 PY
@@ -53,6 +56,21 @@ evidence_args=(
   --logical-backup-sha256 bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
   --base-backup-file stuhelper-postgres-contract.tar.gz
   --base-backup-sha256 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+)
+upgraded_identity_args=(
+  --state-dir "${state_dir}"
+  --stack-name contract-prod
+  --postgres-container-name contract-prod-postgres
+  --postgres-image-ref registry.example.test/stuhelper/postgres@sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+  --postgres-system-identifier 1234567890123456789
+  --postgres-data-volume contract-prod-postgres-data
+  --postgres-wal-archive-volume contract-prod-postgres-wal-archive
+)
+upgraded_evidence_args=(
+  --logical-backup-file stuhelper-postgres-upgraded.dump
+  --logical-backup-sha256 eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+  --base-backup-file stuhelper-postgres-upgraded.tar.gz
+  --base-backup-sha256 ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 )
 
 python3 "${MANAGER}" publish \
@@ -97,23 +115,61 @@ python3 "${MANAGER}" publish \
 [[ "$(find "${state_dir}/postgres-backup-activations" -maxdepth 1 -type f | wc -l)" == "1" ]] ||
   fail "idempotent activation created a second immutable record"
 
+if python3 "${MANAGER}" publish \
+  "${upgraded_identity_args[@]}" \
+  "${upgraded_evidence_args[@]}" \
+  --activation-id postgres-20260804T000200Z-upgraded \
+  >"${tmpdir}/upgrade-without-supersede.out" 2>"${tmpdir}/upgrade-without-supersede.err"; then
+  fail "activation publication replaced a changed datastore identity without explicit supersession"
+fi
+grep -q 'requires --supersede' "${tmpdir}/upgrade-without-supersede.err" ||
+  fail "changed datastore identity did not require explicit supersession"
+
+python3 "${MANAGER}" publish \
+  "${upgraded_identity_args[@]}" \
+  "${upgraded_evidence_args[@]}" \
+  --supersede \
+  --activation-id postgres-20260804T000200Z-upgraded >"${tmpdir}/supersede.json"
+python3 "${MANAGER}" validate "${upgraded_identity_args[@]}" >"${tmpdir}/validate-upgraded.json"
+python3 "${MANAGER}" validate-chain --state-dir "${state_dir}" >"${tmpdir}/validate-chain.json"
+upgraded_immutable="${state_dir}/postgres-backup-activations/postgres-20260804T000200Z-upgraded.json"
+[[ -f "${upgraded_immutable}" ]] || fail "superseding immutable activation was not published"
+cmp -s "${current}" "${upgraded_immutable}" ||
+  fail "current activation does not point at the superseding immutable record"
+[[ "$(find "${state_dir}/postgres-backup-activations" -maxdepth 1 -type f | wc -l)" == "2" ]] ||
+  fail "superseding activation did not retain exactly one predecessor"
+python3 - "${current}" "${immutable}" <<'PY' || fail "superseding activation chain is not digest-linked"
+import hashlib
+import json
+import sys
+from pathlib import Path
+
+current = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+previous_payload = Path(sys.argv[2]).read_bytes()
+assert current["previousActivation"] == {
+    "activationId": "postgres-20260804T000000Z-contract",
+    "sha256": hashlib.sha256(previous_payload).hexdigest(),
+}
+assert current["recoveryEvidence"]["logicalBackup"]["file"] == "stuhelper-postgres-upgraded.dump"
+assert current["recoveryEvidence"]["physicalBaseBackup"]["file"] == "stuhelper-postgres-upgraded.tar.gz"
+PY
+
+if python3 "${MANAGER}" validate "${identity_args[@]}" \
+  >"${tmpdir}/stale-identity.out" 2>"${tmpdir}/stale-identity.err"; then
+  fail "activation validation accepted the predecessor as the live identity"
+fi
+grep -q 'does not match the live datastore' "${tmpdir}/stale-identity.err" ||
+  fail "stale activation identity did not produce the expected diagnostic"
+
 printf '{}\n' >"${state_dir}/postgres-backup-activations/unexpected.json"
 chmod 0600 "${state_dir}/postgres-backup-activations/unexpected.json"
 if python3 "${MANAGER}" validate "${identity_args[@]}" \
   >"${tmpdir}/unexpected-record.out" 2>"${tmpdir}/unexpected-record.err"; then
   fail "activation validation accepted an unexpected immutable record"
 fi
-grep -q 'unexpected or orphaned records' "${tmpdir}/unexpected-record.err" ||
+grep -Eq 'unexpected fields|unexpected or orphaned records' "${tmpdir}/unexpected-record.err" ||
   fail "unexpected activation record did not produce the expected diagnostic"
 rm -f "${state_dir}/postgres-backup-activations/unexpected.json"
-
-if python3 "${MANAGER}" validate \
-  "${identity_args[@]/1234567890123456789/2234567890123456789}" \
-  >"${tmpdir}/mismatch.out" 2>"${tmpdir}/mismatch.err"; then
-  fail "activation validation accepted a different PostgreSQL system identifier"
-fi
-grep -q 'does not match the live datastore' "${tmpdir}/mismatch.err" ||
-  fail "system-identifier mismatch did not produce the expected diagnostic"
 
 cp "${current}" "${tmpdir}/canonical.json"
 printf '\n' >>"${current}"

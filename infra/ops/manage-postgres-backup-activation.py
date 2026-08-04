@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import hashlib
 import json
 import os
 import re
@@ -140,8 +141,16 @@ def validate_document(payload: bytes, path: Path) -> dict[str, Any]:
     system_identifier = document.get("postgresSystemIdentifier")
     if not isinstance(system_identifier, str) or not SYSTEM_IDENTIFIER.fullmatch(system_identifier):
         raise ActivationError(f"PostgreSQL backup activation system identifier is invalid: {path}")
-    if document.get("previousActivation") is not None:
-        raise ActivationError(f"initial PostgreSQL backup activation cannot name a predecessor: {path}")
+    previous = document.get("previousActivation")
+    if previous is not None:
+        if not isinstance(previous, dict) or set(previous) != {"activationId", "sha256"}:
+            raise ActivationError(f"PostgreSQL backup activation predecessor is invalid: {path}")
+        previous_id = previous.get("activationId")
+        previous_sha256 = previous.get("sha256")
+        if not isinstance(previous_id, str) or not SAFE_ID.fullmatch(previous_id):
+            raise ActivationError(f"PostgreSQL backup activation predecessor ID is invalid: {path}")
+        if not isinstance(previous_sha256, str) or not SHA256.fullmatch(previous_sha256):
+            raise ActivationError(f"PostgreSQL backup activation predecessor digest is invalid: {path}")
     evidence = document.get("recoveryEvidence")
     if not isinstance(evidence, dict) or set(evidence) != {"logicalBackup", "physicalBaseBackup"}:
         raise ActivationError(f"PostgreSQL backup activation recovery evidence is invalid: {path}")
@@ -179,23 +188,71 @@ def validate_identity(document: dict[str, Any], expected: dict[str, str], path: 
             raise ActivationError(f"PostgreSQL backup activation field {key} does not match the live datastore: {path}")
 
 
-def load_current(state_dir: Path, expected: dict[str, str]) -> tuple[dict[str, Any], bytes]:
+def load_chain(state_dir: Path) -> tuple[dict[str, Any], bytes]:
     current_path = state_dir / CURRENT_NAME
     payload = read_protected(current_path)
     document = validate_document(payload, current_path)
     records_dir = state_dir / RECORDS_DIR_NAME
     require_records_directory(records_dir)
-    immutable_path = records_dir / f"{document['activationId']}.json"
-    record_names = {entry.name for entry in records_dir.iterdir()}
-    if record_names != {immutable_path.name}:
+
+    records: dict[str, tuple[dict[str, Any], bytes]] = {}
+    for path in records_dir.iterdir():
+        if not path.name.endswith(".json"):
+            raise ActivationError(
+                "PostgreSQL backup activation history contains unexpected or orphaned records"
+            )
+        record_payload = read_protected(path)
+        record = validate_document(record_payload, path)
+        activation_id = record["activationId"]
+        if path.name != f"{activation_id}.json" or activation_id in records:
+            raise ActivationError(
+                "PostgreSQL backup activation history contains unexpected or orphaned records"
+            )
+        records[activation_id] = (record, record_payload)
+
+    current_id = document["activationId"]
+    immutable = records.get(current_id)
+    if immutable is None:
         raise ActivationError(
             "PostgreSQL backup activation history contains unexpected or orphaned records"
         )
-    immutable_payload = read_protected(immutable_path)
-    immutable_document = validate_document(immutable_payload, immutable_path)
+    immutable_document, immutable_payload = immutable
     if payload != immutable_payload or document != immutable_document:
         raise ActivationError("current PostgreSQL backup activation does not match its immutable record")
-    validate_identity(document, expected, current_path)
+
+    seen: set[str] = set()
+    cursor = document
+    while True:
+        cursor_id = cursor["activationId"]
+        if cursor_id in seen:
+            raise ActivationError("PostgreSQL backup activation history contains a cycle")
+        seen.add(cursor_id)
+        previous = cursor["previousActivation"]
+        if previous is None:
+            break
+        previous_id = previous["activationId"]
+        predecessor = records.get(previous_id)
+        if predecessor is None:
+            raise ActivationError(
+                "PostgreSQL backup activation history contains unexpected or orphaned records"
+            )
+        predecessor_document, predecessor_payload = predecessor
+        if hashlib.sha256(predecessor_payload).hexdigest() != previous["sha256"]:
+            raise ActivationError("PostgreSQL backup activation predecessor digest does not match")
+        if cursor["activatedAt"] < predecessor_document["activatedAt"]:
+            raise ActivationError("PostgreSQL backup activation history is not chronological")
+        cursor = predecessor_document
+
+    if seen != set(records):
+        raise ActivationError(
+            "PostgreSQL backup activation history contains unexpected or orphaned records"
+        )
+    return document, payload
+
+
+def load_current(state_dir: Path, expected: dict[str, str]) -> tuple[dict[str, Any], bytes]:
+    document, payload = load_chain(state_dir)
+    validate_identity(document, expected, state_dir / CURRENT_NAME)
     return document, payload
 
 
@@ -233,11 +290,26 @@ def publish(args: argparse.Namespace) -> dict[str, Any]:
     require_state_directory(state_dir)
     expected = expected_identity(args)
     current_path = state_dir / CURRENT_NAME
-    try:
-        current, _ = load_current(state_dir, expected)
-        return current
-    except FileNotFoundError:
-        pass
+    previous_activation: dict[str, str] | None = None
+    if os.path.lexists(current_path):
+        current, current_payload = load_chain(state_dir)
+    else:
+        current = None
+        current_payload = b""
+    if current is not None:
+        try:
+            validate_identity(current, expected, current_path)
+        except ActivationError:
+            if not args.supersede:
+                raise ActivationError(
+                    "live datastore identity changed; audited publication requires --supersede"
+                ) from None
+        else:
+            return current
+        previous_activation = {
+            "activationId": current["activationId"],
+            "sha256": hashlib.sha256(current_payload).hexdigest(),
+        }
 
     records_dir = state_dir / RECORDS_DIR_NAME
     try:
@@ -248,7 +320,7 @@ def publish(args: argparse.Namespace) -> dict[str, Any]:
         require_records_directory(records_dir)
 
     surviving_records = list(records_dir.iterdir())
-    if surviving_records:
+    if current is None and surviving_records:
         raise ActivationError(
             "immutable PostgreSQL backup activation evidence survives without a current pointer; manual reconciliation is required"
         )
@@ -261,7 +333,7 @@ def publish(args: argparse.Namespace) -> dict[str, Any]:
         "activationId": args.activation_id,
         "activatedAt": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         **expected,
-        "previousActivation": None,
+        "previousActivation": previous_activation,
         "recoveryEvidence": {
             "logicalBackup": {
                 "file": args.logical_backup_file,
@@ -297,6 +369,13 @@ def validate(args: argparse.Namespace) -> dict[str, Any]:
     return document
 
 
+def validate_chain(args: argparse.Namespace) -> dict[str, Any]:
+    state_dir = Path(args.state_dir)
+    require_state_directory(state_dir)
+    document, _ = load_chain(state_dir)
+    return document
+
+
 def add_identity_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--state-dir", required=True)
     parser.add_argument("--stack-name", required=True)
@@ -317,11 +396,19 @@ def main() -> None:
     publish_parser.add_argument("--logical-backup-sha256", required=True)
     publish_parser.add_argument("--base-backup-file", required=True)
     publish_parser.add_argument("--base-backup-sha256", required=True)
+    publish_parser.add_argument("--supersede", action="store_true")
     validate_parser = subparsers.add_parser("validate")
     add_identity_arguments(validate_parser)
+    validate_chain_parser = subparsers.add_parser("validate-chain")
+    validate_chain_parser.add_argument("--state-dir", required=True)
     args = parser.parse_args()
     try:
-        document = publish(args) if args.command == "publish" else validate(args)
+        if args.command == "publish":
+            document = publish(args)
+        elif args.command == "validate":
+            document = validate(args)
+        else:
+            document = validate_chain(args)
     except (ActivationError, OSError) as exc:
         parser.error(str(exc))
     print(
