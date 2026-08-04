@@ -1070,10 +1070,11 @@ source = Path(sys.argv[1]).read_text(encoding="utf-8")
 container_assignment = source.index('postgres_container="${POSTGRES_CONTAINER_NAME:-${STACK_NAME:-stuhelper}-postgres}"')
 volume_validation = source.index("require_live_postgres_wal_archive_volume")
 archiver_validation = source.index("require_live_postgres_wal_archiving")
+namespace_validation = source.index("require_postgres_backup_object_storage_namespace")
 external_pitr_validation = source.index("require_external_postgres_pitr_evidence")
 first_transfer = source.index("run_backup_object_storage_rclone", volume_validation)
-if not container_assignment < volume_validation < archiver_validation < first_transfer:
-    raise SystemExit("live WAL mount and archiver validation must precede every backup transfer")
+if not container_assignment < volume_validation < archiver_validation < namespace_validation < first_transfer:
+    raise SystemExit("live WAL mount, archiver, and cluster namespace validation must precede every backup transfer")
 validation_block = source[container_assignment:first_transfer]
 if validation_block.count('"${postgres_container}"') < 2:
     raise SystemExit("WAL mount and archiver validation must honor POSTGRES_CONTAINER_NAME")

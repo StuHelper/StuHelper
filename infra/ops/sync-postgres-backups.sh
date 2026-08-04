@@ -51,6 +51,10 @@ if [[ "${external_postgres_enabled}" != "true" ]]; then
     "${postgres_container}" \
     "${POSTGRES_USER:-stuhelper}" \
     "${POSTGRES_DB:-stuhelper}"
+  postgres_system_identifier="$(live_postgres_system_identifier \
+    "${postgres_container}" "${POSTGRES_USER:-stuhelper}" "${POSTGRES_DB:-stuhelper}")"
+  require_postgres_backup_object_storage_namespace \
+    "${prefix}" "${postgres_system_identifier}"
 else
   require_external_postgres_pitr_evidence >/dev/null
 fi

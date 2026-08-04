@@ -26,7 +26,7 @@ DIGEST_REF = re.compile(r"[^\s@]+@sha256:[0-9a-f]{64}")
 SYSTEM_IDENTIFIER = re.compile(r"[0-9]{10,20}")
 SHA256 = re.compile(r"[0-9a-f]{64}")
 BACKUP_FILE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,254}")
-IDENTITY_FIELDS = {
+LEGACY_IDENTITY_FIELDS = {
     "schemaVersion",
     "event",
     "activationId",
@@ -38,6 +38,7 @@ IDENTITY_FIELDS = {
     "postgresDataVolume",
     "postgresWalArchiveVolume",
 }
+IDENTITY_FIELDS = LEGACY_IDENTITY_FIELDS | {"backupObjectStoragePrefix"}
 EXPECTED_FIELDS = IDENTITY_FIELDS | {
     "previousActivation",
     "recoveryEvidence",
@@ -127,7 +128,7 @@ def validate_document(payload: bytes, path: Path) -> dict[str, Any]:
         raise ActivationError(f"PostgreSQL backup activation record has unexpected fields: {path}")
     schema_version = document.get("schemaVersion")
     expected_fields = (
-        IDENTITY_FIELDS if schema_version == LEGACY_SCHEMA_VERSION else EXPECTED_FIELDS
+        LEGACY_IDENTITY_FIELDS if schema_version == LEGACY_SCHEMA_VERSION else EXPECTED_FIELDS
     )
     if set(document) != expected_fields:
         raise ActivationError(f"PostgreSQL backup activation record has unexpected fields: {path}")
@@ -152,7 +153,24 @@ def validate_document(payload: bytes, path: Path) -> dict[str, Any]:
         raise ActivationError(f"PostgreSQL backup activation system identifier is invalid: {path}")
     if schema_version == LEGACY_SCHEMA_VERSION:
         return document
-
+    backup_prefix = document.get("backupObjectStoragePrefix")
+    if (
+        not isinstance(backup_prefix, str)
+        or len(backup_prefix) > 255
+        or backup_prefix.startswith("/")
+        or backup_prefix.endswith("/")
+        or "//" in backup_prefix
+        or any(
+            not component
+            or component in {".", ".."}
+            or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", component)
+            for component in backup_prefix.split("/")
+        )
+        or backup_prefix.split("/")[-1] != system_identifier
+    ):
+        raise ActivationError(
+            f"PostgreSQL backup activation object-storage prefix must end in the live system identifier: {path}"
+        )
     previous = document.get("previousActivation")
     if previous is not None:
         if not isinstance(previous, dict) or set(previous) != {"activationId", "sha256"}:
@@ -189,6 +207,7 @@ def expected_identity(args: argparse.Namespace) -> dict[str, str]:
         "postgresContainerName": args.postgres_container_name,
         "postgresImageRef": args.postgres_image_ref,
         "postgresSystemIdentifier": args.postgres_system_identifier,
+        "backupObjectStoragePrefix": args.backup_object_storage_prefix,
         "postgresDataVolume": args.postgres_data_volume,
         "postgresWalArchiveVolume": args.postgres_wal_archive_volume,
     }
@@ -406,6 +425,7 @@ def add_identity_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--postgres-container-name", required=True)
     parser.add_argument("--postgres-image-ref", required=True)
     parser.add_argument("--postgres-system-identifier", required=True)
+    parser.add_argument("--backup-object-storage-prefix", required=True)
     parser.add_argument("--postgres-data-volume", required=True)
     parser.add_argument("--postgres-wal-archive-volume", required=True)
 

@@ -55,12 +55,15 @@ require_live_postgres_wal_archiving \
   "${postgres_container}" "${POSTGRES_USER:-stuhelper}" "${POSTGRES_DB:-stuhelper}"
 system_identifier="$(live_postgres_system_identifier \
   "${postgres_container}" "${POSTGRES_USER:-stuhelper}" "${POSTGRES_DB:-stuhelper}")"
+require_postgres_backup_object_storage_namespace \
+  "${BACKUP_OBJECT_STORAGE_PREFIX:-postgres}" "${system_identifier}"
 activation_identity_args=(
   --state-dir "${DEPLOY_STATE_DIR}"
   --stack-name "${stack_name}"
   --postgres-container-name "${postgres_container}"
   --postgres-image-ref "${POSTGRES_IMAGE_REF}"
   --postgres-system-identifier "${system_identifier}"
+  --backup-object-storage-prefix "${BACKUP_OBJECT_STORAGE_PREFIX:-postgres}"
   --postgres-data-volume "${postgres_data_volume}"
   --postgres-wal-archive-volume "${postgres_wal_volume}"
 )

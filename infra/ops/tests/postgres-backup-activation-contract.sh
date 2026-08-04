@@ -28,6 +28,7 @@ off_host = source.index("require_off_host_backup_object_storage")
 canonical = source.index("require_live_canonical_postgres_datastore")
 backup_sources = source.index("require_internal_postgres_backup_sources_match_live_datastore", canonical)
 wal_probe = source.index("require_live_postgres_wal_archiving")
+namespace = source.index("require_postgres_backup_object_storage_namespace", wal_probe)
 chain_validation = source.index("validate-chain", wal_probe)
 logical = source.index("BACKUP_MODE=dump", wal_probe)
 base = source.index("BACKUP_MODE=basebackup", logical)
@@ -35,8 +36,8 @@ sync = source.index('"${SCRIPT_DIR}/sync-postgres-backups.sh"', base)
 evidence = source.index("postgres-backup-evidence.sh", sync)
 publish = source.index("manage-postgres-backup-activation.py\" publish")
 final_validation = source.rindex("require_live_postgres_backup_activation")
-if not lock < environment < release_guard < off_host < canonical < backup_sources < wal_probe < chain_validation < logical < base < sync < evidence < publish < final_validation:
-    raise SystemExit("activation must serialize before config, reject release evidence, protect off-host data, then publish and revalidate")
+if not lock < environment < release_guard < off_host < canonical < backup_sources < wal_probe < namespace < chain_validation < logical < base < sync < evidence < publish < final_validation:
+    raise SystemExit("activation must serialize before config, reject release evidence, bind the cluster namespace, then publish and revalidate")
 if "--supersede" not in source:
     raise SystemExit("activation must support an audited superseding record after live identity changes")
 if "POSTGRES_BACKUP_EVIDENCE_MAX_LOGICAL_AGE_SECONDS=259200" not in source or "POSTGRES_BACKUP_EVIDENCE_MAX_BASE_AGE_SECONDS=259200" not in source:
@@ -55,6 +56,7 @@ identity_args=(
   --postgres-container-name contract-prod-postgres
   --postgres-image-ref registry.example.test/stuhelper/postgres@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
   --postgres-system-identifier 1234567890123456789
+  --backup-object-storage-prefix postgres/1234567890123456789
   --postgres-data-volume contract-prod-postgres-data
   --postgres-wal-archive-volume contract-prod-postgres-wal-archive
 )
@@ -70,6 +72,7 @@ upgraded_identity_args=(
   --postgres-container-name contract-prod-postgres
   --postgres-image-ref registry.example.test/stuhelper/postgres@sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
   --postgres-system-identifier 1234567890123456789
+  --backup-object-storage-prefix postgres/1234567890123456789
   --postgres-data-volume contract-prod-postgres-data
   --postgres-wal-archive-volume contract-prod-postgres-wal-archive
 )
@@ -78,6 +81,16 @@ upgraded_evidence_args=(
   --logical-backup-sha256 eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
   --base-backup-file stuhelper-postgres-upgraded.tar.gz
   --base-backup-sha256 ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+)
+changed_cluster_identity_args=(
+  --state-dir "${state_dir}"
+  --stack-name contract-prod
+  --postgres-container-name contract-prod-postgres
+  --postgres-image-ref registry.example.test/stuhelper/postgres@sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+  --postgres-system-identifier 9876543210987654321
+  --backup-object-storage-prefix postgres/1234567890123456789
+  --postgres-data-volume contract-prod-postgres-data
+  --postgres-wal-archive-volume contract-prod-postgres-wal-archive
 )
 
 python3 "${MANAGER}" publish \
@@ -102,6 +115,7 @@ from pathlib import Path
 
 document = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
 assert document["schemaVersion"] == 2
+assert document["backupObjectStoragePrefix"] == "postgres/1234567890123456789"
 assert document["previousActivation"] is None
 assert document["recoveryEvidence"] == {
     "logicalBackup": {
@@ -131,6 +145,17 @@ if python3 "${MANAGER}" publish \
 fi
 grep -q 'requires --supersede' "${tmpdir}/upgrade-without-supersede.err" ||
   fail "changed datastore identity did not require explicit supersession"
+
+if python3 "${MANAGER}" publish \
+  "${changed_cluster_identity_args[@]}" \
+  "${upgraded_evidence_args[@]}" \
+  --supersede \
+  --activation-id postgres-20260804T000200Z-mixed-wal \
+  >"${tmpdir}/mixed-wal.out" 2>"${tmpdir}/mixed-wal.err"; then
+  fail "activation publication accepted a predecessor cluster's WAL namespace"
+fi
+grep -q 'must end in the live system identifier' "${tmpdir}/mixed-wal.err" ||
+  fail "mixed-cluster WAL namespace rejection did not report the identity boundary"
 
 python3 "${MANAGER}" publish \
   "${upgraded_identity_args[@]}" \

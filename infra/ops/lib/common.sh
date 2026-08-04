@@ -1489,6 +1489,41 @@ normalize_backup_object_storage_env() {
   fi
 }
 
+require_postgres_backup_object_storage_namespace() {
+  local prefix="${1:-}"
+  local system_identifier="${2:-}"
+  local diagnostic
+
+  require_cmd python3
+  if ! diagnostic="$(python3 - "${prefix}" "${system_identifier}" 2>&1 <<'PY'
+import re
+import sys
+
+prefix, system_identifier = sys.argv[1:3]
+if not re.fullmatch(r"[0-9]{10,20}", system_identifier):
+    raise SystemExit("live PostgreSQL system identifier is invalid")
+if not prefix or len(prefix) > 255:
+    raise SystemExit("BACKUP_OBJECT_STORAGE_PREFIX must contain 1-255 characters")
+if prefix.startswith("/") or prefix.endswith("/") or "//" in prefix:
+    raise SystemExit("BACKUP_OBJECT_STORAGE_PREFIX must be a relative canonical object prefix")
+components = prefix.split("/")
+if any(
+    component in {"", ".", ".."}
+    or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", component) is None
+    for component in components
+):
+    raise SystemExit("BACKUP_OBJECT_STORAGE_PREFIX contains an unsafe path component")
+if components[-1] != system_identifier:
+    raise SystemExit(
+        "BACKUP_OBJECT_STORAGE_PREFIX must end with /<live PostgreSQL system_identifier> "
+        "so WAL from different clusters cannot share a recovery namespace"
+    )
+PY
+  )"; then
+    die "${diagnostic}"
+  fi
+}
+
 materialize_postgres_runtime_urls() {
   local rendered
   rendered="$(python3 - <<'PY'
@@ -1738,12 +1773,15 @@ require_live_postgres_backup_activation() {
   require_internal_postgres_backup_sources_match_live_datastore
   system_identifier="$(live_postgres_system_identifier \
     "${postgres_container}" "${POSTGRES_USER:-stuhelper}" "${POSTGRES_DB:-stuhelper}")"
+  require_postgres_backup_object_storage_namespace \
+    "${BACKUP_OBJECT_STORAGE_PREFIX:-postgres}" "${system_identifier}"
   python3 "${COMMON_LIB_DIR}/../manage-postgres-backup-activation.py" validate \
     --state-dir "${DEPLOY_STATE_DIR}" \
     --stack-name "${stack_name}" \
     --postgres-container-name "${postgres_container}" \
     --postgres-image-ref "${expected_image}" \
     --postgres-system-identifier "${system_identifier}" \
+    --backup-object-storage-prefix "${BACKUP_OBJECT_STORAGE_PREFIX:-postgres}" \
     --postgres-data-volume "${postgres_data_volume}" \
     --postgres-wal-archive-volume "${postgres_wal_volume}" >/dev/null ||
     die "live PostgreSQL does not match its audited backup activation"
