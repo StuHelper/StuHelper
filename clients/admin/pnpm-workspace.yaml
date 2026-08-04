@@ -29,7 +29,7 @@ overrides:
   clsx: 'catalog:'
   defu@<6.1.5: 6.1.5
   esbuild@>=0.27.3 <0.28.1: 0.28.1
-  fast-uri@<3.1.4: 3.1.4
+  fast-uri@<3.1.5: 3.1.5
   form-data@<4.0.6: 4.0.6
   glob@>=10.2.0 <10.5.0: 10.5.0
   immutable@>=5.0.0-beta.1 <5.1.8: 5.1.8
