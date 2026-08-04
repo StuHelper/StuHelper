@@ -1534,6 +1534,102 @@ PY
 LOCAL_STATE_DIR="${LOCAL_STATE_DIR:-$(default_local_state_dir)}"
 POSTGRES_WAL_RESTORE_DIR="${POSTGRES_WAL_RESTORE_DIR:-${LOCAL_STATE_DIR}/postgres/wal-restore}"
 
+live_postgres_system_identifier() {
+  local postgres_container="$1"
+  local postgres_user="${2:-${POSTGRES_USER:-stuhelper}}"
+  local postgres_database="${3:-${POSTGRES_DB:-stuhelper}}"
+  local system_identifier
+
+  if ! system_identifier="$(docker exec "${postgres_container}" \
+    psql \
+    --no-psqlrc \
+    --set=ON_ERROR_STOP=1 \
+    --username="${postgres_user}" \
+    --dbname="${postgres_database}" \
+    --tuples-only \
+    --no-align \
+    --command='SELECT system_identifier::text FROM pg_control_system()' 2>/dev/null)"; then
+    die "failed to read the live PostgreSQL system identifier"
+  fi
+  system_identifier="${system_identifier//[[:space:]]/}"
+  [[ "${system_identifier}" =~ ^[0-9]{10,20}$ ]] ||
+    die "live PostgreSQL returned an invalid system identifier"
+  printf '%s\n' "${system_identifier}"
+}
+
+require_live_postgres_backup_activation() {
+  local stack_name="${STACK_NAME:-stuhelper}"
+  local postgres_container="${POSTGRES_CONTAINER_NAME:-${stack_name}-postgres}"
+  local postgres_data_volume="${stack_name}-postgres-data"
+  local postgres_wal_volume="${POSTGRES_WAL_ARCHIVE_VOLUME_NAME:-${stack_name}-postgres-wal-archive}"
+  local expected_image="${POSTGRES_IMAGE_REF:-}"
+  local running health actual_image compose_project compose_service mounts_json system_identifier
+
+  [[ "${EXTERNAL_POSTGRES_ENABLED:-false}" != "true" ]] ||
+    die "an internal PostgreSQL backup activation cannot authorize an external PostgreSQL deployment"
+  require_cmd docker
+  require_cmd python3
+  require_digest_image_ref POSTGRES_IMAGE_REF "${expected_image}"
+
+  running="$(docker container inspect --format '{{.State.Running}}' "${postgres_container}" 2>/dev/null)" ||
+    die "failed to inspect activated PostgreSQL container ${postgres_container}"
+  health="$(docker container inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{end}}' "${postgres_container}" 2>/dev/null)" ||
+    die "failed to inspect activated PostgreSQL health ${postgres_container}"
+  actual_image="$(docker container inspect --format '{{.Config.Image}}' "${postgres_container}" 2>/dev/null)" ||
+    die "failed to inspect activated PostgreSQL image ${postgres_container}"
+  compose_project="$(docker container inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' "${postgres_container}" 2>/dev/null)" ||
+    die "failed to inspect activated PostgreSQL Compose project"
+  compose_service="$(docker container inspect --format '{{index .Config.Labels "com.docker.compose.service"}}' "${postgres_container}" 2>/dev/null)" ||
+    die "failed to inspect activated PostgreSQL Compose service"
+  mounts_json="$(docker container inspect --format '{{json .Mounts}}' "${postgres_container}" 2>/dev/null)" ||
+    die "failed to inspect activated PostgreSQL mounts"
+
+  [[ "${running}" == "true" && "${health}" == "healthy" ]] ||
+    die "activated PostgreSQL container ${postgres_container} must be running and healthy"
+  [[ "${actual_image}" == "${expected_image}" ]] ||
+    die "activated PostgreSQL container image does not match POSTGRES_IMAGE_REF"
+  [[ "${compose_project}" == "${stack_name}" && "${compose_service}" == "postgres" ]] ||
+    die "activated PostgreSQL container is not the canonical ${stack_name} Compose postgres service"
+  if ! python3 - "${postgres_data_volume}" "${postgres_wal_volume}" "${mounts_json}" <<'PY'
+import json
+import sys
+
+data_volume, wal_volume, raw_mounts = sys.argv[1:]
+try:
+    mounts = json.loads(raw_mounts)
+except (json.JSONDecodeError, TypeError) as exc:
+    raise SystemExit("invalid PostgreSQL mount metadata") from exc
+
+expected = {
+    (data_volume, "/var/lib/postgresql"),
+    (wal_volume, "/var/lib/postgresql/wal-archive"),
+}
+actual = {
+    (mount.get("Name"), mount.get("Destination"))
+    for mount in mounts
+    if mount.get("Type") == "volume" and mount.get("RW") is True
+}
+if not expected.issubset(actual):
+    raise SystemExit("activated PostgreSQL data or WAL volume does not match the canonical layout")
+PY
+  then
+    die "activated PostgreSQL data or WAL volume does not match the canonical layout"
+  fi
+
+  require_live_postgres_wal_archive_volume "${postgres_wal_volume}" "${postgres_container}"
+  system_identifier="$(live_postgres_system_identifier \
+    "${postgres_container}" "${POSTGRES_USER:-stuhelper}" "${POSTGRES_DB:-stuhelper}")"
+  python3 "${COMMON_LIB_DIR}/../manage-postgres-backup-activation.py" validate \
+    --state-dir "${DEPLOY_STATE_DIR}" \
+    --stack-name "${stack_name}" \
+    --postgres-container-name "${postgres_container}" \
+    --postgres-image-ref "${expected_image}" \
+    --postgres-system-identifier "${system_identifier}" \
+    --postgres-data-volume "${postgres_data_volume}" \
+    --postgres-wal-archive-volume "${postgres_wal_volume}" >/dev/null ||
+    die "live PostgreSQL does not match its audited backup activation"
+}
+
 require_live_postgres_wal_archive_volume() {
   local volume_name="$1"
   local postgres_container="${2:-${STACK_NAME:-stuhelper}-postgres}"

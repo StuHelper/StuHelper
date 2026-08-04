@@ -77,34 +77,51 @@ if [[ ! -e "${current_release_file}" && ! -L "${current_release_file}" ]]; then
   if ((${#surviving_release_records[@]} != 0)); then
     die "committed release marker is missing while immutable per-tag evidence survives"
   fi
-  if [[ "${EXTERNAL_POSTGRES_ENABLED:-false}" == "true" ]]; then
-    die "committed release marker is missing while external PostgreSQL is selected"
+  backup_activation_file="${DEPLOY_STATE_DIR}/postgres-backup-activation.json"
+  backup_activation_records_dir="${DEPLOY_STATE_DIR}/postgres-backup-activations"
+  if [[ -e "${backup_activation_file}" || -L "${backup_activation_file}" ]]; then
+    require_live_postgres_backup_activation
+    log "scheduled PostgreSQL ${MODE} authorized by the audited existing-datastore backup activation"
+  else
+    if [[ -L "${backup_activation_records_dir}" || \
+      ( -e "${backup_activation_records_dir}" && ! -d "${backup_activation_records_dir}" ) ]]; then
+      die "PostgreSQL backup activation record path is not a regular directory: ${backup_activation_records_dir}"
+    fi
+    if [[ -d "${backup_activation_records_dir}" ]] && \
+      find "${backup_activation_records_dir}" -mindepth 1 -maxdepth 1 -print -quit | grep -q .; then
+      die "immutable PostgreSQL backup activation evidence survives without a current pointer"
+    fi
+    if [[ "${EXTERNAL_POSTGRES_ENABLED:-false}" == "true" ]]; then
+      die "committed release marker is missing while external PostgreSQL is selected"
+    fi
+    docker info --format '{{json .ServerVersion}}' >/dev/null 2>&1 ||
+      die "cannot verify an empty bootstrap host because the Docker daemon is unavailable"
+    stack_name="${STACK_NAME:-stuhelper}"
+    postgres_container="${POSTGRES_CONTAINER_NAME:-${stack_name}-postgres}"
+    postgres_data_volume="${stack_name}-postgres-data"
+    if docker container inspect "${postgres_container}" >/dev/null 2>&1; then
+      die "committed release marker is missing while PostgreSQL container evidence survives: ${postgres_container}; run activate-existing-postgres-backups.sh only after an audited recovery and off-host restore drill"
+    fi
+    if docker volume inspect "${postgres_data_volume}" >/dev/null 2>&1; then
+      die "committed release marker is missing while PostgreSQL data-volume evidence survives: ${postgres_data_volume}; run activate-existing-postgres-backups.sh only after an audited recovery and off-host restore drill"
+    fi
+    log "scheduled PostgreSQL ${MODE} deferred: no committed release or datastore evidence exists yet"
+    exit 0
   fi
-  docker info --format '{{json .ServerVersion}}' >/dev/null 2>&1 ||
-    die "cannot verify an empty bootstrap host because the Docker daemon is unavailable"
-  stack_name="${STACK_NAME:-stuhelper}"
-  postgres_container="${POSTGRES_CONTAINER_NAME:-${stack_name}-postgres}"
-  postgres_data_volume="${stack_name}-postgres-data"
-  if docker container inspect "${postgres_container}" >/dev/null 2>&1; then
-    die "committed release marker is missing while PostgreSQL container evidence survives: ${postgres_container}"
-  fi
-  if docker volume inspect "${postgres_data_volume}" >/dev/null 2>&1; then
-    die "committed release marker is missing while PostgreSQL data-volume evidence survives: ${postgres_data_volume}"
-  fi
-  log "scheduled PostgreSQL ${MODE} deferred: no committed release or datastore evidence exists yet"
-  exit 0
 fi
-if [[ ! -f "${current_release_file}" || -L "${current_release_file}" ]]; then
-  die "committed release marker must be a regular non-symlink file: ${current_release_file}"
+if [[ -e "${current_release_file}" || -L "${current_release_file}" ]]; then
+  if [[ ! -f "${current_release_file}" || -L "${current_release_file}" ]]; then
+    die "committed release marker must be a regular non-symlink file: ${current_release_file}"
+  fi
+  (
+    source_release_record_env_file "${current_release_file}"
+    immutable_release_file="${DEPLOY_STATE_DIR}/releases/${TAG}.env"
+    [[ -f "${immutable_release_file}" && ! -L "${immutable_release_file}" ]] ||
+      die "committed release is missing its immutable per-tag record: ${immutable_release_file}"
+    cmp -s "${current_release_file}" "${immutable_release_file}" ||
+      die "committed release marker does not match its immutable per-tag record"
+  )
 fi
-(
-  source_release_record_env_file "${current_release_file}"
-  immutable_release_file="${DEPLOY_STATE_DIR}/releases/${TAG}.env"
-  [[ -f "${immutable_release_file}" && ! -L "${immutable_release_file}" ]] ||
-    die "committed release is missing its immutable per-tag record: ${immutable_release_file}"
-  cmp -s "${current_release_file}" "${immutable_release_file}" ||
-    die "committed release marker does not match its immutable per-tag record"
-)
 
 case "${BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED:-false}" in
   true) require_off_host_backup_object_storage ;;

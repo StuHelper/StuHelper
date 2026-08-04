@@ -35,6 +35,11 @@ last-verified: 2026-08-03
 - [ ] `.deploy/releases.log` 中每个历史 TAG 的 `.deploy/releases/<TAG>.env` 均存在、由部署用户
   持有且为 `0600`；即使当前发布不回滚到该 TAG，缺失、截断、错 TAG 或非规范历史记录也会阻断
   新发布。不要把删除旧 per-tag 文件当作常规 retention；账本状态应与异机备份一起保留。
+- [ ] 若应用 release ledger 已完整丢失但内置 PostgreSQL datastore 仍存活，不得手写
+  `current-release.env` 或用当前期望镜像冒充历史发布。先完成新鲜 logical/base backup、COS
+  取回校验和隔离命名恢复点 WAL replay，再由部署用户运行
+  `./infra/ops/activate-existing-postgres-backups.sh`。该记录只恢复备份调度授权，不证明应用发布
+  成功；若仍有 `releases.log`、per-tag 记录或使用外部 PostgreSQL，脚本必须拒绝。
 - [ ] 共享配置已核对：`.env.prod.shared`。
 - [ ] secrets 已核对：`.env.prod.secrets`（本地演练可用 `.env.prod.secrets.local`）；运行时派生 secrets 必须通过 `GENERATED_ENV_SECRET_REF` 写入远端 secret backend，`.env.prod.generated.secrets` 仅保留空占位。
 - [ ] secret backend 已核对：`.deploy/remote.env` 中的 `SECRET_BACKEND` / `*_SECRET_REF` / `GENERATED_ENV_SECRET_REF` / `VAULT_ADDR` / `VAULT_TOKEN_FILE`。
