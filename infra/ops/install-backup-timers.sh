@@ -62,6 +62,7 @@ build_runuser_identity() {
   local supplementary_group_id
   local supplementary_group_record
   local supplementary_group_name
+  local supplementary_group_resolved_id
   local -a supplementary_group_ids=()
   local -n output_ref="${output_name}"
 
@@ -76,7 +77,7 @@ build_runuser_identity() {
     return 1
   }
   for supplementary_group_id in "${supplementary_group_ids[@]}"; do
-    [[ "${supplementary_group_id}" =~ ^[0-9]+$ ]] || {
+    [[ "${supplementary_group_id}" =~ ^[0-9]+$ && "${supplementary_group_id}" != "0" ]] || {
       echo "[install-backup-timers][error] invalid supplementary group id for ${deploy_user}: ${supplementary_group_id}" >&2
       return 1
     }
@@ -84,9 +85,10 @@ build_runuser_identity() {
       echo "[install-backup-timers][error] failed to resolve supplementary group ${supplementary_group_id} for ${deploy_user}" >&2
       return 1
     }
-    IFS=: read -r supplementary_group_name _ _ _ <<<"${supplementary_group_record}"
-    [[ -n "${supplementary_group_name}" ]] || {
-      echo "[install-backup-timers][error] supplementary group ${supplementary_group_id} has no name" >&2
+    IFS=: read -r supplementary_group_name _ supplementary_group_resolved_id _ <<<"${supplementary_group_record}"
+    [[ -n "${supplementary_group_name}" && "${supplementary_group_name}" != "root" &&
+      "${supplementary_group_resolved_id}" == "${supplementary_group_id}" ]] || {
+      echo "[install-backup-timers][error] supplementary group ${supplementary_group_id} has an unsafe or inconsistent NSS record" >&2
       return 1
     }
     output_ref+=(-G "${supplementary_group_name}")
