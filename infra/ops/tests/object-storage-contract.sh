@@ -711,6 +711,7 @@ assert_contains "${SYNC_BACKUPS}" 'APP_ENV:-.*production'
 assert_contains "${SYNC_BACKUPS}" 'unset BACKUP_OBJECT_STORAGE_PINNED_HOSTS'
 assert_contains "${SYNC_BACKUPS}" 'require_live_postgres_wal_archive_volume'
 assert_contains "${SYNC_BACKUPS}" 'require_live_postgres_wal_archiving'
+assert_contains "${COMMON_LIB}" 'pg_create_restore_point'
 assert_contains "${COMMON_LIB}" 'pg_switch_wal'
 assert_contains "${COMMON_LIB}" 'pg_postmaster_start_time'
 assert_contains "${COMMON_LIB}" 'last_archived_wal'
@@ -876,21 +877,28 @@ import sys
 
 document = json.loads(sys.argv[1])
 document["archived_count"] = 3
-document["last_archived_wal"] = "000000010000000000000002"
+document["last_archived_wal"] = "000000010000000000000003"
 document["last_archived_epoch"] = 300
 print(json.dumps(document, separators=(",", ":")))
 PY
 )"
 healthy_probe_state="${tmpdir}/healthy-wal-probe-state"
 HEALTHY_PROBE_STATE="${healthy_probe_state}"
+HEALTHY_PROBE_WAL="000000010000000000000002"
 FRESH_WAL_ARCHIVER_STATUS="${fresh_archiver_status}"
 docker() {
   if [[ "$1" == exec && "$2" == contract-postgres && "$*" == *"SELECT archived_count::text"* ]]; then
     printf '%s\n' 2
     return 0
   fi
+  if [[ "$1" == exec && "$2" == contract-postgres && "$*" == *pg_create_restore_point* ]]; then
+    : >"${HEALTHY_PROBE_STATE}.restore-point"
+    return 0
+  fi
   if [[ "$1" == exec && "$2" == contract-postgres && "$*" == *pg_switch_wal* ]]; then
+    [[ -f "${HEALTHY_PROBE_STATE}.restore-point" ]] || return 91
     : >"${HEALTHY_PROBE_STATE}.switched"
+    printf '%s\n' "${HEALTHY_PROBE_WAL}"
     return 0
   fi
   if [[ "$1" == exec && "$2" == contract-postgres && "$*" == *json_build_object* ]]; then
@@ -902,7 +910,8 @@ docker() {
     return 0
   fi
   if [[ "$1" == exec && "$2" == contract-postgres && "$3" == /bin/sh ]]; then
-    return 0
+    [[ "${!#}" == "${HEALTHY_PROBE_WAL}" ]]
+    return
   fi
   return 90
 }
@@ -911,6 +920,38 @@ if ! require_live_postgres_wal_archiving contract-postgres contract-admin contra
 fi
 [[ -f "${healthy_probe_state}.switched" ]] ||
   fail "the live WAL archiver validator reused stale success instead of forcing a fresh probe"
+[[ -f "${healthy_probe_state}.restore-point" ]] ||
+  fail "the live WAL archiver validator did not generate WAL before switching an idle cluster"
+
+failed_restore_point_state="${tmpdir}/failed-restore-point-probe"
+if (
+  docker() {
+    if [[ "$1" == exec && "$2" == contract-postgres && "$*" == *json_build_object* ]]; then
+      printf '%s\n' "${healthy_archiver_status}"
+      return 0
+    fi
+    if [[ "$1" == exec && "$2" == contract-postgres && "$*" == *"SELECT archived_count::text"* ]]; then
+      printf '%s\n' 2
+      return 0
+    fi
+    if [[ "$1" == exec && "$2" == contract-postgres && "$*" == *pg_create_restore_point* ]]; then
+      return 1
+    fi
+    if [[ "$1" == exec && "$2" == contract-postgres && "$*" == *pg_switch_wal* ]]; then
+      : >"${failed_restore_point_state}.switched"
+      return 0
+    fi
+    return 90
+  }
+  require_live_postgres_wal_archiving contract-postgres contract-admin contract-db
+) >"${failed_restore_point_state}.out" 2>"${failed_restore_point_state}.err"; then
+  fail "the live WAL archiver probe accepted a failed restore-point record"
+fi
+grep -q 'failed to create a PostgreSQL WAL archive probe restore point' \
+  "${failed_restore_point_state}.err" ||
+  fail "a failed WAL restore-point probe did not report the causal boundary"
+[[ ! -e "${failed_restore_point_state}.switched" ]] ||
+  fail "the live WAL archiver probe switched WAL after restore-point creation failed"
 
 if python3 "${WAL_ARCHIVER_VALIDATOR}" \
   --status-json "${healthy_archiver_status}" \
@@ -1016,6 +1057,7 @@ grep -q 'WAL archiver settings or status are invalid' "${tmpdir}/disabled-wal-ar
 
 wal_probe_state="${tmpdir}/wal-probe-state"
 WAL_PROBE_STATE="${wal_probe_state}"
+WAL_PROBE_WAL="000000010000000000000001"
 WAL_ARCHIVER_STATUS="${healthy_archiver_status}"
 WAL_ARCHIVER_UNPROVEN_STATUS="$(python3 - <<'PY'
 import json
@@ -1039,8 +1081,14 @@ docker() {
     printf '%s\n' 0
     return 0
   fi
+  if [[ "$1" == exec && "$2" == contract-postgres && "$*" == *pg_create_restore_point* ]]; then
+    : >"${WAL_PROBE_STATE}.restore-point"
+    return 0
+  fi
   if [[ "$1" == exec && "$2" == contract-postgres && "$*" == *pg_switch_wal* ]]; then
+    [[ -f "${WAL_PROBE_STATE}.restore-point" ]] || return 91
     : >"${WAL_PROBE_STATE}.switched"
+    printf '%s\n' "${WAL_PROBE_WAL}"
     return 0
   fi
   if [[ "$1" == exec && "$2" == contract-postgres && "$*" == *json_build_object* ]]; then
@@ -1052,7 +1100,8 @@ docker() {
     return 0
   fi
   if [[ "$1" == exec && "$2" == contract-postgres && "$3" == /bin/sh ]]; then
-    return 0
+    [[ "${!#}" == "${WAL_PROBE_WAL}" ]]
+    return
   fi
   return 90
 }
@@ -1061,6 +1110,8 @@ if ! require_live_postgres_wal_archiving contract-postgres contract-admin contra
 fi
 [[ -f "${wal_probe_state}.switched" ]] ||
   fail "the live WAL archiver validator did not request pg_switch_wal for an unproven server start"
+[[ -f "${wal_probe_state}.restore-point" ]] ||
+  fail "the unproven live WAL archiver probe did not generate WAL before switching"
 
 python3 - "${SYNC_BACKUPS}" <<'PY'
 import sys
