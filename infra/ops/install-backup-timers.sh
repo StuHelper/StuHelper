@@ -54,45 +54,31 @@ require_service_identity() {
   }
 }
 
-build_runuser_identity() {
-  local deploy_user="$1"
-  local deploy_group="$2"
-  local output_name="$3"
-  local supplementary_group_listing
-  local supplementary_group_id
-  local supplementary_group_record
-  local supplementary_group_name
-  local supplementary_group_resolved_id
-  local -a supplementary_group_ids=()
-  local -n output_ref="${output_name}"
+run_activation_preflight() {
+  local systemd_run_bin="$1"
+  local deploy_user="$2"
+  local deploy_group="$3"
+  local deploy_app_dir="$4"
+  local activation_environment_name="$5"
+  local -n activation_environment_ref="${activation_environment_name}"
 
-  output_ref=(runuser -u "${deploy_user}" -g "${deploy_group}")
-  if ! supplementary_group_listing="$(id -G "${deploy_user}")"; then
-    echo "[install-backup-timers][error] failed to enumerate supplementary groups for ${deploy_user}" >&2
-    return 1
-  fi
-  read -r -a supplementary_group_ids <<<"${supplementary_group_listing}"
-  ((${#supplementary_group_ids[@]} > 0)) || {
-    echo "[install-backup-timers][error] deploy user has no resolvable account groups: ${deploy_user}" >&2
+  [[ -x "${systemd_run_bin}" ]] || {
+    echo "[install-backup-timers][error] systemd-run is required for service-identity activation preflight" >&2
     return 1
   }
-  for supplementary_group_id in "${supplementary_group_ids[@]}"; do
-    [[ "${supplementary_group_id}" =~ ^[0-9]+$ && "${supplementary_group_id}" != "0" ]] || {
-      echo "[install-backup-timers][error] invalid supplementary group id for ${deploy_user}: ${supplementary_group_id}" >&2
-      return 1
-    }
-    supplementary_group_record="$(getent group "${supplementary_group_id}")" || {
-      echo "[install-backup-timers][error] failed to resolve supplementary group ${supplementary_group_id} for ${deploy_user}" >&2
-      return 1
-    }
-    IFS=: read -r supplementary_group_name _ supplementary_group_resolved_id _ <<<"${supplementary_group_record}"
-    [[ -n "${supplementary_group_name}" && "${supplementary_group_name}" != "root" &&
-      "${supplementary_group_resolved_id}" == "${supplementary_group_id}" ]] || {
-      echo "[install-backup-timers][error] supplementary group ${supplementary_group_id} has an unsafe or inconsistent NSS record" >&2
-      return 1
-    }
-    output_ref+=(-G "${supplementary_group_name}")
-  done
+  "${systemd_run_bin}" \
+    --quiet \
+    --wait \
+    --pipe \
+    --collect \
+    --service-type=exec \
+    --property="User=${deploy_user}" \
+    --property="Group=${deploy_group}" \
+    --property="WorkingDirectory=${deploy_app_dir}" \
+    --property="UnsetEnvironment=LD_PRELOAD LD_LIBRARY_PATH LD_AUDIT GCONV_PATH LOCPATH" \
+    /usr/bin/env -i \
+    "${activation_environment_ref[@]}" \
+    /bin/bash --noprofile --norc "${deploy_app_dir}/infra/ops/remote-preflight.sh" --timer-activation
 }
 
 main() {
@@ -271,10 +257,7 @@ EOF
     return 0
   fi
 
-  command -v runuser >/dev/null 2>&1 || {
-    echo "[install-backup-timers][error] runuser is required for non-root activation preflight" >&2
-    exit 1
-  }
+  local systemd_run_bin=/usr/bin/systemd-run
   local -a activation_environment=(
     PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     "ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.shared"
@@ -290,11 +273,12 @@ EOF
       "NGINX_PUBLIC_INGRESS_CONFIG_FILE=${NGINX_PUBLIC_INGRESS_CONFIG_FILE}"
     )
   fi
-  local -a runuser_identity=()
-  build_runuser_identity "${DEPLOY_USER}" "${DEPLOY_GROUP}" runuser_identity
-  "${runuser_identity[@]}" -- env -i \
-    "${activation_environment[@]}" \
-    /bin/bash --noprofile --norc "${DEPLOY_APP_DIR}/infra/ops/remote-preflight.sh" --timer-activation
+  run_activation_preflight \
+    "${systemd_run_bin}" \
+    "${DEPLOY_USER}" \
+    "${DEPLOY_GROUP}" \
+    "${DEPLOY_APP_DIR}" \
+    activation_environment
   systemctl enable --now stuhelper-postgres-dump-backup.timer stuhelper-postgres-basebackup.timer stuhelper-postgres-backup-sync.timer
 
   echo "[install-backup-timers] installed:"

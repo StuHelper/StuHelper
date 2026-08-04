@@ -210,15 +210,20 @@ assert_contains "${BACKUP_TIMER_INSTALLER}" '^TimeoutStartSec=12h$'
 [[ "$(grep -Ec '^ExecStart=/usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin .* BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true /bin/bash --noprofile --norc \./infra/ops/' "${BACKUP_TIMER_INSTALLER}")" == "3" ]] ||
   fail "backup timer installer must start all backup services with an allowlisted empty environment"
 assert_not_contains "${BACKUP_TIMER_INSTALLER}" 'ExecStart=/bin/bash -lc'
-assert_contains "${BACKUP_TIMER_INSTALLER}" 'output_ref=\(runuser -u "\$\{deploy_user\}" -g "\$\{deploy_group\}"\)'
-assert_contains "${BACKUP_TIMER_INSTALLER}" 'supplementary_group_listing="\$\(id -G "\$\{deploy_user\}"\)"'
-assert_contains "${BACKUP_TIMER_INSTALLER}" 'supplementary_group_record="\$\(getent group "\$\{supplementary_group_id\}"\)"'
-assert_contains "${BACKUP_TIMER_INSTALLER}" 'output_ref\+=\(-G "\$\{supplementary_group_name\}"\)'
-assert_contains "${BACKUP_TIMER_INSTALLER}" 'build_runuser_identity "\$\{DEPLOY_USER\}" "\$\{DEPLOY_GROUP\}" runuser_identity'
-assert_contains "${BACKUP_TIMER_INSTALLER}" '"\$\{runuser_identity\[@\]\}" -- env -i'
+assert_not_contains "${BACKUP_TIMER_INSTALLER}" 'runuser'
+assert_not_contains "${BACKUP_TIMER_INSTALLER}" 'id -G'
+assert_contains "${BACKUP_TIMER_INSTALLER}" 'local systemd_run_bin=/usr/bin/systemd-run'
+assert_contains "${BACKUP_TIMER_INSTALLER}" 'run_activation_preflight \\'
+assert_contains "${BACKUP_TIMER_INSTALLER}" '--service-type=exec'
+assert_contains "${BACKUP_TIMER_INSTALLER}" '--property="User=\$\{deploy_user\}"'
+assert_contains "${BACKUP_TIMER_INSTALLER}" '--property="Group=\$\{deploy_group\}"'
+assert_contains "${BACKUP_TIMER_INSTALLER}" '--property="WorkingDirectory=\$\{deploy_app_dir\}"'
+assert_contains "${BACKUP_TIMER_INSTALLER}" '--property="UnsetEnvironment=LD_PRELOAD LD_LIBRARY_PATH LD_AUDIT GCONV_PATH LOCPATH"'
+assert_contains "${BACKUP_TIMER_INSTALLER}" '/usr/bin/env -i'
 assert_contains "${BACKUP_TIMER_INSTALLER}" 'local -a activation_environment=\('
 assert_contains "${BACKUP_TIMER_INSTALLER}" 'NGINX_PUBLIC_INGRESS_CONFIG_FILE=\$\{NGINX_PUBLIC_INGRESS_CONFIG_FILE\}'
-assert_contains "${BACKUP_TIMER_INSTALLER}" '"\$\{activation_environment\[@\]\}"'
+assert_contains "${BACKUP_TIMER_INSTALLER}" '"\$\{activation_environment_ref\[@\]\}"'
+assert_contains "${BACKUP_TIMER_INSTALLER}" '^[[:space:]]+activation_environment$'
 assert_contains "${BACKUP_TIMER_INSTALLER}" '"BACKUP_STAGING_DIR=\$\{BACKUP_STAGING_DIR\}"'
 assert_contains "${BACKUP_TIMER_INSTALLER}" 'remote-preflight\.sh" --timer-activation'
 assert_contains "${BACKUP_TIMER_INSTALLER}" 'timers were not activated'
@@ -226,7 +231,7 @@ assert_contains "${BACKUP_TIMER_INSTALLER}" 'systemctl enable --now stuhelper-po
 assert_not_contains "${BACKUP_TIMER_INSTALLER}" 'SYSTEMD_PREFIX'
 
 inactive_guard_line="$(line_number "${BACKUP_TIMER_INSTALLER}" 'if [[ "${BACKUP_TIMERS_ACTIVATE}" != "true" ]]')"
-activation_preflight_line="$(line_number "${BACKUP_TIMER_INSTALLER}" 'remote-preflight.sh" --timer-activation')"
+activation_preflight_line="$(line_number "${BACKUP_TIMER_INSTALLER}" 'run_activation_preflight \')"
 enable_timer_line="$(line_number "${BACKUP_TIMER_INSTALLER}" 'systemctl enable --now stuhelper-postgres-dump-backup.timer')"
 if (( inactive_guard_line >= activation_preflight_line || activation_preflight_line >= enable_timer_line )); then
   fail "backup timers must remain untouched by default and pass the non-root activation preflight before enablement"

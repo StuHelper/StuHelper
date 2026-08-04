@@ -12,72 +12,80 @@ fail() {
 
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "${tmpdir}"' EXIT
-mkdir -p "${tmpdir}/bin"
+fake_systemd_run="${tmpdir}/systemd-run"
+argument_log="${tmpdir}/arguments"
 
-cat >"${tmpdir}/bin/id" <<'SH'
+cat >"${fake_systemd_run}" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
-[[ "$#" == 2 && "$1" == "-G" && "$2" == "contract-user" ]] || exit 64
-case "${FAKE_ID_MODE:-valid}" in
-  valid) printf '%s\n' '2100 2101 2102' ;;
-  invalid) printf '%s\n' '2100 not-a-gid' ;;
-  privileged) printf '%s\n' '2100 0 2101' ;;
-  inconsistent) printf '%s\n' '2100 2103' ;;
-  empty) printf '\n' ;;
-  *) exit 65 ;;
-esac
+: "${SYSTEMD_RUN_ARGUMENT_LOG:?}"
+printf '%s\0' "$@" >"${SYSTEMD_RUN_ARGUMENT_LOG}"
+exit "${SYSTEMD_RUN_EXIT_STATUS:-0}"
 SH
-
-cat >"${tmpdir}/bin/getent" <<'SH'
-#!/usr/bin/env bash
-set -euo pipefail
-[[ "$#" == 2 && "$1" == "group" ]] || exit 64
-[[ "${FAIL_GROUP_ID:-}" != "$2" ]] || exit 2
-case "$2" in
-  2100) printf '%s\n' 'contract-primary:x:2100:' ;;
-  2101) printf '%s\n' 'docker:x:2101:contract-user' ;;
-  2102) printf '%s\n' 'private-ca:x:2102:contract-user' ;;
-  2103) printf '%s\n' 'inconsistent:x:9999:contract-user' ;;
-  *) exit 2 ;;
-esac
-SH
-
-chmod +x "${tmpdir}/bin/id" "${tmpdir}/bin/getent"
+chmod +x "${fake_systemd_run}"
 
 # shellcheck source=infra/ops/install-backup-timers.sh
 source "${INSTALLER}"
 
-PATH="${tmpdir}/bin:/usr/bin:/bin"
-declare -a identity=()
-build_runuser_identity contract-user backup-service identity
-
-expected=(
-  runuser -u contract-user -g backup-service
-  -G contract-primary
-  -G docker
-  -G private-ca
+activation_environment=(
+  PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+  ENV_FILE=/opt/contract/.env.prod.shared
+  SECRETS_ENV_FILE=/opt/contract/.env.prod.secrets
+  LOCAL_STATE_DIR=/var/lib/contract
 )
-[[ "${#identity[@]}" == "${#expected[@]}" ]] ||
-  fail "runuser identity argument count mismatch"
+export SYSTEMD_RUN_ARGUMENT_LOG="${argument_log}"
+run_activation_preflight \
+  "${fake_systemd_run}" \
+  contract-user \
+  backup-service \
+  /opt/contract \
+  activation_environment
+
+mapfile -d '' -t actual <"${argument_log}"
+expected=(
+  --quiet
+  --wait
+  --pipe
+  --collect
+  --service-type=exec
+  --property=User=contract-user
+  --property=Group=backup-service
+  --property=WorkingDirectory=/opt/contract
+  '--property=UnsetEnvironment=LD_PRELOAD LD_LIBRARY_PATH LD_AUDIT GCONV_PATH LOCPATH'
+  /usr/bin/env
+  -i
+  "${activation_environment[@]}"
+  /bin/bash
+  --noprofile
+  --norc
+  /opt/contract/infra/ops/remote-preflight.sh
+  --timer-activation
+)
+[[ "${#actual[@]}" == "${#expected[@]}" ]] ||
+  fail "systemd-run activation argument count mismatch"
 for index in "${!expected[@]}"; do
-  [[ "${identity[${index}]}" == "${expected[${index}]}" ]] ||
-    fail "runuser identity mismatch at index ${index}"
+  [[ "${actual[${index}]}" == "${expected[${index}]}" ]] ||
+    fail "systemd-run activation argument mismatch at index ${index}"
 done
 
-if FAKE_ID_MODE=invalid build_runuser_identity contract-user backup-service identity 2>/dev/null; then
-  fail "invalid group IDs must fail closed"
+export SYSTEMD_RUN_EXIT_STATUS=23
+if run_activation_preflight \
+  "${fake_systemd_run}" \
+  contract-user \
+  backup-service \
+  /opt/contract \
+  activation_environment 2>/dev/null; then
+  fail "a failed transient preflight unit must fail closed"
 fi
-if FAKE_ID_MODE=privileged build_runuser_identity contract-user backup-service identity 2>/dev/null; then
-  fail "gid 0 must never be delegated to the activation preflight"
-fi
-if FAKE_ID_MODE=inconsistent build_runuser_identity contract-user backup-service identity 2>/dev/null; then
-  fail "an inconsistent NSS group record must fail closed"
-fi
-if FAKE_ID_MODE=empty build_runuser_identity contract-user backup-service identity 2>/dev/null; then
-  fail "an empty account group list must fail closed"
-fi
-if FAIL_GROUP_ID=2102 build_runuser_identity contract-user backup-service identity 2>/dev/null; then
-  fail "an unresolvable account group must fail closed"
+unset SYSTEMD_RUN_EXIT_STATUS
+
+if run_activation_preflight \
+  "${tmpdir}/missing-systemd-run" \
+  contract-user \
+  backup-service \
+  /opt/contract \
+  activation_environment 2>/dev/null; then
+  fail "a missing systemd-run binary must fail closed"
 fi
 
 echo "[install-backup-timers-identity-contract] all assertions passed"
