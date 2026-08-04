@@ -25,7 +25,7 @@ export BACKUP_DATABASE_URL='postgres://...'
 ./infra/ops/backup-postgres.sh backups/stuhelper-$(date +%F-%H%M%S).dump
 ```
 
-命令行显式导出的 `BACKUP_DATABASE_URL` / `REPLICATION_DATABASE_URL` 优先于环境文件；未显式导出时才读取标准 StuHelper 环境与 secret backend。样板 URL 中的密码占位符只在进程内展开并进行 URL 编码，不会把真实密码回写到共享配置文件。
+命令行显式导出的 `BACKUP_DATABASE_URL` / `REPLICATION_DATABASE_URL` 优先于环境文件；未显式导出时才读取标准 StuHelper 环境与 secret backend。样板 URL 中的密码占位符只在进程内展开并进行 URL 编码，不会把真实密码回写到共享配置文件。生产使用内置 PostgreSQL 时，两条 URL 还必须固定到受检 Compose `postgres` 服务、配置的数据库和默认服务端口，不允许用 query 参数改写路由；实际连接返回的服务端 IP 必须属于同一个健康的规范 PostgreSQL 容器，且不能是 standby。该检查在每次实际生成备份前重新执行，避免首次激活后配置漂移到另一个可达集群。
 
 脚本会：
 
@@ -74,7 +74,9 @@ BACKUP_MODE=basebackup ./infra/ops/backup-postgres.sh backups/stuhelper-$(date +
 - 只有本轮全部远端复制成功后，它才会清理超出保留期的本地 logical / base / WAL 文件；认证、网络或对象存储故障不会触发本地删除
 - 同步器显式排除 `*.partial*`、WAL 归档的 `*.tmp*` 和 staging 路径；只有已经原子发布的工件会上传
 - 生产 systemd unit 固定要求异机门禁；门禁会在创建备份或执行 logical / base / WAL 保留期清理之前检查，失败时不会删除任何尚未上传的本地工件
-- `current-release.env` 尚未产生时，只有 Docker daemon 可确认本机 PostgreSQL 容器和 data volume 都不存在、未选择外部 PostgreSQL，且没有 `releases.log` 或 per-tag 历史证据，timer 才允许在真正空白的 bootstrap 主机上成功延期；任何数据库/账本证据仍存而 marker 缺失都会失败并告警，防止首次部署在写 marker 前失败后长期显示“备份成功”
+- `current-release.env` 尚未产生时，只有 Docker daemon 可确认本机 PostgreSQL 容器和 data volume 都不存在、未选择外部 PostgreSQL，且没有 `releases.log` 或 per-tag 历史证据，timer 才允许在真正空白的 bootstrap 主机上成功延期。已有 datastore 时仍会失败关闭，不能把“未备份”伪装成成功 no-op
+- 仅当发布账本已完整丢失、又必须保护经过人工审计的内置 PostgreSQL 存量库时，才可在完成隔离 base + WAL replay 演练后，由部署用户显式运行 `./infra/ops/activate-existing-postgres-backups.sh`。普通发布链为兼容既有环境仍允许基础前缀 `postgres`；进入存量库激活前，操作者必须把 `BACKUP_OBJECT_STORAGE_PREFIX` 显式改为以实时 `system_identifier` 结尾的集群专属前缀，例如 `postgres/1234567890123456789`。激活器和激活账本会共同校验并绑定该值，后续由该账本授权的定时任务也会在同步前重新校验，确保更换集群后 logical/base/WAL 进入新的恢复命名空间，不能与前任集群的同名 WAL 段混用。脚本先取得与生产发布相同的主机锁，并在任何持久写入前核对固定 digest、Compose 身份、data/WAL volume、实时 `system_identifier`、集群专属前缀、归档进度和异机目标；随后强制从该实时集群新建 logical dump 与 base backup，同步完整 logical/base/WAL 集合，再把两份新工件从异机对象存储取回并交叉验证文件名和 SHA256。每份证据的修改时间都必须不早于当前激活尝试，72 小时年龄上限仅作为覆盖受保护生成与传输容量窗口的额外边界。只有这些步骤全部成功，才会把两份恢复工件的名称与摘要写入 `0600` 的 `postgres-backup-activation.json` 及不可变副本。定时任务会在每次运行时重新把当前记录绑定到实时容器、集群和对象前缀；镜像、volume、system identifier 或前缀漂移会让调度立即失败，但不会把历史记录变成永久死锁。完成新的隔离恢复审计后再次运行激活脚本，会先验证已有不可变记录形成从当前指针回溯到首条记录的无环 SHA256 链，再生成和取回一组全新恢复工件，并以显式 superseding 记录链接前任；缺失指针、孤儿记录、链路篡改或未显式完成新鲜证据都拒绝替换。它不能覆盖残存或损坏的 `current-release.env`、`releases.log`、per-tag 账本，也不支持拿内置库记录授权外部 PostgreSQL；脚本内置的工件校验仍不能替代此前由操作者完成的隔离 WAL replay 演练
+- 激活账本 schema v3 新增并强制绑定集群专属对象前缀。历史 v1/v2 记录仍可完整验证和保留为摘要链接的前代，但不能直接授权定时任务；必须用当前集群的新 logical/base/异机取回证据显式 supersede 为 v3，禁止原地改写旧 JSON
 - StuHelper 环境加载器将配置文件按数据解析，拒绝 `PATH`、`PYTHON*`、`LD_*`、`DYLD_*`、`BASH_ENV` / `ENV`、`GCONV_PATH`、`NODE_OPTIONS` 等进程控制变量，并在解析前与加载后清除父进程继承的同类变量；定时任务调用备份和同步子脚本时仍使用非登录、无 profile 的隔离 Bash，防止子进程启动钩子改变门禁或清理顺序
 
 生产机建议直接安装 systemd timer：
@@ -82,6 +84,20 @@ BACKUP_MODE=basebackup ./infra/ops/backup-postgres.sh backups/stuhelper-$(date +
 ```bash
 sudo ./infra/ops/install-backup-timers.sh
 ```
+
+灾难恢复后若应用发布账本已无法找回、但内置 PostgreSQL 已完成独立恢复验收，先保留 timer
+为 stopped 状态，再执行一次受控激活并实跑三个 service；不要手写 JSON 或伪造应用 release：
+
+```bash
+cd /opt/stuhelper
+sudo -u stuhelper ./infra/ops/activate-existing-postgres-backups.sh
+sudo systemctl start stuhelper-postgres-backup-sync.service
+sudo systemctl start stuhelper-postgres-dump-backup.service
+sudo systemctl start stuhelper-postgres-basebackup.service
+```
+
+三次 service 均成功后再启动 timer。后续正式应用发布仍必须通过 `prod-deploy.sh` 生成正常的
+release ledger；datastore backup activation 不是应用发布成功证明，也不能用于回滚应用镜像。
 
 默认计划：
 
@@ -110,6 +126,10 @@ sudo ./infra/ops/install-backup-timers.sh
 
 在 `APP_ENV=production` 或显式要求异机门禁时，取回脚本不会复用父进程留下的旧地址固定：它会先加载最终环境，重新解析并验证实际传输主机，再把本轮验证结果固定给 rclone。门禁失败时不会发起取回，也不能把同机对象存储响应计作生产恢复 evidence。
 
+`BACKUP_OBJECT_STORAGE_PREFIX` 是恢复输入的一部分，必须选择目标 base backup 对应记录中的
+`backupObjectStoragePrefix`；不要为了“找得到更多 WAL”改回父级 `postgres` 前缀。不同
+`system_identifier` 的对象必须保留在各自命名空间。
+
 默认会把对象存储中的内容拉回：
 
 - `backups/postgres/logical`
@@ -133,6 +153,9 @@ sudo ./infra/ops/install-backup-timers.sh
 `POSTGRES_BACKUP_EVIDENCE_MAX_LOGICAL_AGE_SECONDS` 和
 `POSTGRES_BACKUP_EVIDENCE_MAX_BASE_AGE_SECONDS` 收紧。生成的
 `infra/generated/postgres-backup-evidence.json` 不含连接串或对象存储密钥。
+独立测试可以显式覆盖 `POSTGRES_BACKUP_EVIDENCE_FETCH_COMMAND`，但存量生产库激活流程会
+强制使用仓库内的 `fetch-postgres-backups.sh`；环境文件或父进程中的测试 fixture 不能替代
+异机下载证据。
 
 **evidence 通过不等于 PITR 已验收。**它证明近期工件存在、完整且能从远端取回；仍须按下方
 演练清单，在隔离实例实际启动恢复后的 PGDATA，并在目标时间点恢复场景中验证 WAL 连续性。

@@ -11,6 +11,8 @@ COMMON_LIB="${REPO_ROOT}/infra/ops/lib/common.sh"
 SYNC_BACKUPS="${REPO_ROOT}/infra/ops/sync-postgres-backups.sh"
 FETCH_BACKUPS="${REPO_ROOT}/infra/ops/fetch-postgres-backups.sh"
 SCHEDULED_BACKUP="${REPO_ROOT}/infra/ops/run-scheduled-backup.sh"
+ACTIVATE_EXISTING_BACKUPS="${REPO_ROOT}/infra/ops/activate-existing-postgres-backups.sh"
+BACKUP_ACTIVATION_MANAGER="${REPO_ROOT}/infra/ops/manage-postgres-backup-activation.py"
 BASE_COMPOSE="${REPO_ROOT}/docker-compose.yml"
 PROD_COMPOSE="${REPO_ROOT}/docker-compose.prod.yml"
 PROD_DEPLOY="${REPO_ROOT}/infra/ops/prod-deploy.sh"
@@ -52,10 +54,13 @@ for file in \
   "${RCLONE_HELPER}" \
   "${SYNC_BACKUPS}" \
   "${FETCH_BACKUPS}" \
-  "${SCHEDULED_BACKUP}"; do
+  "${SCHEDULED_BACKUP}" \
+  "${ACTIVATE_EXISTING_BACKUPS}"; do
   [[ -f "${file}" ]] || fail "missing file: ${file}"
   bash -n "${file}"
 done
+[[ -f "${BACKUP_ACTIVATION_MANAGER}" ]] || fail "missing file: ${BACKUP_ACTIVATION_MANAGER}"
+python3 -m py_compile "${BACKUP_ACTIVATION_MANAGER}"
 
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "${tmpdir}"' EXIT
@@ -1062,12 +1067,19 @@ import sys
 from pathlib import Path
 
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
+container_assignment = source.index('postgres_container="${POSTGRES_CONTAINER_NAME:-${STACK_NAME:-stuhelper}-postgres}"')
 volume_validation = source.index("require_live_postgres_wal_archive_volume")
 archiver_validation = source.index("require_live_postgres_wal_archiving")
 external_pitr_validation = source.index("require_external_postgres_pitr_evidence")
 first_transfer = source.index("run_backup_object_storage_rclone", volume_validation)
-if not volume_validation < archiver_validation < first_transfer:
+if not container_assignment < volume_validation < archiver_validation < first_transfer:
     raise SystemExit("live WAL mount and archiver validation must precede every backup transfer")
+validation_block = source[container_assignment:first_transfer]
+if validation_block.count('"${postgres_container}"') < 2:
+    raise SystemExit("WAL mount and archiver validation must honor POSTGRES_CONTAINER_NAME")
+preservation_block = source[source.index("load_env_preserving"):source.index("unset BACKUP_OBJECT_STORAGE_PINNED_HOSTS")]
+if "POSTGRES_CONTAINER_NAME" not in preservation_block:
+    raise SystemExit("sync must preserve the caller-selected PostgreSQL container across environment reloads")
 if external_pitr_validation >= first_transfer:
     raise SystemExit("external PITR evidence validation must precede every backup transfer")
 PY
@@ -1139,6 +1151,13 @@ DEPLOY_STATE_DIR="${DEPLOY_STATE_DIR:-${REPO_ROOT}/.deploy}"
 load_env_preserving() { :; }
 require_cmd() { :; }
 require_off_host_backup_object_storage() { printf 'off-host-gate\n' >>"${SCHEDULED_CAPTURE_FILE}"; }
+require_live_postgres_backup_activation() { printf 'backup-activation\n' >>"${SCHEDULED_CAPTURE_FILE}"; }
+require_no_surviving_release_records() {
+  local releases_dir="$1"
+  if find "${releases_dir}" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null | grep -q .; then
+    die "committed release marker is missing while immutable per-tag evidence survives"
+  fi
+}
 source_release_record_env_file() {
   local file="$1"
   TAG="$(sed -n 's/^TAG=//p' "${file}")"
@@ -1232,6 +1251,34 @@ for scheduled_database_state in container volume; do
     "${scheduled_database_diagnostic}"
 done
 
+mkdir -p "${scheduled_fixture}/.deploy/postgres-backup-activations"
+printf 'orphaned\n' >"${scheduled_fixture}/.deploy/postgres-backup-activations/orphaned.json"
+if PATH="${scheduled_path}" \
+  SCHEDULED_CAPTURE_FILE="${scheduled_capture}" \
+  SCHEDULED_FAKE_DATABASE_STATE=container \
+  STACK_NAME=contract \
+  "${scheduled_fixture}/infra/ops/run-scheduled-backup.sh" sync \
+  >"${scheduled_fixture}/orphaned-activation.out" \
+  2>"${scheduled_fixture}/orphaned-activation.err"; then
+  fail "scheduled sync accepted orphaned immutable backup activation evidence"
+fi
+assert_contains "${scheduled_fixture}/orphaned-activation.err" 'activation evidence survives without a current pointer'
+rm -rf "${scheduled_fixture}/.deploy/postgres-backup-activations"
+
+printf '{}\n' >"${scheduled_fixture}/.deploy/postgres-backup-activation.json"
+PATH="${scheduled_path}" \
+SCHEDULED_CAPTURE_FILE="${scheduled_capture}" \
+SCHEDULED_FAKE_DATABASE_STATE=container \
+STACK_NAME=contract \
+BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true \
+  "${scheduled_fixture}/infra/ops/run-scheduled-backup.sh" sync \
+  >"${scheduled_fixture}/activated-existing-datastore.out"
+assert_contains "${scheduled_fixture}/activated-existing-datastore.out" 'authorized by the audited existing-datastore backup activation'
+assert_contains "${scheduled_capture}" '^backup-activation$'
+assert_contains "${scheduled_capture}" '^off-host-gate$'
+assert_contains "${scheduled_capture}" '^sync$'
+rm -f "${scheduled_fixture}/.deploy/postgres-backup-activation.json"
+
 printf '2026-08-03T00:00:00Z\tcontract-release\n' >"${scheduled_fixture}/.deploy/releases.log"
 if PATH="${scheduled_path}" \
   SCHEDULED_CAPTURE_FILE="${scheduled_capture}" \
@@ -1279,6 +1326,24 @@ if SCHEDULED_CAPTURE_FILE="${scheduled_capture}" \
 fi
 assert_contains "${scheduled_fixture}/mismatched.err" 'does not match its immutable per-tag record'
 
+release_guard_fixture="${tmpdir}/release-guard"
+install -d -m 0700 "${release_guard_fixture}"
+(
+  # shellcheck source=/dev/null
+  source "${COMMON_LIB}"
+  require_no_surviving_release_records "${release_guard_fixture}"
+) || fail "an empty protected release directory was rejected"
+chmod 000 "${release_guard_fixture}"
+if (
+  # shellcheck source=/dev/null
+  source "${COMMON_LIB}"
+  require_no_surviving_release_records "${release_guard_fixture}"
+) >"${tmpdir}/unreadable-release-dir.out" 2>"${tmpdir}/unreadable-release-dir.err"; then
+  fail "an unreadable release directory was treated as empty"
+fi
+chmod 0700 "${release_guard_fixture}"
+assert_contains "${tmpdir}/unreadable-release-dir.err" 'release record directory must use mode 0700|cannot be enumerated'
+
 if ! python3 - "${FETCH_BACKUPS}" <<'PY'
 from pathlib import Path
 import sys
@@ -1300,6 +1365,7 @@ import sys
 
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
 release_marker = source.index('current-release.env')
+backup_activation = source.index('require_live_postgres_backup_activation')
 gate = source.index("true) require_off_host_backup_object_storage")
 backup = source.index('BACKUP_MODE="${MODE}"')
 sync = source.index('"${SCRIPT_DIR}/sync-postgres-backups.sh"', backup)
@@ -1311,8 +1377,8 @@ deletions = (
     'prune_old_backups "${backup_dir}"',
     "docker run --rm",
 )
-if release_marker >= gate:
-    raise SystemExit("scheduled work must defer before its off-host gate when no release is committed")
+if release_marker >= backup_activation or backup_activation >= gate:
+    raise SystemExit("scheduled work must validate release or audited datastore activation before its off-host gate")
 if 'dump | basebackup | sync' not in source:
     raise SystemExit("scheduled wrapper must cover dump, basebackup, and sync timer modes")
 for mutation in mutations:

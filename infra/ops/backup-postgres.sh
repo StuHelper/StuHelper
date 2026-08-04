@@ -31,6 +31,11 @@ load_env_preserving \
 logical_url="${BACKUP_DATABASE_URL:-}"
 replication_url="${REPLICATION_DATABASE_URL:-}"
 
+if [[ "${APP_ENV:-}" == "production" && "${EXTERNAL_POSTGRES_ENABLED:-false}" != "true" ]]; then
+  require_live_canonical_postgres_datastore
+  require_internal_postgres_backup_sources_match_live_datastore
+fi
+
 if [[ "${mode}" == "dump" && -z "${logical_url}" ]]; then
   die "BACKUP_DATABASE_URL 未配置"
 fi

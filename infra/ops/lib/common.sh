@@ -636,6 +636,50 @@ PY
   printf '%s\n' "${attempt_id}"
 }
 
+require_no_surviving_release_records() {
+  local releases_dir="${1:-}"
+  local diagnostic
+
+  [[ -n "${releases_dir}" ]] || die "release record directory path must not be empty"
+  require_cmd python3
+  if ! diagnostic="$(python3 - "${releases_dir}" 2>&1 <<'PY'
+import os
+import re
+import stat
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+try:
+    metadata = path.lstat()
+except FileNotFoundError:
+    raise SystemExit(0)
+if not stat.S_ISDIR(metadata.st_mode) or path.is_symlink():
+    raise SystemExit(f"release record path must be a regular directory: {path}")
+if metadata.st_uid != os.geteuid():
+    raise SystemExit(f"release record directory must be owned by the deploy user: {path}")
+if stat.S_IMODE(metadata.st_mode) != 0o700:
+    raise SystemExit(f"release record directory must use mode 0700: {path}")
+
+safe_record = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\.env")
+try:
+    with os.scandir(path) as entries:
+        records = list(entries)
+except OSError as exc:
+    raise SystemExit(f"release record directory cannot be enumerated: {path}") from exc
+if records:
+    entry = records[0]
+    if not safe_record.fullmatch(entry.name):
+        raise SystemExit(f"release record directory contains unexpected evidence: {entry.path}")
+    raise SystemExit(
+        f"committed release marker is missing while immutable per-tag evidence survives: {entry.path}"
+    )
+PY
+  )"; then
+    die "${diagnostic}"
+  fi
+}
+
 migrate_legacy_release_state_permissions() {
   local migrated_count
   migrated_count="$(python3 - "${DEPLOY_STATE_DIR}" <<'PY'
@@ -1489,6 +1533,41 @@ normalize_backup_object_storage_env() {
   fi
 }
 
+require_postgres_backup_object_storage_namespace() {
+  local prefix="${1:-}"
+  local system_identifier="${2:-}"
+  local diagnostic
+
+  require_cmd python3
+  if ! diagnostic="$(python3 - "${prefix}" "${system_identifier}" 2>&1 <<'PY'
+import re
+import sys
+
+prefix, system_identifier = sys.argv[1:3]
+if not re.fullmatch(r"[0-9]{10,20}", system_identifier):
+    raise SystemExit("live PostgreSQL system identifier is invalid")
+if not prefix or len(prefix) > 255:
+    raise SystemExit("BACKUP_OBJECT_STORAGE_PREFIX must contain 1-255 characters")
+if prefix.startswith("/") or prefix.endswith("/") or "//" in prefix:
+    raise SystemExit("BACKUP_OBJECT_STORAGE_PREFIX must be a relative canonical object prefix")
+components = prefix.split("/")
+if any(
+    component in {"", ".", ".."}
+    or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", component) is None
+    for component in components
+):
+    raise SystemExit("BACKUP_OBJECT_STORAGE_PREFIX contains an unsafe path component")
+if components[-1] != system_identifier:
+    raise SystemExit(
+        "BACKUP_OBJECT_STORAGE_PREFIX must end with /<live PostgreSQL system_identifier> "
+        "so WAL from different clusters cannot share a recovery namespace"
+    )
+PY
+  )"; then
+    die "${diagnostic}"
+  fi
+}
+
 materialize_postgres_runtime_urls() {
   local rendered
   rendered="$(python3 - <<'PY'
@@ -1533,6 +1612,224 @@ PY
 
 LOCAL_STATE_DIR="${LOCAL_STATE_DIR:-$(default_local_state_dir)}"
 POSTGRES_WAL_RESTORE_DIR="${POSTGRES_WAL_RESTORE_DIR:-${LOCAL_STATE_DIR}/postgres/wal-restore}"
+
+live_postgres_system_identifier() {
+  local postgres_container="$1"
+  local postgres_user="${2:-${POSTGRES_USER:-stuhelper}}"
+  local postgres_database="${3:-${POSTGRES_DB:-stuhelper}}"
+  local system_identifier
+
+  if ! system_identifier="$(docker exec "${postgres_container}" \
+    psql \
+    --no-psqlrc \
+    --set=ON_ERROR_STOP=1 \
+    --username="${postgres_user}" \
+    --dbname="${postgres_database}" \
+    --tuples-only \
+    --no-align \
+    --command='SELECT system_identifier::text FROM pg_control_system()' 2>/dev/null)"; then
+    die "failed to read the live PostgreSQL system identifier"
+  fi
+  system_identifier="${system_identifier//[[:space:]]/}"
+  [[ "${system_identifier}" =~ ^[0-9]{10,20}$ ]] ||
+    die "live PostgreSQL returned an invalid system identifier"
+  printf '%s\n' "${system_identifier}"
+}
+
+require_live_canonical_postgres_datastore() {
+  local stack_name="${STACK_NAME:-stuhelper}"
+  local postgres_container="${POSTGRES_CONTAINER_NAME:-${stack_name}-postgres}"
+  local postgres_data_volume="${stack_name}-postgres-data"
+  local postgres_wal_volume="${POSTGRES_WAL_ARCHIVE_VOLUME_NAME:-${stack_name}-postgres-wal-archive}"
+  local expected_image="${POSTGRES_IMAGE_REF:-}"
+  local running health actual_image compose_project compose_service mounts_json
+
+  [[ "${EXTERNAL_POSTGRES_ENABLED:-false}" != "true" ]] ||
+    die "an internal PostgreSQL backup activation cannot authorize an external PostgreSQL deployment"
+  require_cmd docker
+  require_cmd python3
+  require_digest_image_ref POSTGRES_IMAGE_REF "${expected_image}"
+
+  running="$(docker container inspect --format '{{.State.Running}}' "${postgres_container}" 2>/dev/null)" ||
+    die "failed to inspect activated PostgreSQL container ${postgres_container}"
+  health="$(docker container inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{end}}' "${postgres_container}" 2>/dev/null)" ||
+    die "failed to inspect activated PostgreSQL health ${postgres_container}"
+  actual_image="$(docker container inspect --format '{{.Config.Image}}' "${postgres_container}" 2>/dev/null)" ||
+    die "failed to inspect activated PostgreSQL image ${postgres_container}"
+  compose_project="$(docker container inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' "${postgres_container}" 2>/dev/null)" ||
+    die "failed to inspect activated PostgreSQL Compose project"
+  compose_service="$(docker container inspect --format '{{index .Config.Labels "com.docker.compose.service"}}' "${postgres_container}" 2>/dev/null)" ||
+    die "failed to inspect activated PostgreSQL Compose service"
+  mounts_json="$(docker container inspect --format '{{json .Mounts}}' "${postgres_container}" 2>/dev/null)" ||
+    die "failed to inspect activated PostgreSQL mounts"
+
+  [[ "${running}" == "true" && "${health}" == "healthy" ]] ||
+    die "activated PostgreSQL container ${postgres_container} must be running and healthy"
+  [[ "${actual_image}" == "${expected_image}" ]] ||
+    die "activated PostgreSQL container image does not match POSTGRES_IMAGE_REF"
+  [[ "${compose_project}" == "${stack_name}" && "${compose_service}" == "postgres" ]] ||
+    die "activated PostgreSQL container is not the canonical ${stack_name} Compose postgres service"
+  if ! python3 - "${postgres_data_volume}" "${postgres_wal_volume}" "${mounts_json}" <<'PY'
+import json
+import sys
+
+data_volume, wal_volume, raw_mounts = sys.argv[1:]
+try:
+    mounts = json.loads(raw_mounts)
+except (json.JSONDecodeError, TypeError) as exc:
+    raise SystemExit("invalid PostgreSQL mount metadata") from exc
+
+expected = {
+    (data_volume, "/var/lib/postgresql"),
+    (wal_volume, "/var/lib/postgresql/wal-archive"),
+}
+actual = {
+    (mount.get("Name"), mount.get("Destination"))
+    for mount in mounts
+    if mount.get("Type") == "volume" and mount.get("RW") is True
+}
+if not expected.issubset(actual):
+    raise SystemExit("activated PostgreSQL data or WAL volume does not match the canonical layout")
+PY
+  then
+    die "activated PostgreSQL data or WAL volume does not match the canonical layout"
+  fi
+
+  require_live_postgres_wal_archive_volume "${postgres_wal_volume}" "${postgres_container}"
+}
+
+require_internal_postgres_backup_sources_match_live_datastore() {
+  local stack_name="${STACK_NAME:-stuhelper}"
+  local postgres_container="${POSTGRES_CONTAINER_NAME:-${stack_name}-postgres}"
+  local postgres_database="${POSTGRES_DB:-stuhelper}"
+  local compose_service networks_json observation
+
+  [[ "${EXTERNAL_POSTGRES_ENABLED:-false}" != "true" ]] ||
+    die "internal PostgreSQL backup source validation cannot authorize an external PostgreSQL deployment"
+  require_cmd docker
+  require_cmd python3
+  [[ -n "${BACKUP_DATABASE_URL:-}" ]] || die "BACKUP_DATABASE_URL is required"
+  [[ -n "${REPLICATION_DATABASE_URL:-}" ]] || die "REPLICATION_DATABASE_URL is required"
+
+  compose_service="$(docker container inspect \
+    --format '{{index .Config.Labels "com.docker.compose.service"}}' \
+    "${postgres_container}" 2>/dev/null)" ||
+    die "failed to inspect the PostgreSQL Compose service for backup source validation"
+  networks_json="$(docker container inspect \
+    --format '{{json .NetworkSettings.Networks}}' \
+    "${postgres_container}" 2>/dev/null)" ||
+    die "failed to inspect PostgreSQL network addresses for backup source validation"
+  [[ "${compose_service}" == "postgres" ]] ||
+    die "PostgreSQL backup sources can only target the canonical Compose postgres service"
+
+  EXPECTED_POSTGRES_COMPOSE_SERVICE="${compose_service}" \
+  EXPECTED_POSTGRES_DATABASE="${postgres_database}" \
+  python3 - <<'PY' || die "PostgreSQL backup URLs do not target the canonical Compose datastore"
+import os
+from urllib.parse import parse_qsl, unquote, urlsplit
+
+service = os.environ["EXPECTED_POSTGRES_COMPOSE_SERVICE"]
+database = os.environ["EXPECTED_POSTGRES_DATABASE"]
+for key in ("BACKUP_DATABASE_URL", "REPLICATION_DATABASE_URL"):
+    value = os.environ.get(key, "")
+    try:
+        parsed = urlsplit(value)
+        port = parsed.port
+    except ValueError as exc:
+        raise SystemExit(f"{key} is not a valid PostgreSQL URL") from exc
+    if parsed.scheme not in {"postgres", "postgresql"}:
+        raise SystemExit(f"{key} must use a PostgreSQL URL scheme")
+    if parsed.hostname != service or port not in {None, 5432}:
+        raise SystemExit(f"{key} must target the canonical Compose postgres service")
+    if parsed.fragment or unquote(parsed.path.removeprefix("/")) != database:
+        raise SystemExit(f"{key} must target the configured PostgreSQL database")
+    query_keys = {name.lower() for name, _ in parse_qsl(parsed.query, keep_blank_values=True)}
+    routing_overrides = query_keys & {
+        "dbname",
+        "host",
+        "hostaddr",
+        "port",
+        "service",
+        "servicefile",
+    }
+    if routing_overrides:
+        raise SystemExit(f"{key} must not override PostgreSQL routing in query parameters")
+PY
+
+  # Both URLs are structurally pinned to the same Compose service and port.
+  # Use the ordinary least-privilege backup connection for the runtime address
+  # proof; a replication-only role may correctly be denied ordinary SQL by
+  # pg_hba.conf even though pg_basebackup can use it.
+  if ! observation="$(compose run --rm --no-deps -T \
+    postgres-client \
+    psql \
+    --no-psqlrc \
+    --set=ON_ERROR_STOP=1 \
+    --tuples-only \
+    --no-align \
+    --field-separator='|' \
+    --dbname="${BACKUP_DATABASE_URL}" \
+    --command="SELECT COALESCE(inet_server_addr()::text, ''), current_database(), pg_is_in_recovery()" \
+    2>/dev/null)"; then
+    die "BACKUP_DATABASE_URL could not prove its live PostgreSQL source identity"
+  fi
+  POSTGRES_NETWORKS_JSON="${networks_json}" \
+  POSTGRES_SOURCE_OBSERVATION="${observation}" \
+  EXPECTED_POSTGRES_DATABASE="${postgres_database}" \
+  python3 - <<'PY' || die "PostgreSQL backup URLs do not resolve to the canonical live PostgreSQL container"
+import ipaddress
+import json
+import os
+
+try:
+    networks = json.loads(os.environ["POSTGRES_NETWORKS_JSON"])
+    address, database, in_recovery = os.environ["POSTGRES_SOURCE_OBSERVATION"].strip().split("|")
+    observed_address = ipaddress.ip_interface(address).ip
+except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+    raise SystemExit("invalid PostgreSQL source identity evidence") from exc
+
+expected_addresses = set()
+for network in networks.values():
+    if not isinstance(network, dict):
+        continue
+    for key in ("IPAddress", "GlobalIPv6Address"):
+        value = network.get(key)
+        if value:
+            expected_addresses.add(ipaddress.ip_address(value))
+if observed_address not in expected_addresses:
+    raise SystemExit("PostgreSQL source address is not owned by the canonical container")
+if database != os.environ["EXPECTED_POSTGRES_DATABASE"]:
+    raise SystemExit("PostgreSQL source selected a different database")
+if in_recovery != "f":
+    raise SystemExit("PostgreSQL backup source is not the canonical primary")
+PY
+}
+
+require_live_postgres_backup_activation() {
+  local stack_name="${STACK_NAME:-stuhelper}"
+  local postgres_container="${POSTGRES_CONTAINER_NAME:-${stack_name}-postgres}"
+  local postgres_data_volume="${stack_name}-postgres-data"
+  local postgres_wal_volume="${POSTGRES_WAL_ARCHIVE_VOLUME_NAME:-${stack_name}-postgres-wal-archive}"
+  local expected_image="${POSTGRES_IMAGE_REF:-}"
+  local system_identifier
+
+  require_live_canonical_postgres_datastore
+  require_internal_postgres_backup_sources_match_live_datastore
+  system_identifier="$(live_postgres_system_identifier \
+    "${postgres_container}" "${POSTGRES_USER:-stuhelper}" "${POSTGRES_DB:-stuhelper}")"
+  require_postgres_backup_object_storage_namespace \
+    "${BACKUP_OBJECT_STORAGE_PREFIX:-postgres}" "${system_identifier}"
+  python3 "${COMMON_LIB_DIR}/../manage-postgres-backup-activation.py" validate \
+    --state-dir "${DEPLOY_STATE_DIR}" \
+    --stack-name "${stack_name}" \
+    --postgres-container-name "${postgres_container}" \
+    --postgres-image-ref "${expected_image}" \
+    --postgres-system-identifier "${system_identifier}" \
+    --backup-object-storage-prefix "${BACKUP_OBJECT_STORAGE_PREFIX:-postgres}" \
+    --postgres-data-volume "${postgres_data_volume}" \
+    --postgres-wal-archive-volume "${postgres_wal_volume}" >/dev/null ||
+    die "live PostgreSQL does not match its audited backup activation"
+}
 
 require_live_postgres_wal_archive_volume() {
   local volume_name="$1"

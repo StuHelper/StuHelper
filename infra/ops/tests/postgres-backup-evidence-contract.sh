@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 EVIDENCE_SCRIPT="${REPO_ROOT}/infra/ops/postgres-backup-evidence.sh"
+FETCH_SCRIPT="${REPO_ROOT}/infra/ops/fetch-postgres-backups.sh"
 
 fail() {
   echo "[postgres-backup-evidence-contract][error] $*" >&2
@@ -25,8 +26,11 @@ assert_contains() {
 
 [[ -f "${EVIDENCE_SCRIPT}" ]] || fail "missing evidence script: ${EVIDENCE_SCRIPT}"
 [[ -x "${EVIDENCE_SCRIPT}" ]] || fail "evidence script must be executable: ${EVIDENCE_SCRIPT}"
+[[ -f "${FETCH_SCRIPT}" ]] || fail "missing fetch script: ${FETCH_SCRIPT}"
+[[ -x "${FETCH_SCRIPT}" ]] || fail "fetch script must be executable: ${FETCH_SCRIPT}"
 
 bash -n "${EVIDENCE_SCRIPT}"
+bash -n "${FETCH_SCRIPT}"
 
 assert_contains "${EVIDENCE_SCRIPT}" 'fetch-postgres-backups\.sh'
 assert_contains "${EVIDENCE_SCRIPT}" 'POSTGRES_BACKUP_EVIDENCE_FILE'
@@ -37,6 +41,19 @@ assert_contains "${EVIDENCE_SCRIPT}" 'sha256Verified'
 assert_contains "${EVIDENCE_SCRIPT}" 'localBaseBackup'
 assert_contains "${EVIDENCE_SCRIPT}" 'fetchedBaseBackup'
 assert_contains "${EVIDENCE_SCRIPT}" 'infra/generated/postgres-backup-evidence\.json'
+
+python3 - "${FETCH_SCRIPT}" <<'PY' || fail "fetch command does not preserve isolated evidence directories"
+from pathlib import Path
+import sys
+
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+load = source.index("load_env_preserving")
+logical = source.index("BACKUP_LOGICAL_DIR", load)
+base = source.index("BACKUP_BASE_DIR", load)
+unset = source.index("unset BACKUP_OBJECT_STORAGE_PINNED_HOSTS", load)
+if not load < logical < unset or not load < base < unset:
+    raise SystemExit("fetch must preserve per-invocation logical and base directories across environment reloads")
+PY
 
 tmpdir="$(mktemp -d)"
 env_file="${tmpdir}/.env"
@@ -94,6 +111,12 @@ cat >"${env_file}" <<ENV
 APP_ENV=production
 BACKUP_LOGICAL_DIR=${logical_dir}
 BACKUP_BASE_DIR=${base_dir}
+POSTGRES_BACKUP_EVIDENCE_FILE=${tmpdir}/must-not-win.json
+POSTGRES_BACKUP_EVIDENCE_FETCH_COMMAND=${tmpdir}/must-not-run
+POSTGRES_BACKUP_EVIDENCE_TIMER_REQUIRED=true
+POSTGRES_BACKUP_EVIDENCE_SKIP_TIMERS=false
+POSTGRES_BACKUP_EVIDENCE_MAX_LOGICAL_AGE_SECONDS=1
+POSTGRES_BACKUP_EVIDENCE_MAX_BASE_AGE_SECONDS=999999999
 ENV
 
 output="$(
@@ -102,12 +125,16 @@ output="$(
   GENERATED_SECRET_ENV_FILE="${generated_secret_env_file}" \
   GENERATED_OBS_DIR="${generated_obs_dir}" \
   POSTGRES_BACKUP_EVIDENCE_SKIP_TIMERS=true \
+  POSTGRES_BACKUP_EVIDENCE_MAX_LOGICAL_AGE_SECONDS=129600 \
+  POSTGRES_BACKUP_EVIDENCE_MAX_BASE_AGE_SECONDS=691200 \
   POSTGRES_BACKUP_EVIDENCE_FETCH_COMMAND="${fake_fetch}" \
   POSTGRES_BACKUP_EVIDENCE_FILE="${evidence_file}" \
   "${EVIDENCE_SCRIPT}"
 )"
 
 [[ -f "${evidence_file}" ]] || fail "backup evidence file was not written"
+[[ ! -e "${tmpdir}/must-not-win.json" ]] ||
+  fail "environment reload replaced the per-invocation evidence output path"
 OUTPUT_JSON="${output}" python3 - "${evidence_file}" <<'PY'
 import json
 import os
@@ -147,6 +174,7 @@ if ENV_FILE="${env_file}" \
   GENERATED_SECRET_ENV_FILE="${generated_secret_env_file}" \
   GENERATED_OBS_DIR="${generated_obs_dir}" \
   POSTGRES_BACKUP_EVIDENCE_SKIP_TIMERS=true \
+  POSTGRES_BACKUP_EVIDENCE_MAX_LOGICAL_AGE_SECONDS=129600 \
   POSTGRES_BACKUP_EVIDENCE_MAX_BASE_AGE_SECONDS=60 \
   POSTGRES_BACKUP_EVIDENCE_FETCH_COMMAND="${fake_fetch}" \
   POSTGRES_BACKUP_EVIDENCE_FILE="${tmpdir}/evidence/stale.json" \
