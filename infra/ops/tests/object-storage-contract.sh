@@ -1067,12 +1067,19 @@ import sys
 from pathlib import Path
 
 source = Path(sys.argv[1]).read_text(encoding="utf-8")
+container_assignment = source.index('postgres_container="${POSTGRES_CONTAINER_NAME:-${STACK_NAME:-stuhelper}-postgres}"')
 volume_validation = source.index("require_live_postgres_wal_archive_volume")
 archiver_validation = source.index("require_live_postgres_wal_archiving")
 external_pitr_validation = source.index("require_external_postgres_pitr_evidence")
 first_transfer = source.index("run_backup_object_storage_rclone", volume_validation)
-if not volume_validation < archiver_validation < first_transfer:
+if not container_assignment < volume_validation < archiver_validation < first_transfer:
     raise SystemExit("live WAL mount and archiver validation must precede every backup transfer")
+validation_block = source[container_assignment:first_transfer]
+if validation_block.count('"${postgres_container}"') < 2:
+    raise SystemExit("WAL mount and archiver validation must honor POSTGRES_CONTAINER_NAME")
+preservation_block = source[source.index("load_env_preserving"):source.index("unset BACKUP_OBJECT_STORAGE_PINNED_HOSTS")]
+if "POSTGRES_CONTAINER_NAME" not in preservation_block:
+    raise SystemExit("sync must preserve the caller-selected PostgreSQL container across environment reloads")
 if external_pitr_validation >= first_transfer:
     raise SystemExit("external PITR evidence validation must precede every backup transfer")
 PY

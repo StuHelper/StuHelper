@@ -11,6 +11,8 @@ MODE="${1:-all}"
 
 require_cmd docker
 load_env_preserving \
+  BACKUP_LOGICAL_DIR \
+  BACKUP_BASE_DIR \
   BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED \
   LOCAL_STATE_DIR \
   POSTGRES_WAL_RESTORE_DIR

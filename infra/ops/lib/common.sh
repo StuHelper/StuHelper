@@ -1557,13 +1557,13 @@ live_postgres_system_identifier() {
   printf '%s\n' "${system_identifier}"
 }
 
-require_live_postgres_backup_activation() {
+require_live_canonical_postgres_datastore() {
   local stack_name="${STACK_NAME:-stuhelper}"
   local postgres_container="${POSTGRES_CONTAINER_NAME:-${stack_name}-postgres}"
   local postgres_data_volume="${stack_name}-postgres-data"
   local postgres_wal_volume="${POSTGRES_WAL_ARCHIVE_VOLUME_NAME:-${stack_name}-postgres-wal-archive}"
   local expected_image="${POSTGRES_IMAGE_REF:-}"
-  local running health actual_image compose_project compose_service mounts_json system_identifier
+  local running health actual_image compose_project compose_service mounts_json
 
   [[ "${EXTERNAL_POSTGRES_ENABLED:-false}" != "true" ]] ||
     die "an internal PostgreSQL backup activation cannot authorize an external PostgreSQL deployment"
@@ -1617,6 +1617,125 @@ PY
   fi
 
   require_live_postgres_wal_archive_volume "${postgres_wal_volume}" "${postgres_container}"
+}
+
+require_internal_postgres_backup_sources_match_live_datastore() {
+  local stack_name="${STACK_NAME:-stuhelper}"
+  local postgres_container="${POSTGRES_CONTAINER_NAME:-${stack_name}-postgres}"
+  local postgres_database="${POSTGRES_DB:-stuhelper}"
+  local compose_service networks_json observation
+
+  [[ "${EXTERNAL_POSTGRES_ENABLED:-false}" != "true" ]] ||
+    die "internal PostgreSQL backup source validation cannot authorize an external PostgreSQL deployment"
+  require_cmd docker
+  require_cmd python3
+  [[ -n "${BACKUP_DATABASE_URL:-}" ]] || die "BACKUP_DATABASE_URL is required"
+  [[ -n "${REPLICATION_DATABASE_URL:-}" ]] || die "REPLICATION_DATABASE_URL is required"
+
+  compose_service="$(docker container inspect \
+    --format '{{index .Config.Labels "com.docker.compose.service"}}' \
+    "${postgres_container}" 2>/dev/null)" ||
+    die "failed to inspect the PostgreSQL Compose service for backup source validation"
+  networks_json="$(docker container inspect \
+    --format '{{json .NetworkSettings.Networks}}' \
+    "${postgres_container}" 2>/dev/null)" ||
+    die "failed to inspect PostgreSQL network addresses for backup source validation"
+  [[ "${compose_service}" == "postgres" ]] ||
+    die "PostgreSQL backup sources can only target the canonical Compose postgres service"
+
+  EXPECTED_POSTGRES_COMPOSE_SERVICE="${compose_service}" \
+  EXPECTED_POSTGRES_DATABASE="${postgres_database}" \
+  python3 - <<'PY' || die "PostgreSQL backup URLs do not target the canonical Compose datastore"
+import os
+from urllib.parse import parse_qsl, unquote, urlsplit
+
+service = os.environ["EXPECTED_POSTGRES_COMPOSE_SERVICE"]
+database = os.environ["EXPECTED_POSTGRES_DATABASE"]
+for key in ("BACKUP_DATABASE_URL", "REPLICATION_DATABASE_URL"):
+    value = os.environ.get(key, "")
+    try:
+        parsed = urlsplit(value)
+        port = parsed.port
+    except ValueError as exc:
+        raise SystemExit(f"{key} is not a valid PostgreSQL URL") from exc
+    if parsed.scheme not in {"postgres", "postgresql"}:
+        raise SystemExit(f"{key} must use a PostgreSQL URL scheme")
+    if parsed.hostname != service or port not in {None, 5432}:
+        raise SystemExit(f"{key} must target the canonical Compose postgres service")
+    if parsed.fragment or unquote(parsed.path.removeprefix("/")) != database:
+        raise SystemExit(f"{key} must target the configured PostgreSQL database")
+    query_keys = {name.lower() for name, _ in parse_qsl(parsed.query, keep_blank_values=True)}
+    routing_overrides = query_keys & {
+        "dbname",
+        "host",
+        "hostaddr",
+        "port",
+        "service",
+        "servicefile",
+    }
+    if routing_overrides:
+        raise SystemExit(f"{key} must not override PostgreSQL routing in query parameters")
+PY
+
+  # Both URLs are structurally pinned to the same Compose service and port.
+  # Use the ordinary least-privilege backup connection for the runtime address
+  # proof; a replication-only role may correctly be denied ordinary SQL by
+  # pg_hba.conf even though pg_basebackup can use it.
+  if ! observation="$(compose run --rm --no-deps -T \
+    postgres-client \
+    psql \
+    --no-psqlrc \
+    --set=ON_ERROR_STOP=1 \
+    --tuples-only \
+    --no-align \
+    --field-separator='|' \
+    --dbname="${BACKUP_DATABASE_URL}" \
+    --command="SELECT COALESCE(inet_server_addr()::text, ''), current_database(), pg_is_in_recovery()" \
+    2>/dev/null)"; then
+    die "BACKUP_DATABASE_URL could not prove its live PostgreSQL source identity"
+  fi
+  POSTGRES_NETWORKS_JSON="${networks_json}" \
+  POSTGRES_SOURCE_OBSERVATION="${observation}" \
+  EXPECTED_POSTGRES_DATABASE="${postgres_database}" \
+  python3 - <<'PY' || die "PostgreSQL backup URLs do not resolve to the canonical live PostgreSQL container"
+import ipaddress
+import json
+import os
+
+try:
+    networks = json.loads(os.environ["POSTGRES_NETWORKS_JSON"])
+    address, database, in_recovery = os.environ["POSTGRES_SOURCE_OBSERVATION"].strip().split("|")
+    observed_address = ipaddress.ip_interface(address).ip
+except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+    raise SystemExit("invalid PostgreSQL source identity evidence") from exc
+
+expected_addresses = set()
+for network in networks.values():
+    if not isinstance(network, dict):
+        continue
+    for key in ("IPAddress", "GlobalIPv6Address"):
+        value = network.get(key)
+        if value:
+            expected_addresses.add(ipaddress.ip_address(value))
+if observed_address not in expected_addresses:
+    raise SystemExit("PostgreSQL source address is not owned by the canonical container")
+if database != os.environ["EXPECTED_POSTGRES_DATABASE"]:
+    raise SystemExit("PostgreSQL source selected a different database")
+if in_recovery != "f":
+    raise SystemExit("PostgreSQL backup source is not the canonical primary")
+PY
+}
+
+require_live_postgres_backup_activation() {
+  local stack_name="${STACK_NAME:-stuhelper}"
+  local postgres_container="${POSTGRES_CONTAINER_NAME:-${stack_name}-postgres}"
+  local postgres_data_volume="${stack_name}-postgres-data"
+  local postgres_wal_volume="${POSTGRES_WAL_ARCHIVE_VOLUME_NAME:-${stack_name}-postgres-wal-archive}"
+  local expected_image="${POSTGRES_IMAGE_REF:-}"
+  local system_identifier
+
+  require_live_canonical_postgres_datastore
+  require_internal_postgres_backup_sources_match_live_datastore
   system_identifier="$(live_postgres_system_identifier \
     "${postgres_container}" "${POSTGRES_USER:-stuhelper}" "${POSTGRES_DB:-stuhelper}")"
   python3 "${COMMON_LIB_DIR}/../manage-postgres-backup-activation.py" validate \
