@@ -63,6 +63,10 @@ assert_contains "${COMMON_LIB_FILE}" 'require_public_jwks\(\)'
 assert_contains "${COMMON_LIB_FILE}" 'public_oidc_jwks_uri\(\)'
 assert_contains "${COMMON_LIB_FILE}" 'require_public_dns_resolved\(\)'
 assert_contains "${COMMON_LIB_FILE}" 'dns\.google/resolve'
+assert_contains "${COMMON_LIB_FILE}" 'dns\.alidns\.com/resolve'
+assert_contains "${COMMON_LIB_FILE}" 'doh\.pub/dns-query'
+assert_contains "${COMMON_LIB_FILE}" 'PUBLIC_INGRESS_PUBLIC_DNS_RESOLVERS'
+assert_contains "${COMMON_LIB_FILE}" 'all .* configured public resolvers were unavailable'
 assert_contains "${COMMON_LIB_FILE}" 'require_public_dns_resolved "Admission"'
 assert_contains "${COMMON_LIB_FILE}" 'require_public_http_reachable "Admission"'
 assert_contains "${COMMON_LIB_FILE}" 'ADMISSION_PUBLIC_BASE_URL'
@@ -912,6 +916,8 @@ set -euo pipefail
 output_file=""
 write_out=""
 url=""
+query_name=""
+query_type=""
 args=("$@")
 index=0
 while [[ "${index}" -lt "${#args[@]}" ]]; do
@@ -924,6 +930,13 @@ while [[ "${index}" -lt "${#args[@]}" ]]; do
       index=$((index + 1))
       write_out="${args[${index}]}"
       ;;
+    --data | --data-urlencode)
+      index=$((index + 1))
+      case "${args[${index}]}" in
+        name=*) query_name="${args[${index}]#name=}" ;;
+        type=*) query_type="${args[${index}]#type=}" ;;
+      esac
+      ;;
     http://* | https://*)
       url="${args[${index}]}"
       ;;
@@ -933,6 +946,10 @@ done
 
 status=200
 body='{"Status":0,"Answer":[]}'
+if [[ "${url}" == https://unavailable.example/* ]]; then
+  echo 'simulated resolver transport failure' >&2
+  exit 28
+fi
 case "${url}" in
   https://sso.example.com/.well-known/openid-configuration)
     body='{"issuer":"https://sso.example.com","authorization_endpoint":"https://sso.example.com/login/oauth/authorize","token_endpoint":"https://sso.example.com/api/login/oauth/access_token","jwks_uri":"https://sso.example.com/.well-known/jwks"}'
@@ -940,13 +957,15 @@ case "${url}" in
   https://sso.example.com/.well-known/jwks)
     body='{"keys":[{"kid":"casdoor-test-key"}]}'
     ;;
-  *name=missing.example.com*)
+esac
+case "${query_name}|${query_type}" in
+  missing.example.com\|*)
     body='{"Status":3}'
     ;;
-  *name=private.example.com*type=A*)
+  private.example.com\|A)
     body='{"Status":0,"Answer":[{"type":1,"data":"10.0.0.8"}]}'
     ;;
-  *type=A*)
+  *\|A)
     body='{"Status":0,"Answer":[{"type":1,"data":"93.184.216.34"}]}'
     ;;
 esac
@@ -967,6 +986,40 @@ PATH="${fake_bin}:${PATH}" bash -c '
   source "$1"
   require_public_dns_resolved "Web" "https://example.com"
 ' bash "${COMMON_LIB_FILE}" >/dev/null
+
+PATH="${fake_bin}:${PATH}" \
+  PUBLIC_INGRESS_PUBLIC_DNS_RESOLVERS='https://unavailable.example/resolve,https://dns.alidns.com/resolve' \
+  bash -c '
+    set -euo pipefail
+    source "$1"
+    require_public_dns_resolved "Web" "https://example.com"
+  ' bash "${COMMON_LIB_FILE}" >"${tmpdir}/resolver-fallback.out" 2>"${tmpdir}/resolver-fallback.err"
+grep -q 'unavailable.example unavailable' "${tmpdir}/resolver-fallback.err" || \
+  fail "public DNS preflight did not report the unavailable primary resolver"
+
+if PATH="${fake_bin}:${PATH}" \
+  PUBLIC_INGRESS_PUBLIC_DNS_RESOLVERS='https://unavailable.example/resolve' \
+  bash -c '
+    set -euo pipefail
+    source "$1"
+    require_public_dns_resolved "Web" "https://example.com"
+  ' bash "${COMMON_LIB_FILE}" >"${tmpdir}/all-resolvers.out" 2>"${tmpdir}/all-resolvers.err"; then
+  fail "public DNS preflight should fail when every configured resolver is unavailable"
+fi
+grep -q 'all 1 configured public resolvers were unavailable' "${tmpdir}/all-resolvers.err" || \
+  fail "public DNS all-resolver failure did not report the expected diagnostic"
+
+if PATH="${fake_bin}:${PATH}" \
+  PUBLIC_INGRESS_PUBLIC_DNS_RESOLVERS='http://dns.example/resolve' \
+  bash -c '
+    set -euo pipefail
+    source "$1"
+    require_public_dns_resolved "Web" "https://example.com"
+  ' bash "${COMMON_LIB_FILE}" >"${tmpdir}/invalid-resolver.out" 2>"${tmpdir}/invalid-resolver.err"; then
+  fail "public DNS preflight should reject non-HTTPS resolver endpoints"
+fi
+grep -q 'endpoints must use https' "${tmpdir}/invalid-resolver.err" || \
+  fail "public DNS invalid-resolver failure did not report the expected diagnostic"
 
 if PATH="${fake_bin}:${PATH}" bash -c '
   set -euo pipefail
