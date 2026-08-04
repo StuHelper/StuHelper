@@ -43,6 +43,23 @@ require_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "missing required command: $1"
 }
 
+systemd_unit_file_is_installed() {
+  local unit="$1"
+  local unit_files
+  local unit_file
+
+  [[ -n "${unit}" ]] || return 1
+  if ! unit_files="$(
+    systemctl list-unit-files --no-legend --no-pager "${unit}" 2>/dev/null
+  )"; then
+    return 1
+  fi
+  while read -r unit_file _; do
+    [[ "${unit_file}" == "${unit}" ]] && return 0
+  done <<<"${unit_files}"
+  return 1
+}
+
 require_systemd_unit_exact_environment() {
   local unit="$1"
   shift
