@@ -48,6 +48,8 @@ postgres_container="${POSTGRES_CONTAINER_NAME:-${stack_name}-postgres}"
 postgres_data_volume="${stack_name}-postgres-data"
 postgres_wal_volume="${POSTGRES_WAL_ARCHIVE_VOLUME_NAME:-${stack_name}-postgres-wal-archive}"
 
+require_live_canonical_postgres_datastore
+
 if [[ -e "${activation_file}" || -L "${activation_file}" ]]; then
   require_live_postgres_backup_activation
   "${SCRIPT_DIR}/sync-postgres-backups.sh"
@@ -55,8 +57,6 @@ if [[ -e "${activation_file}" || -L "${activation_file}" ]]; then
   exit 0
 fi
 
-require_digest_image_ref POSTGRES_IMAGE_REF "${POSTGRES_IMAGE_REF:-}"
-require_live_postgres_wal_archive_volume "${postgres_wal_volume}" "${postgres_container}"
 require_live_postgres_wal_archiving \
   "${postgres_container}" "${POSTGRES_USER:-stuhelper}" "${POSTGRES_DB:-stuhelper}"
 system_identifier="$(live_postgres_system_identifier \

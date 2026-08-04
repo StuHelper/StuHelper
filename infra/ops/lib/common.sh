@@ -1557,13 +1557,13 @@ live_postgres_system_identifier() {
   printf '%s\n' "${system_identifier}"
 }
 
-require_live_postgres_backup_activation() {
+require_live_canonical_postgres_datastore() {
   local stack_name="${STACK_NAME:-stuhelper}"
   local postgres_container="${POSTGRES_CONTAINER_NAME:-${stack_name}-postgres}"
   local postgres_data_volume="${stack_name}-postgres-data"
   local postgres_wal_volume="${POSTGRES_WAL_ARCHIVE_VOLUME_NAME:-${stack_name}-postgres-wal-archive}"
   local expected_image="${POSTGRES_IMAGE_REF:-}"
-  local running health actual_image compose_project compose_service mounts_json system_identifier
+  local running health actual_image compose_project compose_service mounts_json
 
   [[ "${EXTERNAL_POSTGRES_ENABLED:-false}" != "true" ]] ||
     die "an internal PostgreSQL backup activation cannot authorize an external PostgreSQL deployment"
@@ -1617,6 +1617,17 @@ PY
   fi
 
   require_live_postgres_wal_archive_volume "${postgres_wal_volume}" "${postgres_container}"
+}
+
+require_live_postgres_backup_activation() {
+  local stack_name="${STACK_NAME:-stuhelper}"
+  local postgres_container="${POSTGRES_CONTAINER_NAME:-${stack_name}-postgres}"
+  local postgres_data_volume="${stack_name}-postgres-data"
+  local postgres_wal_volume="${POSTGRES_WAL_ARCHIVE_VOLUME_NAME:-${stack_name}-postgres-wal-archive}"
+  local expected_image="${POSTGRES_IMAGE_REF:-}"
+  local system_identifier
+
+  require_live_canonical_postgres_datastore
   system_identifier="$(live_postgres_system_identifier \
     "${postgres_container}" "${POSTGRES_USER:-stuhelper}" "${POSTGRES_DB:-stuhelper}")"
   python3 "${COMMON_LIB_DIR}/../manage-postgres-backup-activation.py" validate \

@@ -25,11 +25,12 @@ lock = source.index("acquire_production_deploy_lock")
 environment = source.index("load_env")
 release_guard = source.index("current_release_file=")
 off_host = source.index("require_off_host_backup_object_storage")
+canonical = source.index("require_live_canonical_postgres_datastore")
 wal_probe = source.index("require_live_postgres_wal_archiving")
 sync = source.index('"${SCRIPT_DIR}/sync-postgres-backups.sh"', wal_probe)
 publish = source.index("manage-postgres-backup-activation.py\" publish")
 final_validation = source.rindex("require_live_postgres_backup_activation")
-if not lock < environment < release_guard < off_host < wal_probe < sync < publish < final_validation:
+if not lock < environment < release_guard < off_host < canonical < wal_probe < sync < publish < final_validation:
     raise SystemExit("activation must serialize before config, reject release evidence, protect off-host data, then publish and revalidate")
 if "record_release" in source or "current-release.env\" >" in source:
     raise SystemExit("backup activation must not publish or rewrite an application release")
