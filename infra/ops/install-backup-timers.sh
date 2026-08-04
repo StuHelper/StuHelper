@@ -54,6 +54,33 @@ require_service_identity() {
   }
 }
 
+run_activation_preflight() {
+  local systemd_run_bin="$1"
+  local deploy_user="$2"
+  local deploy_group="$3"
+  local deploy_app_dir="$4"
+  local activation_environment_name="$5"
+  local -n activation_environment_ref="${activation_environment_name}"
+
+  [[ -x "${systemd_run_bin}" ]] || {
+    echo "[install-backup-timers][error] systemd-run is required for service-identity activation preflight" >&2
+    return 1
+  }
+  "${systemd_run_bin}" \
+    --quiet \
+    --wait \
+    --pipe \
+    --collect \
+    --service-type=exec \
+    --property="User=${deploy_user}" \
+    --property="Group=${deploy_group}" \
+    --property="WorkingDirectory=${deploy_app_dir}" \
+    --property="UnsetEnvironment=LD_PRELOAD LD_LIBRARY_PATH LD_AUDIT GCONV_PATH LOCPATH" \
+    /usr/bin/env -i \
+    "${activation_environment_ref[@]}" \
+    /bin/bash --noprofile --norc "${deploy_app_dir}/infra/ops/remote-preflight.sh" --timer-activation
+}
+
 main() {
   require_root
   require_service_identity
@@ -230,10 +257,7 @@ EOF
     return 0
   fi
 
-  command -v runuser >/dev/null 2>&1 || {
-    echo "[install-backup-timers][error] runuser is required for non-root activation preflight" >&2
-    exit 1
-  }
+  local systemd_run_bin=/usr/bin/systemd-run
   local -a activation_environment=(
     PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     "ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.shared"
@@ -249,9 +273,12 @@ EOF
       "NGINX_PUBLIC_INGRESS_CONFIG_FILE=${NGINX_PUBLIC_INGRESS_CONFIG_FILE}"
     )
   fi
-  runuser -u "${DEPLOY_USER}" -g "${DEPLOY_GROUP}" -- env -i \
-    "${activation_environment[@]}" \
-    /bin/bash --noprofile --norc "${DEPLOY_APP_DIR}/infra/ops/remote-preflight.sh" --timer-activation
+  run_activation_preflight \
+    "${systemd_run_bin}" \
+    "${DEPLOY_USER}" \
+    "${DEPLOY_GROUP}" \
+    "${DEPLOY_APP_DIR}" \
+    activation_environment
   systemctl enable --now stuhelper-postgres-dump-backup.timer stuhelper-postgres-basebackup.timer stuhelper-postgres-backup-sync.timer
 
   echo "[install-backup-timers] installed:"
@@ -263,4 +290,6 @@ EOF
   echo "  - ${sync_timer}"
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi
