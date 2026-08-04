@@ -111,6 +111,12 @@ cat >"${env_file}" <<ENV
 APP_ENV=production
 BACKUP_LOGICAL_DIR=${logical_dir}
 BACKUP_BASE_DIR=${base_dir}
+POSTGRES_BACKUP_EVIDENCE_FILE=${tmpdir}/must-not-win.json
+POSTGRES_BACKUP_EVIDENCE_FETCH_COMMAND=${tmpdir}/must-not-run
+POSTGRES_BACKUP_EVIDENCE_TIMER_REQUIRED=true
+POSTGRES_BACKUP_EVIDENCE_SKIP_TIMERS=false
+POSTGRES_BACKUP_EVIDENCE_MAX_LOGICAL_AGE_SECONDS=1
+POSTGRES_BACKUP_EVIDENCE_MAX_BASE_AGE_SECONDS=999999999
 ENV
 
 output="$(
@@ -119,12 +125,16 @@ output="$(
   GENERATED_SECRET_ENV_FILE="${generated_secret_env_file}" \
   GENERATED_OBS_DIR="${generated_obs_dir}" \
   POSTGRES_BACKUP_EVIDENCE_SKIP_TIMERS=true \
+  POSTGRES_BACKUP_EVIDENCE_MAX_LOGICAL_AGE_SECONDS=129600 \
+  POSTGRES_BACKUP_EVIDENCE_MAX_BASE_AGE_SECONDS=691200 \
   POSTGRES_BACKUP_EVIDENCE_FETCH_COMMAND="${fake_fetch}" \
   POSTGRES_BACKUP_EVIDENCE_FILE="${evidence_file}" \
   "${EVIDENCE_SCRIPT}"
 )"
 
 [[ -f "${evidence_file}" ]] || fail "backup evidence file was not written"
+[[ ! -e "${tmpdir}/must-not-win.json" ]] ||
+  fail "environment reload replaced the per-invocation evidence output path"
 OUTPUT_JSON="${output}" python3 - "${evidence_file}" <<'PY'
 import json
 import os
@@ -164,6 +174,7 @@ if ENV_FILE="${env_file}" \
   GENERATED_SECRET_ENV_FILE="${generated_secret_env_file}" \
   GENERATED_OBS_DIR="${generated_obs_dir}" \
   POSTGRES_BACKUP_EVIDENCE_SKIP_TIMERS=true \
+  POSTGRES_BACKUP_EVIDENCE_MAX_LOGICAL_AGE_SECONDS=129600 \
   POSTGRES_BACKUP_EVIDENCE_MAX_BASE_AGE_SECONDS=60 \
   POSTGRES_BACKUP_EVIDENCE_FETCH_COMMAND="${fake_fetch}" \
   POSTGRES_BACKUP_EVIDENCE_FILE="${tmpdir}/evidence/stale.json" \
