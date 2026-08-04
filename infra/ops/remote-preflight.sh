@@ -89,7 +89,7 @@ fi
 
 pending_generated_secret_ref="${GENERATED_ENV_SECRET_REF:-}"
 unset GENERATED_ENV_SECRET_REF
-load_env
+load_env_preserving NGINX_PUBLIC_INGRESS_CONFIG_FILE
 if [[ -n "${pending_generated_secret_ref}" ]]; then
   export GENERATED_ENV_SECRET_REF="${pending_generated_secret_ref}"
 fi
