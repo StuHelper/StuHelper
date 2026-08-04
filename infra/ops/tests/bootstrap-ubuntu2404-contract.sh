@@ -210,8 +210,11 @@ assert_contains "${BACKUP_TIMER_INSTALLER}" '^TimeoutStartSec=12h$'
 [[ "$(grep -Ec '^ExecStart=/usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin .* BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true /bin/bash --noprofile --norc \./infra/ops/' "${BACKUP_TIMER_INSTALLER}")" == "3" ]] ||
   fail "backup timer installer must start all backup services with an allowlisted empty environment"
 assert_not_contains "${BACKUP_TIMER_INSTALLER}" 'ExecStart=/bin/bash -lc'
-assert_contains "${BACKUP_TIMER_INSTALLER}" 'runuser -u "\$\{DEPLOY_USER\}" -- env -i'
-assert_contains "${BACKUP_TIMER_INSTALLER}" 'BACKUP_STAGING_DIR="\$\{BACKUP_STAGING_DIR\}"'
+assert_contains "${BACKUP_TIMER_INSTALLER}" 'runuser -u "\$\{DEPLOY_USER\}" -g "\$\{DEPLOY_GROUP\}" -- env -i'
+assert_contains "${BACKUP_TIMER_INSTALLER}" 'local -a activation_environment=\('
+assert_contains "${BACKUP_TIMER_INSTALLER}" 'NGINX_PUBLIC_INGRESS_CONFIG_FILE=\$\{NGINX_PUBLIC_INGRESS_CONFIG_FILE\}'
+assert_contains "${BACKUP_TIMER_INSTALLER}" '"\$\{activation_environment\[@\]\}"'
+assert_contains "${BACKUP_TIMER_INSTALLER}" '"BACKUP_STAGING_DIR=\$\{BACKUP_STAGING_DIR\}"'
 assert_contains "${BACKUP_TIMER_INSTALLER}" 'remote-preflight\.sh" --timer-activation'
 assert_contains "${BACKUP_TIMER_INSTALLER}" 'timers were not activated'
 assert_contains "${BACKUP_TIMER_INSTALLER}" 'systemctl enable --now stuhelper-postgres-dump-backup\.timer'
