@@ -24,6 +24,14 @@ assert_contains() {
   fi
 }
 
+assert_not_contains() {
+  local file="$1"
+  local pattern="$2"
+  if grep -Eq -- "${pattern}" "${file}"; then
+    fail "expected ${file} to not contain pattern: ${pattern}"
+  fi
+}
+
 [[ -f "${EVIDENCE_SCRIPT}" ]] || fail "missing evidence script: ${EVIDENCE_SCRIPT}"
 [[ -x "${EVIDENCE_SCRIPT}" ]] || fail "evidence script must be executable: ${EVIDENCE_SCRIPT}"
 [[ -f "${FETCH_SCRIPT}" ]] || fail "missing fetch script: ${FETCH_SCRIPT}"
@@ -41,6 +49,8 @@ assert_contains "${EVIDENCE_SCRIPT}" 'sha256Verified'
 assert_contains "${EVIDENCE_SCRIPT}" 'localBaseBackup'
 assert_contains "${EVIDENCE_SCRIPT}" 'fetchedBaseBackup'
 assert_contains "${EVIDENCE_SCRIPT}" 'infra/generated/postgres-backup-evidence\.json'
+assert_contains "${EVIDENCE_SCRIPT}" 'systemd_unit_is_loaded "\$\{unit\}"'
+assert_not_contains "${EVIDENCE_SCRIPT}" 'systemctl list-unit-files \| grep -q'
 
 python3 - "${FETCH_SCRIPT}" <<'PY' || fail "fetch command does not preserve isolated evidence directories"
 from pathlib import Path

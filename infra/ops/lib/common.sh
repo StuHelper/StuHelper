@@ -43,6 +43,19 @@ require_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "missing required command: $1"
 }
 
+systemd_unit_is_loaded() {
+  local unit="$1"
+  local load_state
+
+  [[ -n "${unit}" ]] || return 1
+  if ! load_state="$(
+    systemctl show "${unit}" --property=LoadState --value 2>/dev/null
+  )"; then
+    return 1
+  fi
+  [[ "${load_state}" == "loaded" ]]
+}
+
 require_systemd_unit_exact_environment() {
   local unit="$1"
   shift

@@ -68,7 +68,7 @@ if [[ "${SECRET_BACKEND}" == "vault-kv-v2" ]]; then
   [[ -x "${SCRIPT_DIR}/vault-runtime-token.sh" ]] ||
     die "Vault runtime token checker is missing or not executable"
   "${SCRIPT_DIR}/vault-runtime-token.sh" check
-  if ! systemctl list-unit-files | grep -q '^stuhelper-vault-token-renewal\.timer'; then
+  if ! systemd_unit_is_loaded stuhelper-vault-token-renewal.timer; then
     die "Vault runtime token renewal timer is not installed on the target host"
   fi
   systemctl is-enabled --quiet stuhelper-vault-token-renewal.timer ||
@@ -191,7 +191,7 @@ backup_service_common_environment=(
   "LOCAL_STATE_DIR=/var/lib/stuhelper"
 )
 for unit in "${backup_service_units[@]}" "${backup_timer_units[@]}"; do
-  if ! systemctl list-unit-files | grep -q "^${unit}"; then
+  if ! systemd_unit_is_loaded "${unit}"; then
     die "backup unit ${unit} is not installed on the target host"
   fi
 done
