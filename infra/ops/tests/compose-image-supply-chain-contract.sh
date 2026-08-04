@@ -61,9 +61,15 @@ assert_contains "${BASE_COMPOSE}" 'docker-entrypoint-with-tls\.sh:/usr/local/bin
 assert_contains "${BASE_COMPOSE}" '/var/lib/postgres/initdb/00-init-extra-dbs\.sh:ro'
 assert_contains "${BASE_COMPOSE}" '^x-node-dev-build: &node-dev-build$'
 assert_contains "${BASE_COMPOSE}" 'NODE_BASE_IMAGE_REF: \$\{NODE_DEV_BASE_IMAGE_REF:-node:24\.18\.0-alpine@sha256:[0-9a-f]{64}\}'
+assert_contains "${BASE_COMPOSE}" 'BRACE_EXPANSION_VERSION: "5\.0\.9"'
+assert_contains "${BASE_COMPOSE}" 'IP_ADDRESS_VERSION: "10\.3\.1"'
 assert_contains "${NODE_DEV_DOCKERFILE}" '^ARG NODE_BASE_IMAGE_REF=node:24\.18\.0-alpine@sha256:[0-9a-f]{64}$'
 assert_contains "${NODE_DEV_DOCKERFILE}" '^ARG NPM_TARBALL_SHA512=[A-Za-z0-9+/]+=*$'
+assert_contains "${NODE_DEV_DOCKERFILE}" '^ARG BRACE_EXPANSION_VERSION=5\.0\.9$'
 assert_contains "${NODE_DEV_DOCKERFILE}" '^ARG BRACE_EXPANSION_TARBALL_SHA512=[A-Za-z0-9+/]+=*$'
+assert_contains "${NODE_DEV_DOCKERFILE}" '^ARG IP_ADDRESS_VERSION=10\.3\.1$'
+assert_contains "${NODE_DEV_DOCKERFILE}" '^ARG IP_ADDRESS_TARBALL_SHA512=[A-Za-z0-9+/]+=*$'
+assert_contains "${NODE_DEV_DOCKERFILE}" 'sha512sum "\$\{ip_address_tarball\}"'
 
 mailpit_block="$(service_block "${BASE_COMPOSE}" mailpit)"
 casdoor_block="$(service_block "${BASE_COMPOSE}" casdoor)"
