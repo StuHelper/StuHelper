@@ -8,7 +8,7 @@ source "${SCRIPT_DIR}/lib/common.sh"
 source "${SCRIPT_DIR}/lib/rclone-object-storage.sh"
 
 require_cmd docker
-load_env_preserving BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED LOCAL_STATE_DIR
+load_env_preserving BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED LOCAL_STATE_DIR POSTGRES_CONTAINER_NAME
 unset BACKUP_OBJECT_STORAGE_PINNED_HOSTS
 
 case "${BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED:-false}" in
@@ -29,6 +29,7 @@ esac
 logical_dir="${BACKUP_LOGICAL_DIR:-${REPO_ROOT}/backups/postgres/logical}"
 base_dir="${BACKUP_BASE_DIR:-${REPO_ROOT}/backups/postgres/base}"
 wal_archive_volume="${POSTGRES_WAL_ARCHIVE_VOLUME_NAME:-${STACK_NAME:-stuhelper}-postgres-wal-archive}"
+postgres_container="${POSTGRES_CONTAINER_NAME:-${STACK_NAME:-stuhelper}-postgres}"
 prefix="${BACKUP_OBJECT_STORAGE_PREFIX:-postgres}"
 host_user="$(id -u):$(id -g)"
 wal_archive_user="${POSTGRES_WAL_ARCHIVE_CONTAINER_USER:-70:70}"
@@ -45,9 +46,9 @@ if [[ "${external_postgres_enabled}" != "true" ]]; then
     die "POSTGRES_WAL_ARCHIVE_CONTAINER_USER must be a numeric uid:gid pair"
   require_live_postgres_wal_archive_volume \
     "${wal_archive_volume}" \
-    "${STACK_NAME:-stuhelper}-postgres"
+    "${postgres_container}"
   require_live_postgres_wal_archiving \
-    "${STACK_NAME:-stuhelper}-postgres" \
+    "${postgres_container}" \
     "${POSTGRES_USER:-stuhelper}" \
     "${POSTGRES_DB:-stuhelper}"
 else
