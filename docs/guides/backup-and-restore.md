@@ -152,6 +152,9 @@ release ledger；datastore backup activation 不是应用发布成功证明，�
 `POSTGRES_BACKUP_EVIDENCE_MAX_LOGICAL_AGE_SECONDS` 和
 `POSTGRES_BACKUP_EVIDENCE_MAX_BASE_AGE_SECONDS` 收紧。生成的
 `infra/generated/postgres-backup-evidence.json` 不含连接串或对象存储密钥。
+独立测试可以显式覆盖 `POSTGRES_BACKUP_EVIDENCE_FETCH_COMMAND`，但存量生产库激活流程会
+强制使用仓库内的 `fetch-postgres-backups.sh`；环境文件或父进程中的测试 fixture 不能替代
+异机下载证据。
 
 **evidence 通过不等于 PITR 已验收。**它证明近期工件存在、完整且能从远端取回；仍须按下方
 演练清单，在隔离实例实际启动恢复后的 PGDATA，并在目标时间点恢复场景中验证 WAL 连续性。

@@ -34,10 +34,11 @@ chain_validation = source.index("validate-chain", wal_probe)
 logical = source.index("BACKUP_MODE=dump", wal_probe)
 base = source.index("BACKUP_MODE=basebackup", logical)
 sync = source.index('"${SCRIPT_DIR}/sync-postgres-backups.sh"', base)
+fetch_pin = source.index('POSTGRES_BACKUP_EVIDENCE_FETCH_COMMAND="${SCRIPT_DIR}/fetch-postgres-backups.sh"', sync)
 evidence = source.index("postgres-backup-evidence.sh", sync)
 publish = source.index("manage-postgres-backup-activation.py\" publish")
 final_validation = source.rindex("require_live_postgres_backup_activation")
-if not lock < environment < release_guard < release_records_guard < off_host < canonical < backup_sources < wal_probe < namespace < chain_validation < logical < base < sync < evidence < publish < final_validation:
+if not lock < environment < release_guard < release_records_guard < off_host < canonical < backup_sources < wal_probe < namespace < chain_validation < logical < base < sync < fetch_pin < evidence < publish < final_validation:
     raise SystemExit("activation must serialize before config, reject release evidence, bind the cluster namespace, then publish and revalidate")
 if "--supersede" not in source:
     raise SystemExit("activation must support an audited superseding record after live identity changes")
@@ -45,6 +46,8 @@ if "POSTGRES_BACKUP_EVIDENCE_MAX_LOGICAL_AGE_SECONDS=259200" not in source or "P
     raise SystemExit("activation evidence window must cover the documented backup and transfer capacity envelope")
 if "activation_started_epoch" not in source or "backup evidence predates the current activation attempt" not in source:
     raise SystemExit("activation must bind evidence timestamps to the current attempt")
+if source.count('POSTGRES_BACKUP_EVIDENCE_FETCH_COMMAND="${SCRIPT_DIR}/fetch-postgres-backups.sh"') != 1:
+    raise SystemExit("activation must pin its off-host recovery proof to the production fetcher")
 if "POSTGRES_BACKUP_EVIDENCE_MAX_LOGICAL_AGE_SECONDS=3600" in source or "POSTGRES_BACKUP_EVIDENCE_MAX_BASE_AGE_SECONDS=3600" in source:
     raise SystemExit("activation must not use a one-hour age window for a multi-stage backup workflow")
 if "record_release" in source or "current-release.env\" >" in source:
