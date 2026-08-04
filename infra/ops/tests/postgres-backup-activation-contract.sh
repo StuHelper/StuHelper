@@ -118,7 +118,7 @@ import sys
 from pathlib import Path
 
 document = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-assert document["schemaVersion"] == 2
+assert document["schemaVersion"] == 3
 assert document["backupObjectStoragePrefix"] == "postgres/1234567890123456789"
 assert document["previousActivation"] is None
 assert document["recoveryEvidence"] == {
@@ -274,7 +274,7 @@ if python3 "${MANAGER}" validate "${legacy_identity_args[@]}" \
   >"${tmpdir}/legacy-validate.out" 2>"${tmpdir}/legacy-validate.err"; then
   fail "legacy activation without recovery evidence authorized scheduled backups"
 fi
-grep -q 'requires fresh recovery evidence' "${tmpdir}/legacy-validate.err" ||
+grep -q 'pre-v3 PostgreSQL backup activation requires' "${tmpdir}/legacy-validate.err" ||
   fail "legacy activation did not require fresh recovery evidence"
 python3 "${MANAGER}" validate-chain --state-dir "${legacy_state_dir}" \
   >"${tmpdir}/legacy-chain.json"
@@ -306,10 +306,96 @@ from pathlib import Path
 
 current = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
 legacy_payload = Path(sys.argv[2]).read_bytes()
-assert current["schemaVersion"] == 2
+assert current["schemaVersion"] == 3
 assert current["previousActivation"] == {
     "activationId": "postgres-20260803T230000Z-legacy",
     "sha256": hashlib.sha256(legacy_payload).hexdigest(),
+}
+PY
+
+v2_state_dir="${tmpdir}/v2-state"
+v2_records_dir="${v2_state_dir}/postgres-backup-activations"
+install -d -m 0700 "${v2_state_dir}" "${v2_records_dir}"
+v2_id="postgres-20260803T233000Z-v2"
+v2_current="${v2_state_dir}/postgres-backup-activation.json"
+v2_immutable="${v2_records_dir}/${v2_id}.json"
+python3 - "${v2_current}" "${v2_immutable}" <<'PY'
+import json
+import os
+import sys
+from pathlib import Path
+
+document = {
+    "schemaVersion": 2,
+    "event": "existing_postgres_backup_control_activated",
+    "activationId": "postgres-20260803T233000Z-v2",
+    "activatedAt": "2026-08-03T23:30:00Z",
+    "stackName": "contract-prod",
+    "postgresContainerName": "contract-prod-postgres",
+    "postgresImageRef": "registry.example.test/stuhelper/postgres@sha256:" + "a" * 64,
+    "postgresSystemIdentifier": "1234567890123456789",
+    "postgresDataVolume": "contract-prod-postgres-data",
+    "postgresWalArchiveVolume": "contract-prod-postgres-wal-archive",
+    "previousActivation": None,
+    "recoveryEvidence": {
+        "logicalBackup": {
+            "file": "stuhelper-postgres-v2.dump",
+            "sha256": "b" * 64,
+        },
+        "physicalBaseBackup": {
+            "file": "stuhelper-postgres-v2.tar.gz",
+            "sha256": "c" * 64,
+        },
+    },
+}
+payload = (json.dumps(document, sort_keys=True, separators=(",", ":")) + "\n").encode()
+for name in sys.argv[1:]:
+    path = Path(name)
+    path.write_bytes(payload)
+    os.chmod(path, 0o600)
+PY
+
+v2_identity_args=("${identity_args[@]}")
+v2_identity_args[1]="${v2_state_dir}"
+python3 "${MANAGER}" validate-chain --state-dir "${v2_state_dir}" \
+  >"${tmpdir}/v2-chain.json"
+if python3 "${MANAGER}" validate "${v2_identity_args[@]}" \
+  >"${tmpdir}/v2-validate.out" 2>"${tmpdir}/v2-validate.err"; then
+  fail "schema-v2 activation without a cluster namespace authorized scheduled backups"
+fi
+grep -q 'pre-v3 PostgreSQL backup activation requires' "${tmpdir}/v2-validate.err" ||
+  fail "schema-v2 activation did not require a namespaced supersession"
+if python3 "${MANAGER}" publish \
+  "${v2_identity_args[@]}" \
+  "${evidence_args[@]}" \
+  --activation-id postgres-20260804T000400Z-v3 \
+  >"${tmpdir}/v2-without-supersede.out" 2>"${tmpdir}/v2-without-supersede.err"; then
+  fail "schema-v2 activation was replaced without explicit supersession"
+fi
+grep -q 'schema-v2 PostgreSQL backup activation requires' "${tmpdir}/v2-without-supersede.err" ||
+  fail "schema-v2 activation did not require explicit supersession"
+python3 "${MANAGER}" publish \
+  "${v2_identity_args[@]}" \
+  "${evidence_args[@]}" \
+  --supersede \
+  --activation-id postgres-20260804T000400Z-v3 >"${tmpdir}/v2-migrated.json"
+python3 "${MANAGER}" validate "${v2_identity_args[@]}" \
+  >"${tmpdir}/v2-migrated-validate.json"
+python3 "${MANAGER}" validate-chain --state-dir "${v2_state_dir}" \
+  >"${tmpdir}/v2-migrated-chain.json"
+python3 - "${v2_current}" "${v2_immutable}" <<'PY' || fail "schema-v2 activation was not retained as a digest-linked predecessor"
+import hashlib
+import json
+import sys
+from pathlib import Path
+
+current = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+v2_payload = Path(sys.argv[2]).read_bytes()
+assert current["schemaVersion"] == 3
+assert current["backupObjectStoragePrefix"] == "postgres/1234567890123456789"
+assert current["previousActivation"] == {
+    "activationId": "postgres-20260803T233000Z-v2",
+    "sha256": hashlib.sha256(v2_payload).hexdigest(),
 }
 PY
 
