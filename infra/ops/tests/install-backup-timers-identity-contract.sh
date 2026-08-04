@@ -21,6 +21,8 @@ set -euo pipefail
 case "${FAKE_ID_MODE:-valid}" in
   valid) printf '%s\n' '2100 2101 2102' ;;
   invalid) printf '%s\n' '2100 not-a-gid' ;;
+  privileged) printf '%s\n' '2100 0 2101' ;;
+  inconsistent) printf '%s\n' '2100 2103' ;;
   empty) printf '\n' ;;
   *) exit 65 ;;
 esac
@@ -35,6 +37,7 @@ case "$2" in
   2100) printf '%s\n' 'contract-primary:x:2100:' ;;
   2101) printf '%s\n' 'docker:x:2101:contract-user' ;;
   2102) printf '%s\n' 'private-ca:x:2102:contract-user' ;;
+  2103) printf '%s\n' 'inconsistent:x:9999:contract-user' ;;
   *) exit 2 ;;
 esac
 SH
@@ -63,6 +66,12 @@ done
 
 if FAKE_ID_MODE=invalid build_runuser_identity contract-user backup-service identity 2>/dev/null; then
   fail "invalid group IDs must fail closed"
+fi
+if FAKE_ID_MODE=privileged build_runuser_identity contract-user backup-service identity 2>/dev/null; then
+  fail "gid 0 must never be delegated to the activation preflight"
+fi
+if FAKE_ID_MODE=inconsistent build_runuser_identity contract-user backup-service identity 2>/dev/null; then
+  fail "an inconsistent NSS group record must fail closed"
 fi
 if FAKE_ID_MODE=empty build_runuser_identity contract-user backup-service identity 2>/dev/null; then
   fail "an empty account group list must fail closed"
