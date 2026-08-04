@@ -10,6 +10,7 @@ REMOTE_CI_RELEASE="${REPO_ROOT}/infra/ops/remote-ci-release.sh"
 DEPLOY_WORKFLOW="${REPO_ROOT}/.github/workflows/deploy.yml"
 ROLLBACK_WORKFLOW="${REPO_ROOT}/.github/workflows/rollback.yml"
 PUBLISH_WORKFLOW="${REPO_ROOT}/.github/workflows/publish-images.yml"
+PUBLISHER="${REPO_ROOT}/infra/ops/publish-scanned-image.sh"
 VALID_SHA="0123456789abcdef0123456789abcdef01234567"
 DIGEST="sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
@@ -233,12 +234,17 @@ assert_contains "${PUBLISH_WORKFLOW}" 'sbom-path: sbom-\$\{\{ matrix\.name \}\}\
 assert_contains "${PUBLISH_WORKFLOW}" 'name: Upload the SBOM evidence'
 assert_contains "${PUBLISH_WORKFLOW}" '^  group: publish-images$'
 assert_contains "${PUBLISH_WORKFLOW}" 'cancel-in-progress: false'
+assert_contains "${PUBLISH_WORKFLOW}" 'max-parallel: 1'
 assert_contains "${PUBLISH_WORKFLOW}" 'SOURCE_DATE_EPOCH: \$\{\{ steps\.build-meta\.outputs\.commit_epoch \}\}'
 assert_contains "${PUBLISH_WORKFLOW}" 'org\.opencontainers\.image\.created=\$\{\{ steps\.build-meta\.outputs\.build_time \}\}'
 assert_contains "${PUBLISH_WORKFLOW}" 'name: Resolve a trusted immutable image'
 assert_contains "${PUBLISH_WORKFLOW}" 'resolve-existing-published-image\.sh'
 assert_contains "${PUBLISH_WORKFLOW}" 'steps\.existing\.outputs\.found != '\''true'\'''
-assert_contains "${PUBLISH_WORKFLOW}" 'docker push "\$\{immutable_ref\}"'
+assert_contains "${PUBLISH_WORKFLOW}" 'publish-scanned-image\.sh'
+assert_contains "${PUBLISHER}" 'docker push "\$\{immutable_ref\}"'
+assert_contains "${PUBLISHER}" 'secondary rate limit'
+assert_contains "${PUBLISHER}" 'PUBLISH_MAX_ATTEMPTS:-4'
+assert_contains "${PUBLISHER}" 'PUBLISH_RETRY_BASE_DELAY_SECONDS:-30'
 assert_contains "${PUBLISH_WORKFLOW}" 'docker buildx imagetools create'
 assert_not_contains "${PUBLISH_WORKFLOW}" 'docker/metadata-action@'
 [[ "$(grep -c 'docker/build-push-action@' "${PUBLISH_WORKFLOW}")" -eq 1 ]] ||
