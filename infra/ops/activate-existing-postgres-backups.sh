@@ -31,14 +31,7 @@ activation_file="${DEPLOY_STATE_DIR}/postgres-backup-activation.json"
   die "a committed application release already exists; a separate PostgreSQL backup activation is neither required nor allowed"
 [[ ! -e "${release_log_file}" && ! -L "${release_log_file}" ]] ||
   die "release-log evidence survives without a current release; reconcile the application release ledger first"
-if [[ -L "${release_records_dir}" || ( -e "${release_records_dir}" && ! -d "${release_records_dir}" ) ]]; then
-  die "release record path is not a regular directory: ${release_records_dir}"
-fi
-shopt -s nullglob
-surviving_release_records=("${release_records_dir}"/*.env)
-shopt -u nullglob
-((${#surviving_release_records[@]} == 0)) ||
-  die "immutable application release evidence survives without a current release; reconcile the application release ledger first"
+require_no_surviving_release_records "${release_records_dir}"
 
 require_backup_object_storage_config
 require_off_host_backup_object_storage
@@ -55,12 +48,15 @@ require_live_postgres_wal_archiving \
   "${postgres_container}" "${POSTGRES_USER:-stuhelper}" "${POSTGRES_DB:-stuhelper}"
 system_identifier="$(live_postgres_system_identifier \
   "${postgres_container}" "${POSTGRES_USER:-stuhelper}" "${POSTGRES_DB:-stuhelper}")"
+require_postgres_backup_object_storage_namespace \
+  "${BACKUP_OBJECT_STORAGE_PREFIX:-postgres}" "${system_identifier}"
 activation_identity_args=(
   --state-dir "${DEPLOY_STATE_DIR}"
   --stack-name "${stack_name}"
   --postgres-container-name "${postgres_container}"
   --postgres-image-ref "${POSTGRES_IMAGE_REF}"
   --postgres-system-identifier "${system_identifier}"
+  --backup-object-storage-prefix "${BACKUP_OBJECT_STORAGE_PREFIX:-postgres}"
   --postgres-data-volume "${postgres_data_volume}"
   --postgres-wal-archive-volume "${postgres_wal_volume}"
 )
@@ -99,6 +95,7 @@ BACKUP_MODE=basebackup "${SCRIPT_DIR}/backup-postgres.sh" "${base_file}"
 "${SCRIPT_DIR}/sync-postgres-backups.sh"
 
 POSTGRES_BACKUP_EVIDENCE_FILE="${evidence_file}" \
+POSTGRES_BACKUP_EVIDENCE_FETCH_COMMAND="${SCRIPT_DIR}/fetch-postgres-backups.sh" \
 POSTGRES_BACKUP_EVIDENCE_SKIP_TIMERS=true \
 POSTGRES_BACKUP_EVIDENCE_MAX_LOGICAL_AGE_SECONDS=259200 \
 POSTGRES_BACKUP_EVIDENCE_MAX_BASE_AGE_SECONDS=259200 \

@@ -1152,6 +1152,12 @@ load_env_preserving() { :; }
 require_cmd() { :; }
 require_off_host_backup_object_storage() { printf 'off-host-gate\n' >>"${SCHEDULED_CAPTURE_FILE}"; }
 require_live_postgres_backup_activation() { printf 'backup-activation\n' >>"${SCHEDULED_CAPTURE_FILE}"; }
+require_no_surviving_release_records() {
+  local releases_dir="$1"
+  if find "${releases_dir}" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null | grep -q .; then
+    die "committed release marker is missing while immutable per-tag evidence survives"
+  fi
+}
 source_release_record_env_file() {
   local file="$1"
   TAG="$(sed -n 's/^TAG=//p' "${file}")"
@@ -1319,6 +1325,24 @@ if SCHEDULED_CAPTURE_FILE="${scheduled_capture}" \
   fail "scheduled sync accepted a release marker that differs from its immutable record"
 fi
 assert_contains "${scheduled_fixture}/mismatched.err" 'does not match its immutable per-tag record'
+
+release_guard_fixture="${tmpdir}/release-guard"
+install -d -m 0700 "${release_guard_fixture}"
+(
+  # shellcheck source=/dev/null
+  source "${COMMON_LIB}"
+  require_no_surviving_release_records "${release_guard_fixture}"
+) || fail "an empty protected release directory was rejected"
+chmod 000 "${release_guard_fixture}"
+if (
+  # shellcheck source=/dev/null
+  source "${COMMON_LIB}"
+  require_no_surviving_release_records "${release_guard_fixture}"
+) >"${tmpdir}/unreadable-release-dir.out" 2>"${tmpdir}/unreadable-release-dir.err"; then
+  fail "an unreadable release directory was treated as empty"
+fi
+chmod 0700 "${release_guard_fixture}"
+assert_contains "${tmpdir}/unreadable-release-dir.err" 'release record directory must use mode 0700|cannot be enumerated'
 
 if ! python3 - "${FETCH_BACKUPS}" <<'PY'
 from pathlib import Path

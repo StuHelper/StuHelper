@@ -15,7 +15,8 @@ from pathlib import Path
 from typing import Any
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
+PREVIOUS_SCHEMA_VERSION = 2
 LEGACY_SCHEMA_VERSION = 1
 EVENT = "existing_postgres_backup_control_activated"
 CURRENT_NAME = "postgres-backup-activation.json"
@@ -26,7 +27,7 @@ DIGEST_REF = re.compile(r"[^\s@]+@sha256:[0-9a-f]{64}")
 SYSTEM_IDENTIFIER = re.compile(r"[0-9]{10,20}")
 SHA256 = re.compile(r"[0-9a-f]{64}")
 BACKUP_FILE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,254}")
-IDENTITY_FIELDS = {
+LEGACY_IDENTITY_FIELDS = {
     "schemaVersion",
     "event",
     "activationId",
@@ -38,10 +39,13 @@ IDENTITY_FIELDS = {
     "postgresDataVolume",
     "postgresWalArchiveVolume",
 }
-EXPECTED_FIELDS = IDENTITY_FIELDS | {
+IDENTITY_FIELDS = LEGACY_IDENTITY_FIELDS | {"backupObjectStoragePrefix"}
+RECOVERY_FIELDS = {
     "previousActivation",
     "recoveryEvidence",
 }
+PREVIOUS_EXPECTED_FIELDS = LEGACY_IDENTITY_FIELDS | RECOVERY_FIELDS
+EXPECTED_FIELDS = IDENTITY_FIELDS | RECOVERY_FIELDS
 
 
 class ActivationError(RuntimeError):
@@ -126,12 +130,19 @@ def validate_document(payload: bytes, path: Path) -> dict[str, Any]:
     if not isinstance(document, dict):
         raise ActivationError(f"PostgreSQL backup activation record has unexpected fields: {path}")
     schema_version = document.get("schemaVersion")
-    expected_fields = (
-        IDENTITY_FIELDS if schema_version == LEGACY_SCHEMA_VERSION else EXPECTED_FIELDS
-    )
+    if schema_version == LEGACY_SCHEMA_VERSION:
+        expected_fields = LEGACY_IDENTITY_FIELDS
+    elif schema_version == PREVIOUS_SCHEMA_VERSION:
+        expected_fields = PREVIOUS_EXPECTED_FIELDS
+    else:
+        expected_fields = EXPECTED_FIELDS
     if set(document) != expected_fields:
         raise ActivationError(f"PostgreSQL backup activation record has unexpected fields: {path}")
-    if schema_version not in {LEGACY_SCHEMA_VERSION, SCHEMA_VERSION} or document.get("event") != EVENT:
+    if schema_version not in {
+        LEGACY_SCHEMA_VERSION,
+        PREVIOUS_SCHEMA_VERSION,
+        SCHEMA_VERSION,
+    } or document.get("event") != EVENT:
         raise ActivationError(f"PostgreSQL backup activation record has an unsupported schema: {path}")
     if canonical_payload(document) != payload:
         raise ActivationError(f"PostgreSQL backup activation record is not canonical: {path}")
@@ -152,7 +163,25 @@ def validate_document(payload: bytes, path: Path) -> dict[str, Any]:
         raise ActivationError(f"PostgreSQL backup activation system identifier is invalid: {path}")
     if schema_version == LEGACY_SCHEMA_VERSION:
         return document
-
+    if schema_version == SCHEMA_VERSION:
+        backup_prefix = document.get("backupObjectStoragePrefix")
+        if (
+            not isinstance(backup_prefix, str)
+            or len(backup_prefix) > 255
+            or backup_prefix.startswith("/")
+            or backup_prefix.endswith("/")
+            or "//" in backup_prefix
+            or any(
+                not component
+                or component in {".", ".."}
+                or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", component)
+                for component in backup_prefix.split("/")
+            )
+            or backup_prefix.split("/")[-1] != system_identifier
+        ):
+            raise ActivationError(
+                f"PostgreSQL backup activation object-storage prefix must end in the live system identifier: {path}"
+            )
     previous = document.get("previousActivation")
     if previous is not None:
         if not isinstance(previous, dict) or set(previous) != {"activationId", "sha256"}:
@@ -189,6 +218,7 @@ def expected_identity(args: argparse.Namespace) -> dict[str, str]:
         "postgresContainerName": args.postgres_container_name,
         "postgresImageRef": args.postgres_image_ref,
         "postgresSystemIdentifier": args.postgres_system_identifier,
+        "backupObjectStoragePrefix": args.backup_object_storage_prefix,
         "postgresDataVolume": args.postgres_data_volume,
         "postgresWalArchiveVolume": args.postgres_wal_archive_volume,
     }
@@ -268,7 +298,7 @@ def load_current(state_dir: Path, expected: dict[str, str]) -> tuple[dict[str, A
     document, payload = load_chain(state_dir)
     if document["schemaVersion"] != SCHEMA_VERSION:
         raise ActivationError(
-            "legacy PostgreSQL backup activation requires fresh recovery evidence and audited supersession"
+            "pre-v3 PostgreSQL backup activation requires a cluster-namespaced record, fresh recovery evidence, and audited supersession"
         )
     validate_identity(document, expected, state_dir / CURRENT_NAME)
     return document, payload
@@ -319,6 +349,11 @@ def publish(args: argparse.Namespace) -> dict[str, Any]:
             if not args.supersede:
                 raise ActivationError(
                     "legacy PostgreSQL backup activation requires fresh recovery evidence and --supersede"
+                )
+        elif current["schemaVersion"] == PREVIOUS_SCHEMA_VERSION:
+            if not args.supersede:
+                raise ActivationError(
+                    "schema-v2 PostgreSQL backup activation requires a cluster-namespaced v3 record, fresh recovery evidence, and --supersede"
                 )
         else:
             try:
@@ -406,6 +441,7 @@ def add_identity_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--postgres-container-name", required=True)
     parser.add_argument("--postgres-image-ref", required=True)
     parser.add_argument("--postgres-system-identifier", required=True)
+    parser.add_argument("--backup-object-storage-prefix", required=True)
     parser.add_argument("--postgres-data-volume", required=True)
     parser.add_argument("--postgres-wal-archive-volume", required=True)
 
