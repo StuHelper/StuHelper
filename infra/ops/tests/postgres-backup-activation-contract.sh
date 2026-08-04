@@ -201,4 +201,80 @@ fi
 grep -Eq 'cannot safely open|regular file' "${tmpdir}/symlink.err" ||
   fail "symlink activation did not produce the expected diagnostic"
 
+legacy_state_dir="${tmpdir}/legacy-state"
+legacy_records_dir="${legacy_state_dir}/postgres-backup-activations"
+install -d -m 0700 "${legacy_state_dir}" "${legacy_records_dir}"
+legacy_id="postgres-20260803T230000Z-legacy"
+legacy_current="${legacy_state_dir}/postgres-backup-activation.json"
+legacy_immutable="${legacy_records_dir}/${legacy_id}.json"
+python3 - "${legacy_current}" "${legacy_immutable}" <<'PY'
+import json
+import os
+import sys
+from pathlib import Path
+
+document = {
+    "schemaVersion": 1,
+    "event": "existing_postgres_backup_control_activated",
+    "activationId": "postgres-20260803T230000Z-legacy",
+    "activatedAt": "2026-08-03T23:00:00Z",
+    "stackName": "contract-prod",
+    "postgresContainerName": "contract-prod-postgres",
+    "postgresImageRef": "registry.example.test/stuhelper/postgres@sha256:" + "a" * 64,
+    "postgresSystemIdentifier": "1234567890123456789",
+    "postgresDataVolume": "contract-prod-postgres-data",
+    "postgresWalArchiveVolume": "contract-prod-postgres-wal-archive",
+}
+payload = (json.dumps(document, sort_keys=True, separators=(",", ":")) + "\n").encode()
+for name in sys.argv[1:]:
+    path = Path(name)
+    path.write_bytes(payload)
+    os.chmod(path, 0o600)
+PY
+
+legacy_identity_args=("${identity_args[@]}")
+legacy_identity_args[1]="${legacy_state_dir}"
+if python3 "${MANAGER}" validate "${legacy_identity_args[@]}" \
+  >"${tmpdir}/legacy-validate.out" 2>"${tmpdir}/legacy-validate.err"; then
+  fail "legacy activation without recovery evidence authorized scheduled backups"
+fi
+grep -q 'requires fresh recovery evidence' "${tmpdir}/legacy-validate.err" ||
+  fail "legacy activation did not require fresh recovery evidence"
+python3 "${MANAGER}" validate-chain --state-dir "${legacy_state_dir}" \
+  >"${tmpdir}/legacy-chain.json"
+if python3 "${MANAGER}" publish \
+  "${legacy_identity_args[@]}" \
+  "${evidence_args[@]}" \
+  --activation-id postgres-20260804T000300Z-migrated \
+  >"${tmpdir}/legacy-without-supersede.out" 2>"${tmpdir}/legacy-without-supersede.err"; then
+  fail "legacy activation was replaced without explicit supersession"
+fi
+grep -q 'requires fresh recovery evidence and --supersede' "${tmpdir}/legacy-without-supersede.err" ||
+  fail "legacy activation did not require explicit supersession"
+
+python3 "${MANAGER}" publish \
+  "${legacy_identity_args[@]}" \
+  "${evidence_args[@]}" \
+  --supersede \
+  --activation-id postgres-20260804T000300Z-migrated \
+  >"${tmpdir}/legacy-migrated.json"
+python3 "${MANAGER}" validate "${legacy_identity_args[@]}" \
+  >"${tmpdir}/legacy-migrated-validate.json"
+python3 "${MANAGER}" validate-chain --state-dir "${legacy_state_dir}" \
+  >"${tmpdir}/legacy-migrated-chain.json"
+python3 - "${legacy_current}" "${legacy_immutable}" <<'PY' || fail "legacy activation was not retained as a digest-linked root"
+import hashlib
+import json
+import sys
+from pathlib import Path
+
+current = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+legacy_payload = Path(sys.argv[2]).read_bytes()
+assert current["schemaVersion"] == 2
+assert current["previousActivation"] == {
+    "activationId": "postgres-20260803T230000Z-legacy",
+    "sha256": hashlib.sha256(legacy_payload).hexdigest(),
+}
+PY
+
 printf '[postgres-backup-activation-contract] all assertions passed\n'

@@ -16,6 +16,7 @@ from typing import Any
 
 
 SCHEMA_VERSION = 2
+LEGACY_SCHEMA_VERSION = 1
 EVENT = "existing_postgres_backup_control_activated"
 CURRENT_NAME = "postgres-backup-activation.json"
 RECORDS_DIR_NAME = "postgres-backup-activations"
@@ -25,7 +26,7 @@ DIGEST_REF = re.compile(r"[^\s@]+@sha256:[0-9a-f]{64}")
 SYSTEM_IDENTIFIER = re.compile(r"[0-9]{10,20}")
 SHA256 = re.compile(r"[0-9a-f]{64}")
 BACKUP_FILE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,254}")
-EXPECTED_FIELDS = {
+IDENTITY_FIELDS = {
     "schemaVersion",
     "event",
     "activationId",
@@ -36,6 +37,8 @@ EXPECTED_FIELDS = {
     "postgresSystemIdentifier",
     "postgresDataVolume",
     "postgresWalArchiveVolume",
+}
+EXPECTED_FIELDS = IDENTITY_FIELDS | {
     "previousActivation",
     "recoveryEvidence",
 }
@@ -120,9 +123,15 @@ def validate_document(payload: bytes, path: Path) -> dict[str, Any]:
         document = json.loads(payload)
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ActivationError(f"PostgreSQL backup activation record is not valid UTF-8 JSON: {path}") from exc
-    if not isinstance(document, dict) or set(document) != EXPECTED_FIELDS:
+    if not isinstance(document, dict):
         raise ActivationError(f"PostgreSQL backup activation record has unexpected fields: {path}")
-    if document.get("schemaVersion") != SCHEMA_VERSION or document.get("event") != EVENT:
+    schema_version = document.get("schemaVersion")
+    expected_fields = (
+        IDENTITY_FIELDS if schema_version == LEGACY_SCHEMA_VERSION else EXPECTED_FIELDS
+    )
+    if set(document) != expected_fields:
+        raise ActivationError(f"PostgreSQL backup activation record has unexpected fields: {path}")
+    if schema_version not in {LEGACY_SCHEMA_VERSION, SCHEMA_VERSION} or document.get("event") != EVENT:
         raise ActivationError(f"PostgreSQL backup activation record has an unsupported schema: {path}")
     if canonical_payload(document) != payload:
         raise ActivationError(f"PostgreSQL backup activation record is not canonical: {path}")
@@ -141,6 +150,9 @@ def validate_document(payload: bytes, path: Path) -> dict[str, Any]:
     system_identifier = document.get("postgresSystemIdentifier")
     if not isinstance(system_identifier, str) or not SYSTEM_IDENTIFIER.fullmatch(system_identifier):
         raise ActivationError(f"PostgreSQL backup activation system identifier is invalid: {path}")
+    if schema_version == LEGACY_SCHEMA_VERSION:
+        return document
+
     previous = document.get("previousActivation")
     if previous is not None:
         if not isinstance(previous, dict) or set(previous) != {"activationId", "sha256"}:
@@ -227,6 +239,8 @@ def load_chain(state_dir: Path) -> tuple[dict[str, Any], bytes]:
         if cursor_id in seen:
             raise ActivationError("PostgreSQL backup activation history contains a cycle")
         seen.add(cursor_id)
+        if cursor["schemaVersion"] == LEGACY_SCHEMA_VERSION:
+            break
         previous = cursor["previousActivation"]
         if previous is None:
             break
@@ -252,6 +266,10 @@ def load_chain(state_dir: Path) -> tuple[dict[str, Any], bytes]:
 
 def load_current(state_dir: Path, expected: dict[str, str]) -> tuple[dict[str, Any], bytes]:
     document, payload = load_chain(state_dir)
+    if document["schemaVersion"] != SCHEMA_VERSION:
+        raise ActivationError(
+            "legacy PostgreSQL backup activation requires fresh recovery evidence and audited supersession"
+        )
     validate_identity(document, expected, state_dir / CURRENT_NAME)
     return document, payload
 
@@ -297,15 +315,21 @@ def publish(args: argparse.Namespace) -> dict[str, Any]:
         current = None
         current_payload = b""
     if current is not None:
-        try:
-            validate_identity(current, expected, current_path)
-        except ActivationError:
+        if current["schemaVersion"] == LEGACY_SCHEMA_VERSION:
             if not args.supersede:
                 raise ActivationError(
-                    "live datastore identity changed; audited publication requires --supersede"
-                ) from None
+                    "legacy PostgreSQL backup activation requires fresh recovery evidence and --supersede"
+                )
         else:
-            return current
+            try:
+                validate_identity(current, expected, current_path)
+            except ActivationError:
+                if not args.supersede:
+                    raise ActivationError(
+                        "live datastore identity changed; audited publication requires --supersede"
+                    ) from None
+            else:
+                return current
         previous_activation = {
             "activationId": current["activationId"],
             "sha256": hashlib.sha256(current_payload).hexdigest(),
