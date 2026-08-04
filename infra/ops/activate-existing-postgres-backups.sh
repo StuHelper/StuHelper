@@ -87,6 +87,7 @@ logical_file="${logical_dir}/stuhelper-${activation_id}.dump"
 base_file="${base_dir}/stuhelper-${activation_id}.tar.gz"
 evidence_file="$(mktemp "${DEPLOY_STATE_DIR}/.postgres-backup-activation-evidence.XXXXXX.json")"
 trap 'rm -f -- "${evidence_file}"' EXIT
+activation_started_epoch="$(date -u +%s)"
 
 # Never authorize scheduling from an empty or stale local directory. Create a
 # fresh logical dump and physical base backup from the canonical live cluster,
@@ -98,22 +99,25 @@ BACKUP_MODE=basebackup "${SCRIPT_DIR}/backup-postgres.sh" "${base_file}"
 
 POSTGRES_BACKUP_EVIDENCE_FILE="${evidence_file}" \
 POSTGRES_BACKUP_EVIDENCE_SKIP_TIMERS=true \
-POSTGRES_BACKUP_EVIDENCE_MAX_LOGICAL_AGE_SECONDS=3600 \
-POSTGRES_BACKUP_EVIDENCE_MAX_BASE_AGE_SECONDS=3600 \
+POSTGRES_BACKUP_EVIDENCE_MAX_LOGICAL_AGE_SECONDS=259200 \
+POSTGRES_BACKUP_EVIDENCE_MAX_BASE_AGE_SECONDS=259200 \
   "${SCRIPT_DIR}/postgres-backup-evidence.sh" >/dev/null
 
 read -r logical_sha256 base_sha256 < <(
   python3 - \
     "${evidence_file}" \
     "$(basename "${logical_file}")" \
-    "$(basename "${base_file}")" <<'PY'
+    "$(basename "${base_file}")" \
+    "${activation_started_epoch}" <<'PY'
+import datetime as dt
 import json
 import re
 import sys
 from pathlib import Path
 
 evidence_path = Path(sys.argv[1])
-logical_name, base_name = sys.argv[2:]
+logical_name, base_name = sys.argv[2:4]
+activation_started = dt.datetime.fromtimestamp(int(sys.argv[4]), dt.timezone.utc)
 document = json.loads(evidence_path.read_text(encoding="utf-8"))
 logical = document.get("localLogicalBackup")
 fetched_logical = document.get("fetchedLogicalBackup")
@@ -135,6 +139,16 @@ if not all(
     for record in records
 ):
     raise SystemExit("backup evidence did not verify every fresh artifact")
+for record in records:
+    modified_at = record.get("modifiedAt")
+    if not isinstance(modified_at, str):
+        raise SystemExit("backup evidence is missing an artifact modification time")
+    try:
+        modified = dt.datetime.fromisoformat(modified_at.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise SystemExit("backup evidence contains an invalid artifact modification time") from exc
+    if modified < activation_started - dt.timedelta(seconds=1):
+        raise SystemExit("backup evidence predates the current activation attempt")
 if not isinstance(logical_sha, str) or not re.fullmatch(r"[0-9a-f]{64}", logical_sha):
     raise SystemExit("logical backup evidence digest is invalid")
 if not isinstance(base_sha, str) or not re.fullmatch(r"[0-9a-f]{64}", base_sha):

@@ -39,7 +39,7 @@ last-verified: 2026-08-03
   `current-release.env` 或用当前期望镜像冒充历史发布。先完成隔离命名恢复点 WAL replay，再由
   部署用户运行 `./infra/ops/activate-existing-postgres-backups.sh`；脚本会在核对实时 canonical
   datastore 后强制新建 logical/base backup，同步 logical/base/WAL，从 COS 取回两份新工件并
-  以一小时新鲜度、精确文件名和 SHA256 验证后，才把恢复工件摘要写入激活记录。该记录只恢复
+  以“不早于本次激活尝试”的时间下界、兼容容量窗口的 72 小时上限、精确文件名和 SHA256 验证后，才把恢复工件摘要写入激活记录。该记录只恢复
   备份调度授权，不证明应用发布成功；若仍有 `releases.log`、per-tag 记录或使用外部 PostgreSQL，
   脚本必须拒绝。以后若正常发布升级了 PostgreSQL 镜像而 release ledger 再次完整丢失，先重新
   完成隔离恢复审计再运行同一脚本；它只允许在旧记录链完整时生成并取回一组新备份，然后追加

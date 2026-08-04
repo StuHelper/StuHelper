@@ -38,6 +38,12 @@ if not lock < environment < release_guard < off_host < canonical < wal_probe < c
     raise SystemExit("activation must serialize before config, reject release evidence, protect off-host data, then publish and revalidate")
 if "--supersede" not in source:
     raise SystemExit("activation must support an audited superseding record after live identity changes")
+if "POSTGRES_BACKUP_EVIDENCE_MAX_LOGICAL_AGE_SECONDS=259200" not in source or "POSTGRES_BACKUP_EVIDENCE_MAX_BASE_AGE_SECONDS=259200" not in source:
+    raise SystemExit("activation evidence window must cover the documented backup and transfer capacity envelope")
+if "activation_started_epoch" not in source or "backup evidence predates the current activation attempt" not in source:
+    raise SystemExit("activation must bind evidence timestamps to the current attempt")
+if "POSTGRES_BACKUP_EVIDENCE_MAX_LOGICAL_AGE_SECONDS=3600" in source or "POSTGRES_BACKUP_EVIDENCE_MAX_BASE_AGE_SECONDS=3600" in source:
+    raise SystemExit("activation must not use a one-hour age window for a multi-stage backup workflow")
 if "record_release" in source or "current-release.env\" >" in source:
     raise SystemExit("backup activation must not publish or rewrite an application release")
 PY
