@@ -54,6 +54,45 @@ require_service_identity() {
   }
 }
 
+build_runuser_identity() {
+  local deploy_user="$1"
+  local deploy_group="$2"
+  local output_name="$3"
+  local supplementary_group_listing
+  local supplementary_group_id
+  local supplementary_group_record
+  local supplementary_group_name
+  local -a supplementary_group_ids=()
+  local -n output_ref="${output_name}"
+
+  output_ref=(runuser -u "${deploy_user}" -g "${deploy_group}")
+  if ! supplementary_group_listing="$(id -G "${deploy_user}")"; then
+    echo "[install-backup-timers][error] failed to enumerate supplementary groups for ${deploy_user}" >&2
+    return 1
+  fi
+  read -r -a supplementary_group_ids <<<"${supplementary_group_listing}"
+  ((${#supplementary_group_ids[@]} > 0)) || {
+    echo "[install-backup-timers][error] deploy user has no resolvable account groups: ${deploy_user}" >&2
+    return 1
+  }
+  for supplementary_group_id in "${supplementary_group_ids[@]}"; do
+    [[ "${supplementary_group_id}" =~ ^[0-9]+$ ]] || {
+      echo "[install-backup-timers][error] invalid supplementary group id for ${deploy_user}: ${supplementary_group_id}" >&2
+      return 1
+    }
+    supplementary_group_record="$(getent group "${supplementary_group_id}")" || {
+      echo "[install-backup-timers][error] failed to resolve supplementary group ${supplementary_group_id} for ${deploy_user}" >&2
+      return 1
+    }
+    IFS=: read -r supplementary_group_name _ _ _ <<<"${supplementary_group_record}"
+    [[ -n "${supplementary_group_name}" ]] || {
+      echo "[install-backup-timers][error] supplementary group ${supplementary_group_id} has no name" >&2
+      return 1
+    }
+    output_ref+=(-G "${supplementary_group_name}")
+  done
+}
+
 main() {
   require_root
   require_service_identity
@@ -249,7 +288,9 @@ EOF
       "NGINX_PUBLIC_INGRESS_CONFIG_FILE=${NGINX_PUBLIC_INGRESS_CONFIG_FILE}"
     )
   fi
-  runuser -u "${DEPLOY_USER}" -g "${DEPLOY_GROUP}" -- env -i \
+  local -a runuser_identity=()
+  build_runuser_identity "${DEPLOY_USER}" "${DEPLOY_GROUP}" runuser_identity
+  "${runuser_identity[@]}" -- env -i \
     "${activation_environment[@]}" \
     /bin/bash --noprofile --norc "${DEPLOY_APP_DIR}/infra/ops/remote-preflight.sh" --timer-activation
   systemctl enable --now stuhelper-postgres-dump-backup.timer stuhelper-postgres-basebackup.timer stuhelper-postgres-backup-sync.timer
@@ -263,4 +304,6 @@ EOF
   echo "  - ${sync_timer}"
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi

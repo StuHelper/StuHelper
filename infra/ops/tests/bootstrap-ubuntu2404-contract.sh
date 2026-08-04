@@ -210,7 +210,12 @@ assert_contains "${BACKUP_TIMER_INSTALLER}" '^TimeoutStartSec=12h$'
 [[ "$(grep -Ec '^ExecStart=/usr/bin/env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin .* BACKUP_OBJECT_STORAGE_OFF_HOST_REQUIRED=true /bin/bash --noprofile --norc \./infra/ops/' "${BACKUP_TIMER_INSTALLER}")" == "3" ]] ||
   fail "backup timer installer must start all backup services with an allowlisted empty environment"
 assert_not_contains "${BACKUP_TIMER_INSTALLER}" 'ExecStart=/bin/bash -lc'
-assert_contains "${BACKUP_TIMER_INSTALLER}" 'runuser -u "\$\{DEPLOY_USER\}" -g "\$\{DEPLOY_GROUP\}" -- env -i'
+assert_contains "${BACKUP_TIMER_INSTALLER}" 'output_ref=\(runuser -u "\$\{deploy_user\}" -g "\$\{deploy_group\}"\)'
+assert_contains "${BACKUP_TIMER_INSTALLER}" 'supplementary_group_listing="\$\(id -G "\$\{deploy_user\}"\)"'
+assert_contains "${BACKUP_TIMER_INSTALLER}" 'supplementary_group_record="\$\(getent group "\$\{supplementary_group_id\}"\)"'
+assert_contains "${BACKUP_TIMER_INSTALLER}" 'output_ref\+=\(-G "\$\{supplementary_group_name\}"\)'
+assert_contains "${BACKUP_TIMER_INSTALLER}" 'build_runuser_identity "\$\{DEPLOY_USER\}" "\$\{DEPLOY_GROUP\}" runuser_identity'
+assert_contains "${BACKUP_TIMER_INSTALLER}" '"\$\{runuser_identity\[@\]\}" -- env -i'
 assert_contains "${BACKUP_TIMER_INSTALLER}" 'local -a activation_environment=\('
 assert_contains "${BACKUP_TIMER_INSTALLER}" 'NGINX_PUBLIC_INGRESS_CONFIG_FILE=\$\{NGINX_PUBLIC_INGRESS_CONFIG_FILE\}'
 assert_contains "${BACKUP_TIMER_INSTALLER}" '"\$\{activation_environment\[@\]\}"'
