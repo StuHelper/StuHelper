@@ -49,7 +49,7 @@ assert_contains "${EVIDENCE_SCRIPT}" 'sha256Verified'
 assert_contains "${EVIDENCE_SCRIPT}" 'localBaseBackup'
 assert_contains "${EVIDENCE_SCRIPT}" 'fetchedBaseBackup'
 assert_contains "${EVIDENCE_SCRIPT}" 'infra/generated/postgres-backup-evidence\.json'
-assert_contains "${EVIDENCE_SCRIPT}" 'systemd_unit_is_loaded "\$\{unit\}"'
+assert_contains "${EVIDENCE_SCRIPT}" 'systemd_unit_file_is_installed "\$\{unit\}"'
 assert_not_contains "${EVIDENCE_SCRIPT}" 'systemctl list-unit-files \| grep -q'
 
 python3 - "${FETCH_SCRIPT}" <<'PY' || fail "fetch command does not preserve isolated evidence directories"

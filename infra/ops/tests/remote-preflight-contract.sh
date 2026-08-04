@@ -84,9 +84,9 @@ assert_contains "${COMMON_LIB_FILE}" 'must be exactly .*protected production bac
 assert_contains "${PREFLIGHT_FILE}" 'vault-runtime-token\.sh" check'
 assert_contains "${PREFLIGHT_FILE}" 'stuhelper-vault-token-renewal\.timer'
 assert_contains "${PREFLIGHT_FILE}" 'Vault runtime token renewal timer is not active'
-assert_contains "${COMMON_LIB_FILE}" 'systemd_unit_is_loaded\(\)'
-assert_contains "${COMMON_LIB_FILE}" 'systemctl show "\$\{unit\}" --property=LoadState --value'
-assert_contains "${PREFLIGHT_FILE}" 'systemd_unit_is_loaded stuhelper-vault-token-renewal\.timer'
+assert_contains "${COMMON_LIB_FILE}" 'systemd_unit_file_is_installed\(\)'
+assert_contains "${COMMON_LIB_FILE}" 'systemctl list-unit-files --no-legend --no-pager "\$\{unit\}"'
+assert_contains "${PREFLIGHT_FILE}" 'systemd_unit_file_is_installed stuhelper-vault-token-renewal\.timer'
 assert_not_contains "${PREFLIGHT_FILE}" 'systemctl list-unit-files \| grep -q'
 assert_contains "${COMMON_LIB_FILE}" 'require_systemd_unit_exact_environment\(\)'
 assert_contains "${COMMON_LIB_FILE}" 'require_no_legacy_backup_timer_units\(\)'
@@ -285,20 +285,20 @@ cleanup() {
 trap cleanup EXIT
 
 systemctl() {
-  [[ "$1" == "show" && "$3" == "--property=LoadState" && "$4" == "--value" ]] || return 97
-  case "$2" in
-    loaded.service) printf 'loaded\n' ;;
-    missing.service) printf 'not-found\n' ;;
+  [[ "$1" == "list-unit-files" && "$2" == "--no-legend" && "$3" == "--no-pager" ]] || return 97
+  case "$4" in
+    installed.service) printf 'installed.service enabled enabled\n' ;;
+    missing.service) return 0 ;;
     failed.service) return 98 ;;
     *) return 99 ;;
   esac
 }
-systemd_unit_is_loaded loaded.service ||
-  fail "systemd unit presence gate rejected LoadState=loaded"
-if systemd_unit_is_loaded missing.service; then
-  fail "systemd unit presence gate accepted LoadState=not-found"
+systemd_unit_file_is_installed installed.service ||
+  fail "systemd unit presence gate rejected an installed unit file"
+if systemd_unit_file_is_installed missing.service; then
+  fail "systemd unit presence gate accepted a missing unit file"
 fi
-if systemd_unit_is_loaded failed.service; then
+if systemd_unit_file_is_installed failed.service; then
   fail "systemd unit presence gate accepted a failed systemctl query"
 fi
 unset -f systemctl

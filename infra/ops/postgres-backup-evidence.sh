@@ -181,7 +181,7 @@ check_timers() {
   for unit in "${timer_units[@]}"; do
     installed="false"
     enabled="false"
-    if systemd_unit_is_loaded "${unit}"; then
+    if systemd_unit_file_is_installed "${unit}"; then
       installed="true"
     fi
     if systemctl is-enabled --quiet "${unit}"; then
