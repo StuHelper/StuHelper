@@ -234,15 +234,23 @@ EOF
     echo "[install-backup-timers][error] runuser is required for non-root activation preflight" >&2
     exit 1
   }
-  runuser -u "${DEPLOY_USER}" -- env -i \
-    PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
-    ENV_FILE="${DEPLOY_APP_DIR}/.env.prod.shared" \
-    SECRETS_ENV_FILE="${DEPLOY_APP_DIR}/.env.prod.secrets" \
-    GENERATED_ENV_FILE="${DEPLOY_APP_DIR}/.env.prod.generated" \
-    GENERATED_SECRET_ENV_FILE="${DEPLOY_APP_DIR}/.env.prod.generated.secrets" \
-    LOCAL_STATE_DIR=/var/lib/stuhelper \
-    BACKUP_STAGING_DIR="${BACKUP_STAGING_DIR}" \
-    REMOTE_DEPLOY_CONFIG_FILE="${REMOTE_DEPLOY_CONFIG_FILE}" \
+  local -a activation_environment=(
+    PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    "ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.shared"
+    "SECRETS_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.secrets"
+    "GENERATED_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.generated"
+    "GENERATED_SECRET_ENV_FILE=${DEPLOY_APP_DIR}/.env.prod.generated.secrets"
+    LOCAL_STATE_DIR=/var/lib/stuhelper
+    "BACKUP_STAGING_DIR=${BACKUP_STAGING_DIR}"
+    "REMOTE_DEPLOY_CONFIG_FILE=${REMOTE_DEPLOY_CONFIG_FILE}"
+  )
+  if [[ -n "${NGINX_PUBLIC_INGRESS_CONFIG_FILE:-}" ]]; then
+    activation_environment+=(
+      "NGINX_PUBLIC_INGRESS_CONFIG_FILE=${NGINX_PUBLIC_INGRESS_CONFIG_FILE}"
+    )
+  fi
+  runuser -u "${DEPLOY_USER}" -g "${DEPLOY_GROUP}" -- env -i \
+    "${activation_environment[@]}" \
     /bin/bash --noprofile --norc "${DEPLOY_APP_DIR}/infra/ops/remote-preflight.sh" --timer-activation
   systemctl enable --now stuhelper-postgres-dump-backup.timer stuhelper-postgres-basebackup.timer stuhelper-postgres-backup-sync.timer
 
