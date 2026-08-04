@@ -75,7 +75,7 @@ BACKUP_MODE=basebackup ./infra/ops/backup-postgres.sh backups/stuhelper-$(date +
 - 同步器显式排除 `*.partial*`、WAL 归档的 `*.tmp*` 和 staging 路径；只有已经原子发布的工件会上传
 - 生产 systemd unit 固定要求异机门禁；门禁会在创建备份或执行 logical / base / WAL 保留期清理之前检查，失败时不会删除任何尚未上传的本地工件
 - `current-release.env` 尚未产生时，只有 Docker daemon 可确认本机 PostgreSQL 容器和 data volume 都不存在、未选择外部 PostgreSQL，且没有 `releases.log` 或 per-tag 历史证据，timer 才允许在真正空白的 bootstrap 主机上成功延期。已有 datastore 时仍会失败关闭，不能把“未备份”伪装成成功 no-op
-- 仅当发布账本已完整丢失、又必须保护经过人工审计的内置 PostgreSQL 存量库时，才可在完成新鲜 logical/base backup、异机同步和隔离 base + WAL replay 演练后，由部署用户显式运行 `./infra/ops/activate-existing-postgres-backups.sh`。脚本先取得与生产发布相同的主机锁，核对固定 digest、Compose 身份、data/WAL volume、实时 `system_identifier`、归档进度和异机目标，成功同步全部工件后才原子写入 `0600` 的 `postgres-backup-activation.json` 及不可变副本。定时任务会在每次运行时重新把该记录绑定到实时容器与集群；镜像、volume 或 system identifier 漂移立即失败。它不能覆盖残存或损坏的 `current-release.env`、`releases.log`、per-tag 账本，也不支持拿内置库记录授权外部 PostgreSQL
+- 仅当发布账本已完整丢失、又必须保护经过人工审计的内置 PostgreSQL 存量库时，才可在完成隔离 base + WAL replay 演练后，由部署用户显式运行 `./infra/ops/activate-existing-postgres-backups.sh`。脚本先取得与生产发布相同的主机锁，并在任何持久写入前核对固定 digest、Compose 身份、data/WAL volume、实时 `system_identifier`、归档进度和异机目标；随后强制从该实时集群新建 logical dump 与 base backup，同步完整 logical/base/WAL 集合，再把两份新工件从异机对象存储取回并以一小时新鲜度、文件名和 SHA256 交叉验证。只有这些步骤全部成功，才会把两份恢复工件的名称与摘要写入 `0600` 的 `postgres-backup-activation.json` 及不可变副本。定时任务会在每次运行时重新把该记录绑定到实时容器与集群；镜像、volume 或 system identifier 漂移立即失败。它不能覆盖残存或损坏的 `current-release.env`、`releases.log`、per-tag 账本，也不支持拿内置库记录授权外部 PostgreSQL；脚本内置的工件校验仍不能替代此前由操作者完成的隔离 WAL replay 演练
 - StuHelper 环境加载器将配置文件按数据解析，拒绝 `PATH`、`PYTHON*`、`LD_*`、`DYLD_*`、`BASH_ENV` / `ENV`、`GCONV_PATH`、`NODE_OPTIONS` 等进程控制变量，并在解析前与加载后清除父进程继承的同类变量；定时任务调用备份和同步子脚本时仍使用非登录、无 profile 的隔离 Bash，防止子进程启动钩子改变门禁或清理顺序
 
 生产机建议直接安装 systemd timer：

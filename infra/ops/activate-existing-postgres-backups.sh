@@ -8,6 +8,7 @@ source "${SCRIPT_DIR}/lib/common.sh"
 
 require_cmd docker
 require_cmd python3
+require_cmd sha256sum
 acquire_production_deploy_lock
 if [[ -f "${REMOTE_DEPLOY_CONFIG_FILE}" ]]; then
   load_remote_deploy_config
@@ -62,12 +63,69 @@ require_live_postgres_wal_archiving \
 system_identifier="$(live_postgres_system_identifier \
   "${postgres_container}" "${POSTGRES_USER:-stuhelper}" "${POSTGRES_DB:-stuhelper}")"
 
-# Protect the existing datastore first. The activation pointer is published
-# only after all current logical/base/WAL artifacts have reached the verified
-# off-host target.
+activation_id="postgres-$(new_deployment_attempt_id)"
+logical_dir="${BACKUP_LOGICAL_DIR:-${REPO_ROOT}/backups/postgres/logical}"
+base_dir="${BACKUP_BASE_DIR:-${REPO_ROOT}/backups/postgres/base}"
+logical_file="${logical_dir}/stuhelper-${activation_id}.dump"
+base_file="${base_dir}/stuhelper-${activation_id}.tar.gz"
+evidence_file="$(mktemp "${DEPLOY_STATE_DIR}/.postgres-backup-activation-evidence.XXXXXX.json")"
+trap 'rm -f -- "${evidence_file}"' EXIT
+
+# Never authorize scheduling from an empty or stale local directory. Create a
+# fresh logical dump and physical base backup from the canonical live cluster,
+# synchronize the full logical/base/WAL set, and then independently fetch the
+# two new artifacts back before publishing durable activation evidence.
+BACKUP_MODE=dump "${SCRIPT_DIR}/backup-postgres.sh" "${logical_file}"
+BACKUP_MODE=basebackup "${SCRIPT_DIR}/backup-postgres.sh" "${base_file}"
 "${SCRIPT_DIR}/sync-postgres-backups.sh"
 
-activation_id="postgres-$(new_deployment_attempt_id)"
+POSTGRES_BACKUP_EVIDENCE_FILE="${evidence_file}" \
+POSTGRES_BACKUP_EVIDENCE_SKIP_TIMERS=true \
+POSTGRES_BACKUP_EVIDENCE_MAX_LOGICAL_AGE_SECONDS=3600 \
+POSTGRES_BACKUP_EVIDENCE_MAX_BASE_AGE_SECONDS=3600 \
+  "${SCRIPT_DIR}/postgres-backup-evidence.sh" >/dev/null
+
+read -r logical_sha256 base_sha256 < <(
+  python3 - \
+    "${evidence_file}" \
+    "$(basename "${logical_file}")" \
+    "$(basename "${base_file}")" <<'PY'
+import json
+import re
+import sys
+from pathlib import Path
+
+evidence_path = Path(sys.argv[1])
+logical_name, base_name = sys.argv[2:]
+document = json.loads(evidence_path.read_text(encoding="utf-8"))
+logical = document.get("localLogicalBackup")
+fetched_logical = document.get("fetchedLogicalBackup")
+base = document.get("localBaseBackup")
+fetched_base = document.get("fetchedBaseBackup")
+records = (logical, fetched_logical, base, fetched_base)
+if not all(isinstance(record, dict) for record in records):
+    raise SystemExit("backup evidence is missing required artifact records")
+if logical.get("file") != logical_name or fetched_logical.get("file") != logical_name:
+    raise SystemExit("backup evidence does not bind the newly created logical dump")
+if base.get("file") != base_name or fetched_base.get("file") != base_name:
+    raise SystemExit("backup evidence does not bind the newly created physical base backup")
+logical_sha = logical.get("sha256")
+base_sha = base.get("sha256")
+if logical_sha != fetched_logical.get("sha256") or base_sha != fetched_base.get("sha256"):
+    raise SystemExit("local and fetched backup evidence digests do not match")
+if not all(
+    record.get("sha256Verified") is True and record.get("fresh") is True
+    for record in records
+):
+    raise SystemExit("backup evidence did not verify every fresh artifact")
+if not isinstance(logical_sha, str) or not re.fullmatch(r"[0-9a-f]{64}", logical_sha):
+    raise SystemExit("logical backup evidence digest is invalid")
+if not isinstance(base_sha, str) or not re.fullmatch(r"[0-9a-f]{64}", base_sha):
+    raise SystemExit("physical base backup evidence digest is invalid")
+print(logical_sha, base_sha)
+PY
+)
+
 python3 "${SCRIPT_DIR}/manage-postgres-backup-activation.py" publish \
   --state-dir "${DEPLOY_STATE_DIR}" \
   --activation-id "${activation_id}" \
@@ -76,7 +134,11 @@ python3 "${SCRIPT_DIR}/manage-postgres-backup-activation.py" publish \
   --postgres-image-ref "${POSTGRES_IMAGE_REF}" \
   --postgres-system-identifier "${system_identifier}" \
   --postgres-data-volume "${postgres_data_volume}" \
-  --postgres-wal-archive-volume "${postgres_wal_volume}" >/dev/null
+  --postgres-wal-archive-volume "${postgres_wal_volume}" \
+  --logical-backup-file "$(basename "${logical_file}")" \
+  --logical-backup-sha256 "${logical_sha256}" \
+  --base-backup-file "$(basename "${base_file}")" \
+  --base-backup-sha256 "${base_sha256}" >/dev/null
 
 require_live_postgres_backup_activation
 log "activated the audited PostgreSQL backup control plane for the existing datastore"

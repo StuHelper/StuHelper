@@ -27,10 +27,13 @@ release_guard = source.index("current_release_file=")
 off_host = source.index("require_off_host_backup_object_storage")
 canonical = source.index("require_live_canonical_postgres_datastore")
 wal_probe = source.index("require_live_postgres_wal_archiving")
-sync = source.index('"${SCRIPT_DIR}/sync-postgres-backups.sh"', wal_probe)
+logical = source.index("BACKUP_MODE=dump", wal_probe)
+base = source.index("BACKUP_MODE=basebackup", logical)
+sync = source.index('"${SCRIPT_DIR}/sync-postgres-backups.sh"', base)
+evidence = source.index("postgres-backup-evidence.sh", sync)
 publish = source.index("manage-postgres-backup-activation.py\" publish")
 final_validation = source.rindex("require_live_postgres_backup_activation")
-if not lock < environment < release_guard < off_host < canonical < wal_probe < sync < publish < final_validation:
+if not lock < environment < release_guard < off_host < canonical < wal_probe < logical < base < sync < evidence < publish < final_validation:
     raise SystemExit("activation must serialize before config, reject release evidence, protect off-host data, then publish and revalidate")
 if "record_release" in source or "current-release.env\" >" in source:
     raise SystemExit("backup activation must not publish or rewrite an application release")
@@ -45,9 +48,16 @@ identity_args=(
   --postgres-data-volume contract-prod-postgres-data
   --postgres-wal-archive-volume contract-prod-postgres-wal-archive
 )
+evidence_args=(
+  --logical-backup-file stuhelper-postgres-contract.dump
+  --logical-backup-sha256 bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  --base-backup-file stuhelper-postgres-contract.tar.gz
+  --base-backup-sha256 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+)
 
 python3 "${MANAGER}" publish \
   "${identity_args[@]}" \
+  "${evidence_args[@]}" \
   --activation-id postgres-20260804T000000Z-contract >"${tmpdir}/publish.json"
 python3 "${MANAGER}" validate "${identity_args[@]}" >"${tmpdir}/validate.json"
 
@@ -60,9 +70,29 @@ immutable="${state_dir}/postgres-backup-activations/postgres-20260804T000000Z-co
   fail "activation record directory must use mode 0700"
 cmp -s "${current}" "${immutable}" || fail "current activation does not match its immutable record"
 grep -q '"validated": true' "${tmpdir}/validate.json" || fail "activation validation did not report success"
+python3 - "${current}" <<'PY' || fail "activation did not bind the reviewed recovery artifacts"
+import json
+import sys
+from pathlib import Path
+
+document = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+assert document["schemaVersion"] == 2
+assert document["previousActivation"] is None
+assert document["recoveryEvidence"] == {
+    "logicalBackup": {
+        "file": "stuhelper-postgres-contract.dump",
+        "sha256": "b" * 64,
+    },
+    "physicalBaseBackup": {
+        "file": "stuhelper-postgres-contract.tar.gz",
+        "sha256": "c" * 64,
+    },
+}
+PY
 
 python3 "${MANAGER}" publish \
   "${identity_args[@]}" \
+  "${evidence_args[@]}" \
   --activation-id postgres-20260804T000100Z-idempotent >"${tmpdir}/idempotent.json"
 [[ "$(find "${state_dir}/postgres-backup-activations" -maxdepth 1 -type f | wc -l)" == "1" ]] ||
   fail "idempotent activation created a second immutable record"
@@ -98,6 +128,7 @@ install -m 0600 "${tmpdir}/canonical.json" "${current}"
 rm -f "${current}"
 if python3 "${MANAGER}" publish \
   "${identity_args[@]}" \
+  "${evidence_args[@]}" \
   --activation-id postgres-20260804T000200Z-orphaned \
   >"${tmpdir}/orphaned.out" 2>"${tmpdir}/orphaned.err"; then
   fail "activation publication accepted orphaned immutable evidence"

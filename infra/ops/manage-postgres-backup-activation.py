@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 EVENT = "existing_postgres_backup_control_activated"
 CURRENT_NAME = "postgres-backup-activation.json"
 RECORDS_DIR_NAME = "postgres-backup-activations"
@@ -22,6 +22,8 @@ SAFE_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 SAFE_DOCKER_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}")
 DIGEST_REF = re.compile(r"[^\s@]+@sha256:[0-9a-f]{64}")
 SYSTEM_IDENTIFIER = re.compile(r"[0-9]{10,20}")
+SHA256 = re.compile(r"[0-9a-f]{64}")
+BACKUP_FILE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,254}")
 EXPECTED_FIELDS = {
     "schemaVersion",
     "event",
@@ -33,6 +35,8 @@ EXPECTED_FIELDS = {
     "postgresSystemIdentifier",
     "postgresDataVolume",
     "postgresWalArchiveVolume",
+    "previousActivation",
+    "recoveryEvidence",
 }
 
 
@@ -136,6 +140,25 @@ def validate_document(payload: bytes, path: Path) -> dict[str, Any]:
     system_identifier = document.get("postgresSystemIdentifier")
     if not isinstance(system_identifier, str) or not SYSTEM_IDENTIFIER.fullmatch(system_identifier):
         raise ActivationError(f"PostgreSQL backup activation system identifier is invalid: {path}")
+    if document.get("previousActivation") is not None:
+        raise ActivationError(f"initial PostgreSQL backup activation cannot name a predecessor: {path}")
+    evidence = document.get("recoveryEvidence")
+    if not isinstance(evidence, dict) or set(evidence) != {"logicalBackup", "physicalBaseBackup"}:
+        raise ActivationError(f"PostgreSQL backup activation recovery evidence is invalid: {path}")
+    for key, suffix in (("logicalBackup", ".dump"), ("physicalBaseBackup", ".tar.gz")):
+        artifact = evidence.get(key)
+        if not isinstance(artifact, dict) or set(artifact) != {"file", "sha256"}:
+            raise ActivationError(f"PostgreSQL backup activation {key} evidence is invalid: {path}")
+        filename = artifact.get("file")
+        digest = artifact.get("sha256")
+        if (
+            not isinstance(filename, str)
+            or not BACKUP_FILE.fullmatch(filename)
+            or not filename.endswith(suffix)
+        ):
+            raise ActivationError(f"PostgreSQL backup activation {key} filename is invalid: {path}")
+        if not isinstance(digest, str) or not SHA256.fullmatch(digest):
+            raise ActivationError(f"PostgreSQL backup activation {key} digest is invalid: {path}")
     return document
 
 
@@ -238,6 +261,17 @@ def publish(args: argparse.Namespace) -> dict[str, Any]:
         "activationId": args.activation_id,
         "activatedAt": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         **expected,
+        "previousActivation": None,
+        "recoveryEvidence": {
+            "logicalBackup": {
+                "file": args.logical_backup_file,
+                "sha256": args.logical_backup_sha256,
+            },
+            "physicalBaseBackup": {
+                "file": args.base_backup_file,
+                "sha256": args.base_backup_sha256,
+            },
+        },
     }
     payload = canonical_payload(document)
     validate_document(payload, current_path)
@@ -279,6 +313,10 @@ def main() -> None:
     publish_parser = subparsers.add_parser("publish")
     add_identity_arguments(publish_parser)
     publish_parser.add_argument("--activation-id", required=True)
+    publish_parser.add_argument("--logical-backup-file", required=True)
+    publish_parser.add_argument("--logical-backup-sha256", required=True)
+    publish_parser.add_argument("--base-backup-file", required=True)
+    publish_parser.add_argument("--base-backup-sha256", required=True)
     validate_parser = subparsers.add_parser("validate")
     add_identity_arguments(validate_parser)
     args = parser.parse_args()
