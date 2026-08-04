@@ -67,7 +67,10 @@ main() {
   esac
   for required_script in \
     "${DEPLOY_APP_DIR}/infra/ops/run-scheduled-backup.sh" \
+    "${DEPLOY_APP_DIR}/infra/ops/backup-postgres.sh" \
     "${DEPLOY_APP_DIR}/infra/ops/sync-postgres-backups.sh" \
+    "${DEPLOY_APP_DIR}/infra/ops/fetch-postgres-backups.sh" \
+    "${DEPLOY_APP_DIR}/infra/ops/postgres-backup-evidence.sh" \
     "${DEPLOY_APP_DIR}/infra/ops/activate-existing-postgres-backups.sh" \
     "${DEPLOY_APP_DIR}/infra/ops/manage-postgres-backup-activation.py" \
     "${DEPLOY_APP_DIR}/infra/ops/remote-preflight.sh"; do
