@@ -65,7 +65,8 @@ func listPoliciesByGuildKeysSQL() string {
 		       link_wait_seconds, submission_wait_seconds, manual_review_timeout_seconds,
 		       reminder_interval_seconds, failed_join_limit, blacklist_duration_seconds,
 		       freshman_channel_enabled, freshman_channel_closes_at, freshman_default_expires_at,
-		       forward_raw_material_to_qq, management_guild_ids, max_material_bytes, max_extension_days
+		       forward_raw_material_to_qq, management_guild_ids, max_material_bytes, max_extension_days,
+		       allow_temporary_freshman
 		FROM group_admission_policies p
 		JOIN wanted w USING (platform, guild_id)
 	`

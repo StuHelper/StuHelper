@@ -11,6 +11,7 @@ import {
   requireAdmissionActionPlatform,
 } from './admission-action-boundary'
 import type { GuardBotRuntime, MemberGuardService } from './member-guard'
+import { opaqueLogReference } from './log-reference'
 
 interface AdmissionActionStreamLogger {
   info(message: string, ...args: unknown[]): void
@@ -129,11 +130,12 @@ class AdmissionActionStreamRuntime {
   }
 
   private handleStreamOpen(key: string, bot: GuardBotRuntime, platform: string) {
-    this.deps.logger.info('admission action stream connected', {
-      platform,
-      botSelfID: bot.selfId,
-    })
-    if (!this.reconnectAttempts.has(key)) {
+    const reconnectAttempt = this.reconnectAttempts.get(key)
+    if (typeof reconnectAttempt === 'undefined') {
+      this.deps.logger.info('admission action stream connected', {
+        platform,
+        streamRef: opaqueLogReference('bot', bot.selfId),
+      })
       return
     }
     this.clearStabilityTimer(key)
@@ -145,7 +147,6 @@ class AdmissionActionStreamRuntime {
   }
 
   private async handleAction(key: string, bot: GuardBotRuntime, action: AdmissionPendingAction) {
-    this.clearReconnectState(key)
     await this.deps.memberGuard.handleQueuedAdmissionAction(bot, action)
   }
 
@@ -187,17 +188,19 @@ class AdmissionActionStreamRuntime {
       attempt,
     )
     this.reconnectAttempts.set(key, attempt + 1)
-    this.deps.logger.warn(
-      source === 'stream'
-        ? 'admission action stream disconnected; reconnect scheduled'
-        : 'admission action stream runtime setting unavailable; reconnect scheduled',
-      {
-        botSelfID: bot.selfId,
-        reconnectAttempt: attempt + 1,
-        reconnectDelayMs: delayMs,
-        error: error instanceof Error ? error.message : String(error),
-      },
-    )
+    if (shouldLogReconnectAttempt(attempt + 1)) {
+      this.deps.logger.warn(
+        source === 'stream'
+          ? 'admission action stream disconnected; reconnect scheduled'
+          : 'admission action stream runtime setting unavailable; reconnect scheduled',
+        {
+          streamRef: opaqueLogReference('bot', bot.selfId),
+          reconnectAttempt: attempt + 1,
+          reconnectDelayMs: delayMs,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      )
+    }
     const timer = setTimeout(async () => {
       this.reconnectTimers.delete(key)
       if (this.disposed) {
@@ -232,6 +235,10 @@ class AdmissionActionStreamRuntime {
     this.clearStabilityTimer(key)
     this.reconnectAttempts.delete(key)
   }
+}
+
+export function shouldLogReconnectAttempt(attempt: number): boolean {
+  return attempt === 1 || (attempt > 1 && (attempt & (attempt - 1)) === 0)
 }
 
 export function admissionActionReconnectDelayMs(

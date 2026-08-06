@@ -17,7 +17,8 @@ func (r *Repository) GetPolicy(ctx context.Context, platform, guildID string) (*
 		       link_wait_seconds, submission_wait_seconds, manual_review_timeout_seconds,
 		       reminder_interval_seconds, failed_join_limit, blacklist_duration_seconds,
 		       freshman_channel_enabled, freshman_channel_closes_at, freshman_default_expires_at,
-		       forward_raw_material_to_qq, management_guild_ids, max_material_bytes, max_extension_days
+		       forward_raw_material_to_qq, management_guild_ids, max_material_bytes, max_extension_days,
+		       allow_temporary_freshman
 		FROM group_admission_policies
 		WHERE platform = $1 AND guild_id = $2
 	`, platform, guildID))
@@ -38,7 +39,7 @@ func scanAdmissionPolicy(row pgx.Row) (*AdmissionPolicy, error) {
 		&policy.ReminderIntervalSeconds, &policy.FailedJoinLimit, &policy.BlacklistDurationSeconds,
 		&policy.FreshmanChannelEnabled, &policy.FreshmanChannelClosesAt, &policy.FreshmanDefaultExpiresAt,
 		&policy.ForwardRawMaterialToQQ, &policy.ManagementGuildIDs, &policy.MaxMaterialBytes,
-		&policy.MaxExtensionDays,
+		&policy.MaxExtensionDays, &policy.AllowTemporaryFreshman,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

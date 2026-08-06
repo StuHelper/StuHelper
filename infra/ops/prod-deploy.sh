@@ -140,6 +140,7 @@ require_nonempty POSTGRES_EXPORTER_DB_PASSWORD "${POSTGRES_EXPORTER_DB_PASSWORD:
 require_nonempty METRICS_PASSWORD "${METRICS_PASSWORD:-}"
 require_nonempty GRAFANA_ADMIN_PASSWORD "${GRAFANA_ADMIN_PASSWORD:-}"
 require_nonempty ALERTMANAGER_WEBHOOK_URL "${ALERTMANAGER_WEBHOOK_URL:-}"
+require_nonempty ALERTMANAGER_WEBHOOK_TOKEN "${ALERTMANAGER_WEBHOOK_TOKEN:-}"
 require_nonempty TRUSTED_PROXIES "${TRUSTED_PROXIES:-}"
 require_nonempty CORS_ORIGINS "${CORS_ORIGINS:-}"
 require_nonempty HMAC_SECRET "${HMAC_SECRET:-}"
@@ -198,6 +199,8 @@ require_nonempty BOT_SERVICE_TOKEN "${BOT_SERVICE_TOKEN:-}"
 require_nonempty WEB_PUBLIC_URL "${WEB_PUBLIC_URL:-}"
 require_nonempty ADMIN_PUBLIC_URL "${ADMIN_PUBLIC_URL:-}"
 require_nonempty ADMISSION_PUBLIC_BASE_URL "${ADMISSION_PUBLIC_BASE_URL:-}"
+require_nonempty STUDENT_VERIFICATION_PUBLIC_BASE_URL "${STUDENT_VERIFICATION_PUBLIC_BASE_URL:-}"
+require_nonempty STUDENT_VERIFICATION_PRODUCTION_READINESS_ENABLED "${STUDENT_VERIFICATION_PRODUCTION_READINESS_ENABLED:-}"
 require_nonempty ADMISSION_PRODUCTION_READINESS_ENABLED "${ADMISSION_PRODUCTION_READINESS_ENABLED:-}"
 require_nonempty STUHELPER_FRESHMAN_MATERIAL_HOSTS "${STUHELPER_FRESHMAN_MATERIAL_HOSTS:-}"
 require_nonempty WEB_VITE_SSO_URL "${WEB_VITE_SSO_URL:-}"
@@ -268,6 +271,7 @@ reject_placeholder BOT_SERVICE_TOKEN "${BOT_SERVICE_TOKEN:-}" "REPLACE_WITH_BOT_
 reject_placeholder WEB_PUBLIC_URL "${WEB_PUBLIC_URL:-}" "REPLACE_WITH_WEB_PUBLIC_URL"
 reject_placeholder ADMIN_PUBLIC_URL "${ADMIN_PUBLIC_URL:-}" "REPLACE_WITH_ADMIN_PUBLIC_URL"
 reject_placeholder ADMISSION_PUBLIC_BASE_URL "${ADMISSION_PUBLIC_BASE_URL:-}" "REPLACE_WITH_ADMISSION_PUBLIC_BASE_URL"
+reject_placeholder STUDENT_VERIFICATION_PUBLIC_BASE_URL "${STUDENT_VERIFICATION_PUBLIC_BASE_URL:-}" "REPLACE_WITH_STUDENT_VERIFICATION_PUBLIC_BASE_URL"
 reject_placeholder WEB_VITE_SSO_URL "${WEB_VITE_SSO_URL:-}" "REPLACE_WITH_WEB_VITE_SSO_URL"
 reject_placeholder WEB_VITE_WEB_URL "${WEB_VITE_WEB_URL:-}" "REPLACE_WITH_WEB_VITE_WEB_URL"
 reject_placeholder OBJECT_STORAGE_ENDPOINT "${OBJECT_STORAGE_ENDPOINT:-}" "REPLACE_WITH_OBJECT_STORAGE_ENDPOINT"
@@ -278,6 +282,7 @@ reject_placeholder BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID "${BACKUP_OBJECT_STORAGE_
 reject_placeholder BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY "${BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY:-}" "REPLACE_WITH_BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY"
 reject_placeholder GRAFANA_ROOT_URL "${GRAFANA_ROOT_URL:-}" "REPLACE_WITH_GRAFANA_ROOT_URL"
 reject_placeholder ALERTMANAGER_WEBHOOK_URL "${ALERTMANAGER_WEBHOOK_URL:-}" "REPLACE_WITH_ALERTMANAGER_WEBHOOK_URL"
+reject_placeholder ALERTMANAGER_WEBHOOK_TOKEN "${ALERTMANAGER_WEBHOOK_TOKEN:-}" "REPLACE_WITH_ALERTMANAGER_WEBHOOK_TOKEN"
 reject_placeholder BACKEND_IMAGE_REF "${BACKEND_IMAGE_REF:-}" "REPLACE_WITH_BACKEND_IMAGE_REF"
 reject_placeholder FRONTEND_IMAGE_REF "${FRONTEND_IMAGE_REF:-}" "REPLACE_WITH_FRONTEND_IMAGE_REF"
 reject_placeholder ADMIN_IMAGE_REF "${ADMIN_IMAGE_REF:-}" "REPLACE_WITH_ADMIN_IMAGE_REF"
@@ -285,6 +290,11 @@ reject_placeholder ADMIN_IMAGE_REF "${ADMIN_IMAGE_REF:-}" "REPLACE_WITH_ADMIN_IM
 if [[ "${ALERTMANAGER_WEBHOOK_URL:-}" == "http://alert-webhook-sink:8080/alerts" && "${ALLOW_LOCAL_ALERT_SINK:-false}" != "true" ]]; then
   die "ALERTMANAGER_WEBHOOK_URL points to the local sink; set ALLOW_LOCAL_ALERT_SINK=true only for local production validation"
 fi
+
+[[ "${ALERTMANAGER_WEBHOOK_TOKEN:-}" =~ ^[A-Za-z0-9._~+/=-]{32,512}$ ]] ||
+  die "ALERTMANAGER_WEBHOOK_TOKEN must be 32-512 characters using the approved token alphabet"
+[[ "${ALERTMANAGER_CONFIG_GID:-65534}" =~ ^[0-9]+$ ]] ||
+  die "ALERTMANAGER_CONFIG_GID must be a numeric group ID"
 
 [[ "${APP_ENV:-production}" == "production" ]] || die "APP_ENV must be production for production deploy"
 
@@ -298,6 +308,7 @@ reject_local_value CASDOOR_TOKEN_PROBE_SMOKE_REDIRECT_URI "${CASDOOR_TOKEN_PROBE
 reject_local_value WEB_PUBLIC_URL "${WEB_PUBLIC_URL:-}"
 reject_local_value ADMIN_PUBLIC_URL "${ADMIN_PUBLIC_URL:-}"
 reject_local_value ADMISSION_PUBLIC_BASE_URL "${ADMISSION_PUBLIC_BASE_URL:-}"
+reject_local_value STUDENT_VERIFICATION_PUBLIC_BASE_URL "${STUDENT_VERIFICATION_PUBLIC_BASE_URL:-}"
 reject_local_value WEB_VITE_SSO_URL "${WEB_VITE_SSO_URL:-}"
 reject_local_value WEB_VITE_WEB_URL "${WEB_VITE_WEB_URL:-}"
 reject_local_value OPEN_PLATFORM_CONSENT_BASE_URL "${OPEN_PLATFORM_CONSENT_BASE_URL:-}"
@@ -311,6 +322,32 @@ require_production_object_storage
 "${SCRIPT_DIR}/prepare-object-storage-client-ca.sh"
 [[ "${TOKEN_COOKIE_SECURE:-false}" == "true" ]] || die "TOKEN_COOKIE_SECURE must be true for production deploy"
 [[ "${ADMISSION_PUBLIC_BASE_URL:-}" == "https://join.stuhelper.com" ]] || die "ADMISSION_PUBLIC_BASE_URL must be exactly https://join.stuhelper.com for production deploy"
+[[ "${STUDENT_VERIFICATION_PUBLIC_BASE_URL:-}" == "https://stuhelper.com" ]] || die "STUDENT_VERIFICATION_PUBLIC_BASE_URL must be exactly https://stuhelper.com for production deploy"
+if [[ "${CAMPUS_CONNECTOR_GATEWAY_ENABLED:-false}" == "true" ]]; then
+  require_nonempty CAMPUS_CONNECTOR_GATEWAY_PUBLIC_HOST "${CAMPUS_CONNECTOR_GATEWAY_PUBLIC_HOST:-}"
+  require_nonempty CAMPUS_CONNECTOR_GATEWAY_SECRET_DIR "${CAMPUS_CONNECTOR_GATEWAY_SECRET_DIR:-}"
+  require_nonempty CAMPUS_CONNECTOR_SNAPSHOT_KEY_ID "${CAMPUS_CONNECTOR_SNAPSHOT_KEY_ID:-}"
+  reject_placeholder \
+    CAMPUS_CONNECTOR_SNAPSHOT_KEY_ID \
+    "${CAMPUS_CONNECTOR_SNAPSHOT_KEY_ID:-}" \
+    "REPLACE_WITH_CAMPUS_CONNECTOR_SNAPSHOT_KEY_ID"
+  reject_local_value \
+    CAMPUS_CONNECTOR_GATEWAY_PUBLIC_HOST \
+    "${CAMPUS_CONNECTOR_GATEWAY_PUBLIC_HOST:-}"
+  [[ "${CAMPUS_CONNECTOR_GATEWAY_EXTERNAL_PORT:-}" =~ ^[0-9]+$ ]] &&
+    ((CAMPUS_CONNECTOR_GATEWAY_EXTERNAL_PORT >= 1 && CAMPUS_CONNECTOR_GATEWAY_EXTERNAL_PORT <= 65535)) ||
+    die "CAMPUS_CONNECTOR_GATEWAY_EXTERNAL_PORT must be between 1 and 65535"
+  campus_connector_pki_dir="$(resolve_env_path "${CAMPUS_CONNECTOR_PKI_DIR:-./infra/generated/campus-connector-pki}")"
+  "${SCRIPT_DIR}/generate-campus-connector-pki.sh" \
+    --check \
+    --output "${campus_connector_pki_dir}" \
+    --gateway-host "${CAMPUS_CONNECTOR_GATEWAY_PUBLIC_HOST}"
+  generated_campus_connector_snapshot_key_id="$(
+    jq -er '.snapshotKeyID' "${campus_connector_pki_dir}/public-metadata.json"
+  )"
+  [[ "${CAMPUS_CONNECTOR_SNAPSHOT_KEY_ID}" == "${generated_campus_connector_snapshot_key_id}" ]] ||
+    die "CAMPUS_CONNECTOR_SNAPSHOT_KEY_ID does not match campus connector PKI"
+fi
 [[ "${OTEL_ENABLED:-false}" == "true" ]] || die "OTEL_ENABLED must be true for production deploy"
 [[ "${CASDOOR_BOOTSTRAP_ENABLED:-false}" == "true" ]] || die "CASDOOR_BOOTSTRAP_ENABLED must be true for production deploy"
 [[ "${CASDOOR_SMS_PROVIDER_ENABLED:-false}" == "true" ]] || die "CASDOOR_SMS_PROVIDER_ENABLED must be true for production deploy"
@@ -406,6 +443,9 @@ POSTGRES_BACKUP_EVIDENCE_TIMER_REQUIRED=false "${SCRIPT_DIR}/postgres-backup-evi
 log "running production database migrations"
 compose --profile prod up --no-deps migrate
 compose --profile prod up --no-deps openfga-migrate
+
+log "checking student verification production readiness"
+"${SCRIPT_DIR}/student-verification-production-readiness.sh"
 
 log "checking admission production readiness"
 "${SCRIPT_DIR}/admission-production-readiness.sh"

@@ -133,93 +133,43 @@
           <ShieldCheck class="admission-flow__icon-svg" />
         </span>
         <div>
-          <h2>选择认证方式</h2>
-          <p>当前 QQ 会话已绑定，请选择符合你身份的学生认证方式。</p>
+          <h2>完成账号级学生认证</h2>
+          <p>
+            当前 QQ 会话已经绑定。学生认证是独立的账号能力；认证中心通过后，本页会自动读取最新资格并继续入群流程。
+          </p>
         </div>
       </div>
-          <div
-            v-if="linkedResourceErrorMessage"
-            class="linked-resource-error"
-            data-linked-resource-error
-          >
-            <p>{{ linkedResourceErrorMessage }}</p>
-            <button
-              class="secondary-button"
-              type="button"
-              @click="retryLinkedResources"
-            >
-              重新加载
-            </button>
-          </div>
-          <div
-            class="admission-flow__tabs"
-            role="tablist"
-            aria-label="学生认证方式"
-          >
-            <button
-              v-if="showOldStudentFlow"
-              id="admission-old-student-tab"
-              ref="oldStudentTab"
-              class="flow-tab"
-              :class="{ 'flow-tab--active': activeFlow === 'oldStudent' }"
-              role="tab"
-              type="button"
-              aria-controls="admission-old-student-panel"
-              :aria-selected="activeFlow === 'oldStudent'"
-              :tabindex="activeFlow === 'oldStudent' ? 0 : -1"
-              @click="selectAdmissionFlow('oldStudent')"
-              @keydown="handleAdmissionFlowKeydown($event, 'oldStudent')"
-            >
-              老生认证
-            </button>
-            <button
-              v-if="showFreshmanSubmission"
-              id="admission-freshman-tab"
-              ref="freshmanTab"
-              class="flow-tab"
-              :class="{ 'flow-tab--active': activeFlow === 'freshman' }"
-              role="tab"
-              type="button"
-              aria-controls="admission-freshman-panel"
-              :aria-selected="activeFlow === 'freshman'"
-              :tabindex="activeFlow === 'freshman' ? 0 : -1"
-              @click="selectAdmissionFlow('freshman')"
-              @keydown="handleAdmissionFlowKeydown($event, 'freshman')"
-            >
-              新生认证
-            </button>
-          </div>
-          <div
-            v-if="activeFlow === 'oldStudent' && showOldStudentFlow"
-            id="admission-old-student-panel"
-            role="tabpanel"
-            aria-labelledby="admission-old-student-tab"
-            tabindex="0"
-          >
-            <OldStudentVerificationFlow
-              :admission-session-id="session?.id"
-              :current-return-url="currentAdmissionURL()"
-              :linked="pageState === 'linked'"
-              :schools="admissionSchools"
-              @expired="handleAdmissionExpired"
-              @verified="handleOldStudentVerified"
-            />
-          </div>
-          <div
-            v-else-if="showFreshmanSubmission"
-            id="admission-freshman-panel"
-            role="tabpanel"
-            aria-labelledby="admission-freshman-tab"
-            tabindex="0"
-          >
-            <FreshmanCameraFlow
-              :admission-session-id="session?.id"
-              :max-material-bytes="session?.maxMaterialBytes"
-              :schools="admissionSchools"
-              @expired="handleAdmissionExpired"
-              @submitted="markPendingReview"
-            />
-          </div>
+      <div
+        v-if="linkedResourceErrorMessage"
+        class="linked-resource-error"
+        data-linked-resource-error
+        role="status"
+      >
+        <p>{{ linkedResourceErrorMessage }}</p>
+      </div>
+      <div class="admission-flow__notice">
+        <p>
+          认证中心会根据学校配置展示可用方式，包括实名信息校验、学校统一身份认证、学号邮箱或人工材料审核。入群系统不会读取或复制认证材料。
+        </p>
+      </div>
+      <div class="admission-flow__actions">
+        <a
+          class="primary-button"
+          data-admission-open-student-verification
+          :href="studentVerificationURL"
+        >
+          前往学生认证中心
+        </a>
+        <button
+          class="secondary-button"
+          data-admission-refresh-eligibility
+          type="button"
+          :disabled="admissionStateRefreshInFlight"
+          @click="refreshAdmissionStateNow"
+        >
+          {{ admissionStateRefreshInFlight ? '正在检查…' : '我已完成，检查资格' }}
+        </button>
+      </div>
     </section>
 
     <AdmissionStatePanel
@@ -398,6 +348,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useVerificationStore } from '@/stores/verification'
 import { consumeAdmissionAuthReturn } from '@/utils/auth'
 import { hasStoredSessionHint } from '@/utils/sessionHint'
+import { accountCenterURLWithRedirect } from '@/utils/redirect'
 import type { AdmissionMe, AdmissionSession } from '@stuhelper/shared/api'
 
 import { admissionApi } from '../api'
@@ -415,22 +366,14 @@ import {
   readLinkedAdmissionSessionID,
   rememberLinkedAdmissionSession,
 } from '../admissionToken'
-import {
-  shouldShowFreshmanSubmission,
-  schoolHasAdmissionEmailOTP,
-  schoolHasAdmissionSSO,
-  type AdmissionSchoolOption,
-} from '../oldStudentAdmission'
 import { waitForAdmissionProjection } from '../projectionRefresh'
-import FreshmanCameraFlow from './FreshmanCameraFlow.vue'
 import AdmissionReissueHint from './AdmissionReissueHint.vue'
 import AdmissionProgress from './AdmissionProgress.vue'
 import AdmissionShell from './AdmissionShell.vue'
 import AdmissionStatePanel from './AdmissionStatePanel.vue'
-import OldStudentVerificationFlow from './OldStudentVerificationFlow.vue'
 import ProjectionPendingNotice from './ProjectionPendingNotice.vue'
 
-const PENDING_REVIEW_REFRESH_DELAYS_MS = [
+const ADMISSION_STATE_REFRESH_DELAYS_MS = [
   5000,
   10000,
   20000,
@@ -445,18 +388,12 @@ const authRedirecting = ref(false)
 const authActionBusy = computed(() => authRedirecting.value || auth.loading)
 const pageState = ref<AdmissionPageState>('loading')
 const session = ref<AdmissionSession | null>(null)
-const admissionMe = ref<AdmissionMe | null>(null)
 const errorMessage = ref('认证链接暂时无法打开，请稍后重试。')
 const linkedResourceErrorMessage = ref('')
 const consumedTokenNeedsLogin = ref(false)
 const linking = ref(false)
-type AdmissionFlow = 'freshman' | 'oldStudent'
 
-const activeFlow = ref<AdmissionFlow>('freshman')
 const projectionRefreshTimedOut = ref(false)
-const activeFlowManuallySelected = ref(false)
-const oldStudentTab = ref<HTMLButtonElement | null>(null)
-const freshmanTab = ref<HTMLButtonElement | null>(null)
 const bindConfirmationDialogOpen = ref(false)
 const bindConfirmationQQ = ref('')
 const bindConfirmationTouched = ref(false)
@@ -464,9 +401,9 @@ let projectionRefreshAbort: AbortController | null = null
 let admissionSessionLoad: Promise<void> | null = null
 let admissionSessionReloadQueued = false
 let activeAdmissionRouteKey = ''
-let pendingReviewRefreshTimer: number | null = null
-let pendingReviewRefreshAttempt = 0
-let pendingReviewRefreshInFlight = false
+let admissionStateRefreshTimer: number | null = null
+let admissionStateRefreshAttempt = 0
+const admissionStateRefreshInFlight = ref(false)
 
 const displayQQ = computed(() => session.value?.qqID ?? '')
 const currentUserLabel = computed(() => (
@@ -502,7 +439,7 @@ const admissionStatusLabel = computed(() => {
     case 'ready':
       return '等待确认 QQ'
     case 'linked':
-      return '选择认证方式'
+      return '等待学生资格'
     case 'pendingReview':
       return '等待审核'
     case 'projectionPending':
@@ -524,19 +461,9 @@ function readAdmissionToken(): string {
   return String(route.params.code ?? '')
 }
 
-const admissionSchools = computed(() => {
-  return verificationStore.schools as AdmissionSchoolOption[]
-})
-const showFreshmanSubmission = computed(() => {
-  return shouldShowFreshmanSubmission(admissionMe.value)
-})
-const hasOldStudentAdmissionMethod = computed(() => {
-  return admissionSchools.value.some((school) => (
-    schoolHasAdmissionSSO(school) || schoolHasAdmissionEmailOTP(school)
-  ))
-})
-const showOldStudentFlow = computed(() => (
-  hasOldStudentAdmissionMethod.value || !showFreshmanSubmission.value
+const studentVerificationURL = computed(() => accountCenterURLWithRedirect(
+  '/user/student-verification',
+  currentAdmissionURL(),
 ))
 
 function applyError(error: unknown) {
@@ -551,95 +478,24 @@ function currentAdmissionURL(): string {
 }
 
 function setAdmissionMe(nextAdmission: AdmissionMe): void {
-  admissionMe.value = nextAdmission
   if (nextAdmission.session?.id) {
     rememberLinkedAdmissionSession(readAdmissionToken(), nextAdmission.session.id)
   }
-  if (!showFreshmanSubmission.value) activeFlow.value = 'oldStudent'
 }
 
-async function loadLinkedResources(options?: { refreshAdmission?: boolean }): Promise<void> {
-  const refreshAdmission = options?.refreshAdmission !== false
+async function loadLinkedResources(): Promise<void> {
   linkedResourceErrorMessage.value = ''
-  const [, nextAdmission] = await Promise.all([
-    verificationStore.fetchSchools(),
-    refreshAdmission
-      ? admissionApi.getAdmissionMe(session.value?.id)
-      : Promise.resolve<AdmissionMe | null>(null),
-  ])
-  if (nextAdmission) {
-    setAdmissionMe(nextAdmission)
-    if (nextAdmission.session) {
-      session.value = nextAdmission.session
-    }
-    pageState.value = stateFromAdmissionMe(nextAdmission)
+  const nextAdmission = await admissionApi.getAdmissionMe(session.value?.id)
+  setAdmissionMe(nextAdmission)
+  if (nextAdmission.session) {
+    session.value = nextAdmission.session
   }
-  if (pageState.value === 'linked') syncDefaultAdmissionFlow()
+  pageState.value = stateFromAdmissionMe(nextAdmission)
   if (pageState.value === 'projectionPending') scheduleProjectionRefresh()
 }
 
-function syncDefaultAdmissionFlow(): void {
-  if (!showOldStudentFlow.value) {
-    activeFlow.value = 'freshman'
-    return
-  }
-  if (!showFreshmanSubmission.value) {
-    activeFlow.value = 'oldStudent'
-    return
-  }
-  if (activeFlowManuallySelected.value) return
-  activeFlow.value = hasOldStudentAdmissionMethod.value ? 'oldStudent' : 'freshman'
-}
-
-function selectAdmissionFlow(flow: AdmissionFlow): void {
-  if (flow === 'oldStudent' && !showOldStudentFlow.value) return
-  if (flow === 'freshman' && !showFreshmanSubmission.value) return
-  activeFlowManuallySelected.value = true
-  activeFlow.value = flow
-}
-
-function handleAdmissionFlowKeydown(
-  event: KeyboardEvent,
-  currentFlow: AdmissionFlow,
-): void {
-  const flows: AdmissionFlow[] = []
-  if (showOldStudentFlow.value) flows.push('oldStudent')
-  if (showFreshmanSubmission.value) flows.push('freshman')
-  if (flows.length === 0) return
-  const currentIndex = Math.max(flows.indexOf(currentFlow), 0)
-  let targetIndex: number
-
-  switch (event.key) {
-    case 'ArrowRight':
-    case 'ArrowDown':
-      targetIndex = (currentIndex + 1) % flows.length
-      break
-    case 'ArrowLeft':
-    case 'ArrowUp':
-      targetIndex = (currentIndex - 1 + flows.length) % flows.length
-      break
-    case 'Home':
-      targetIndex = 0
-      break
-    case 'End':
-      targetIndex = flows.length - 1
-      break
-    default:
-      return
-  }
-
-  event.preventDefault()
-  const targetFlow = flows[targetIndex]
-  if (!targetFlow) return
-  selectAdmissionFlow(targetFlow)
-  const target = targetFlow === 'oldStudent'
-    ? oldStudentTab.value
-    : freshmanTab.value
-  target?.focus()
-}
-
-function scheduleLinkedResourcesLoad(options?: { refreshAdmission?: boolean }): void {
-  loadLinkedResources(options).catch(handleLinkedResourcesLoadError)
+function scheduleLinkedResourcesLoad(): void {
+  loadLinkedResources().catch(handleLinkedResourcesLoadError)
 }
 
 function handleLinkedResourcesLoadError(error: unknown): void {
@@ -664,7 +520,8 @@ function handleSessionState(nextSession: AdmissionSession): void {
 }
 
 async function applyKnownQQMismatch(nextSession: AdmissionSession): Promise<boolean> {
-  if (nextSession.status !== 'joined_muted' || !nextSession.qqID) {
+  const status = String(nextSession.status)
+  if ((status !== 'awaiting_account_link' && status !== 'joined_muted') || !nextSession.qqID) {
     return false
   }
   try {
@@ -685,7 +542,6 @@ function handleAdmissionMeState(nextAdmission: AdmissionMe): void {
     session.value = nextAdmission.session
   }
   pageState.value = stateFromAdmissionMe(nextAdmission)
-  if (pageState.value === 'linked') scheduleLinkedResourcesLoad({ refreshAdmission: false })
   if (pageState.value === 'projectionPending') scheduleProjectionRefresh()
 }
 
@@ -774,56 +630,68 @@ function retryProjectionRefresh(): void {
   scheduleProjectionRefresh()
 }
 
-function schedulePendingReviewRefresh(reset = false): void {
-  if (pageState.value !== 'pendingReview') return
-  if (reset) pendingReviewRefreshAttempt = 0
-  if (pendingReviewRefreshTimer !== null || pendingReviewRefreshInFlight) return
+function isAwaitingEligibilityState(): boolean {
+  return pageState.value === 'linked' || pageState.value === 'pendingReview'
+}
+
+function scheduleAdmissionStateRefresh(reset = false): void {
+  if (!isAwaitingEligibilityState()) return
+  if (reset) admissionStateRefreshAttempt = 0
+  if (admissionStateRefreshTimer !== null || admissionStateRefreshInFlight.value) return
   if (document.visibilityState !== 'visible') return
-  const delay = pendingReviewRefreshDelay()
-  pendingReviewRefreshAttempt += 1
-  pendingReviewRefreshTimer = window.setTimeout(() => {
-    pendingReviewRefreshTimer = null
-    void refreshPendingReviewState()
+  const delay = admissionStateRefreshDelay()
+  admissionStateRefreshAttempt += 1
+  admissionStateRefreshTimer = window.setTimeout(() => {
+    admissionStateRefreshTimer = null
+    void refreshAdmissionState()
   }, delay)
 }
 
-function pendingReviewRefreshDelay(): number {
+function admissionStateRefreshDelay(): number {
   const index = Math.min(
-    pendingReviewRefreshAttempt,
-    PENDING_REVIEW_REFRESH_DELAYS_MS.length - 1,
+    admissionStateRefreshAttempt,
+    ADMISSION_STATE_REFRESH_DELAYS_MS.length - 1,
   )
-  return PENDING_REVIEW_REFRESH_DELAYS_MS[index]
+  return ADMISSION_STATE_REFRESH_DELAYS_MS[index]
 }
 
-function clearPendingReviewRefresh(): void {
-  if (pendingReviewRefreshTimer === null) return
-  window.clearTimeout(pendingReviewRefreshTimer)
-  pendingReviewRefreshTimer = null
+function clearAdmissionStateRefresh(): void {
+  if (admissionStateRefreshTimer === null) return
+  window.clearTimeout(admissionStateRefreshTimer)
+  admissionStateRefreshTimer = null
 }
 
-function refreshPendingReviewAfterBrowserReturn(): void {
-  clearPendingReviewRefresh()
-  void refreshPendingReviewState()
+function refreshAdmissionStateAfterBrowserReturn(): void {
+  clearAdmissionStateRefresh()
+  void refreshAdmissionState()
 }
 
-async function refreshPendingReviewState(): Promise<void> {
-  if (pageState.value !== 'pendingReview' || pendingReviewRefreshInFlight) return
-  pendingReviewRefreshInFlight = true
+async function refreshAdmissionState(): Promise<void> {
+  if (!isAwaitingEligibilityState() || admissionStateRefreshInFlight.value) return
+  admissionStateRefreshInFlight.value = true
+  linkedResourceErrorMessage.value = ''
   try {
     const nextAdmission = await admissionApi.getAdmissionMe(session.value?.id)
-    if (pageState.value === 'pendingReview') {
+    if (isAwaitingEligibilityState()) {
       handleAdmissionMeState(nextAdmission)
     }
   } catch (error) {
-    if (pageState.value === 'pendingReview' && isAdmissionSessionExpiredError(error)) {
+    if (isAdmissionSessionExpiredError(error)) {
       handleAdmissionExpired()
+    } else if (pageState.value === 'linked') {
+      linkedResourceErrorMessage.value = '暂时无法检查最新学生资格；系统会继续自动重试。'
     }
   } finally {
-    pendingReviewRefreshInFlight = false
-    if (pageState.value === 'pendingReview') {
-      schedulePendingReviewRefresh()
+    admissionStateRefreshInFlight.value = false
+    if (isAwaitingEligibilityState()) {
+      scheduleAdmissionStateRefresh()
     }
   }
+}
+
+function refreshAdmissionStateNow(): void {
+  clearAdmissionStateRefresh()
+  void refreshAdmissionState()
 }
 
 function isCurrentAdmissionRoute(requestToken: string): boolean {
@@ -910,8 +778,8 @@ function shouldRefreshAfterBrowserReturn(): boolean {
 }
 
 function refreshAfterBrowserReturn(): void {
-  if (pageState.value === 'pendingReview') {
-    refreshPendingReviewAfterBrowserReturn()
+  if (isAwaitingEligibilityState()) {
+    refreshAdmissionStateAfterBrowserReturn()
     return
   }
   if (shouldRefreshAfterBrowserReturn()) {
@@ -929,7 +797,7 @@ function handleVisibilityChange(): void {
   if (document.visibilityState === 'visible') {
     refreshAfterBrowserReturn()
   } else {
-    clearPendingReviewRefresh()
+    clearAdmissionStateRefresh()
   }
 }
 
@@ -1022,20 +890,8 @@ async function copyReissueCommand(): Promise<void> {
   }
 }
 
-function markPendingReview() {
-  pageState.value = 'pendingReview'
-}
-
 function handleAdmissionExpired() {
   pageState.value = 'expired'
-}
-
-function handleOldStudentVerified(nextAdmission: AdmissionMe) {
-  handleAdmissionMeState(nextAdmission)
-}
-
-function retryLinkedResources() {
-  scheduleLinkedResourcesLoad()
 }
 
 function readErrorMessage(error: unknown, fallback: string): string {
@@ -1052,7 +908,6 @@ onMounted(() => {
 watch(
   () => route.fullPath,
   () => {
-    activeFlowManuallySelected.value = false
     bindConfirmationDialogOpen.value = false
     bindConfirmationQQ.value = ''
     bindConfirmationTouched.value = false
@@ -1061,16 +916,16 @@ watch(
 )
 
 watch(pageState, (state) => {
-  if (state === 'pendingReview') {
-    schedulePendingReviewRefresh(true)
+  if (state === 'linked' || state === 'pendingReview') {
+    scheduleAdmissionStateRefresh(true)
     return
   }
-  clearPendingReviewRefresh()
+  clearAdmissionStateRefresh()
 })
 
 onBeforeUnmount(() => {
   projectionRefreshAbort?.abort()
-  clearPendingReviewRefresh()
+  clearAdmissionStateRefresh()
   window.removeEventListener('pageshow', handlePageShow)
   window.removeEventListener('focus', handleWindowFocus)
   document.removeEventListener('visibilitychange', handleVisibilityChange)

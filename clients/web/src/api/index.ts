@@ -13,6 +13,7 @@ import {
     createAdmissionApi,
     createOpenPlatformApi,
     createResourceApi,
+    createStudentVerificationApi,
     NOTIFICATION_STREAM_PATH,
 } from "@stuhelper/shared/api";
 import { createReviewAppApi } from "./review";
@@ -33,6 +34,7 @@ export const api = {
     admission: createAdmissionApi(apiClient),
     openPlatform: createOpenPlatformApi(apiClient),
     resource: createResourceApi(apiClient),
+    studentVerification: createStudentVerificationApi(apiClient),
 };
 
 // 导出类型

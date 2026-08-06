@@ -69,7 +69,7 @@ const sampleSession: AdmissionSession = {
   channelID: '178037297',
   qqID: '1390191645',
   userID: '42',
-  status: 'linked',
+  status: 'awaiting_requirements',
   tokenExpiresAt: '2026-06-02T06:00:00Z',
   tokenConsumedAt: '2026-06-02T05:00:00Z',
   linkWaitDeadlineAt: '2026-06-02T06:00:00Z',
@@ -192,7 +192,7 @@ describe('admission sessions index view orchestration', () => {
     vm.query.botSelfID = ' 2118785781 ';
     vm.query.guildID = ' 178037297 ';
     vm.query.qqID = ' 1390191645 ';
-    vm.query.status = 'linked';
+    vm.query.status = 'awaiting_requirements';
 
     const filters = wrapper.findComponent({ name: 'AdmissionSessionFilters' });
     await filters.vm.$emit('search');
@@ -206,7 +206,7 @@ describe('admission sessions index view orchestration', () => {
       botSelfID: '2118785781',
       guildID: '178037297',
       qqID: '1390191645',
-      status: 'linked',
+      status: 'awaiting_requirements',
     });
   });
 
@@ -228,7 +228,7 @@ describe('admission sessions index view orchestration', () => {
     vm.query.botSelfID = '514';
     vm.query.guildID = 'guild-1';
     vm.query.qqID = '10001';
-    vm.query.status = 'verified';
+    vm.query.status = 'admitted';
 
     const filters = wrapper.findComponent({ name: 'AdmissionSessionFilters' });
     await filters.vm.$emit('reset');

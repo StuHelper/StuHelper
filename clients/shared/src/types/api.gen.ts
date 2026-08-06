@@ -2212,41 +2212,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/user/identity": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 获取当前用户实名认证状态 */
-        get: operations["getUserIdentity"];
-        put?: never;
-        /** 提交实名认证 */
-        post: operations["submitIdentity"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/user/identity/uploads": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 上传实名认证证件照片 */
-        post: operations["uploadIdentityPhoto"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/user/qq-binding": {
         parameters: {
             query?: never;
@@ -2281,159 +2246,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/user/profile": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 获取当前用户学生认证状态 */
-        get: operations["getUserProfile"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/user/profile/verify": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 提交学生认证 */
-        post: operations["submitStudentVerification"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/user/profile/school-email/academic-match": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 即时匹配主站学生认证学号和姓名 */
-        post: operations["matchStudentEmailAcademicStudent"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/user/profile/school-email/request-otp": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 请求学生认证学校邮箱验证码 */
-        post: operations["requestStudentEmailOTP"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/user/profile/school-email/verify-otp": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 校验学生认证学校邮箱验证码 */
-        post: operations["verifyStudentEmailOTP"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/user/profile/bind-phone/otp": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 请求绑定手机验证码 */
-        post: operations["requestBindPhoneOTP"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/user/profile/bind-phone": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 绑定手机号 */
-        post: operations["bindPhone"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/user/profile/academic-info": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 获取已认证用户的学籍信息 */
-        get: operations["getAcademicInfo"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/user/schools": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 获取可用学校列表 */
-        get: operations["listSchools"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/user/me": {
         parameters: {
             query?: never;
@@ -2443,6 +2255,916 @@ export interface paths {
         };
         /** 获取当前用户聚合信息 */
         get: operations["getUserSurface"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student-verification/schools": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 列出当前可创建学生认证申请的学校与方法 */
+        get: operations["listVerificationSchools"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student-verification/applications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 创建与 QQ 和群聊会话无关的学生认证申请 */
+        post: operations["createVerificationApplication"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student-verification/applications/{applicationID}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取当前用户的一次学生认证申请 */
+        get: operations["getVerificationApplication"];
+        put?: never;
+        post?: never;
+        /**
+         * 取消当前用户尚未完成的学生认证申请
+         * @description 已结束的申请不可取消；重复取消返回当前已取消状态，便于客户端安全重试。
+         */
+        delete: operations["cancelVerificationApplication"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student-verification/applications/{applicationID}/real-name/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 提交一次实名信息校验 */
+        post: operations["verifyApplicationRealName"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student-verification/applications/{applicationID}/school-sso/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 使用学校统一身份认证账号完成一次性校验
+         * @description 学校密码只用于本次实时请求，不进入数据库、缓存、队列、日志或重试载荷。
+         */
+        post: operations["verifyApplicationSchoolSSO"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student-verification/applications/{applicationID}/email/outbound/otp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 向服务端派生的规范学校邮箱发送验证码 */
+        post: operations["requestApplicationEmailOTP"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student-verification/applications/{applicationID}/email/outbound/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 回填并一次性消费学校邮箱验证码 */
+        post: operations["verifyApplicationEmailOTP"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student-verification/applications/{applicationID}/email/inbound/challenge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取入站邮件挑战状态 */
+        get: operations["getApplicationInboundEmailChallenge"];
+        put?: never;
+        /** 创建从规范学校邮箱发送邮件的一次性挑战 */
+        post: operations["createApplicationInboundEmailChallenge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student-verification/applications/{applicationID}/manual-review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取当前用户人工材料审核的脱敏状态 */
+        get: operations["getManualStudentReview"];
+        /** 按学校受控 schema 创建或更新人工材料审核草稿 */
+        put: operations["upsertManualStudentReview"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student-verification/applications/{applicationID}/manual-review/camera-captures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 从当前浏览器的受控实时摄像头界面上传一帧材料
+         * @description 服务端验证实际图像类型、解码、大小和像素边界；captureSource 不构成设备证明。
+         */
+        post: operations["uploadManualReviewCameraCapture"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student-verification/applications/{applicationID}/manual-review/camera-handoffs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 创建绑定当前人工审核申请的一次性手机拍摄交接 */
+        post: operations["createManualReviewCameraHandoff"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student-verification/applications/{applicationID}/manual-review/camera-handoffs/{handoffID}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取当前用户的一次拍摄交接状态 */
+        get: operations["getManualReviewCameraHandoff"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student-verification/applications/{applicationID}/manual-review/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 确认用途和保留期限后提交人工审核 */
+        post: operations["submitManualStudentReview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student-verification/applications/{applicationID}/manual-review/email/otp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 向人工审核草稿中的学校或联系邮箱发送辅助验证码
+         * @description 邮箱验证只形成审核辅助证据，不会自动授予学生身份。
+         */
+        post: operations["requestManualReviewEmailOTP"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student-verification/applications/{applicationID}/manual-review/email/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 校验人工审核联系邮箱验证码并仅记录辅助证据 */
+        post: operations["verifyManualReviewEmailOTP"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student-verification/school-suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 找不到学校时提交目录建议；不会即时创建可认证学校 */
+        post: operations["createStudentVerificationSchoolSuggestion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student-verification/manual-camera-handoffs/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 手机端使用一次性 token 查看拍摄交接的最小安全摘要 */
+        get: operations["previewManualReviewCameraHandoff"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student-verification/manual-camera-handoffs/{token}/camera-capture": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 手机端通过一次性交接 token 上传实时摄像头拍摄材料 */
+        post: operations["uploadManualReviewHandoffCameraCapture"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student-verification/manual-camera-handoffs/{token}/continue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 手机上传完成后原子选择在手机或桌面继续 */
+        post: operations["chooseManualReviewCameraContinuation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student-verification/manual-camera-handoffs/{token}/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 登录后在已选择的手机端恢复本人学生认证申请
+         * @description 只有一次性交接所属用户且已原子选择 mobile 时可恢复；不向其他账号暴露申请是否存在。
+         */
+        post: operations["resumeManualReviewCameraHandoff"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student-verification/credentials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 列出当前用户的学生认证凭据 */
+        get: operations["listStudentVerificationCredentials"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student-verification/credentials/{credentialID}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 撤销当前用户的一条学生认证凭据 */
+        delete: operations["revokeStudentVerificationCredential"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student-verification/eligibility": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取当前用户在指定学校的实时学生资格 */
+        get: operations["getStudentVerificationEligibility"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/webhooks/student-verification/inbound-email": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 接收可信邮件入口转发的最小入站邮件事件
+         * @description 请求必须由已配置的邮件入口使用时间戳、事件 ID 和 HMAC 签名；原始邮件头和正文不会持久化。
+         */
+        post: operations["receiveStudentVerificationInboundEmail"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/student-verification/schools": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 列出学校认证白名单、适配器版本和方法状态 */
+        get: operations["listAdminVerificationSchools"];
+        put?: never;
+        /**
+         * 将已有学校目录项创建为停用、待校验的认证配置
+         * @description 学校目录不等于认证白名单；只有后续方法与学校配置均校验并显式启用后才对用户可见。
+         */
+        post: operations["createAdminVerificationSchool"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/student-verification/schools/{schoolCode}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取一个学校的认证配置和方法健康状态 */
+        get: operations["getAdminVerificationSchool"];
+        /**
+         * 更新学校认证草稿并强制回到待校验、停用状态
+         * @description 配置更新采用乐观 revision；更新后必须显式校验才能重新启用。
+         */
+        put: operations["updateAdminVerificationSchool"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/student-verification/schools/{schoolCode}/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 校验学校级配置，并按请求决定是否启用认证白名单 */
+        post: operations["validateAdminVerificationSchool"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/student-verification/schools/{schoolCode}/methods/{method}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 更新一个学校认证方法草稿并强制回到待校验、停用状态 */
+        put: operations["updateAdminVerificationMethod"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/student-verification/schools/{schoolCode}/methods/{method}/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 校验方法配置和实时依赖，并按请求决定是否启用 */
+        post: operations["validateAdminVerificationMethod"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/student-verification/credentials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 按学校范围列出最小化学生凭据，不返回原始证明 */
+        get: operations["listAdminStudentCredentials"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/student-verification/credentials/{credentialID}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 在学校范围授权和近期 MFA step-up 后撤销学生凭据 */
+        post: operations["revokeAdminStudentCredential"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/student-verification/subject-conflicts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 按学校范围列出学籍主体冲突，不返回主体哈希或个人证明 */
+        get: operations["listAdminStudentSubjectConflicts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/student-verification/subject-conflicts/{conflictID}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 标记复核、驳回冲突申请，或释放主体要求双方重新认证 */
+        post: operations["decideAdminStudentSubjectConflict"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/student-verification/connectors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 查看已批准校园连接器的脱敏健康状态和允许操作 */
+        get: operations["listAdminCampusConnectorHealth"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/student-verification/schools/{schoolCode}/roster-snapshots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 列出学校的版本化学籍快照与聚合质量门禁 */
+        get: operations["listAdminRosterSnapshots"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/student-verification/schools/{schoolCode}/roster-sync-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 查看学校最近的受审计手动完整学籍同步任务
+         * @description 仅返回任务元数据和稳定结果分类，不返回 Oracle 地址、SQL、账号、口令或连接器 secret reference。
+         */
+        get: operations["listAdminRosterSyncRequests"];
+        put?: never;
+        /**
+         * 通过已批准校园连接器手动触发一次完整学籍同步
+         * @description 需要校园连接器管理能力和近期 MFA step-up。任务持久化、去重并带有限领取重试；请求不能携带 SQL、目标地址或凭据。
+         */
+        post: operations["createAdminRosterSyncRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/student-verification/schools/{schoolCode}/roster-snapshots/{snapshotID}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取一个快照的聚合状态与质量门禁 */
+        get: operations["getAdminRosterSnapshot"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/student-verification/schools/{schoolCode}/roster-snapshots/{snapshotID}/activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 原子激活已通过质量门禁的快照
+         * @description 需要学校范围的独立激活能力和近期 MFA step-up；源时间倒退必须显式授权并审计。
+         */
+        post: operations["activateAdminRosterSnapshot"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/student-verification/schools/{schoolCode}/roster-snapshots/{snapshotID}/rollback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 原子回滚到一个历史成功快照
+         * @description 需要学校范围的独立激活能力和近期 MFA step-up，且必须填写审计理由。
+         */
+        post: operations["rollbackAdminRosterSnapshot"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/student-verification/manual-reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 按学校范围列出脱敏人工审核队列，不加载原图 */
+        get: operations["listAdminManualStudentReviews"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/student-verification/manual-reviews/{caseID}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 在学校范围授权和近期 MFA step-up 后查看必要表单详情 */
+        get: operations["getAdminManualStudentReview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/student-verification/manual-reviews/{caseID}/materials/{materialID}/access": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 为一个已授权材料生成短期、只读签名 URL 并写安全审计 */
+        post: operations["accessAdminManualStudentReviewMaterial"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/student-verification/manual-reviews/{caseID}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 请求补充、批准或驳回人工审核；审核员不能处理自己的申请 */
+        post: operations["decideAdminManualStudentReview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/account/phone": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取当前账号手机号投影与验证凭据状态 */
+        get: operations["getAccountPhoneStatus"];
+        put?: never;
+        post?: never;
+        /** 在 step-up MFA 后创建手机号解绑操作 */
+        delete: operations["unbindAccountPhone"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/account/phone/operations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 使用用户当次手工输入的手机号创建首次绑定操作 */
+        post: operations["createAccountPhoneOperation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/account/phone/change-operations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 在 step-up MFA 后使用用户当次手工输入的手机号创建换号操作 */
+        post: operations["createAccountPhoneChangeOperation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/account/phone/operations/{operationID}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取当前用户的一次手机号操作状态 */
+        get: operations["getAccountPhoneOperation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/account/phone/operations/{operationID}/sms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 为已有手机号操作发送或重发短信验证码 */
+        post: operations["sendAccountPhoneSMS"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/account/phone/operations/{operationID}/sms/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 校验短信验证码并推进 Casdoor 更新 */
+        post: operations["verifyAccountPhoneSMS"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/internal/student-eligibility/users/{userID}/schools/{schoolCode}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 消费方读取用户在指定学校的最小学生资格 */
+        get: operations["getInternalStudentEligibility"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/internal/phone-gates/users/{userID}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 消费方读取用户是否满足账号级手机号门槛 */
+        get: operations["getInternalPhoneGateEligibility"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2494,227 +3216,6 @@ export interface paths {
         };
         /** 获取当前登录用户 admission 状态 */
         get: operations["getAdmissionMe"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admission/freshman/applications": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 创建新生材料认证申请 */
-        post: operations["createFreshmanApplication"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admission/freshman/applications/{id}/camera-captures": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 提交摄像头拍摄的新生材料图片 */
-        post: operations["uploadFreshmanCameraCapture"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admission/freshman/applications/{id}/camera-handoffs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 创建新生材料手机拍照接力 */
-        post: operations["createFreshmanCameraHandoff"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admission/freshman/camera-handoffs/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 查询手机拍照接力状态 */
-        get: operations["getFreshmanCameraHandoff"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admission/freshman/camera-handoffs/{id}/events": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 订阅手机拍照接力状态变化 */
-        get: operations["watchFreshmanCameraHandoff"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admission/freshman/mobile-camera-handoffs/{token}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 手机端预览拍照接力 */
-        get: operations["previewFreshmanMobileCameraHandoff"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admission/freshman/mobile-camera-handoffs/{token}/camera-capture": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 手机端上传接力拍摄的新生材料图片 */
-        post: operations["uploadFreshmanMobileCameraCapture"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admission/freshman/mobile-camera-handoffs/{token}/continue": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 手机端选择上传后在哪一端继续 */
-        post: operations["chooseFreshmanMobileCameraContinuation"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admission/school-email/academic-match": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 即时匹配 admission 老生学号和姓名 */
-        post: operations["matchAdmissionAcademicStudent"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admission/school-email/request-otp": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 请求学校邮箱 admission OTP */
-        post: operations["requestAdmissionSchoolEmailOTP"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admission/school-email/verify-otp": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 校验学校邮箱 admission OTP */
-        post: operations["verifyAdmissionSchoolEmailOTP"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admission/school-sso/{schoolCode}/login": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 跳转学校官方 SSO 登录 */
-        get: operations["startAdmissionSchoolSSO"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admission/school-sso/{schoolCode}/callback": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 学校官方 SSO 回调 */
-        get: operations["completeAdmissionSchoolSSO"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3085,180 +3586,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/bot/admission/freshman/applications/pending-forward": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 机器人拉取待转发的新生材料 */
-        get: operations["listBotPendingFreshmanForwards"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/bot/admission/freshman/applications/{id}/forwarded": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 标记新生材料已转发到管理群 */
-        post: operations["markBotFreshmanApplicationForwarded"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/bot/admission/freshman/applications/{id}/view": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** QQ 管理群查看新生材料申请 */
-        post: operations["viewBotFreshmanApplication"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/bot/admission/freshman/applications/{id}/review": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** QQ 管理群审核新生材料 */
-        post: operations["reviewBotFreshmanApplication"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/identities": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 获取实名认证审核列表 */
-        get: operations["listIdentityVerifications"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/identities/{userID}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * 获取实名认证审核材料
-         * @description 返回经过归属校验的短期签名材料 URL；访问需要全局读取权限和 MFA 二次验证，并写入审计日志。
-         */
-        get: operations["getIdentityVerificationReviewDetail"];
-        /** 审核实名认证 */
-        put: operations["reviewIdentityVerification"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/student-verifications": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 获取学生认证审核列表 */
-        get: operations["listStudentVerifications"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/student-verifications/{userID}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** 审核学生认证 */
-        put: operations["reviewStudentVerification"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/school-configs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 获取学校配置列表 */
-        get: operations["listSchoolConfigs"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/school-configs/{schoolID}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** 更新学校配置 */
-        put: operations["updateSchoolConfig"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/admin/system-configs": {
         parameters: {
             query?: never;
@@ -3422,8 +3749,8 @@ export interface paths {
         put?: never;
         /**
          * 创建入群认证策略
-         * @description 从已有入群认证策略复制运行参数，并使用新的平台与群号创建一个新生认证目标群。
-         *     `managementGuildIDs` 不会从源策略复制，默认保持为空，避免把认证目标群误当材料审核管理群。
+         * @description 从已有入群认证策略复制运行参数，并使用新的平台与群号创建一个目标群策略。
+         *     学生认证、临时新生凭据和人工材料审核仍由独立学生认证模块管理；本接口只配置准入消费规则。
          */
         post: operations["createAdmissionPolicy"];
         delete?: never;
@@ -3522,41 +3849,6 @@ export interface paths {
          * @description 取消指定 in-progress admission session，不会创建新链接。
          */
         post: operations["cancelAdminAdmissionSession"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/freshman-verifications": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 获取新生材料审核列表 */
-        get: operations["listFreshmanVerifications"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/freshman-verifications/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 获取新生材料审核详情 */
-        get: operations["getFreshmanVerification"];
-        /** Admin 审核新生材料 */
-        put: operations["reviewFreshmanVerification"];
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -4156,270 +4448,20 @@ export interface components {
             level?: "block" | "warn" | "review";
             isActive?: boolean;
         };
-        UserIdentity: {
-            /** Format: int64 */
-            userID: number;
-            /** @enum {string} */
-            docType: "MAINLAND_ID" | "HK_MACAU" | "TW" | "PASSPORT";
-            realName: string;
-            verified: boolean;
-            /** @enum {string|null} */
-            verifyMethod?: "academic_db_match" | "tencent_cloud" | "manual" | null;
-            /** Format: date-time */
-            reviewedAt?: string | null;
-            /** Format: date-time */
-            verifiedAt?: string | null;
-            rejectionReason?: string | null;
-            /** Format: date-time */
-            createdAt: string;
-            /** Format: date-time */
-            updatedAt: string;
-        };
-        AdminIdentityReviewItem: {
-            /** Format: int64 */
-            userID: number;
-            /** @enum {string} */
-            docType: "MAINLAND_ID" | "HK_MACAU" | "TW" | "PASSPORT";
-            realName: string;
-            verified: boolean;
-            /** @enum {string|null} */
-            verifyMethod?: "academic_db_match" | "tencent_cloud" | "manual" | null;
-            /** Format: date-time */
-            reviewedAt?: string | null;
-            /** Format: date-time */
-            verifiedAt?: string | null;
-            rejectionReason?: string | null;
-            /** Format: date-time */
-            createdAt: string;
-            /** Format: date-time */
-            updatedAt: string;
-        };
-        AdminIdentityReviewDetail: {
-            /** Format: int64 */
-            userID: number;
-            /** @enum {string} */
-            docType: "MAINLAND_ID" | "HK_MACAU" | "TW" | "PASSPORT";
-            realName: string;
-            verified: boolean;
-            /** @enum {string|null} */
-            verifyMethod?: "academic_db_match" | "tencent_cloud" | "manual" | null;
-            /** Format: date-time */
-            reviewedAt?: string | null;
-            /** Format: date-time */
-            verifiedAt?: string | null;
-            rejectionReason?: string | null;
-            /** Format: date-time */
-            createdAt: string;
-            /** Format: date-time */
-            updatedAt: string;
-            /**
-             * Format: uri
-             * @description 证件正面材料的短期签名 URL；仅管理员详情接口返回。
-             */
-            docPhotoFrontURL: string | null;
-            /**
-             * Format: uri
-             * @description 证件背面材料的短期签名 URL；可能为空。
-             */
-            docPhotoBackURL: string | null;
-            /**
-             * Format: uri
-             * @description 本人手持证件材料的短期签名 URL；仅管理员详情接口返回。
-             */
-            docPhotoSelfieURL: string | null;
-        };
-        SubmitIdentityRequest: {
-            /** @enum {string} */
-            docType: "MAINLAND_ID" | "HK_MACAU" | "TW" | "PASSPORT";
-            /** @description MAINLAND_ID 使用中国大陆居民身份证号码，服务端会校验证件格式、出生日期和校验位。 */
-            docNumber: string;
-            realName: string;
-            docPhotoFront?: string | null;
-            docPhotoBack?: string | null;
-            docPhotoSelfie?: string | null;
-        };
-        UserProfile: {
-            /** Format: int64 */
-            userID: number;
-            /** Format: int64 */
-            schoolID?: number | null;
-            studentIDs?: string[] | null;
-            activeStudentID?: string | null;
-            /** @enum {string} */
-            verificationStatus: "unverified" | "pending" | "verified" | "rejected";
-            /** @enum {string|null} */
-            verificationMethod?: "ldap" | "manual" | "school_email_otp" | "school_sso" | null;
-            rejectionReason?: string | null;
-            /** Format: date-time */
-            reviewedAt?: string | null;
-            /** @description 掩码手机号（如 138****5678） */
-            phone?: string | null;
-            phoneVerified?: boolean;
-            /** Format: date-time */
-            consentGivenAt?: string | null;
-            /** Format: date-time */
-            verifiedAt?: string | null;
-            /** Format: date-time */
-            createdAt: string;
-            /** Format: date-time */
-            updatedAt: string;
-        };
-        SubmitStudentVerificationRequest: {
-            /** @description 教育部学校标识码；公开学生认证请求必须以此字段识别学校。 */
-            schoolCode: string;
-            studentID?: string;
-            password?: string;
-            /** @description manual 模式动态表单提交数据 */
-            manualFormData?: {
-                [key: string]: unknown;
-            } | null;
-            consent: boolean;
-        };
-        StudentEmailOTPRequest: {
-            /** @description 教育部学校标识码；公开学校邮箱 OTP 请求必须以此字段识别学校。 */
-            schoolCode: string;
-            /**
-             * Format: email
-             * @description 普通学校邮箱 OTP 可直接提交邮箱；配置学籍邮箱策略时由后端按学号派生并校验不可篡改
-             */
-            email?: string;
-            /** @description 配置 academic_student_email 策略的学校必填 */
-            studentID?: string;
-            /** @description 配置 academic_student_email 且 requireStudentName=true 的学校必填 */
-            studentName?: string;
-        };
-        StudentEmailOTPVerifyRequest: {
-            /** @description 教育部学校标识码；公开学校邮箱 OTP 校验请求必须以此字段识别学校。 */
-            schoolCode: string;
-            /** Format: email */
-            email?: string;
-            code: string;
-            consent: boolean;
-        };
-        StudentEmailOTPResponse: {
-            /**
-             * Format: email
-             * @description 后端最终锁定并发送验证码的学校邮箱
-             */
-            email: string;
-            /** @description 学籍邮箱策略下已匹配的学号 */
-            studentID?: string;
-            cooldownSeconds: number;
-        };
-        BindPhoneRequest: {
-            phone: string;
-            /** @description 短信验证码（6位） */
-            otpCode: string;
-        };
-        SchoolConfig: {
-            /**
-             * Format: int64
-             * @description StuHelper 内部学校主键，仅用于后端外键兼容
-             */
-            schoolID: number;
-            /** @description 教育部学校标识码；对外选择和展示应优先使用此字段 */
-            schoolCode: string;
-            schoolName: string;
-            /** @enum {string} */
-            verificationMethod: "ldap" | "manual";
-            consentText?: string | null;
-            manualFormFields?: components["schemas"]["ManualFieldDescriptor"][] | null;
-            enabled: boolean;
-            /** @description 该学校是否已接入加群验证用的学校官方 SSO */
-            schoolSsoEnabled: boolean;
-            /** @description 该学校是否已接入加群验证用的学校邮箱 OTP */
-            schoolEmailOtpEnabled: boolean;
-            /** @description 学校邮箱认证的可选身份校验策略；BUAA 使用 academic_student_email 派生学号邮箱 */
-            schoolEmailIdentityPolicy?: components["schemas"]["SchoolEmailIdentityPolicy"];
-        };
-        SchoolEmailIdentityPolicy: {
-            /** @enum {string} */
-            type: "academic_student_email";
-            /** @description 学号邮箱域名，例如 buaa.edu.cn */
-            studentIDEmailDomain?: string;
-            requireStudentName: boolean;
-        };
-        AcademicStudentInfo: {
-            /** @description Student ID */
-            xh: string;
-            /** @description Student name */
-            xm: string;
-            /** @description College code */
-            yxdm?: string;
-            /** @description Major code */
-            zydm?: string;
-            /** @description Class code */
-            bjdm?: string;
-            /** @description Current grade */
-            xznj?: string;
-            /** @description Enrollment grade */
-            rxnj?: string;
-            /** @description Education level code */
-            pyccdm?: string;
-            /** @description Phone number */
-            sjh?: string;
-            /** @description Email address */
-            dzxx?: string;
-        };
-        ReviewIdentityRequest: {
-            approved: boolean;
-            rejectionReason?: string | null;
-        };
-        ReviewStudentVerificationRequest: {
-            approved: boolean;
-            /** @description 驳回理由，可留空 */
-            rejectionReason?: string | null;
-        };
         SystemConfigSchema: components["schemas"]["SystemConfig"];
         UpdateSystemConfigRequest: {
             value: string;
-        };
-        AdminSchoolConfig: {
-            /** Format: int64 */
-            schoolID: number;
-            schoolCode: string;
-            schoolName: string;
-            /** @enum {string} */
-            verificationMethod: "ldap" | "manual";
-            /** @enum {string} */
-            approvalPolicy: "auto" | "manual";
-            /** @description LDAP 连接配置，不返回系统绑定密码明文 */
-            ldapConfig?: components["schemas"]["SchoolLDAPConfigView"];
-            /** @description 本地学籍表名 */
-            academicDbTable?: string | null;
-            consentText?: string | null;
-            manualFormFields?: components["schemas"]["ManualFieldDescriptor"][] | null;
-            enabled: boolean;
-            /** @description 该学校是否已接入加群验证用的学校官方 SSO */
-            schoolSsoEnabled: boolean;
-            /** @description 该学校是否已接入加群验证用的学校邮箱 OTP */
-            schoolEmailOtpEnabled: boolean;
-            /** @description 学校邮箱认证的可选身份校验策略；BUAA 使用 academic_student_email 派生学号邮箱 */
-            schoolEmailIdentityPolicy?: components["schemas"]["SchoolEmailIdentityPolicy"];
-            /** Format: date-time */
-            createdAt: string;
-        };
-        UpdateSchoolConfigRequest: {
-            schoolName?: string;
-            /** @enum {string} */
-            verificationMethod?: "ldap" | "manual";
-            /** @enum {string} */
-            approvalPolicy?: "auto" | "manual";
-            ldapConfig?: components["schemas"]["SchoolLDAPConfigInput"];
-            academicDbTable?: string;
-            consentText?: string;
-            manualFormFields?: components["schemas"]["ManualFieldDescriptor"][];
-            enabled?: boolean;
         };
         UserSurface: {
             displayName: string;
             avatarURL?: string;
             /** @description 账号侧已验证手机号的脱敏展示值；未绑定时为空。 */
             phone?: string | null;
-            /** @enum {string} */
-            identityStatus: "none" | "pending" | "approved" | "rejected";
-            /** @enum {string} */
-            verificationStatus: "none" | "pending" | "approved" | "rejected";
+            /**
+             * @description 由当前有效学生凭据实时派生；不是可写或永久保存的 verified 标志。
+             * @enum {string}
+             */
+            studentVerificationStatus: "none" | "approved";
             phoneBound: boolean;
             capabilities: string[];
         };
@@ -4451,8 +4493,7 @@ export interface components {
             boundAt?: string | null;
             /** @enum {string} */
             verificationState: "unbound" | "bound_unverified" | "verified";
-            /** @enum {string} */
-            profileVerificationStatus: "unverified" | "pending" | "verified" | "rejected";
+            /** @description 由当前有效学生凭据实时派生，不读取旧 user profile 认证状态。 */
             studentVerified: boolean;
         };
         /**
@@ -4753,23 +4794,24 @@ export interface components {
             /** Format: date-time */
             cancelledAt?: string | null;
             lastBotError?: string | null;
+            /**
+             * Format: int64
+             * @description Monotonic student-eligibility fence used by this admission decision.
+             */
+            eligibilityRevision?: number | null;
+            /** Format: date-time */
+            eligibilityEvaluatedAt?: string | null;
             projectionPending: boolean;
             failureCount?: number;
             remainingRetryCount?: number;
             willBlacklistOnTimeout?: boolean;
             /** Format: uri */
             authURL?: string;
-            /** Format: int64 */
-            maxMaterialBytes?: number;
         };
         AdmissionMe: {
             status: components["schemas"]["AdmissionStatus"];
             projectionPending: boolean;
             session?: components["schemas"]["AdmissionSession"];
-            /** @enum {string} */
-            credentialKind?: "school_sso" | "school_email_otp" | "freshman_material_manual";
-            /** Format: date-time */
-            provisionalExpiresAt?: string | null;
         };
         AdmissionPolicy: {
             id: string;
@@ -4804,23 +4846,18 @@ export interface components {
             reminderIntervalSeconds: number;
             failedJoinLimit: number;
             blacklistDurationSeconds?: number | null;
-            freshmanChannelEnabled: boolean;
-            /** Format: date-time */
-            freshmanChannelClosesAt: string;
-            /** Format: date-time */
-            freshmanDefaultExpiresAt: string;
-            forwardRawMaterialToQQ: boolean;
-            managementGuildIDs: string[];
-            /** Format: int64 */
-            maxMaterialBytes: number;
-            maxExtensionDays: number;
+            /**
+             * @description 是否允许有效期内的临时新生凭据满足本群准入；正式学生凭据不受此开关影响。
+             * @default false
+             */
+            allowTemporaryFreshman: boolean;
         };
         AdmissionPolicyCreateRequest: {
             /** @description 要复制运行参数的已有 admission policy ID。 */
             sourcePolicyID: string;
             /** @default qq */
             platform: string;
-            /** @description 新生认证目标群号。 */
+            /** @description 入群认证目标群号。 */
             guildID: string;
         };
         BotAdmissionPolicyTarget: {
@@ -4839,35 +4876,11 @@ export interface components {
              *     下表示群内动态验证码等待时间，Koishi 会按该值生成本地超时踢出期限。
              */
             linkWaitSeconds: number;
-        };
-        FreshmanApplication: {
-            id: string;
-            userID: string;
-            /** Format: int64 */
-            schoolID: number;
-            admissionSessionID?: string;
-            applicantName?: string;
-            applicantNameMasked: string;
-            departmentOrMajor?: string;
-            /** @enum {string} */
-            materialType: "admission_notice" | "admission_certificate";
-            /** Format: uri */
-            materialURL?: string;
-            qqID?: string;
-            failureCount?: number;
-            status: components["schemas"]["FreshmanApplicationStatus"];
-            /** Format: date-time */
-            provisionalExpiresAt?: string | null;
-            /** Format: date-time */
-            reviewedAt?: string | null;
-            /** Format: date-time */
-            createdAt: string;
-        };
-        FreshmanReviewRequest: {
-            /** @enum {string} */
-            action: "approve" | "reject";
-            reason?: string;
-            expiresInDays?: number;
+            /**
+             * @description 由 PostgreSQL admission policy 下发的 QQ 管理群白名单。Koishi 只能把它用于固定的
+             *     管理通知和受权命令边界，不得接受 webhook 或事件载荷覆盖目标群。
+             */
+            managementGuildIDs: string[];
         };
         BotAdmissionSessionCreateRequest: {
             platform: string;
@@ -4895,94 +4908,6 @@ export interface components {
             rawEvent?: {
                 [key: string]: unknown;
             };
-        };
-        BotFreshmanReviewRequest: components["schemas"]["FreshmanReviewRequest"] & components["schemas"]["BotFreshmanCommandContext"];
-        CameraCaptureRequest: {
-            /** @enum {string} */
-            contentType: "image/jpeg" | "image/png" | "image/webp";
-            imageBase64: string;
-        };
-        FreshmanCameraHandoff: {
-            id: string;
-            applicationID: string;
-            userID: string;
-            /** @enum {string} */
-            status: "pending" | "uploaded" | "locked" | "expired";
-            /** @enum {string} */
-            continueOn?: "desktop" | "mobile";
-            /** Format: uri */
-            mobileURL?: string;
-            /** Format: date-time */
-            expiresAt: string;
-            /** Format: date-time */
-            uploadedAt?: string;
-            /** Format: date-time */
-            chosenAt?: string;
-            /** Format: date-time */
-            createdAt: string;
-            /** Format: int64 */
-            maxMaterialBytes: number;
-        };
-        FreshmanCameraHandoffContinuationRequest: {
-            /** @enum {string} */
-            continueOn: "desktop" | "mobile";
-        };
-        SchoolEmailAcademicMatchRequest: {
-            /** @description 教育部学校标识码；即时学籍匹配必须以此字段识别学校。 */
-            schoolCode: string;
-            /** @description 当前 Join 页面绑定的 admission session ID；用于确认匹配请求属于当前页面 session。 */
-            admissionSessionID?: string;
-            /** @description 学号。 */
-            studentID: string;
-            /** @description 姓名。 */
-            studentName: string;
-        };
-        SchoolEmailAcademicMatchResponse: {
-            /** @description 学号和姓名是否在学校学籍数据源中匹配。 */
-            matched: boolean;
-            /**
-             * Format: email
-             * @description 匹配通过后由后端按学号派生出的学校邮箱。
-             */
-            email?: string;
-            /** @description 规范化后的学号。 */
-            studentID?: string;
-            /** @description 面向前端展示的匹配提示。 */
-            message?: string;
-        };
-        SchoolEmailOTPRequest: {
-            /** @description 教育部学校标识码；公开 admission 学校邮箱 OTP 请求必须以此字段识别学校。 */
-            schoolCode: string;
-            /** @description 当前 Join 页面绑定的 admission session ID；用于多群/多会话时校验 OTP 请求属于当前页面 session。 */
-            admissionSessionID?: string;
-            /**
-             * Format: email
-             * @description 普通学校邮箱 OTP 可直接提交邮箱；配置学籍邮箱策略时由后端按学号派生并校验不可篡改
-             */
-            email?: string;
-            /** @description 配置 academic_student_email 策略的学校必填 */
-            studentID?: string;
-            /** @description 配置 academic_student_email 且 requireStudentName=true 的学校必填 */
-            studentName?: string;
-        };
-        SchoolEmailOTPVerifyRequest: {
-            /** @description 教育部学校标识码；公开 admission 学校邮箱 OTP 校验请求必须以此字段识别学校。 */
-            schoolCode: string;
-            /** @description 当前 Join 页面绑定的 admission session ID；用于多群/多会话时返回当前页面 session 的 admission 状态。 */
-            admissionSessionID?: string;
-            /** Format: email */
-            email: string;
-            code: string;
-        };
-        SchoolEmailOTPResponse: {
-            /**
-             * Format: email
-             * @description 后端最终锁定并发送验证码的学校邮箱
-             */
-            email: string;
-            /** @description 学籍邮箱策略下已匹配的学号 */
-            studentID?: string;
-            cooldownSeconds: number;
         };
         MemberBlacklistEntry: {
             id: string;
@@ -5600,57 +5525,722 @@ export interface components {
         FavoriteStatusData: {
             favorited: boolean;
         };
-        UploadIdentityPhotoRequest: {
+        /** @enum {string} */
+        VerificationMethod: "real_name_identity_check" | "school_sso" | "student_email_outbound_otp" | "student_email_inbound_challenge" | "manual_material_review";
+        /** @enum {string} */
+        VerificationMethodAvailability: "available" | "temporarily_unavailable" | "disabled";
+        VerificationFieldDescriptor: {
+            key: string;
+            label: string;
+            helpText?: string;
             /** @enum {string} */
-            slot: "front" | "back" | "selfie";
-            filename: string;
+            inputType: "text" | "password" | "email" | "select" | "date" | "textarea";
+            autocomplete?: string;
+            required: boolean;
+            maxLength?: number;
+            options?: {
+                value: string;
+                label: string;
+            }[];
+        };
+        VerificationPrivacyNotice: {
+            version: string;
+            title: string;
+            summary: string;
+            dataCategories: string[];
+            retentionSummary: string;
+            /** Format: uri-reference */
+            rightsUrl?: string;
+        };
+        VerificationMethodCapability: {
+            method: components["schemas"]["VerificationMethod"];
+            displayName: string;
+            description: string;
+            availability: components["schemas"]["VerificationMethodAvailability"];
+            /** @description 面向用户的稳定降级分类；不得包含学校内部系统、表名或字段信息。 */
+            unavailableCode?: string;
+            formFields: components["schemas"]["VerificationFieldDescriptor"][];
+            privacyNotice?: components["schemas"]["VerificationPrivacyNotice"] | null;
+        };
+        VerificationSchool: {
+            code: string;
+            name: string;
+            location?: string;
+            methods: components["schemas"]["VerificationMethodCapability"][];
+        };
+        CreateVerificationApplicationRequest: {
+            schoolCode: string;
+            continuationToken?: string;
+        };
+        /** @enum {string} */
+        VerificationApplicationStatus: "created" | "in_progress" | "pending_manual_review" | "approved" | "rejected" | "cancelled" | "expired";
+        /** @enum {string} */
+        VerificationCredentialStatus: "pending" | "active" | "review_required" | "expired" | "revoked" | "rejected";
+        StudentVerificationCredential: {
+            /** Format: uuid */
+            id: string;
+            schoolCode: string;
+            schoolName: string;
+            /** @enum {string} */
+            method: "real_name_identity_check" | "school_sso" | "student_email_outbound_otp" | "student_email_inbound_challenge" | "manual_material_review";
+            status: components["schemas"]["VerificationCredentialStatus"];
+            /** @enum {string} */
+            credentialClass: "formal_student" | "temporary_freshman";
+            subjectDisplay: string;
+            /** Format: date-time */
+            verifiedAt: string;
+            /** Format: date-time */
+            expiresAt?: string | null;
+            /** Format: date-time */
+            reviewRequiredAt?: string | null;
+            /** Format: int64 */
+            revision: number;
+        };
+        VerificationApplication: {
+            /** Format: uuid */
+            id: string;
+            school: {
+                code: string;
+                name: string;
+            };
+            status: components["schemas"]["VerificationApplicationStatus"];
+            currentMethod?: components["schemas"]["VerificationMethod"] | null;
+            /** @description 不可枚举、面向用户的稳定结果类别。 */
+            terminalCode?: string;
+            /** Format: int64 */
+            revision: number;
+            nextActions: ("choose_method" | "retry_current_method" | "choose_another_method" | "wait_for_review" | "open_account_recovery" | "return_to_consumer")[];
+            credential?: components["schemas"]["StudentVerificationCredential"] | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        VerifyRealNameRequest: {
+            studentID: string;
+            name: string;
+            documentNumber: string;
+            privacyNoticeVersion: string;
+            /** @enum {boolean} */
+            sensitiveDataConsent: true;
+        };
+        VerifySchoolSSORequest: {
+            studentID: string;
+            password: string;
+            privacyNoticeVersion: string;
+            /** @enum {boolean} */
+            sensitiveDataConsent: true;
+        };
+        StudentEmailIdentityRequest: {
+            studentID: string;
+            name: string;
+            privacyNoticeVersion: string;
+            /** @enum {boolean} */
+            sensitiveDataConsent: true;
+        };
+        StudentEmailOTPChallenge: {
+            /** Format: uuid */
+            applicationID: string;
+            maskedEmail: string;
+            /** Format: date-time */
+            expiresAt: string;
+            /** Format: date-time */
+            resendAvailableAt: string;
+            remainingAttempts: number;
+        };
+        VerifyStudentEmailOTPRequest: {
+            code: string;
+        };
+        InboundEmailChallenge: {
+            /** Format: uuid */
+            applicationID: string;
+            /** @enum {string} */
+            status: "waiting" | "verified" | "expired" | "cancelled";
+            /** Format: email */
+            targetAddress: string;
+            expectedSenderMasked: string;
+            subject: string;
+            /** @description 仅在挑战仍等待时返回；验证完成、取消或过期后不再返回。 */
+            challengeValue?: string;
+            /** Format: date-time */
+            expiresAt: string;
+            /** Format: date-time */
+            verifiedAt?: string;
+        };
+        /** @enum {string} */
+        ManualReviewStatus: "draft" | "pending" | "supplement_required" | "approved" | "rejected" | "cancelled" | "expired";
+        /** @enum {string} */
+        ManualMaterialType: "campus_card" | "student_card" | "admission_notice" | "other_approved";
+        ManualReviewMaterial: {
+            /** Format: uuid */
+            id: string;
             /** @enum {string} */
             contentType: "image/jpeg" | "image/png" | "image/webp";
-            /** @description 不含 data: 前缀的 Base64 内容 */
-            dataBase64: string;
+            /** Format: int64 */
+            sizeBytes: number;
+            width: number;
+            height: number;
+            /** Format: date-time */
+            capturedAt: string;
         };
-        IdentityPhotoUploadResult: {
-            /** @description 后续提交实名认证时使用的对象存储 key */
-            key: string;
+        ManualReviewCase: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            applicationID: string;
+            school: {
+                code: string;
+                name: string;
+            };
+            status: components["schemas"]["ManualReviewStatus"];
+            materialType: components["schemas"]["ManualMaterialType"];
+            applicantNameMasked: string;
+            studentIDMasked: string;
+            emailMasked?: string | null;
+            /** @description 仅表示该联系邮箱验证码已通过，不能单独授予学生身份。 */
+            emailVerified: boolean;
+            emailVerificationRequired: boolean;
+            materials: components["schemas"]["ManualReviewMaterial"][];
+            userVisibleReason?: string | null;
+            /** @enum {string|null} */
+            credentialClass?: "formal_student" | "temporary_freshman" | null;
+            /** Format: date-time */
+            credentialExpiresAt?: string | null;
+            /** Format: int64 */
+            revision: number;
+            nextActions: ("edit_form" | "capture_material" | "submit" | "wait_for_review" | "add_supplement" | "return_to_consumer")[];
+            /** Format: date-time */
+            submittedAt?: string | null;
+            /** Format: date-time */
+            reviewedAt?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
         };
-        StudentEmailAcademicMatchRequest: {
-            /** @description 教育部学校标识码；即时学籍匹配必须以此字段识别学校。 */
-            schoolCode: string;
-            /** @description 学号。 */
-            studentID: string;
-            /** @description 姓名。 */
-            studentName: string;
+        UpsertManualReviewRequest: {
+            materialType: components["schemas"]["ManualMaterialType"];
+            /** @description 仅允许当前学校受控 schema 中声明的字段；服务端加密保存。 */
+            formValues: {
+                [key: string]: string;
+            };
+            privacyNoticeVersion: string;
+            /** @enum {boolean} */
+            sensitiveDataConsent: true;
         };
-        StudentEmailAcademicMatchResponse: {
-            /** @description 学号和姓名是否在学校学籍数据源中匹配。 */
-            matched: boolean;
-            /**
-             * Format: email
-             * @description 匹配通过后由后端按学号派生出的学校邮箱。
-             */
-            email?: string;
-            /** @description 规范化后的学号。 */
-            studentID?: string;
-            /** @description 面向前端展示的匹配提示。 */
-            message?: string;
-        };
-        ManualFieldDescriptor: {
-            /** @description 动态字段唯一标识 */
-            key: string;
-            /** @description 字段展示文案 */
-            label: string;
+        ManualCameraCaptureRequest: {
             /** @enum {string} */
-            type: "text" | "textarea" | "select" | "date";
-            required: boolean;
-            /** @description select 类型可选项 */
-            options?: string[] | null;
-            /** @description 输入占位文案 */
-            placeholder?: string | null;
+            contentType: "image/jpeg" | "image/png" | "image/webp";
+            imageBase64: string;
+            /** @enum {string} */
+            captureSource: "web_camera";
+            /**
+             * @description 仅记录浏览器请求意图，不表示已证明来自后置摄像头。
+             * @default environment
+             * @enum {string}
+             */
+            requestedFacingMode: "environment" | "unknown";
+        };
+        ManualCameraHandoff: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            caseID: string;
+            /** @enum {string} */
+            status: "pending" | "uploaded" | "locked" | "expired";
+            /**
+             * Format: uri-reference
+             * @description 只含一次性短期交接 token，不含原始个人信息。
+             */
+            mobileURL?: string;
+            /** @enum {string|null} */
+            continueOn?: "desktop" | "mobile" | null;
+            material?: components["schemas"]["ManualReviewMaterial"] | null;
+            /** Format: date-time */
+            expiresAt: string;
+            /** Format: int64 */
+            maxMaterialBytes: number;
+        };
+        SubmitManualReviewRequest: {
+            /** @enum {boolean} */
+            confirmMaterialUse: true;
+        };
+        ManualEmailOTPChallenge: {
+            /** Format: uuid */
+            caseID: string;
+            maskedEmail: string;
+            /** Format: date-time */
+            expiresAt: string;
+            /** Format: date-time */
+            resendAvailableAt: string;
+            remainingAttempts: number;
+        };
+        SchoolVerificationSuggestionRequest: {
+            schoolName: string;
+            schoolLocation?: string;
+        };
+        SchoolVerificationSuggestion: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            status: "pending";
+            /** Format: date-time */
+            createdAt: string;
+        };
+        ManualCameraContinuationRequest: {
+            /** @enum {string} */
+            continueOn: "desktop" | "mobile";
+        };
+        StudentEligibility: {
+            eligible: boolean;
+            schoolCode: string;
+            /** @enum {string|null} */
+            credentialClass: "formal_student" | "temporary_freshman" | null;
+            credentialMethods: ("real_name_identity_check" | "school_sso" | "student_email_outbound_otp" | "student_email_inbound_challenge" | "manual_material_review")[];
+            /** Format: date-time */
+            expiresAt?: string | null;
+            /** Format: date-time */
+            evaluatedAt: string;
+            /** Format: int64 */
+            revision: number;
+        };
+        InboundEmailWebhookRequest: {
+            /** Format: email */
+            envelopeFrom: string;
+            /** Format: email */
+            headerFrom: string;
+            subject: string;
+            textBody: string;
+            /** @enum {string} */
+            spf: "pass" | "fail" | "neutral" | "none";
+            /** @enum {string} */
+            dkim: "pass" | "fail" | "neutral" | "none";
+            /** @enum {string} */
+            dmarc: "pass" | "fail" | "neutral" | "none";
+            /** Format: date-time */
+            receivedAt: string;
+        };
+        AdminVerificationMethodConfig: {
+            method: components["schemas"]["VerificationMethod"];
+            displayName: string;
+            description: string;
+            adapterID: string;
+            adapterVersion: string;
+            /** @enum {string} */
+            rosterDependency: "required" | "independent" | "conditional";
+            conditionalPolicy: {
+                [key: string]: unknown;
+            };
+            publicFormSchema: {
+                [key: string]: unknown;
+            };
+            riskPolicy: {
+                [key: string]: unknown;
+            };
+            credentialTTLSeconds?: number | null;
+            connectorOperationKey?: string | null;
+            readonly secretConfigured?: boolean;
+            privacyNoticeVersion?: string | null;
+            privacyNotice: {
+                [key: string]: unknown;
+            };
+            enabled: boolean;
+            /** @enum {string} */
+            validationStatus: "pending" | "valid" | "invalid";
+            validationCode?: string | null;
+            /** @enum {string} */
+            healthStatus: "unknown" | "healthy" | "degraded" | "unavailable";
+            healthCode?: string | null;
+            /** Format: date-time */
+            healthCheckedAt?: string | null;
+            /** Format: int64 */
+            configRevision: number;
+            /** Format: date-time */
+            updatedAt?: string;
+        };
+        AdminVerificationSchoolConfig: {
+            schoolCode: string;
+            schoolName: string;
+            location?: string | null;
+            adapterID: string;
+            adapterVersion: string;
+            emailDomains: string[];
+            studentIDPolicy: {
+                [key: string]: unknown;
+            };
+            nameMatchPolicy: {
+                [key: string]: unknown;
+            };
+            enrollmentPolicy: {
+                [key: string]: unknown;
+            };
+            manualFormSchema: {
+                [key: string]: unknown;
+            };
+            snapshotSyncIntervalSeconds: number;
+            snapshotWarningAfterSeconds: number;
+            snapshotHardExpirySeconds: number;
+            snapshotGraceSeconds: number;
+            /** @description 明确启用后，只有通过全部质量门禁的新完整快照才会由系统自动原子激活；默认关闭。 */
+            snapshotAutoActivate: boolean;
+            enabled: boolean;
+            /** @enum {string} */
+            validationStatus: "pending" | "valid" | "invalid";
+            validationCode?: string | null;
+            /** Format: int64 */
+            configRevision: number;
+            /** Format: date-time */
+            updatedAt: string;
+            methods: components["schemas"]["AdminVerificationMethodConfig"][];
+        };
+        CreateAdminVerificationSchoolConfigRequest: {
+            /** @description 必须先存在于学校目录；创建本配置才会进入待校验认证白名单。 */
+            schoolCode: string;
+            adapterID: string;
+            adapterVersion: string;
+            emailDomains: string[];
+            studentIDPolicy: {
+                [key: string]: unknown;
+            };
+            nameMatchPolicy: {
+                [key: string]: unknown;
+            };
+            enrollmentPolicy: {
+                [key: string]: unknown;
+            };
+            manualFormSchema: {
+                [key: string]: unknown;
+            };
+            snapshotSyncIntervalSeconds: number;
+            snapshotWarningAfterSeconds: number;
+            snapshotHardExpirySeconds: number;
+            snapshotGraceSeconds: number;
+            snapshotAutoActivate: boolean;
+            reason: string;
+        };
+        UpdateAdminVerificationSchoolConfigRequest: {
+            adapterID: string;
+            adapterVersion: string;
+            emailDomains: string[];
+            studentIDPolicy: {
+                [key: string]: unknown;
+            };
+            nameMatchPolicy: {
+                [key: string]: unknown;
+            };
+            enrollmentPolicy: {
+                [key: string]: unknown;
+            };
+            manualFormSchema: {
+                [key: string]: unknown;
+            };
+            snapshotSyncIntervalSeconds: number;
+            snapshotWarningAfterSeconds: number;
+            snapshotHardExpirySeconds: number;
+            snapshotGraceSeconds: number;
+            snapshotAutoActivate: boolean;
+            /** Format: int64 */
+            expectedRevision: number;
+            reason: string;
+        };
+        ValidateAdminVerificationConfigRequest: {
+            enable: boolean;
+            /** Format: int64 */
+            expectedRevision: number;
+            reason: string;
+        };
+        UpdateAdminVerificationMethodConfigRequest: {
+            displayName: string;
+            description: string;
+            adapterID: string;
+            adapterVersion: string;
+            /** @enum {string} */
+            rosterDependency: "required" | "independent" | "conditional";
+            conditionalPolicy: {
+                [key: string]: unknown;
+            };
+            publicFormSchema: {
+                [key: string]: unknown;
+            };
+            riskPolicy: {
+                [key: string]: unknown;
+            };
+            credentialTTLSeconds?: number | null;
+            connectorOperationKey?: string | null;
+            privacyNoticeVersion?: string | null;
+            privacyNotice: {
+                [key: string]: unknown;
+            };
+            /**
+             * Format: int64
+             * @description 新增该方法时传 0；更新已存在方法时传当前正整数 revision。
+             */
+            expectedRevision: number;
+            reason: string;
+        };
+        AdminStudentCredential: {
+            /** Format: uuid */
+            id: string;
+            /** Format: int64 */
+            userID: number;
+            schoolCode: string;
+            schoolName: string;
+            method: components["schemas"]["VerificationMethod"];
+            status: components["schemas"]["VerificationCredentialStatus"];
+            /** @enum {string} */
+            credentialClass: "formal_student" | "temporary_freshman";
+            subjectDisplay: string;
+            /** @enum {string} */
+            rosterDependency: "required" | "independent" | "conditional";
+            /** @enum {string} */
+            assurance: "standard" | "reviewed";
+            /** Format: date-time */
+            verifiedAt: string;
+            /** Format: date-time */
+            expiresAt?: string | null;
+            /** Format: date-time */
+            reviewRequiredAt?: string | null;
+            revokedReason?: string | null;
+            /** Format: int64 */
+            revision: number;
+        };
+        AdminCredentialRevokeRequest: {
+            reason: string;
+            /** Format: int64 */
+            expectedRevision: number;
+        };
+        AdminStudentSubjectConflict: {
+            /** Format: uuid */
+            id: string;
+            schoolCode: string;
+            schoolName: string;
+            /** Format: int64 */
+            claimantUserID: number;
+            /** Format: int64 */
+            incumbentUserID?: number | null;
+            /** Format: uuid */
+            applicationID?: string | null;
+            /** @enum {string} */
+            status: "open" | "under_review" | "resolved" | "dismissed";
+            reasonCode: string;
+            resolutionCode?: string | null;
+            /** Format: date-time */
+            resolvedAt?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        AdminSubjectConflictDecisionRequest: {
+            /** @enum {string} */
+            action: "start_review" | "dismiss_claim" | "release_subject_for_reverification";
+            reason: string;
+        };
+        AdminCampusConnectorOperationHealth: {
+            schoolCode: string;
+            operationKey: string;
+            /** @enum {string} */
+            operationType: "school_account_authenticate" | "roster_snapshot_upload";
+            adapterID: string;
+            adapterVersion: string;
+            enabled: boolean;
+            /** @enum {string} */
+            validationStatus: "pending" | "valid" | "invalid";
+            /** @enum {string} */
+            healthStatus: "unknown" | "healthy" | "degraded" | "unavailable";
+            healthCode?: string | null;
+            /** Format: date-time */
+            healthCheckedAt?: string | null;
+            /** Format: int64 */
+            configRevision: number;
+        };
+        AdminCampusConnectorHealth: {
+            /** Format: uuid */
+            id: string;
+            displayName: string;
+            /** @enum {string} */
+            status: "registered" | "active" | "degraded" | "offline" | "revoked";
+            protocolVersion: string;
+            softwareVersion: string;
+            /** Format: date-time */
+            certificateNotAfter: string;
+            maxConcurrency: number;
+            heartbeatIntervalSeconds: number;
+            /** Format: date-time */
+            lastHeartbeatAt?: string | null;
+            lastHealthCode?: string | null;
+            /** Format: int64 */
+            revision: number;
+            operations: components["schemas"]["AdminCampusConnectorOperationHealth"][];
+        };
+        RosterQualityCheck: {
+            checkKey: string;
+            /** @enum {string} */
+            status: "pending" | "passed" | "warning" | "failed";
+            /** @description 仅允许聚合或匿名测量值，不得包含学生明细。 */
+            measured: {
+                [key: string]: unknown;
+            };
+            threshold: {
+                [key: string]: unknown;
+            };
+            detailCode?: string;
+            /** Format: date-time */
+            checkedAt: string;
+        };
+        RosterSnapshot: {
+            /** Format: uuid */
+            id: string;
+            schoolCode: string;
+            schoolName: string;
+            /** @enum {string} */
+            sourceKind: "campus_connector" | "isolated_oracle_worker" | "fixture";
+            sourceVersion: string;
+            /** @enum {string} */
+            importMode: "full" | "incremental" | "reconciled_full";
+            schemaVersion: number;
+            mappingVersion: string;
+            /** @enum {string} */
+            status: "staging" | "validating" | "ready" | "active" | "superseded" | "failed" | "rolled_back";
+            /** Format: date-time */
+            sourceCutoffAt: string;
+            /** Format: date-time */
+            importStartedAt: string;
+            /** Format: date-time */
+            importCompletedAt?: string | null;
+            /** Format: date-time */
+            activatedAt?: string | null;
+            /** Format: int64 */
+            rowCount: number;
+            /** Format: int64 */
+            eligibleRowCount: number;
+            /** Format: int64 */
+            deletedRowCount: number;
+            checksum?: string | null;
+            failureCode?: string;
+            /** Format: int64 */
+            activationRevision?: number | null;
+            isCurrent: boolean;
+            qualityChecks: components["schemas"]["RosterQualityCheck"][];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        AdminRosterSyncRequest: {
+            /** Format: uuid */
+            id: string;
+            schoolCode: string;
+            operationKey: string;
+            adapterID: string;
+            adapterVersion: string;
+            /** @enum {string} */
+            status: "pending" | "started" | "succeeded" | "failed" | "timed_out" | "cancelled";
+            resultCode?: string | null;
+            /** Format: int64 */
+            requestedByUserID: number;
+            reason: string;
+            /** Format: date-time */
+            deadlineAt: string;
+            /** Format: date-time */
+            claimedAt?: string | null;
+            claimAttempts: number;
+            /** Format: date-time */
+            completedAt?: string | null;
+            latencyMilliseconds?: number | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        AdminRosterSyncCreateRequest: {
+            /** @description 审计原因、工单或事件编号；不会发送给校园连接器节点。 */
+            reason: string;
+        };
+        RosterSnapshotSwitchRequest: {
+            reason: string;
+            /**
+             * @description 仅激活接口接受；必须由显式授权、MFA step-up 和审计共同保护。
+             * @default false
+             */
+            allowSourceRegression: boolean;
+        };
+        AdminManualReviewDetail: {
+            case: components["schemas"]["ManualReviewCase"];
+            /** @description 仅在学校范围授权和近期 MFA step-up 后返回。 */
+            formValues: {
+                [key: string]: string;
+            };
+        };
+        AdminManualMaterialAccess: {
+            /** Format: uri */
+            url: string;
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        AdminManualReviewDecisionRequest: {
+            /** @enum {string} */
+            action: "request_supplement" | "approve" | "reject";
+            userVisibleReason: string;
+            internalRiskNote?: string;
+            /** @description 批准时必填；录取通知书的上限由服务端进一步收紧。 */
+            expiresInDays?: number;
         };
         /** @enum {string} */
-        AdmissionStatus: "joined_muted" | "linked" | "material_submitted" | "verified" | "expired_kicked" | "cancelled";
+        PhoneVerificationMethod: "school_roster_phone_match" | "sms_possession";
+        PhoneStatus: {
+            /** @enum {string} */
+            state: "unbound" | "syncing" | "verified" | "review_required";
+            maskedPhone?: string | null;
+            method?: components["schemas"]["PhoneVerificationMethod"] | null;
+            /** Format: date-time */
+            verifiedAt?: string | null;
+            /** Format: date-time */
+            expiresAt?: string | null;
+            publishingRequirementSatisfied: boolean;
+            /** Format: int64 */
+            revision: number;
+        };
+        PhoneBindingOperation: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            operationKind: "bind" | "change" | "unbind";
+            /** @enum {string} */
+            status: "pending_verification" | "verification_succeeded" | "casdoor_update_pending" | "casdoor_updated" | "projection_sync_pending" | "completed" | "failed" | "cancelled" | "expired";
+            maskedPhone?: string | null;
+            /** @enum {string} */
+            verificationStep: "none" | "sms_otp" | "step_up_mfa" | "syncing";
+            /** Format: date-time */
+            smsResendAvailableAt?: string | null;
+            /** Format: date-time */
+            expiresAt: string;
+            /** Format: int64 */
+            revision: number;
+        };
+        CreatePhoneOperationRequest: {
+            phone: string;
+            schoolCode?: string;
+            studentID?: string;
+            name?: string;
+        };
+        VerifyPhoneSMSRequest: {
+            code: string;
+        };
+        PhoneGateEligibility: {
+            eligible: boolean;
+            method?: components["schemas"]["PhoneVerificationMethod"] | null;
+            /** Format: date-time */
+            expiresAt?: string | null;
+            /** Format: date-time */
+            evaluatedAt: string;
+            /** Format: int64 */
+            revision: number;
+        };
         /** @enum {string} */
-        FreshmanApplicationStatus: "pending" | "approved" | "rejected";
+        AdmissionStatus: "created" | "awaiting_account_link" | "awaiting_requirements" | "pending_manual_review" | "eligible" | "action_pending" | "admitted" | "released" | "rejected" | "cancelled" | "expired";
         CreatedAdmissionSession: {
             session: components["schemas"]["AdmissionSession"];
             token: string;
@@ -5698,6 +6288,11 @@ export interface components {
             actionID?: string;
             /** @description actionID 对应的派发代次；ACK 时必须原样提交。 */
             dispatchAttempt?: number;
+            /**
+             * Format: int64
+             * @description release 动作使用的学生资格修订号；执行器不得修改或缓存为学生身份真源。
+             */
+            eligibilityRevision?: number;
             sessionID: string;
             /** @enum {string} */
             action: "remind" | "release" | "kick" | "blacklist";
@@ -5718,57 +6313,6 @@ export interface components {
         BotAdmissionActionEventRequest: components["schemas"]["BotAdmissionEventRequest"] & {
             /** @description 领取 action 时返回的派发代次。服务端仅接受当前代次的 ACK。 */
             dispatchAttempt: number;
-        };
-        BotFreshmanCommandContext: {
-            operatorQQID: string;
-            platform?: string;
-            targetGuildID?: string;
-            guildID: string;
-            channelID?: string;
-            rawCommand: string;
-        };
-        AdminStudentVerificationItem: {
-            /** Format: int64 */
-            userID: number;
-            /** Format: int64 */
-            schoolID?: number | null;
-            studentIDs?: string[] | null;
-            activeStudentID?: string | null;
-            manualFormData?: {
-                [key: string]: unknown;
-            } | null;
-            /** @enum {string} */
-            verificationStatus: "unverified" | "pending" | "verified" | "rejected";
-            /** @enum {string|null} */
-            verificationMethod?: "ldap" | "manual" | "school_email_otp" | "school_sso" | null;
-            rejectionReason?: string | null;
-            /** Format: date-time */
-            reviewedAt?: string | null;
-            /** @description 掩码手机号（如 138****5678） */
-            phone?: string | null;
-            phoneVerified?: boolean;
-            /** Format: date-time */
-            consentGivenAt?: string | null;
-            /** Format: date-time */
-            verifiedAt?: string | null;
-            /** Format: date-time */
-            createdAt: string;
-            /** Format: date-time */
-            updatedAt: string;
-        };
-        SchoolLDAPConfigView: {
-            url?: string | null;
-            baseDN?: string | null;
-            systemBindDN?: string | null;
-            useTLS: boolean;
-            hasSystemBindPassword: boolean;
-        };
-        SchoolLDAPConfigInput: {
-            url?: string;
-            baseDN?: string;
-            systemBindDN?: string;
-            systemBindPassword?: string;
-            useTLS?: boolean;
         };
         SystemConfig: {
             key: string;
@@ -5829,6 +6373,50 @@ export interface components {
                 };
             };
         };
+        /** @description 学生认证申请的最新状态 */
+        ApplicationResponse: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["SuccessResponse"] & {
+                    data: components["schemas"]["VerificationApplication"];
+                };
+            };
+        };
+        /** @description 人工审核脱敏状态 */
+        ManualReviewResponse: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["SuccessResponse"] & {
+                    data: components["schemas"]["ManualReviewCase"];
+                };
+            };
+        };
+        /** @description 拍摄交接状态 */
+        ManualHandoffResponse: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["SuccessResponse"] & {
+                    data: components["schemas"]["ManualCameraHandoff"];
+                };
+            };
+        };
+        /** @description 快照状态与聚合质量门禁 */
+        RosterSnapshotResponse: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["SuccessResponse"] & {
+                    data: components["schemas"]["RosterSnapshot"];
+                };
+            };
+        };
     };
     parameters: {
         /** @description 页码 */
@@ -5864,6 +6452,15 @@ export interface components {
         ResourceIDPath: number;
         /** @description 存储挂载点 ID */
         MountIDPath: number;
+        ApplicationID: string;
+        HandoffID: string;
+        HandoffToken: string;
+        CredentialID: string;
+        SchoolCode: string;
+        SnapshotID: string;
+        CaseID: string;
+        MaterialID: string;
+        PhoneOperationID: string;
         /** @description 授权账本 ID */
         GrantID: number;
     };
@@ -10102,91 +10699,6 @@ export interface operations {
             500: components["responses"]["ErrorResponse"];
         };
     };
-    getUserIdentity: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description 用户实名认证信息；未提交实名认证时 data 为 null。 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["UserIdentity"] | null;
-                    };
-                };
-            };
-            401: components["responses"]["ErrorResponse"];
-            500: components["responses"]["ErrorResponse"];
-        };
-    };
-    submitIdentity: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SubmitIdentityRequest"];
-            };
-        };
-        responses: {
-            /** @description 实名认证提交成功 */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["UserIdentity"];
-                    };
-                };
-            };
-            400: components["responses"]["ErrorResponse"];
-            401: components["responses"]["ErrorResponse"];
-            409: components["responses"]["ErrorResponse"];
-            500: components["responses"]["ErrorResponse"];
-        };
-    };
-    uploadIdentityPhoto: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UploadIdentityPhotoRequest"];
-            };
-        };
-        responses: {
-            /** @description 上传成功 */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["IdentityPhotoUploadResult"];
-                    };
-                };
-            };
-            400: components["responses"]["ErrorResponse"];
-            401: components["responses"]["ErrorResponse"];
-            429: components["responses"]["ErrorResponse"];
-            500: components["responses"]["ErrorResponse"];
-            503: components["responses"]["ErrorResponse"];
-        };
-    };
     getUserQQBinding: {
         parameters: {
             query?: never;
@@ -10236,272 +10748,6 @@ export interface operations {
             500: components["responses"]["ErrorResponse"];
         };
     };
-    getUserProfile: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description 用户学生认证信息；未提交学生认证时 data 为 null。 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["UserProfile"] | null;
-                    };
-                };
-            };
-            401: components["responses"]["ErrorResponse"];
-            500: components["responses"]["ErrorResponse"];
-        };
-    };
-    submitStudentVerification: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SubmitStudentVerificationRequest"];
-            };
-        };
-        responses: {
-            /** @description 学生认证结果 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["UserProfile"];
-                    };
-                };
-            };
-            400: components["responses"]["ErrorResponse"];
-            401: components["responses"]["ErrorResponse"];
-            403: components["responses"]["ErrorResponse"];
-            409: components["responses"]["ErrorResponse"];
-            429: components["responses"]["ErrorResponse"];
-            500: components["responses"]["ErrorResponse"];
-            503: components["responses"]["ErrorResponse"];
-        };
-    };
-    matchStudentEmailAcademicStudent: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["StudentEmailAcademicMatchRequest"];
-            };
-        };
-        responses: {
-            /** @description 学籍匹配结果 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["StudentEmailAcademicMatchResponse"];
-                    };
-                };
-            };
-            400: components["responses"]["ErrorResponse"];
-            401: components["responses"]["ErrorResponse"];
-            409: components["responses"]["ErrorResponse"];
-            429: components["responses"]["ErrorResponse"];
-            503: components["responses"]["ErrorResponse"];
-        };
-    };
-    requestStudentEmailOTP: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["StudentEmailOTPRequest"];
-            };
-        };
-        responses: {
-            /** @description OTP 已发送 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["StudentEmailOTPResponse"];
-                    };
-                };
-            };
-            400: components["responses"]["ErrorResponse"];
-            401: components["responses"]["ErrorResponse"];
-            409: components["responses"]["ErrorResponse"];
-            429: components["responses"]["ErrorResponse"];
-            503: components["responses"]["ErrorResponse"];
-        };
-    };
-    verifyStudentEmailOTP: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["StudentEmailOTPVerifyRequest"];
-            };
-        };
-        responses: {
-            /** @description 学生认证结果 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["UserProfile"];
-                    };
-                };
-            };
-            400: components["responses"]["ErrorResponse"];
-            401: components["responses"]["ErrorResponse"];
-            409: components["responses"]["ErrorResponse"];
-            429: components["responses"]["ErrorResponse"];
-            503: components["responses"]["ErrorResponse"];
-        };
-    };
-    requestBindPhoneOTP: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    phone: string;
-                };
-            };
-        };
-        responses: {
-            /** @description 验证码已发送 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: {
-                            message: string;
-                            cooldown: number;
-                        };
-                    };
-                };
-            };
-            400: components["responses"]["ErrorResponse"];
-            401: components["responses"]["ErrorResponse"];
-            429: components["responses"]["ErrorResponse"];
-            500: components["responses"]["ErrorResponse"];
-            503: components["responses"]["ErrorResponse"];
-        };
-    };
-    bindPhone: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BindPhoneRequest"];
-            };
-        };
-        responses: {
-            /** @description 手机号绑定成功 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["MessageData"];
-                    };
-                };
-            };
-            400: components["responses"]["ErrorResponse"];
-            401: components["responses"]["ErrorResponse"];
-            409: components["responses"]["ErrorResponse"];
-            500: components["responses"]["ErrorResponse"];
-        };
-    };
-    getAcademicInfo: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description 本地学籍数据库中的学生信息 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["AcademicStudentInfo"];
-                    };
-                };
-            };
-            401: components["responses"]["ErrorResponse"];
-            403: components["responses"]["ErrorResponse"];
-            404: components["responses"]["ErrorResponse"];
-            500: components["responses"]["ErrorResponse"];
-        };
-    };
-    listSchools: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description 学校配置列表（不含敏感字段） */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["SchoolConfig"][];
-                    };
-                };
-            };
-            400: components["responses"]["ErrorResponse"];
-            500: components["responses"]["ErrorResponse"];
-        };
-    };
     getUserSurface: {
         parameters: {
             query?: never;
@@ -10523,6 +10769,1555 @@ export interface operations {
                 };
             };
             401: components["responses"]["ErrorResponse"];
+        };
+    };
+    listVerificationSchools: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已验证配置且至少有一个可用方法的学校 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["VerificationSchool"][];
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    createVerificationApplication: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateVerificationApplicationRequest"];
+            };
+        };
+        responses: {
+            /** @description 申请已创建 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["VerificationApplication"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
+        };
+    };
+    getVerificationApplication: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                applicationID: components["parameters"]["ApplicationID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 申请当前状态 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["VerificationApplication"];
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            410: components["responses"]["ErrorResponse"];
+        };
+    };
+    cancelVerificationApplication: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                applicationID: components["parameters"]["ApplicationID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["ApplicationResponse"];
+            401: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+        };
+    };
+    verifyApplicationRealName: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                applicationID: components["parameters"]["ApplicationID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerifyRealNameRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["ApplicationResponse"];
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+            429: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
+        };
+    };
+    verifyApplicationSchoolSSO: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                applicationID: components["parameters"]["ApplicationID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerifySchoolSSORequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["ApplicationResponse"];
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+            429: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
+        };
+    };
+    requestApplicationEmailOTP: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                applicationID: components["parameters"]["ApplicationID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudentEmailIdentityRequest"];
+            };
+        };
+        responses: {
+            /** @description 验证码挑战已创建或按幂等规则复用 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["StudentEmailOTPChallenge"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+            429: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
+        };
+    };
+    verifyApplicationEmailOTP: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                applicationID: components["parameters"]["ApplicationID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerifyStudentEmailOTPRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["ApplicationResponse"];
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+            429: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
+        };
+    };
+    getApplicationInboundEmailChallenge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                applicationID: components["parameters"]["ApplicationID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 入站邮件挑战状态 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["InboundEmailChallenge"];
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+        };
+    };
+    createApplicationInboundEmailChallenge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                applicationID: components["parameters"]["ApplicationID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudentEmailIdentityRequest"];
+            };
+        };
+        responses: {
+            /** @description 入站邮件挑战已创建 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["InboundEmailChallenge"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+            429: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
+        };
+    };
+    getManualStudentReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                applicationID: components["parameters"]["ApplicationID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["ManualReviewResponse"];
+            401: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+        };
+    };
+    upsertManualStudentReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                applicationID: components["parameters"]["ApplicationID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpsertManualReviewRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["ManualReviewResponse"];
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+            429: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
+        };
+    };
+    uploadManualReviewCameraCapture: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                applicationID: components["parameters"]["ApplicationID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ManualCameraCaptureRequest"];
+            };
+        };
+        responses: {
+            201: components["responses"]["ManualReviewResponse"];
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+            413: components["responses"]["ErrorResponse"];
+            429: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
+        };
+    };
+    createManualReviewCameraHandoff: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                applicationID: components["parameters"]["ApplicationID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: components["responses"]["ManualHandoffResponse"];
+            401: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+            429: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
+        };
+    };
+    getManualReviewCameraHandoff: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                applicationID: components["parameters"]["ApplicationID"];
+                handoffID: components["parameters"]["HandoffID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["ManualHandoffResponse"];
+            401: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+        };
+    };
+    submitManualStudentReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                applicationID: components["parameters"]["ApplicationID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmitManualReviewRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["ManualReviewResponse"];
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+            429: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
+        };
+    };
+    requestManualReviewEmailOTP: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                applicationID: components["parameters"]["ApplicationID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 验证码已发送 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["ManualEmailOTPChallenge"];
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+            429: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
+        };
+    };
+    verifyManualReviewEmailOTP: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                applicationID: components["parameters"]["ApplicationID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerifyStudentEmailOTPRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["ManualReviewResponse"];
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+            429: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
+        };
+    };
+    createStudentVerificationSchoolSuggestion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SchoolVerificationSuggestionRequest"];
+            };
+        };
+        responses: {
+            /** @description 建议已记录 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["SchoolVerificationSuggestion"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            429: components["responses"]["ErrorResponse"];
+        };
+    };
+    previewManualReviewCameraHandoff: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: components["parameters"]["HandoffToken"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["ManualHandoffResponse"];
+            404: components["responses"]["ErrorResponse"];
+            410: components["responses"]["ErrorResponse"];
+            429: components["responses"]["ErrorResponse"];
+        };
+    };
+    uploadManualReviewHandoffCameraCapture: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: components["parameters"]["HandoffToken"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ManualCameraCaptureRequest"];
+            };
+        };
+        responses: {
+            201: components["responses"]["ManualHandoffResponse"];
+            400: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+            410: components["responses"]["ErrorResponse"];
+            413: components["responses"]["ErrorResponse"];
+            429: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
+        };
+    };
+    chooseManualReviewCameraContinuation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: components["parameters"]["HandoffToken"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ManualCameraContinuationRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["ManualHandoffResponse"];
+            400: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+            410: components["responses"]["ErrorResponse"];
+            429: components["responses"]["ErrorResponse"];
+        };
+    };
+    resumeManualReviewCameraHandoff: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: components["parameters"]["HandoffToken"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["ApplicationResponse"];
+            401: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+            410: components["responses"]["ErrorResponse"];
+        };
+    };
+    listStudentVerificationCredentials: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 当前及历史凭据；不返回身份原文或材料 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["StudentVerificationCredential"][];
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    revokeStudentVerificationCredential: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                credentialID: components["parameters"]["CredentialID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已撤销的凭据 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["StudentVerificationCredential"];
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+        };
+    };
+    getStudentVerificationEligibility: {
+        parameters: {
+            query: {
+                schoolCode: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 实时派生的最小资格结果 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["StudentEligibility"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+        };
+    };
+    receiveStudentVerificationInboundEmail: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-StuHelper-Webhook-Timestamp": string;
+                "X-StuHelper-Webhook-ID": string;
+                "X-StuHelper-Webhook-Signature": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InboundEmailWebhookRequest"];
+            };
+        };
+        responses: {
+            /** @description 事件已幂等接收；不向调用方泄露挑战匹配结果 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: {
+                            /** @enum {string} */
+                            status: "accepted";
+                        };
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            429: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
+        };
+    };
+    listAdminVerificationSchools: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 学校认证配置；不包含 secret 值、内网地址或学生数据 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["AdminVerificationSchoolConfig"][];
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+        };
+    };
+    createAdminVerificationSchool: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateAdminVerificationSchoolConfigRequest"];
+            };
+        };
+        responses: {
+            /** @description 已创建停用、待校验的学校认证配置 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["AdminVerificationSchoolConfig"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+        };
+    };
+    getAdminVerificationSchool: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                schoolCode: components["parameters"]["SchoolCode"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 学校认证配置 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["AdminVerificationSchoolConfig"];
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+        };
+    };
+    updateAdminVerificationSchool: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                schoolCode: components["parameters"]["SchoolCode"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateAdminVerificationSchoolConfigRequest"];
+            };
+        };
+        responses: {
+            /** @description 已更新且待校验的学校配置 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["AdminVerificationSchoolConfig"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+        };
+    };
+    validateAdminVerificationSchool: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                schoolCode: components["parameters"]["SchoolCode"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ValidateAdminVerificationConfigRequest"];
+            };
+        };
+        responses: {
+            /** @description 校验后的学校配置 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["AdminVerificationSchoolConfig"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+        };
+    };
+    updateAdminVerificationMethod: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                schoolCode: components["parameters"]["SchoolCode"];
+                method: components["schemas"]["VerificationMethod"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateAdminVerificationMethodConfigRequest"];
+            };
+        };
+        responses: {
+            /** @description 已更新且待校验的方法配置 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["AdminVerificationMethodConfig"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+        };
+    };
+    validateAdminVerificationMethod: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                schoolCode: components["parameters"]["SchoolCode"];
+                method: components["schemas"]["VerificationMethod"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ValidateAdminVerificationConfigRequest"];
+            };
+        };
+        responses: {
+            /** @description 校验后的方法配置和健康状态 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["AdminVerificationMethodConfig"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+        };
+    };
+    listAdminStudentCredentials: {
+        parameters: {
+            query: {
+                schoolCode: string;
+                status?: components["schemas"]["VerificationCredentialStatus"];
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 学校范围凭据列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["AdminStudentCredential"][];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+        };
+    };
+    revokeAdminStudentCredential: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                credentialID: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCredentialRevokeRequest"];
+            };
+        };
+        responses: {
+            /** @description 已撤销凭据 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["AdminStudentCredential"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+        };
+    };
+    listAdminStudentSubjectConflicts: {
+        parameters: {
+            query: {
+                schoolCode: string;
+                status?: "open" | "under_review" | "resolved" | "dismissed";
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 学校范围主体冲突列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["AdminStudentSubjectConflict"][];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+        };
+    };
+    decideAdminStudentSubjectConflict: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conflictID: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminSubjectConflictDecisionRequest"];
+            };
+        };
+        responses: {
+            /** @description 更新后的冲突 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["AdminStudentSubjectConflict"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+        };
+    };
+    listAdminCampusConnectorHealth: {
+        parameters: {
+            query?: {
+                schoolCode?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 不含证书指纹、公钥、目标主机、端口和 secret reference 的健康投影 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["AdminCampusConnectorHealth"][];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+        };
+    };
+    listAdminRosterSnapshots: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                schoolCode: components["parameters"]["SchoolCode"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 快照版本列表；不包含任何学生行级数据 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["RosterSnapshot"][];
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+        };
+    };
+    listAdminRosterSyncRequests: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                schoolCode: components["parameters"]["SchoolCode"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 最近任务，按创建时间倒序 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["AdminRosterSyncRequest"][];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
+        };
+    };
+    createAdminRosterSyncRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                schoolCode: components["parameters"]["SchoolCode"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminRosterSyncCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description 手动同步任务已持久化并等待连接器领取 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["AdminRosterSyncRequest"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
+        };
+    };
+    getAdminRosterSnapshot: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                schoolCode: components["parameters"]["SchoolCode"];
+                snapshotID: components["parameters"]["SnapshotID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["RosterSnapshotResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+        };
+    };
+    activateAdminRosterSnapshot: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                schoolCode: components["parameters"]["SchoolCode"];
+                snapshotID: components["parameters"]["SnapshotID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RosterSnapshotSwitchRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["RosterSnapshotResponse"];
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+            412: components["responses"]["ErrorResponse"];
+        };
+    };
+    rollbackAdminRosterSnapshot: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                schoolCode: components["parameters"]["SchoolCode"];
+                snapshotID: components["parameters"]["SnapshotID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RosterSnapshotSwitchRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["RosterSnapshotResponse"];
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+            412: components["responses"]["ErrorResponse"];
+        };
+    };
+    listAdminManualStudentReviews: {
+        parameters: {
+            query: {
+                schoolCode: string;
+                status?: "pending" | "supplement_required" | "approved" | "rejected";
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 稳定排序的脱敏队列 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["ManualReviewCase"][];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+        };
+    };
+    getAdminManualStudentReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                caseID: components["parameters"]["CaseID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 审核详情；材料只含元数据，不含对象 key 或 URL */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["AdminManualReviewDetail"];
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            412: components["responses"]["ErrorResponse"];
+        };
+    };
+    accessAdminManualStudentReviewMaterial: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                caseID: components["parameters"]["CaseID"];
+                materialID: components["parameters"]["MaterialID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 单对象短期访问地址 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["AdminManualMaterialAccess"];
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            412: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
+        };
+    };
+    decideAdminManualStudentReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                caseID: components["parameters"]["CaseID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminManualReviewDecisionRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["ManualReviewResponse"];
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+            412: components["responses"]["ErrorResponse"];
+        };
+    };
+    getAccountPhoneStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 手机号状态；只返回脱敏号码 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["PhoneStatus"];
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            500: components["responses"]["ErrorResponse"];
+        };
+    };
+    unbindAccountPhone: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 解绑操作已创建 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["PhoneBindingOperation"];
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+        };
+    };
+    createAccountPhoneOperation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePhoneOperationRequest"];
+            };
+        };
+        responses: {
+            /** @description 操作已创建；是否需要短信由服务端静默决定 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["PhoneBindingOperation"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+            429: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
+        };
+    };
+    createAccountPhoneChangeOperation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePhoneOperationRequest"];
+            };
+        };
+        responses: {
+            /** @description 换号操作已创建；旧号码在 Casdoor 变更前保持有效，验证路径由服务端决定 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["PhoneBindingOperation"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+            429: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
+        };
+    };
+    getAccountPhoneOperation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                operationID: components["parameters"]["PhoneOperationID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 手机号操作状态 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["PhoneBindingOperation"];
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+        };
+    };
+    sendAccountPhoneSMS: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                operationID: components["parameters"]["PhoneOperationID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 验证码已发送；发送成功不代表已验证 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["PhoneBindingOperation"];
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+            429: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
+        };
+    };
+    verifyAccountPhoneSMS: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                operationID: components["parameters"]["PhoneOperationID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerifyPhoneSMSRequest"];
+            };
+        };
+        responses: {
+            /** @description 验证通过并进入绑定或同步阶段 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["PhoneBindingOperation"];
+                    };
+                };
+            };
+            400: components["responses"]["ErrorResponse"];
+            401: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+            409: components["responses"]["ErrorResponse"];
+            429: components["responses"]["ErrorResponse"];
+            503: components["responses"]["ErrorResponse"];
+        };
+    };
+    getInternalStudentEligibility: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userID: number;
+                schoolCode: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 最小学生资格，不含姓名、身份信息、邮箱、手机号或材料 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["StudentEligibility"];
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
+            404: components["responses"]["ErrorResponse"];
+        };
+    };
+    getInternalPhoneGateEligibility: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 最小手机号门槛结果，不含完整号码 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"] & {
+                        data: components["schemas"]["PhoneGateEligibility"];
+                    };
+                };
+            };
+            401: components["responses"]["ErrorResponse"];
+            403: components["responses"]["ErrorResponse"];
         };
     };
     previewAdmissionSession: {
@@ -10604,390 +12399,6 @@ export interface operations {
                 };
             };
             401: components["responses"]["ErrorResponse"];
-        };
-    };
-    createFreshmanApplication: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** @description 教育部学校标识码；公开新生材料申请必须以此字段识别学校。 */
-                    schoolCode: string;
-                    /** @description 当前 Join 页面绑定的 admission session ID；用于多群/多会话时把新生申请绑定到当前页面 session。 */
-                    admissionSessionID?: string;
-                    applicantName: string;
-                    departmentOrMajor?: string;
-                    /** @enum {string} */
-                    materialType: "admission_notice" | "admission_certificate";
-                };
-            };
-        };
-        responses: {
-            /** @description 新生申请已创建 */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["FreshmanApplication"];
-                    };
-                };
-            };
-            400: components["responses"]["ErrorResponse"];
-            401: components["responses"]["ErrorResponse"];
-            409: components["responses"]["ErrorResponse"];
-        };
-    };
-    uploadFreshmanCameraCapture: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CameraCaptureRequest"];
-            };
-        };
-        responses: {
-            /** @description 材料已提交 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["FreshmanApplication"];
-                    };
-                };
-            };
-            400: components["responses"]["ErrorResponse"];
-            401: components["responses"]["ErrorResponse"];
-            413: components["responses"]["ErrorResponse"];
-            415: components["responses"]["ErrorResponse"];
-        };
-    };
-    createFreshmanCameraHandoff: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description 接力已创建 */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["FreshmanCameraHandoff"];
-                    };
-                };
-            };
-            401: components["responses"]["ErrorResponse"];
-            404: components["responses"]["ErrorResponse"];
-        };
-    };
-    getFreshmanCameraHandoff: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description 接力状态 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["FreshmanCameraHandoff"];
-                    };
-                };
-            };
-            401: components["responses"]["ErrorResponse"];
-            404: components["responses"]["ErrorResponse"];
-        };
-    };
-    watchFreshmanCameraHandoff: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Server-Sent Events stream. Each `handoff` event contains a FreshmanCameraHandoff JSON payload. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/event-stream": string;
-                };
-            };
-            401: components["responses"]["ErrorResponse"];
-            404: components["responses"]["ErrorResponse"];
-        };
-    };
-    previewFreshmanMobileCameraHandoff: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                token: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description 接力状态 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["FreshmanCameraHandoff"];
-                    };
-                };
-            };
-            404: components["responses"]["ErrorResponse"];
-            410: components["responses"]["ErrorResponse"];
-        };
-    };
-    uploadFreshmanMobileCameraCapture: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                token: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CameraCaptureRequest"];
-            };
-        };
-        responses: {
-            /** @description 材料已上传 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["FreshmanCameraHandoff"];
-                    };
-                };
-            };
-            400: components["responses"]["ErrorResponse"];
-            409: components["responses"]["ErrorResponse"];
-            410: components["responses"]["ErrorResponse"];
-            413: components["responses"]["ErrorResponse"];
-            415: components["responses"]["ErrorResponse"];
-        };
-    };
-    chooseFreshmanMobileCameraContinuation: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                token: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["FreshmanCameraHandoffContinuationRequest"];
-            };
-        };
-        responses: {
-            /** @description 已锁定继续端 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["FreshmanCameraHandoff"];
-                    };
-                };
-            };
-            400: components["responses"]["ErrorResponse"];
-            409: components["responses"]["ErrorResponse"];
-            410: components["responses"]["ErrorResponse"];
-        };
-    };
-    matchAdmissionAcademicStudent: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SchoolEmailAcademicMatchRequest"];
-            };
-        };
-        responses: {
-            /** @description 学籍匹配结果 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["SchoolEmailAcademicMatchResponse"];
-                    };
-                };
-            };
-            400: components["responses"]["ErrorResponse"];
-            401: components["responses"]["ErrorResponse"];
-            409: components["responses"]["ErrorResponse"];
-            429: components["responses"]["ErrorResponse"];
-            503: components["responses"]["ErrorResponse"];
-        };
-    };
-    requestAdmissionSchoolEmailOTP: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SchoolEmailOTPRequest"];
-            };
-        };
-        responses: {
-            /** @description OTP 已发送 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["SchoolEmailOTPResponse"];
-                    };
-                };
-            };
-            400: components["responses"]["ErrorResponse"];
-            401: components["responses"]["ErrorResponse"];
-            429: components["responses"]["ErrorResponse"];
-            503: components["responses"]["ErrorResponse"];
-        };
-    };
-    verifyAdmissionSchoolEmailOTP: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SchoolEmailOTPVerifyRequest"];
-            };
-        };
-        responses: {
-            /** @description 邮箱学生认证通过 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["AdmissionMe"];
-                    };
-                };
-            };
-            400: components["responses"]["ErrorResponse"];
-            401: components["responses"]["ErrorResponse"];
-        };
-    };
-    startAdmissionSchoolSSO: {
-        parameters: {
-            query?: {
-                return?: string;
-                /** @description 当前 Join 页面绑定的 admission session ID；SSO 回调会用该值继续同一 admission session。 */
-                admissionSessionID?: string;
-            };
-            header?: never;
-            path: {
-                schoolCode: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Redirect to school SSO provider */
-            302: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            400: components["responses"]["ErrorResponse"];
-            401: components["responses"]["ErrorResponse"];
-            403: components["responses"]["ErrorResponse"];
-            404: components["responses"]["ErrorResponse"];
-            409: components["responses"]["ErrorResponse"];
-            503: components["responses"]["ErrorResponse"];
-        };
-    };
-    completeAdmissionSchoolSSO: {
-        parameters: {
-            query?: {
-                code?: string;
-                state?: string;
-            };
-            header?: never;
-            path: {
-                schoolCode: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Redirect back to admission return URL */
-            302: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            400: components["responses"]["ErrorResponse"];
-            401: components["responses"]["ErrorResponse"];
-            403: components["responses"]["ErrorResponse"];
-            404: components["responses"]["ErrorResponse"];
-            409: components["responses"]["ErrorResponse"];
-            503: components["responses"]["ErrorResponse"];
         };
     };
     consumeQQBindingCode: {
@@ -11603,356 +13014,6 @@ export interface operations {
             401: components["responses"]["ErrorResponse"];
         };
     };
-    listBotPendingFreshmanForwards: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description 待转发材料列表 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: {
-                            application: components["schemas"]["FreshmanApplication"];
-                            /** Format: uri */
-                            materialURL: string;
-                            managementGuildIDs: string[];
-                            platform?: string;
-                            botSelfID?: string;
-                            schoolName?: string;
-                            qqID?: string;
-                        }[];
-                    };
-                };
-            };
-            401: components["responses"]["ErrorResponse"];
-        };
-    };
-    markBotFreshmanApplicationForwarded: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description 转发状态已记录 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"];
-                };
-            };
-            401: components["responses"]["ErrorResponse"];
-            404: components["responses"]["ErrorResponse"];
-        };
-    };
-    viewBotFreshmanApplication: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BotFreshmanCommandContext"];
-            };
-        };
-        responses: {
-            /** @description 查询成功 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["FreshmanApplication"];
-                    };
-                };
-            };
-            401: components["responses"]["ErrorResponse"];
-            403: components["responses"]["ErrorResponse"];
-            404: components["responses"]["ErrorResponse"];
-        };
-    };
-    reviewBotFreshmanApplication: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BotFreshmanReviewRequest"];
-            };
-        };
-        responses: {
-            /** @description 审核成功 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["FreshmanApplication"];
-                    };
-                };
-            };
-            400: components["responses"]["ErrorResponse"];
-            401: components["responses"]["ErrorResponse"];
-            403: components["responses"]["ErrorResponse"];
-        };
-    };
-    listIdentityVerifications: {
-        parameters: {
-            query?: {
-                status?: "pending" | "verified" | "rejected" | "all";
-                /** @description 页码 */
-                page?: components["parameters"]["PageParam"];
-                /** @description 每页数量 */
-                pageSize?: components["parameters"]["PageSizeParam"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description 实名认证分页列表 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: {
-                            list: components["schemas"]["AdminIdentityReviewItem"][];
-                            total: number;
-                        };
-                    };
-                };
-            };
-            401: components["responses"]["ErrorResponse"];
-            403: components["responses"]["ErrorResponse"];
-            500: components["responses"]["ErrorResponse"];
-        };
-    };
-    getIdentityVerificationReviewDetail: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description 用户 ID */
-                userID: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description 实名认证审核详情 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["AdminIdentityReviewDetail"];
-                    };
-                };
-            };
-            400: components["responses"]["ErrorResponse"];
-            401: components["responses"]["ErrorResponse"];
-            403: components["responses"]["ErrorResponse"];
-            404: components["responses"]["ErrorResponse"];
-            409: components["responses"]["ErrorResponse"];
-            500: components["responses"]["ErrorResponse"];
-            503: components["responses"]["ErrorResponse"];
-        };
-    };
-    reviewIdentityVerification: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description 用户 ID */
-                userID: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ReviewIdentityRequest"];
-            };
-        };
-        responses: {
-            /** @description 审核成功 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["MessageData"];
-                    };
-                };
-            };
-            400: components["responses"]["ErrorResponse"];
-            401: components["responses"]["ErrorResponse"];
-            403: components["responses"]["ErrorResponse"];
-            404: components["responses"]["ErrorResponse"];
-            409: components["responses"]["ErrorResponse"];
-            500: components["responses"]["ErrorResponse"];
-            503: components["responses"]["ErrorResponse"];
-        };
-    };
-    listStudentVerifications: {
-        parameters: {
-            query?: {
-                status?: "pending" | "verified" | "rejected" | "all";
-                /** @description 按学校筛选 */
-                schoolID?: number;
-                /** @description 页码 */
-                page?: components["parameters"]["PageParam"];
-                /** @description 每页数量 */
-                pageSize?: components["parameters"]["PageSizeParam"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description 学生认证分页列表 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: {
-                            list: components["schemas"]["AdminStudentVerificationItem"][];
-                            total: number;
-                        };
-                    };
-                };
-            };
-            401: components["responses"]["ErrorResponse"];
-            403: components["responses"]["ErrorResponse"];
-            500: components["responses"]["ErrorResponse"];
-        };
-    };
-    reviewStudentVerification: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description 用户 ID */
-                userID: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ReviewStudentVerificationRequest"];
-            };
-        };
-        responses: {
-            /** @description 审核成功 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["MessageData"];
-                    };
-                };
-            };
-            400: components["responses"]["ErrorResponse"];
-            401: components["responses"]["ErrorResponse"];
-            403: components["responses"]["ErrorResponse"];
-            404: components["responses"]["ErrorResponse"];
-            409: components["responses"]["ErrorResponse"];
-            500: components["responses"]["ErrorResponse"];
-        };
-    };
-    listSchoolConfigs: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description 学校配置列表 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["AdminSchoolConfig"][];
-                    };
-                };
-            };
-            401: components["responses"]["ErrorResponse"];
-            403: components["responses"]["ErrorResponse"];
-            500: components["responses"]["ErrorResponse"];
-        };
-    };
-    updateSchoolConfig: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description 学校 ID */
-                schoolID: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateSchoolConfigRequest"];
-            };
-        };
-        responses: {
-            /** @description 更新成功 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["MessageData"];
-                    };
-                };
-            };
-            400: components["responses"]["ErrorResponse"];
-            401: components["responses"]["ErrorResponse"];
-            403: components["responses"]["ErrorResponse"];
-            404: components["responses"]["ErrorResponse"];
-            500: components["responses"]["ErrorResponse"];
-        };
-    };
     listSystemConfigs: {
         parameters: {
             query?: never;
@@ -12421,97 +13482,6 @@ export interface operations {
             403: components["responses"]["ErrorResponse"];
             404: components["responses"]["ErrorResponse"];
             409: components["responses"]["ErrorResponse"];
-        };
-    };
-    listFreshmanVerifications: {
-        parameters: {
-            query?: {
-                status?: components["schemas"]["FreshmanApplicationStatus"];
-                /** @description 页码 */
-                page?: components["parameters"]["PageParam"];
-                /** @description 每页数量 */
-                pageSize?: components["parameters"]["PageSizeParam"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description 新生材料审核分页列表 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: {
-                            list: components["schemas"]["FreshmanApplication"][];
-                            total: number;
-                        };
-                    };
-                };
-            };
-            401: components["responses"]["ErrorResponse"];
-            403: components["responses"]["ErrorResponse"];
-        };
-    };
-    getFreshmanVerification: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description 新生材料审核详情 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["FreshmanApplication"];
-                    };
-                };
-            };
-            401: components["responses"]["ErrorResponse"];
-            403: components["responses"]["ErrorResponse"];
-            404: components["responses"]["ErrorResponse"];
-        };
-    };
-    reviewFreshmanVerification: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["FreshmanReviewRequest"];
-            };
-        };
-        responses: {
-            /** @description 审核成功 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse"] & {
-                        data: components["schemas"]["FreshmanApplication"];
-                    };
-                };
-            };
-            400: components["responses"]["ErrorResponse"];
-            401: components["responses"]["ErrorResponse"];
-            403: components["responses"]["ErrorResponse"];
         };
     };
     listAdminMemberBlacklist: {

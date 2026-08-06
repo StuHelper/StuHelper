@@ -3,7 +3,7 @@ type: guide
 audience: ops
 status: current
 authoritative-source: docker-compose.prod.yml + infra/ops/*.sh + infra/nginx/baota-stuhelper.conf + server/migrations/ + server/internal/app/modules.go
-last-verified: 2026-08-03
+last-verified: 2026-08-06
 ---
 
 # 生产上线缺漏清单与执行指导
@@ -33,6 +33,7 @@ admin   127.0.0.1:18001
 | DNS | `stuhelper.com`、`www.stuhelper.com`、`join.stuhelper.com`、`sso.stuhelper.com` 指向对应公网入口；不再配置独立身份入口域名 |
 | 宝塔 Nginx | 主站机合并 `infra/nginx/baota-stuhelper.conf`；Casdoor 入口按 `infra/nginx/baota-casdoor-sso.conf` 或等价配置反代 |
 | 生产 env | 使用 `infra/ops/init-prod-env.sh` 生成模板，替换占位符；不得提交真实 `.env.prod.*` |
+| 生产目标清单 | 从 `infra/ansible/inventory/production.example.ini` 创建被 Git 忽略的 `production.ini`，填写真实非本机主机和 SSH 用户；空清单或示例占位符必须阻断部署 |
 | Secret backend | 生产使用非 repo 的 secret backend；真实 token、密码、对象存储密钥不写入仓库 |
 | PostgreSQL / Redis | 生产 PostgreSQL TLS 默认开启；Redis 使用 StuHelper 独立实例，不复用全局 Redis |
 | 对象存储与备份 | 配置 HTTPS S3 兼容对象存储和备份对象存储，至少完成一次取回校验 |
@@ -78,6 +79,14 @@ ADMISSION_PUBLIC_SMOKE_CURL_INSECURE=false
 PUBLIC_WEB_AUTH_BROWSER_SMOKE_ENABLED=true
 PUBLIC_WEB_AUTH_BROWSER_SMOKE_ALLOW_LOCAL_TARGETS=false
 
+STUDENT_VERIFICATION_PRODUCTION_READINESS_ENABLED=true
+STUDENT_VERIFICATION_READINESS_REQUIRED_SCHOOL_CODES=4111010006
+STUDENT_VERIFICATION_READINESS_REQUIRED_METHODS=real_name_identity_check,school_sso,manual_material_review
+STUDENT_VERIFICATION_READINESS_EXPECTED_SYNC_SECONDS=604800
+STUDENT_VERIFICATION_READINESS_EXPECTED_WARNING_SECONDS=691200
+STUDENT_VERIFICATION_READINESS_EXPECTED_HARD_EXPIRY_SECONDS=1209600
+STUDENT_VERIFICATION_READINESS_EVIDENCE_FILE=infra/generated/student-verification-production-readiness.json
+
 STUHELPER_FRESHMAN_MATERIAL_HOSTS=stuhelper.com,join.stuhelper.com
 
 OPENFGA_API_URL=http://openfga:8080
@@ -85,6 +94,12 @@ OPENFGA_RESOURCE_SMOKE_MODE=container
 OPENFGA_STORE_ID=
 OPENFGA_MODEL_ID=
 ```
+
+`make ansible-deploy-prod`、staging、bootstrap 和 rollback 都由
+`run-ansible-playbook.sh` 统一验证清单。入口会先用 `ansible-inventory` 证明 `stuhelper` 组至少包含一个
+非 localhost 主机；缺文件、空文件、示例占位符、解析失败或空组均非零退出。本机未全局安装 Ansible
+时，脚本通过 `uvx` 使用 `infra/ansible/requirements.txt` 锁定的版本。清单本身属于部署私有状态，不能
+提交到仓库。
 
 `OPENFGA_RESOURCE_SMOKE_MODE=container` 会直接运行 `BACKEND_IMAGE_REF` 发布镜像内的
 `/app/openfga-resource-smoke`。生产验收不得临时拉取 Go 工具链、下载模块或现场编译，确保
@@ -173,15 +188,94 @@ sudo ./infra/ops/apply-baota-nginx-templates.sh --profile sso --apply --reload -
 
 验收条件：学校目录中存在 `code=4111010006` 的北京航空航天大学；管理后台学校配置页以 `schools` 目录为基表展示所有已录入学校，缺少 `school_configs` 的学校按默认停用配置展示，只有 `school_configs.enabled=true` 才进入学生认证和 admission 白名单。当前 admission 白名单只开放北航，对外、前端表单和运维检查使用学校代码 `4111010006`，不得再把旧五位学校 ID 作为业务事实或配置入口。公开学生认证、admission 邮箱 OTP、新生材料申请和学校 SSO 路径都应以 `schoolCode` 为主识别字段。`manual_form_fields.admission.emailDomains` 只有 `buaa.edu.cn`，且 `emailIdentityPolicy.type=academic_student_email`。`group_admission_policies` 至少包含 `platform=qq, guild_id=178037297, auto_approve_verified_join=true, auto_approve_unverified_join=true, forward_raw_material_to_qq=false`，除非对象存储公开材料下载链路已完成并单独验收。手机拍照接力桌面端优先使用 `/api/v1/admission/freshman/camera-handoffs/{id}/events` SSE 获取实时状态，失败时才回退短轮询；上传后 continuation 必须锁定另一端，防止重复提交。`bot_service_credentials` 中存在 `koishi-runtime`，未吊销、未过期，audience 包含 `/api/v1/bot/*`，scopes 覆盖 QQ 绑定、admission session/event/review/forward 和 member blacklist。
 
-北航老生学号邮箱 OTP 使用外部只读 Oracle 学籍源。Oracle DBA 必须提供启用 TCPS 的监听器和证书，证书 SAN 必须覆盖 `EXTERNAL_STUDENT_SOURCE_ORACLE_HOST`；应用固定使用 `EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_MODE=verify-full`，默认端口 `2484`，并从 `EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_HOST_PATH` 复制公开 CA 到只读容器路径 `/external-student-source-tls/ca.crt`。该挂载不得包含数据库文件、服务端私钥或 CA 私钥。
+北航学生认证不再允许生产 Web API 直接连接学校 Oracle 或 LDAP。`docker-compose.prod.yml` 会强制把
+`EXTERNAL_STUDENT_SOURCE_ENABLED` 和 Oracle host/user/password 清空；学校内网访问只能发生在独立校园
+连接器节点。该节点主动出站连接 StuHelper 的专用 mTLS 网关，只能执行注册表中已经审批的“学校账号
+校验”或“完整名册快照”操作，不能提供 VPN、任意 TCP 转发、任意 SQL 或 shell 能力。完整威胁模型、
+配置格式和字段映射见 `infra/campus-connector/README.md`。
 
-生产 secret backend 中启用 `EXTERNAL_STUDENT_SOURCE_ENABLED=true`，配置 `EXTERNAL_STUDENT_SOURCE_PROVIDER=oracle`、`EXTERNAL_STUDENT_SOURCE_SCHOOL_CODE=4111010006`、host/service/user/password/schema/table/column、连接超时、查询超时和连接池参数。密码只能存在于 secret backend。`EXTERNAL_STUDENT_SOURCE_ORACLE_READONLY_USERNAME` 是 DBA provisioning 与应用 runtime 共同使用的预期身份；`EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME` 必须与其大小写不敏感地相等。运行账号必须与源 schema owner 不同，且不得使用 `SYS`、`SYSTEM`、`SYSBACKUP`、`SYSDG`、`SYSKM` 或 `SYSRAC`；在 Oracle 源端通过 `EXTERNAL_STUDENT_SOURCE_ORACLE_READONLY_PASSWORD=<secret> ./infra/ops/provision-external-student-source-oracle-readonly.sh` 管理专用账号。脚本会拒绝任何 role、列级授权或额外系统/对象权限，只允许直接授予无 `ADMIN OPTION` 的 `CREATE SESSION`，以及 `USR_JWBIZ.T_XS_JBXX` 上无 `GRANT OPTION`、无 `HIERARCHY OPTION` 的 `SELECT`。应用只查询 `XH` 与 `XM`，单次学号查询最多读取两行，并拒绝空值、不一致学号、冲突姓名和非法字符。
+首次准备中心与节点身份时执行：
 
-运行时默认使用 4 个最大连接、1 个空闲连接、300 秒连接寿命和 60 秒空闲寿命。熔断参数由 `EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_FAILURE_THRESHOLD=5`、`EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_SUCCESS_THRESHOLD=2`、`EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_OPEN_SECONDS=30` 控制；半开状态只允许一个恢复探测。Oracle 内部查询超时、TLS、连接、驱动或返回学号与绑定参数不一致等源级故障会增加 breaker failure；调用方取消/截止以及单条记录缺字段、非法姓名或冲突重复行属于 neutral outcome，既不增加也不重置健康计数，并会释放已占用的半开探针。所有失败请求仍记录到 `external_requests_total{client="oracle_student_directory"}`；三类固定的数据完整性原因另记录到 `external_data_integrity_errors_total{client="oracle_student_directory",reason=~"invalid_record|ambiguous_record|identity_mismatch"}`。User 与 Admission 接口继续返回 503，不把依赖或源数据故障伪装成“学号姓名不匹配”。
+```bash
+CAMPUS_CONNECTOR_GATEWAY_PUBLIC_HOST=connector.stuhelper.com \
+  ./infra/ops/generate-campus-connector-pki.sh
 
-`./infra/ops/admission-student-source-go-live.sh` 是统一上线入口：外部源模式先运行 `external-student-source-smoke.sh`，本地 TSV 模式先校验再导入 `BUAA_ACADEMIC_STUDENTS_TSV`，随后统一运行 `admission-production-readiness.sh`。readiness summary 必须标记 `buaa_student_source=external_oracle`，并留档 `infra/generated/external-student-source-smoke.json`。真实 smoke 会从同一 Oracle 会话读取 `SESSION_USER` 与 `USER_*_PRIVS`：要求实际身份匹配预期只读账号，且直接授权严格为零 role、一个无 `ADMIN OPTION` 的 `CREATE SESSION`、目标表上一个无 grant/hierarchy option 的 `SELECT`、零列级授权。需要抽样校验时，在 secret backend 设置 `EXTERNAL_STUDENT_SOURCE_SMOKE_REQUIRE_SAMPLE=true`、`EXTERNAL_STUDENT_SOURCE_SMOKE_STUDENT_ID` 和可选 `EXTERNAL_STUDENT_SOURCE_SMOKE_EXPECTED_NAME`；evidence 只保留身份与学号的哈希前缀、TLS/身份/授权匹配布尔值和授权计数，不记录原始账号、学号、姓名或密码。
+# 重复执行只校验，不覆盖或静默轮换已有身份
+./infra/ops/generate-campus-connector-pki.sh \
+  --check \
+  --gateway-host connector.stuhelper.com
+```
 
-如果暂时没有可用 Oracle 外部源，才使用本地 fallback 表 `academic.buaa_students`。拿到真实 TSV 后，先用 `BUAA_ACADEMIC_VALIDATE_ONLY=true BUAA_ACADEMIC_STUDENTS_TSV=/path/to/buaa-students.tsv ./infra/ops/import-buaa-academic-students.sh` 做离线校验，再用 `BUAA_ACADEMIC_STUDENTS_TSV=/path/to/buaa-students.tsv ./infra/ops/import-buaa-academic-students.sh` 导入。TSV 至少包含 `xh` 和 `xm` 列，也接受 `学号` 和 `姓名` 列名；可选列包括 `sfzjlxdm`、`yxdm`、`zydm`、`bjdm`、`xznj`、`rxnj`、`pyccdm`、`xslbdm`、`sjh`、`dzxx`、`xjztdm`、`sfzx`、`sfzj`。普通 TSV 入口不接受 `sfzjh_enc` 和 `sfzjh_hash`：数据库要求二者作为安全配对原子写入，而普通 upsert 只保留已有配对。当前仓库不提供该入口；确需导入身份证件号时，必须先实现并审计一个从同一明文原子生成 AES envelope 和 HMAC 的专用工具。脚本只做幂等 upsert，不清空旧数据，不打印学生明细。
+生成器创建两条相互独立的 CA、中心网关 TLS 证书、节点 mTLS 证书、节点 Ed25519 业务签名密钥和中心
+X25519 快照接收密钥，并把私钥限制为 `0600`。`make prod-init` 会执行同一幂等流程，并把生成的
+snapshot key ID 写入生产共享 env；它不会把任何私钥或原始密钥打印到终端。完成节点登记后必须把
+`infra/generated/campus-connector-pki/authority/` 中的 CA 私钥迁入离线 secret store，生产 app 只挂载
+`gateway/`，校园节点只安装 `node/`。严禁把整个 PKI 目录复制进 app 容器或提交 Git。
+
+启用中心网关前必须完成以下非 secret 接线：
+
+- 为 `CAMPUS_CONNECTOR_GATEWAY_PUBLIC_HOST` 配置真实 DNS；
+- 从公网端口到宿主 `127.0.0.1:${CAMPUS_CONNECTOR_GATEWAY_EXTERNAL_PORT}` 配置原样 TCP 透传，TLS 必须
+  在 StuHelper app 内终止，HTTP 反向代理或 CDN TLS 终止不能代替；
+- 在防火墙只允许批准校园节点来源，并保留连接/证书到期告警；
+- 设 `CAMPUS_CONNECTOR_GATEWAY_ENABLED=true` 后运行生产预检。预检会重新验证证书链、SAN、密钥配对、
+  30 天到期窗口、私钥权限和 snapshot key ID，任何一项不一致都 fail closed。
+
+Oracle 连接只能使用用户明确指定的既有账号；StuHelper 及其代理不得创建、申请、更换、授权、回收或
+修改 Oracle 账号。能用 Navicat 或 DBeaver 登录只证明当前账号和网络大概率可用，不证明具备完整快照
+字段权限。若既有账号权限较宽，只记录风险，不对 Oracle 做权限整改；校园节点仍只允许认证和仓库内固定
+的 `SELECT`。节点本地配置固定 owner/view、字段映射、最大行数和预期 session username；Oracle 地址、
+账号、密码与 CA 只存在于节点 secret store，不能进入 StuHelper 生产 env、注册表、数据库或日志。
+
+Oracle 默认使用 `oracle_tls`（TCPS）并验证学校 CA 与证书名。北航现有接线只能经既有 SSH 跳板访问
+1521 时，允许显式使用 `oracle_ssh_tunnel` 例外，但 SSH 隧道由校园节点的 systemd/sidecar 管理，不由
+Connector 动态创建。必须固定跳板 host key、私钥 secret、批准的远端 Oracle 地址和 1521；本地仅监听
+loopback 高端口，禁止 `GatewayPorts`、SOCKS、动态转发和任意目标。Connector operation 必须同时设置
+`allowPlaintextSSHTunnel=true`，清空 Oracle CA/TLS name，并使 `allowedDialTargets` 恰好只有该 loopback
+endpoint，因此 Oracle listener redirect 会被拒绝。SSH 隧道不是 Oracle TCPS，不能把公网转发端口冒充
+`oracle_tls`；学校提供 TCPS 后必须迁回默认模式。
+
+第一阶段只实施周期性完整快照：默认每 7 天一次、8 天告警、14 天停止新的名册依赖认证；失败从
+15 分钟起有界退避，最长 6 小时，成功后恢复 7 天周期。管理员可以在管理后台经
+`campus_connector:manage` 与近期 MFA 手动触发；任务持久化、同校同 operation 唯一、3 分钟领取租约、
+最多 5 次领取、总期限 24 小时。中心收到加密签名快照后先写独立版本，经过行数、重复、空值、状态码、
+来源时间和回退检测，再原子激活。旧 `import-buaa-academic-students.sh` 的 upsert 语义不满足删除/毕业
+收敛要求，不得用于新认证域，也不存在“连接器不可用时自动回退旧表”的生产路径。
+旧的 `admission-student-source-go-live.sh` 仅保留用于历史版本排障和回滚取证；它编排的是 Web API
+直连 Oracle 或 TSV upsert，两种模式都不满足当前完整快照语义，当前生产发布与最终证据不得执行它。
+旧文件名 `provision-external-student-source-oracle-readonly.sh` 只作为升级兼容占位，现已明确拒绝执行，
+不会打开 Oracle 连接或读取凭据。生产只把用户明确指定的既有账号配置在校园连接器节点的 secret store，
+不得用 StuHelper 脚本创建、轮换或调整账号，也不得把 Oracle 凭据重新接回 StuHelper Web API。
+同样，历史 `import-buaa-academic-students.sh` 不接受 `sfzjh_enc` 或 `sfzjh_hash` 列；当前仓库不提供该入口
+导入证件号，也不得把它改造成新认证域的隐式兼容路径。
+
+北航学校账号校验适配器默认使用 LDAPS 或 LDAP StartTLS，并校验证书名与学校 CA。学校 owner 已确认
+当前只开放 RFC1918 IPv4 的明文 389 时，允许只为该 operation 显式配置
+`upstreamProtocol=ldap_plain_private_network` 与 `allowPlaintextPrivateNetwork=true`。运行时会拒绝域名、
+公网/非 RFC1918 地址、非 389 端口、CA/TLS 名称、代理和从加密模式静默降级。该风险例外只覆盖校园
+连接器到 LDAP 的最后一跳；连接器到中心仍必须使用 TLS 1.3 mTLS，EasyTier/Tailscale 等 overlay 也不能
+把最后一跳视为已经加密。学校提供可验证的 TLS 端点后必须迁回 LDAPS/StartTLS。个人学号密码只能作为
+一次受控验收输入，不能写入代码、JSON、env、数据库、日志或健康检查；成功验收只记录稳定结果分类和
+不可逆请求引用。
+
+注册时先把 `registry-manifest.json` 的 operation 保持 `validationStatus=pending`、`enabled=false`，执行
+只读 dry-run；核对节点证书、公开签名密钥、学校代码、固定目标、TLS 名称、字段和限额后才 `--apply`。
+节点稳定上报心跳且真实 Oracle 完整快照通过质量门禁后，再以新 revision 将对应 operation 标记
+`valid` 并启用。不得为了绕过缺失的 Oracle/LDAP CA、服务名或只读凭据而关闭 TLS 校验。
+
+生产部署会在迁移完成、应用启动前执行
+`student-verification-production-readiness.sh`。该门禁只读检查学校 profile、要求的方法、连接器证书与
+心跳、固定 operation、完整快照签名、实际行数、质量门禁、新鲜度和手动同步唯一索引；不会读取或输出
+姓名、学号、证件号、手机号、Oracle 地址或 secret reference。可单独运行
+`make prod-student-verification-readiness`，成功证据写入
+`infra/generated/student-verification-production-readiness.json`，权限为 `0600`。任何要求学校缺少 active
+snapshot、校园连接器未健康或快照超过 14 天时都必须阻断生产发布，不得用旧 `academic.buaa_students`
+或 admission readiness 的通过结果替代。
+
+当前生产范围只包括北航，要求的方法集合为实名信息校验、学校 SSO 和人工材料审核。两种学校邮件方法
+保留在能力注册表中但继续停用，不发送真实邮件，也不得为了通过 readiness 伪造健康状态；待邮件收发
+链路、隐私告知和真实投递验收完成后，再显式加入
+`STUDENT_VERIFICATION_READINESS_REQUIRED_METHODS`。
 
 ## Koishi Admission MVP 配置
 
@@ -362,7 +456,15 @@ RESEND_EMAIL_SMOKE_TO=<recipient-email> ./infra/ops/resend-email-channel-smoke.s
 
 `public-web-auth-browser-smoke.mjs` 会用真实浏览器确认主站登录按钮进入 `sso.stuhelper.com/login/oauth/authorize` 后仍有账号密码登录和 `/signup/oauth/authorize` 注册入口，确认主站“注册账号”进入 `sso.stuhelper.com/signup/oauth/authorize` 的账号密码注册表单，并确认 `join.stuhelper.com/` 与 `join.stuhelper.com/developers/apps` 不渲染主站内容、`join.stuhelper.com/verify/<code>` 可加载、手机拍照页允许 camera。这样 Casdoor 配置漂移成“只剩 Face ID”、注册按钮走错授权路径、join 域串站或 camera permission 漂移时，公网浏览器 smoke 会直接失败。生产模式还会拒绝 `stuhelper.com`、`join.stuhelper.com` 或 `sso.stuhelper.com` 解析到 loopback；如果运维机 `/etc/hosts` 或浏览器代理把生产域名指向本地开发环境，先修正解析再生成 evidence。
 
-`admission-mvp-production-evidence.sh` 是生产 admission MVP 的聚合证据入口。主站节点默认执行 SSO public smoke、admission public smoke、Web auth browser smoke 和 admission DB readiness，并写入 `infra/generated/admission-mvp-production-evidence.json`。如果 `EXTERNAL_STUDENT_SOURCE_ENABLED=true`，聚合入口会在 `ADMISSION_MVP_PRODUCTION_RUN_EXTERNAL_STUDENT_SOURCE_SMOKE=auto` 默认模式下强制运行 `external-student-source-smoke.sh`，确保外部学籍源不只“配置完整”，而是真的可连接、可读取；未启用外部源时，本地 fallback 表仍由 readiness 检查非空。Koishi 节点用 `ADMISSION_MVP_PRODUCTION_EVIDENCE_MODE=koishi` 执行同一入口时，会运行 `koishi-admission-production-evidence.sh`。普通聚合 evidence 允许真实 QQ E2E 被记录为 skipped，只能作为生产 smoke；最终上线验收必须在主站节点使用 `make prod-admission-mvp-final-evidence`，并在 Koishi 节点使用 `make prod-admission-mvp-final-koishi-evidence`。主站 final evidence 等价于显式设置 `ADMISSION_MVP_PRODUCTION_E2E_REQUIRED=true`、`ADMISSION_MVP_PRODUCTION_E2E_WAIT=true`、`ADMISSION_E2E_QQ_ID=<small-account-qq>`、`ADMISSION_MVP_PRODUCTION_E2E_EXPECTED_STAGE=bot-released` 和 `ADMISSION_MVP_PRODUCTION_E2E_MAX_SESSION_AGE_MINUTES=180`，让聚合 evidence 把最新真实 QQ 解除禁言回写也纳入验收。
+`admission-mvp-production-evidence.sh` 是历史 admission MVP 的聚合证据入口；其中 SSO、公网入口、Web
+浏览器和真实 QQ 回写检查仍可复用，但旧 `EXTERNAL_STUDENT_SOURCE_ENABLED`、
+`external-student-source-smoke.sh` 与 `academic.buaa_students` 检查不是新学生认证域的上线证据。当前发布必须
+额外证明：北航学校验证 profile 和所需方法均已审核启用；Campus Connector 节点/operation 已登记且健康；
+存在通过质量门禁并由 `academic.student_roster_active` 原子指向的未过硬失效阈值完整快照；手动同步任务可
+持久化、领取、回传并激活新版本。缺少真实 Oracle/LDAP/TCP/DNS 接线时应明确阻断相应认证方法，不能以
+旧表或直连 smoke 代替。Koishi 节点仍用 `ADMISSION_MVP_PRODUCTION_EVIDENCE_MODE=koishi` 执行聚合入口；
+最终真实 QQ 验收仍必须在主站运行 `make prod-admission-mvp-final-evidence`，并在 Koishi 节点运行
+`make prod-admission-mvp-final-koishi-evidence`，且不得把 skipped 结果视为完成。
 
 如果主站生产机没有 Node/Playwright，不要跳过公网浏览器 smoke。应先在有 Playwright 的运维机或 CI 上运行 `PUBLIC_WEB_AUTH_BROWSER_SMOKE_EVIDENCE_FILE=infra/generated/public-web-auth-browser-smoke-evidence-current.json ./infra/ops/public-web-auth-browser-smoke.mjs`，把生成的脱敏 evidence 复制到主站源码目录的同一路径；聚合入口会默认读取该文件。需要使用其他文件名时，再显式设置 `ADMISSION_MVP_PRODUCTION_BROWSER_SMOKE_EVIDENCE_FILE=infra/generated/<evidence>.json`。聚合入口会校验该 evidence 新鲜、目标域名正确、浏览器检查全部通过，并确认 `/identity` 直接入口、join 防串站 404、camera permission 与 fake media capture 成功。预采集 evidence 的机器不能通过 hosts 把生产域名解析到 `127.0.0.1`；这种情况应失败，而不是把本地 SPA/API 当成生产结果。
 
@@ -423,6 +525,18 @@ KOISHI_ADMISSION_BOT_SELF_ID=<botSelfID> \
 ```
 
 预期：HTTP status 为 200。Koishi 日志无 `admission 401` / `unauthorized`。Koishi 日志无 `duplicate command names: 举报`。Koishi 日志无 `pending-forward` 每分钟 500 循环。`stuhelper-group-guard:admission` 已加载，目标群数量为 1。evidence 文件写入 `infra/generated/koishi-admission-production-evidence.json`，其中只记录 token 是否存在、bot API 状态码和 body 大小，不包含真实 token。默认日志窗口是最近 2 小时；如需审计更早的历史错误，可显式设置 `KOISHI_ADMISSION_LOG_SINCE=24h`。长期运行的 Koishi 容器可能已经没有启动加载日志，脚本默认不要求加载日志必须出现在当前窗口；刚重启后可设置 `KOISHI_ADMISSION_REQUIRE_LOAD_LOG=true` 强制检查。
+
+告警路由还必须做一次独立的只读配置核对：Koishi Compose 的 `stuhelper-group-guard` 使用固定
+`POST /stuhelper/internal/alertmanager` 路由，并通过受控内网/overlay 或精确反代让 Alertmanager 可达；
+Koishi Console `5140` 不得作为 Alertmanager URL。Koishi 环境中的
+`STUHELPER_ALERTMANAGER_WEBHOOK_ENABLED=true`、`ALERTMANAGER_WEBHOOK_TOKEN` 和可选
+`STUHELPER_ALERTMANAGER_BOT_SELF_ID` 应与后端生成的 Alertmanager token/实际 bot 一致；真实 token
+只能在两台主机的 secrets/env 文件中核对存在性，不能写入本 runbook 或 evidence。
+
+随后用 Alertmanager UI/API 触发一组受控测试告警，验证 `firing` 和 `resolved` 各在唯一管理群收到一次，
+并记录通知成功与失败计数。临时把 Koishi 后端地址、管理群配置或 QQ 发送置为不可用只能在获授权的
+演练环境执行；预期 HTTP 503、Alertmanager failure counter 增加且恢复后自动重试，禁止用真实用户或生产
+业务数据制造负向测试。
 
 ## 上线完成定义
 

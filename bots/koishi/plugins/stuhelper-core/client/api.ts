@@ -152,10 +152,6 @@ export interface AdminMessageSettings {
   guardBatchMuteCommandDescription: string
   guardKickReviewCommandDescription: string
   guardBlockReviewCommandDescription: string
-  freshmanViewCommandDescription: string
-  freshmanApproveCommandDescription: string
-  freshmanRejectCommandDescription: string
-  freshmanBlacklistReleaseCommandDescription: string
   commandAccessDenied: string
   adminCommandsDisabled: string
   guardGuildContextRequired: string
@@ -180,26 +176,6 @@ export interface AdminMessageSettings {
   guardPendingReviewsEmpty: string
   guardPendingReviewsHeader: string
   guardPendingReviewLine: string
-  freshmanManagementGroupOnly: string
-  freshmanMissingApplicationID: string
-  freshmanApproveInvalidFormat: string
-  freshmanApproveInvalidExtension: string
-  freshmanRejectInvalidFormat: string
-  freshmanBlacklistReleaseInvalidFormat: string
-  freshmanApproveSuccess: string
-  freshmanApproveSuccessWithExtension: string
-  freshmanRejectSuccess: string
-  freshmanBlacklistScopeGlobal: string
-  freshmanBlacklistScopeGuild: string
-  freshmanBlacklistReleaseSuccess: string
-  freshmanApplicationSummary: string
-  freshmanApplicationDepartmentFallback: string
-  freshmanApplicationExpiryFallback: string
-  freshmanCommandFailed: string
-  freshmanOperatorQQUnbound: string
-  freshmanOperatorForbidden: string
-  freshmanManagementGuildForbidden: string
-  freshmanBackendForbidden: string
 }
 
 export interface AdminRuntimeSettings {

@@ -3,13 +3,49 @@
   hosts: stuhelper
   gather_facts: false
   vars:
-    deploy_app_dir: "{{ deploy_app_dir | default('/opt/stuhelper') }}"
     deploy_tag: "{{ lookup('env', 'DEPLOY_TAG') | default(lookup('pipe', 'git -C ../.. rev-parse --short HEAD'), true) }}"
     backend_image_ref: "{{ lookup('env', 'BACKEND_IMAGE_REF') }}"
     frontend_image_ref: "{{ lookup('env', 'FRONTEND_IMAGE_REF') }}"
     admin_image_ref: "{{ lookup('env', 'ADMIN_IMAGE_REF') }}"
     registry_pull_token: "{{ lookup('env', 'REGISTRY_PULL_TOKEN') }}"
     registry_username: "{{ lookup('env', 'REGISTRY_USERNAME') }}"
+  pre_tasks:
+    - name: Require separate SSH and deployment identities
+      ansible.builtin.assert:
+        that:
+          - ansible_user is defined
+          - ansible_user == 'root'
+          - deploy_user is defined
+          - deploy_user | length > 0
+          - deploy_user != 'root'
+          - deploy_group is defined
+          - deploy_group | length > 0
+          - deploy_app_dir is defined
+          - deploy_app_dir | length > 0
+          - deploy_app_mode is defined
+          - deploy_app_mode | string == '0750'
+        fail_msg: >-
+          inventory must use root only as the SSH transport identity and must
+          explicitly declare the non-root deploy_user/deploy_group, deploy_app_dir,
+          and deploy_app_mode=0750
+
+    - name: Inspect existing deploy directory boundary
+      become: true
+      ansible.builtin.stat:
+        path: "{{ deploy_app_dir }}"
+      register: deploy_directory
+
+    - name: Refuse ownership or mode drift in an existing deploy directory
+      ansible.builtin.assert:
+        that:
+          - not deploy_directory.stat.exists or deploy_directory.stat.isdir
+          - not deploy_directory.stat.exists or deploy_directory.stat.pw_name == deploy_user
+          - not deploy_directory.stat.exists or deploy_directory.stat.gr_name == deploy_group
+          - not deploy_directory.stat.exists or deploy_directory.stat.mode == deploy_app_mode
+        fail_msg: >-
+          existing deploy directory ownership or mode differs from the approved
+          non-root 0750 boundary; repair it explicitly before deployment
+
   tasks:
     - name: Require immutable image refs for remote deploy
       ansible.builtin.assert:
@@ -25,6 +61,7 @@
 
     - name: Build deploy bundle on control node
       delegate_to: localhost
+      become: false
       ansible.builtin.command:
         argv:
           - "{{ playbook_dir }}/../../ops/build-deploy-bundle.sh"
@@ -32,18 +69,26 @@
         - deploy-bundle
 
     - name: Ensure deploy directory exists
+      become: true
       ansible.builtin.file:
         path: "{{ deploy_app_dir }}"
         state: directory
-        mode: "0755"
+        owner: "{{ deploy_user }}"
+        group: "{{ deploy_group }}"
+        mode: "{{ deploy_app_mode }}"
 
     - name: Upload deploy bundle
+      become: true
       ansible.builtin.copy:
         src: "{{ playbook_dir }}/../../generated/deploy/stuhelper-deploy-bundle.tar.gz"
         dest: "{{ deploy_app_dir }}/deploy-bundle.tgz"
-        mode: "0644"
+        owner: "{{ deploy_user }}"
+        group: "{{ deploy_group }}"
+        mode: "0640"
 
     - name: Run remote deploy
+      become: true
+      become_user: "{{ deploy_user }}"
       ansible.builtin.shell: |
         set -euo pipefail
         cd "{{ deploy_app_dir }}"

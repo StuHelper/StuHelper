@@ -49,23 +49,41 @@ type SchoolSSOExchanger interface {
 	ExchangeSchoolSSO(ctx context.Context, input SchoolSSOExchangeInput) (SchoolSSOIdentity, error)
 }
 
+// StudentEligibilityGateway is the only target-state boundary through which
+// admission may consume student identity. Implementations return a derived
+// decision and monotonic revision, never evidence or raw student attributes.
+type StudentEligibilityGateway interface {
+	EvaluateStudentEligibility(
+		ctx context.Context,
+		userID int64,
+		schoolID int64,
+	) (StudentEligibilityDecision, error)
+}
+
+type StudentEligibilityDecision struct {
+	Eligible        bool
+	Revision        int64
+	CredentialClass string
+}
+
 type Service struct {
-	repo              *Repository
-	qqGateway         QQBindingGateway
-	hmacKey           []byte
-	now               func() time.Time
-	generateToken     func() (string, error)
-	generateJoinToken func() (string, error)
-	generateOTP       func() (string, error)
-	generateState     func() (string, error)
-	authBaseURL       string
-	returnURLOrigin   string
-	materialStore     AdmissionMaterialStore
-	redisClient       *redis.Client
-	emailSender       SchoolEmailSender
-	academicLookup    AcademicStudentLookupGateway
-	operatorAccess    OperatorAccessGateway
-	schoolSSO         SchoolSSOExchanger
+	repo               *Repository
+	qqGateway          QQBindingGateway
+	hmacKey            []byte
+	now                func() time.Time
+	generateToken      func() (string, error)
+	generateJoinToken  func() (string, error)
+	generateOTP        func() (string, error)
+	generateState      func() (string, error)
+	authBaseURL        string
+	returnURLOrigin    string
+	materialStore      AdmissionMaterialStore
+	redisClient        *redis.Client
+	emailSender        SchoolEmailSender
+	academicLookup     AcademicStudentLookupGateway
+	operatorAccess     OperatorAccessGateway
+	schoolSSO          SchoolSSOExchanger
+	studentEligibility StudentEligibilityGateway
 
 	beforeFreshmanApplicationCreate               func()
 	beforeFreshmanCameraHandoffCreate             func()
@@ -108,6 +126,10 @@ func WithAdmissionPublicBaseURL(baseURL string) ServiceOption {
 		s.authBaseURL = normalized + "/verify/"
 		s.returnURLOrigin = normalized
 	}
+}
+
+func WithStudentEligibilityGateway(gateway StudentEligibilityGateway) ServiceOption {
+	return func(s *Service) { s.studentEligibility = gateway }
 }
 
 func NewService(repo *Repository, qqGateway QQBindingGateway, hmacKey []byte, opts ...ServiceOption) (*Service, error) {

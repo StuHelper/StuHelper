@@ -1,6 +1,7 @@
 import { useRouter } from 'vue-router'
 import { REVIEW_CREATE } from '@stuhelper/shared/constants'
 import type { components } from '@stuhelper/shared/types'
+
 import { api } from '@/api'
 import { getErrorMessage } from '@/api/errors'
 import i18n from '@/i18n'
@@ -11,115 +12,93 @@ import { accountCenterURLWithRedirect, navigateToExternalURL } from '@/utils/red
 export type UseReviewPostReturn = ReturnType<typeof useReviewPost>
 
 type UserSurface = components['schemas']['UserSurface']
+type PhoneStatus = components['schemas']['PhoneStatus']
 
 interface ReviewPostBlock {
   messageKey: string
-  routeName: null | 'home' | 'identity-verification' | 'student-verification'
+  routeName: 'home' | 'student-verification' | 'phone-binding'
 }
 
 interface EnsureReviewPostOptions {
   redirect?: string
 }
 
-const USER_SURFACE_STATUS_VALUES = new Set([
-  'none',
-  'pending',
-  'approved',
-  'rejected',
-])
+const STUDENT_STATUS_VALUES = new Set(['none', 'approved'])
+const PHONE_STATE_VALUES = new Set(['unbound', 'syncing', 'verified', 'review_required'])
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object'
+  return value !== null && typeof value === 'object'
 }
 
-function readString(
-  record: Record<string, unknown>,
-  key: string,
-  message: string,
-): string {
-  const value = record[key]
-  if (typeof value !== 'string') {
+function readResponseData(response: unknown, message: string): unknown {
+  if (!isRecord(response) || !isRecord(response.data) || !('data' in response.data)) {
     throw new Error(message)
   }
-  return value
+  return response.data.data
 }
 
-function readBoolean(
-  record: Record<string, unknown>,
-  key: string,
-  message: string,
-): boolean {
-  const value = record[key]
-  if (typeof value !== 'boolean') {
+function readUserSurface(payload: unknown, message = 'Invalid user surface response'): UserSurface {
+  if (!isRecord(payload)) throw new Error(message)
+  const displayName = payload.displayName
+  const status = payload.studentVerificationStatus
+  const phoneBound = payload.phoneBound
+  const capabilities = payload.capabilities
+  if (
+    typeof displayName !== 'string' ||
+    typeof status !== 'string' ||
+    !STUDENT_STATUS_VALUES.has(status) ||
+    typeof phoneBound !== 'boolean' ||
+    !Array.isArray(capabilities) ||
+    capabilities.some((item) => typeof item !== 'string')
+  ) {
     throw new Error(message)
   }
-  return value
-}
-
-function readOptionalString(
-  record: Record<string, unknown>,
-  key: string,
-  message: string,
-): string | undefined {
-  const value = record[key]
-  if (value === undefined) {
-    return undefined
-  }
-  if (typeof value !== 'string') {
-    throw new Error(message)
-  }
-  return value
-}
-
-function readStringArray(value: unknown, message: string): string[] {
-  if (!Array.isArray(value) || value.some((item) => typeof item !== 'string')) {
-    throw new Error(message)
-  }
-  return value
-}
-
-function readSurfaceStatus(
-  record: Record<string, unknown>,
-  key: string,
-  message: string,
-): UserSurface['identityStatus'] {
-  const value = readString(record, key, message)
-  if (!USER_SURFACE_STATUS_VALUES.has(value)) {
-    throw new Error(message)
-  }
-  return value as UserSurface['identityStatus']
-}
-
-function readUserSurfacePayload(
-  payload: unknown,
-  message = 'Invalid user surface response',
-): UserSurface {
-  if (!isRecord(payload)) {
-    throw new Error(message)
-  }
-
   return {
-    displayName: readString(payload, 'displayName', message),
-    avatarURL: readOptionalString(payload, 'avatarURL', message),
-    identityStatus: readSurfaceStatus(payload, 'identityStatus', message),
-    verificationStatus: readSurfaceStatus(payload, 'verificationStatus', message),
-    phoneBound: readBoolean(payload, 'phoneBound', message),
-    capabilities: readStringArray(payload.capabilities, message),
+    displayName,
+    studentVerificationStatus: status as UserSurface['studentVerificationStatus'],
+    phoneBound,
+    capabilities,
+    ...(typeof payload.avatarURL === 'string' ? { avatarURL: payload.avatarURL } : {}),
+    ...(typeof payload.phone === 'string' || payload.phone === null ? { phone: payload.phone } : {}),
   }
 }
 
-export function resolveReviewPostBlock(surface: UserSurface): null | ReviewPostBlock {
-  if (surface.identityStatus !== 'approved') {
-    return {
-      messageKey: 'user.verification.student.identityRequired',
-      routeName: 'identity-verification',
-    }
+function readPhoneStatus(payload: unknown, message = 'Invalid phone status response'): PhoneStatus {
+  if (!isRecord(payload)) throw new Error(message)
+  const state = payload.state
+  const publishingRequirementSatisfied = payload.publishingRequirementSatisfied
+  const revision = payload.revision
+  if (
+    typeof state !== 'string' ||
+    !PHONE_STATE_VALUES.has(state) ||
+    typeof publishingRequirementSatisfied !== 'boolean' ||
+    typeof revision !== 'number' ||
+    !Number.isFinite(revision)
+  ) {
+    throw new Error(message)
   }
+  return {
+    state: state as PhoneStatus['state'],
+    publishingRequirementSatisfied,
+    revision,
+  }
+}
 
-  if (surface.verificationStatus !== 'approved') {
+export function resolveReviewPostBlock(
+  surface: UserSurface,
+  phone: PhoneStatus,
+): null | ReviewPostBlock {
+  if (surface.studentVerificationStatus !== 'approved') {
     return {
       messageKey: 'review.card.verifyToView',
       routeName: 'student-verification',
+    }
+  }
+
+  if (!phone.publishingRequirementSatisfied) {
+    return {
+      messageKey: 'user.verification.phone.platform.why.description',
+      routeName: 'phone-binding',
     }
   }
 
@@ -149,10 +128,7 @@ export function useReviewPost() {
         await authStore.bootstrapSession()
       } catch (error) {
         if (!authStore.isAuthenticated) {
-          await router.push({
-            name: 'login',
-            query: { redirect },
-          })
+          await router.push({ name: 'login', query: { redirect } })
           return false
         }
         toast.error(getErrorMessage(error, i18n.global.t('common.loadFailed')))
@@ -161,32 +137,27 @@ export function useReviewPost() {
     }
 
     if (!authStore.isAuthenticated) {
-      await router.push({
-        name: 'login',
-        query: { redirect },
-      })
+      await router.push({ name: 'login', query: { redirect } })
       return false
     }
 
     try {
-      const surface = readUserSurfacePayload(
-        (await api.identity.getUserSurface()).data?.data,
-      )
-
-      const block = resolveReviewPostBlock(surface)
-      if (!block) {
-        return true
-      }
+      const [surfaceResponse, phoneResponse] = await Promise.all([
+        api.identity.getUserSurface(),
+        api.studentVerification.getPhoneStatus(),
+      ])
+      const surface = readUserSurface(readResponseData(surfaceResponse, 'Invalid user surface response'))
+      const phone = readPhoneStatus(readResponseData(phoneResponse, 'Invalid phone status response'))
+      const block = resolveReviewPostBlock(surface, phone)
+      if (!block) return true
 
       toast.error(i18n.global.t(block.messageKey))
-      if (block.routeName) {
-        if (block.routeName === 'identity-verification') {
-          navigateToExternalURL(accountCenterURLWithRedirect('/user/identity-verification', redirect))
-        } else if (block.routeName === 'student-verification') {
-          navigateToExternalURL(accountCenterURLWithRedirect('/user/student-verification', redirect))
-        } else {
-          await router.push({ name: block.routeName })
-        }
+      if (block.routeName === 'student-verification') {
+        navigateToExternalURL(accountCenterURLWithRedirect('/user/student-verification', redirect))
+      } else if (block.routeName === 'phone-binding') {
+        navigateToExternalURL(accountCenterURLWithRedirect('/user/phone-binding', redirect))
+      } else {
+        await router.push({ name: block.routeName })
       }
       return false
     } catch (error) {

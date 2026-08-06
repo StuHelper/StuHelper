@@ -43,9 +43,7 @@ run_web_unit_tests() {
     src/modules/admission/__tests__/admissionPageStates.test.ts \
     src/modules/admission/__tests__/admissionToken.test.ts \
     src/modules/admission/__tests__/api.test.ts \
-    src/modules/admission/__tests__/cameraCapture.test.ts \
-    src/modules/admission/__tests__/freshmanMobileCameraPage.test.ts \
-    src/modules/admission/__tests__/oldStudentFlow.test.ts \
+    src/modules/admission/__tests__/joinStartPage.test.ts \
     src/modules/admission/__tests__/projectionRefresh.test.ts
 }
 
@@ -56,7 +54,8 @@ run_identity_dependency_web_unit_tests() {
   fi
   run_in "${ROOT_DIR}/clients" corepack pnpm --filter @stuhelper/web exec vitest run \
     src/stores/__tests__/authAuthorizeFlow.test.ts \
-    src/modules/user/__tests__/identityVerificationPage.test.ts \
+    src/stores/__tests__/verification.test.ts \
+    src/modules/user/__tests__/accountProfilePage.test.ts \
     src/modules/user/__tests__/studentVerificationPage.test.ts \
     src/modules/user/utils/mainlandID.test.ts
 }

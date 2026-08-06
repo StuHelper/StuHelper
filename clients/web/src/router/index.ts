@@ -202,18 +202,6 @@ const routes: RouteRecordRaw[] = [
         ),
         meta: { title: "入群身份认证", layout: "none" },
     },
-    {
-        path: "/admission/freshman/camera/:token",
-        name: "admission-freshman-mobile-camera",
-        component: lazyLoad(
-            () =>
-                import(
-                    "@/modules/admission/views/FreshmanMobileCameraPage.vue"
-                ),
-        ),
-        meta: { title: "新生材料拍照", layout: "none" },
-    },
-
     // 首页
     {
         path: "/",
@@ -427,17 +415,6 @@ const routes: RouteRecordRaw[] = [
 
     // 认证与资料页面
     {
-        path: "/user/identity-verification",
-        name: "identity-verification",
-        component: lazyLoad(
-            () => import("@/modules/user/views/IdentityVerificationPage.vue"),
-        ),
-        meta: {
-            titleKey: "routes.identityVerification",
-            requiresAuth: true,
-        },
-    },
-    {
         path: "/user/student-verification",
         name: "student-verification",
         component: lazyLoad(
@@ -446,6 +423,19 @@ const routes: RouteRecordRaw[] = [
         meta: {
             titleKey: "routes.studentVerification",
             requiresAuth: true,
+        },
+    },
+    {
+        path: "/student-verification/manual-camera/:token",
+        name: "student-verification-manual-camera",
+        component: lazyLoad(
+            () =>
+                import(
+                    "@/modules/student-verification/views/ManualCameraHandoffPage.vue"
+                ),
+        ),
+        meta: {
+            titleKey: "routes.studentVerification",
         },
     },
     {
@@ -470,18 +460,6 @@ const routes: RouteRecordRaw[] = [
             requiresAuth: true,
         },
     },
-    {
-        path: "/user/academic-info",
-        name: "academic-info",
-        component: lazyLoad(
-            () => import("@/modules/user/views/AcademicInfoPage.vue"),
-        ),
-        meta: {
-            titleKey: "routes.academicInfo",
-            requiresAuth: true,
-        },
-    },
-
     // 通知中心
     {
         path: "/notifications",

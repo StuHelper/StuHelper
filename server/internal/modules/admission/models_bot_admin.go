@@ -5,6 +5,7 @@ import "time"
 type AdmissionPendingAction struct {
 	ActionID               string    `json:"actionID,omitempty"`
 	DispatchAttempt        int       `json:"dispatchAttempt,omitempty"`
+	EligibilityRevision    *int64    `json:"eligibilityRevision,omitempty"`
 	SessionID              string    `json:"sessionID"`
 	Action                 BotAction `json:"action"`
 	Platform               string    `json:"platform,omitempty"`
@@ -126,24 +127,25 @@ const (
 )
 
 type AdmissionBotActionOutboxRow struct {
-	ID            int64
-	ActionKey     string
-	SessionID     string
-	Action        BotAction
-	Platform      string
-	BotSelfID     string
-	GuildID       string
-	ChannelID     string
-	QQID          string
-	ScheduledAt   time.Time
-	Status        AdmissionBotActionStatus
-	AttemptCount  int
-	NextAttemptAt time.Time
-	LastError     *string
-	MessageID     *string
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-	Session       AdmissionSession
+	ID                  int64
+	ActionKey           string
+	SessionID           string
+	Action              BotAction
+	Platform            string
+	BotSelfID           string
+	GuildID             string
+	ChannelID           string
+	QQID                string
+	ScheduledAt         time.Time
+	Status              AdmissionBotActionStatus
+	AttemptCount        int
+	NextAttemptAt       time.Time
+	LastError           *string
+	MessageID           *string
+	EligibilityRevision *int64
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+	Session             AdmissionSession
 }
 
 type AdmissionBotActionQueueInput struct {

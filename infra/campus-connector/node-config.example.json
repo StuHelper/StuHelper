@@ -1,0 +1,93 @@
+{
+  "nodeID": "00000000-0000-4000-8000-000000000001",
+  "softwareVersion": "dev",
+  "centralBaseURL": "https://connector-gateway.example.edu:9444",
+  "clientCertificateFile": "/run/secrets/campus-connector-client.crt",
+  "clientPrivateKeyFile": "/run/secrets/campus-connector-client.key",
+  "centralCAFile": "/run/secrets/campus-connector-central-ca.crt",
+  "signingKeyID": "replace-with-enrolled-ed25519-key-id",
+  "signingPrivateKeyFile": "/run/secrets/campus-connector-signing.key",
+  "snapshotEncryptionKeyID": "replace-with-central-x25519-key-id",
+  "snapshotPublicKeyFile": "/run/secrets/campus-connector-snapshot-x25519.pub",
+  "protocolVersion": "1",
+  "heartbeatIntervalSeconds": 30,
+  "pollWorkers": 2,
+  "maxInteractivePasswordBytes": 256,
+  "operations": [
+    {
+      "key": "school.school_account.authenticate",
+      "schoolCode": "0000000001",
+      "type": "school_account_authenticate",
+      "adapterID": "school_ldap_bind",
+      "adapterVersion": "1",
+      "upstreamProtocol": "ldaps",
+      "targetHost": "ldap.internal.example.edu",
+      "targetPort": 636,
+      "tlsServerName": "ldap.internal.example.edu",
+      "timeoutMilliseconds": 5000,
+      "ldap": {
+        "caFile": "/run/secrets/school-ldap-ca.crt",
+        "userDNTemplate": "uid={student_id},ou=people,dc=example,dc=edu",
+        "searchBaseDN": "ou=people,dc=example,dc=edu",
+        "systemBindDN": "uid=stuhelper-reader,ou=system,dc=example,dc=edu",
+        "systemBindPasswordEnv": "SCHOOL_LDAP_READER_PASSWORD",
+        "uidAttribute": "uid",
+        "subjectAttribute": "uid",
+        "accountLockedAttribute": "accountLocked",
+        "accountDisabledAttribute": "accountDisabled",
+        "studentMarkerAttribute": "eduPersonAffiliation",
+        "studentMarkerValues": ["student"]
+      }
+    },
+    {
+      "key": "school.roster.full",
+      "schoolCode": "0000000001",
+      "type": "roster_snapshot_upload",
+      "adapterID": "school_oracle_roster",
+      "adapterVersion": "1",
+      "upstreamProtocol": "oracle_tls",
+      "targetHost": "oracle.internal.example.edu",
+      "targetPort": 2484,
+      "tlsServerName": "oracle.internal.example.edu",
+      "timeoutMilliseconds": 120000,
+      "oracleRoster": {
+        "serviceName": "REPLACE_WITH_SERVICE_NAME",
+        "usernameEnv": "SCHOOL_ORACLE_EXISTING_USERNAME",
+        "passwordEnv": "SCHOOL_ORACLE_EXISTING_PASSWORD",
+        "caFile": "/run/secrets/school-oracle-ca.crt",
+        "allowedDialTargets": [
+          "oracle.internal.example.edu:2484",
+          "oracle-rac-2.internal.example.edu:2484"
+        ],
+        "expectedUsername": "REPLACE_WITH_EXISTING_ORACLE_USERNAME",
+        "schema": "REPLACE_WITH_APPROVED_OWNER",
+        "table": "REPLACE_WITH_APPROVED_OBJECT",
+        "activeFilterColumn": "SFZX",
+        "activeFilterValue": "1",
+        "activeEligibilityCode": "CURRENT",
+        "fullSnapshotIntervalMinutes": 10080,
+        "mappingVersion": "school-roster-v1",
+        "defaultDocumentType": "mainland_resident_id",
+        "maximumRows": 200000,
+        "columns": {
+          "studentID": "XH",
+          "name": "XM",
+          "documentType": "",
+          "documentNumber": "SFZJH",
+          "phone": "SJH",
+          "studentStatus": "",
+          "onCampusStatus": "SFZX",
+          "registrationStatus": "",
+          "educationLevel": "",
+          "studentCategory": "",
+          "enrollmentYear": "RXNJ",
+          "validFrom": "",
+          "validUntil": "",
+          "currentMarker": "SFZX",
+          "eligibilityCode": "SFZX",
+          "sourceUpdatedAt": ""
+        }
+      }
+    }
+  ]
+}

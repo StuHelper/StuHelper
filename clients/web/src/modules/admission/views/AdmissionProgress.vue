@@ -94,7 +94,7 @@ const steps: ProgressStep[] = [
     label: '账号绑定',
   },
   {
-    description: '完成老生邮箱/统一认证，或提交新生材料',
+    description: '读取账号级学生资格，不在入群流程内收集认证材料',
     key: 'student',
     label: '学生认证',
   },

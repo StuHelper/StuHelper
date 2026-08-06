@@ -21,6 +21,7 @@ TEMPO_HTTP_PORT_OVERRIDE="${TEMPO_HTTP_PORT-__STUHELPER_UNSET__}"
 ALERTMANAGER_PORT_OVERRIDE="${ALERTMANAGER_PORT-__STUHELPER_UNSET__}"
 ALLOY_HTTP_PORT_OVERRIDE="${ALLOY_HTTP_PORT-__STUHELPER_UNSET__}"
 ALERTMANAGER_WEBHOOK_URL_OVERRIDE="${ALERTMANAGER_WEBHOOK_URL-__STUHELPER_UNSET__}"
+ALERTMANAGER_WEBHOOK_TOKEN_OVERRIDE="${ALERTMANAGER_WEBHOOK_TOKEN-__STUHELPER_UNSET__}"
 GENERATED_OBS_DIR_OVERRIDE="${GENERATED_OBS_DIR-__STUHELPER_UNSET__}"
 OBSERVABILITY_SMOKE_EVIDENCE_FILE_OVERRIDE="${OBSERVABILITY_SMOKE_EVIDENCE_FILE-__STUHELPER_UNSET__}"
 
@@ -47,6 +48,7 @@ restore_env_override "TEMPO_HTTP_PORT" "${TEMPO_HTTP_PORT_OVERRIDE}"
 restore_env_override "ALERTMANAGER_PORT" "${ALERTMANAGER_PORT_OVERRIDE}"
 restore_env_override "ALLOY_HTTP_PORT" "${ALLOY_HTTP_PORT_OVERRIDE}"
 restore_env_override "ALERTMANAGER_WEBHOOK_URL" "${ALERTMANAGER_WEBHOOK_URL_OVERRIDE}"
+restore_env_override "ALERTMANAGER_WEBHOOK_TOKEN" "${ALERTMANAGER_WEBHOOK_TOKEN_OVERRIDE}"
 restore_env_override "GENERATED_OBS_DIR" "${GENERATED_OBS_DIR_OVERRIDE}"
 restore_env_override "OBSERVABILITY_SMOKE_EVIDENCE_FILE" "${OBSERVABILITY_SMOKE_EVIDENCE_FILE_OVERRIDE}"
 
@@ -198,7 +200,9 @@ PY
 
 check_alertmanager_receiver() {
   local webhook="${ALERTMANAGER_WEBHOOK_URL:-}"
+  local token="${ALERTMANAGER_WEBHOOK_TOKEN:-}"
   local config_file="${GENERATED_OBS_DIR}/alertmanager/alertmanager.yml"
+  local token_file="${GENERATED_OBS_DIR}/alertmanager/webhook-token"
   if [[ -z "${webhook}" ]]; then
     record_check "Alertmanager webhook configured" "config" "false" "ALERTMANAGER_WEBHOOK_URL is empty"
     return 1
@@ -213,6 +217,23 @@ check_alertmanager_receiver() {
     record_check "Alertmanager rendered config" "config" "false" "${config_file}"
     return 1
   fi
+  if [[ ! "${token}" =~ ^[A-Za-z0-9._~+/=-]{32,512}$ ]]; then
+    record_check "Alertmanager webhook token" "config" "false" "ALERTMANAGER_WEBHOOK_TOKEN is missing or malformed"
+    return 1
+  fi
+  if [[ ! -f "${token_file}" ]] || [[ "$(wc -c <"${token_file}")" -lt 32 ]]; then
+    record_check "Alertmanager webhook token" "config" "false" "rendered webhook token file is missing or short"
+    return 1
+  fi
+  if ! grep -Fq -- 'credentials_file: /etc/alertmanager/secrets/webhook-token' "${config_file}"; then
+    record_check "Alertmanager webhook token" "config" "false" "rendered config is not using credentials_file"
+    return 1
+  fi
+  if grep -Fq -- "${token}" "${config_file}"; then
+    record_check "Alertmanager webhook token" "config" "false" "rendered config leaked the webhook token"
+    return 1
+  fi
+  record_check "Alertmanager webhook token" "config" "true" "credentials_file configured"
   if ! grep -Fq -- "${webhook}" "${config_file}"; then
     record_check "Alertmanager rendered config" "config" "false" "${config_file}"
     return 1

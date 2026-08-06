@@ -70,7 +70,7 @@ async function executeReminder(
   shouldSend?: ReminderSendGuard,
 ): Promise<ActionResult> {
   if (!action.authURL) {
-    throw new Error(`admission remind action ${action.sessionID} missing authURL`)
+    throw new Error('admission remind action missing authURL')
   }
   const result = await sendAdmissionReminderMessage({
     bot,
@@ -152,7 +152,7 @@ function resolveActionTarget(action: AdmissionPendingAction, record: GuardMember
 
 function requiredTargetValue(value: string | undefined, action: AdmissionPendingAction, field: string) {
   if (!value) {
-    throw new Error(`admission action ${action.sessionID} missing ${field}`)
+    throw new Error(`admission action missing ${field}`)
   }
   return value
 }
@@ -160,7 +160,7 @@ function requiredTargetValue(value: string | undefined, action: AdmissionPending
 function resolveDeadline(action: AdmissionPendingAction, record: GuardMemberRecord | null) {
   const deadlineAt = action.deadlineAt ? new Date(action.deadlineAt) : record?.deadlineAt
   if (!deadlineAt || Number.isNaN(deadlineAt.getTime())) {
-    throw new Error(`admission action ${action.sessionID} missing valid deadlineAt`)
+    throw new Error('admission action missing valid deadlineAt')
   }
   return deadlineAt
 }

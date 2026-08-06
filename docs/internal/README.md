@@ -24,6 +24,7 @@ last-verified: 2026-05-07
 | [exec-plans/README.md](exec-plans/README.md) | 执行计划、历史审计、闭环记录 | 否 |
 | [design-snapshots/](design-snapshots/) | 历史设计草案、被替代方案和未来候选快照 | 否 |
 | [release-readiness.md](release-readiness.md) | 阶段性发布准备度评分 | 否 |
+| [frontend-ui-review-2026-08-04.md](frontend-ui-review-2026-08-04.md) | 前端与 UI 全面评审结论（web / admin / uniappx，97 条发现） | 否 |
 | [drill-logs/README.md](drill-logs/README.md) | 备份恢复演练记录入口 | 否 |
 
 ## 使用规则

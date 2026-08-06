@@ -14,13 +14,12 @@ describe('join admission domain routing', () => {
     expect(isJoinAdmissionHost('localhost')).toBe(false)
   })
 
-  it('only treats admission verification, self-service start, and mobile camera paths as join paths', () => {
+  it('only treats admission verification and self-service start as join paths', () => {
     expect(isJoinAdmissionPath('/start')).toBe(true)
     expect(isJoinAdmissionPath('/start/')).toBe(true)
     expect(isJoinAdmissionPath('/verify/ABCD1234')).toBe(true)
     expect(isJoinAdmissionPath('/verify/ABCD1234/')).toBe(true)
-    expect(isJoinAdmissionPath('/admission/freshman/camera/mobile-token')).toBe(true)
-    expect(isJoinAdmissionPath('/admission/freshman/camera/mobile-token/')).toBe(true)
+    expect(isJoinAdmissionPath('/admission/freshman/camera/mobile-token')).toBe(false)
     expect(isJoinAdmissionPath('/verify')).toBe(false)
     expect(isJoinAdmissionPath('/verify/ABCD1234/extra')).toBe(false)
     expect(isJoinAdmissionPath('/courses')).toBe(false)
@@ -39,7 +38,6 @@ describe('join admission domain routing', () => {
   it('blocks admission paths outside join hosts', () => {
     expect(shouldBlockAdmissionPathOutsideJoinHost('stuhelper.com', '/start')).toBe(true)
     expect(shouldBlockAdmissionPathOutsideJoinHost('stuhelper.com', '/verify/ABCD1234')).toBe(true)
-    expect(shouldBlockAdmissionPathOutsideJoinHost('localhost', '/admission/freshman/camera/mobile-token')).toBe(true)
     expect(shouldBlockAdmissionPathOutsideJoinHost('join.localhost', '/start')).toBe(false)
     expect(shouldBlockAdmissionPathOutsideJoinHost('join.localhost', '/verify/ABCD1234')).toBe(false)
     expect(shouldBlockAdmissionPathOutsideJoinHost('localhost', '/courses')).toBe(false)

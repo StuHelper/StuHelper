@@ -11,6 +11,7 @@ import (
 	"github.com/StuHelper/StuHelper/server/internal/modules/openplatform"
 	"github.com/StuHelper/StuHelper/server/internal/modules/rbac"
 	"github.com/StuHelper/StuHelper/server/internal/modules/storage"
+	"github.com/StuHelper/StuHelper/server/internal/modules/studentverification"
 	"github.com/StuHelper/StuHelper/server/internal/modules/user"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/capability"
 )
@@ -47,30 +48,41 @@ func storageAdminAuthorizers() storage.AdminAuthorizers {
 	}
 }
 
+func studentVerificationAdminAuthorizers() studentverification.AdminAuthorizers {
+	return studentverification.AdminAuthorizers{
+		RosterRead:             rbac.RequireCapability(capability.StudentRosterRead),
+		RosterActivate:         rbac.RequireCapability(capability.StudentRosterActivate),
+		ManualReviewRead:       rbac.RequireCapability(capability.StudentManualReviewRead),
+		ManualReviewDecide:     rbac.RequireCapability(capability.StudentManualReviewDecide),
+		ManualMaterialAccess:   rbac.RequireCapability(capability.StudentManualMaterialAccess),
+		ConfigRead:             rbac.RequireCapability(capability.StudentVerificationConfigRead),
+		ConfigUpdate:           rbac.RequireCapability(capability.StudentVerificationConfigUpdate),
+		CredentialRead:         rbac.RequireCapability(capability.StudentCredentialRead),
+		CredentialRevoke:       rbac.RequireCapability(capability.StudentCredentialRevoke),
+		SubjectConflictRead:    rbac.RequireCapability(capability.StudentSubjectConflictRead),
+		SubjectConflictResolve: rbac.RequireCapability(capability.StudentSubjectConflictResolve),
+		ConnectorHealthRead:    rbac.RequireCapability(capability.CampusConnectorHealthRead),
+		ConnectorManage:        rbac.RequireCapability(capability.CampusConnectorManage),
+		StepUpMFA:              rbac.RequireStepUpMFA(),
+	}
+}
+
 func userAdminAuthorizers() user.AdminAuthorizers {
 	return user.AdminAuthorizers{
-		IdentityRead:   rbac.RequireGlobalCapability(capability.UserIdentityRead),
-		IdentityReview: rbac.RequireGlobalCapability(capability.UserIdentityReview),
-		StudentRead:    rbac.RequireCapability(capability.UserStudentRead),
-		StudentReview:  rbac.RequireCapability(capability.UserStudentReview),
-		SchoolRead:     rbac.RequireCapability(capability.UserSchoolRead),
-		SchoolUpdate:   rbac.RequireCapability(capability.UserSchoolUpdate),
-		SystemRead:     rbac.RequireGlobalCapability(capability.UserSystemRead),
-		SystemUpdate:   rbac.RequireGlobalCapability(capability.UserSystemUpdate),
-		StepUpMFA:      rbac.RequireStepUpMFA(),
+		SystemRead:   rbac.RequireGlobalCapability(capability.UserSystemRead),
+		SystemUpdate: rbac.RequireGlobalCapability(capability.UserSystemUpdate),
+		StepUpMFA:    rbac.RequireStepUpMFA(),
 	}
 }
 
 func admissionAdminAuthorizers() admission.AdminAuthorizers {
 	return admission.AdminAuthorizers{
-		AdmissionPolicyRead:     rbac.RequireCapability(capability.AdmissionPolicyRead),
-		AdmissionPolicyUpdate:   rbac.RequireCapability(capability.AdmissionPolicyUpdate),
-		AdmissionSessionRead:    rbac.RequireCapability(capability.AdmissionSessionRead),
-		AdmissionSessionManage:  rbac.RequireCapability(capability.AdmissionSessionManage),
-		AdmissionFreshmanRead:   rbac.RequireCapability(capability.AdmissionFreshmanRead),
-		AdmissionFreshmanReview: rbac.RequireCapability(capability.AdmissionFreshmanReview),
-		MemberBlacklistRead:     rbac.RequireCapability(capability.MemberBlacklistRead),
-		MemberBlacklistManage:   rbac.RequireCapability(capability.MemberBlacklistManage),
+		AdmissionPolicyRead:    rbac.RequireCapability(capability.AdmissionPolicyRead),
+		AdmissionPolicyUpdate:  rbac.RequireCapability(capability.AdmissionPolicyUpdate),
+		AdmissionSessionRead:   rbac.RequireCapability(capability.AdmissionSessionRead),
+		AdmissionSessionManage: rbac.RequireCapability(capability.AdmissionSessionManage),
+		MemberBlacklistRead:    rbac.RequireCapability(capability.MemberBlacklistRead),
+		MemberBlacklistManage:  rbac.RequireCapability(capability.MemberBlacklistManage),
 	}
 }
 

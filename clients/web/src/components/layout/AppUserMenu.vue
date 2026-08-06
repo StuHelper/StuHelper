@@ -93,19 +93,6 @@
         tabindex="-1"
         data-user-menu-item
         class="flex min-h-10 w-full items-center gap-2.5 rounded-lg px-3 text-sm transition-colors duration-fast hover:bg-bg-hover"
-        :class="verificationStore.identityVerified ? 'text-success' : 'text-text-secondary hover:text-text-primary'"
-        @click="goToIdentityRoute('identity-verification')"
-      >
-        <ShieldCheck class="size-4" />
-        {{ t('nav.identityVerification') }}
-        <span v-if="verificationStore.identityVerified" class="ml-auto text-[10px] bg-success/10 text-success px-1.5 py-0.5 rounded-full">{{ t('user.verification.identity.verified') }}</span>
-      </button>
-      <button
-        type="button"
-        role="menuitem"
-        tabindex="-1"
-        data-user-menu-item
-        class="flex min-h-10 w-full items-center gap-2.5 rounded-lg px-3 text-sm transition-colors duration-fast hover:bg-bg-hover"
         :class="verificationStore.studentVerified ? 'text-success' : 'text-text-secondary hover:text-text-primary'"
         @click="goToIdentityRoute('student-verification')"
       >
@@ -162,7 +149,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { Bot, GraduationCap, KeyRound, LockKeyhole, LogOut, Settings, ShieldCheck, User, UserRound } from 'lucide-vue-next'
+import { Bot, GraduationCap, KeyRound, LockKeyhole, LogOut, Settings, User, UserRound } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useVerificationStore } from '@/stores/verification'
 import { useToast } from '@/composables/useToast'
@@ -176,7 +163,6 @@ const identityMenuRoutes: Record<string, string> = {
   'account-profile': '/account/profile',
   'account-security': '/account/security',
   'open-platform-developer-apps': '/developers/apps',
-  'identity-verification': '/user/identity-verification',
   'student-verification': '/user/student-verification',
   'qq-binding': '/user/qq-binding',
 }

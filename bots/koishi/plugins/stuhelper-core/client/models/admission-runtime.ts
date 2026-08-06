@@ -49,9 +49,6 @@ export interface AdmissionGlobalRuntime {
     repeatWindowSize: number
     antiRecallNotify: boolean
   }
-  freshmanForward: {
-    enabled: boolean
-  }
   reminderDelivery: {
     groupEnabled: boolean
     directEnabled: boolean
@@ -142,7 +139,6 @@ export type AdmissionRuntimeSettingsKey =
   | 'adminCommandsEnabled'
   | 'admissionCommandsEnabled'
   | 'moderationEnabled'
-  | 'freshmanForwardEnabled'
   | 'fallbackScanEnabled'
   | 'reminderGroupEnabled'
   | 'reminderDirectEnabled'
@@ -245,7 +241,7 @@ function buildSwitchRows(data: AdmissionGlobalRuntime): AdmissionSwitchRow[] {
       label: '群审命令',
       value: data.commands.adminCommandsEnabled,
       tone: data.commands.adminCommandsEnabled && data.commands.adminCommandsRegistered ? 'success' : 'warning',
-      note: '群审 / 新生审核',
+      note: '群审与准入管理',
       editable: data.commands.adminCommandsRegistered,
       settingKey: 'adminCommandsEnabled',
     },
@@ -293,15 +289,6 @@ function buildSwitchRows(data: AdmissionGlobalRuntime): AdmissionSwitchRow[] {
       note: `${data.moderation.keywordRuleCount} 条启动规则`,
       editable: true,
       settingKey: 'moderationEnabled',
-    },
-    {
-      id: 'freshman-forward',
-      label: '材料转发',
-      value: data.freshmanForward.enabled,
-      tone: data.freshmanForward.enabled ? 'warning' : 'success',
-      note: '新生原始材料转发扫描',
-      editable: true,
-      settingKey: 'freshmanForwardEnabled',
     },
   ]
 }

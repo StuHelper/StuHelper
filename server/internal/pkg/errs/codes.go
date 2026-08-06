@@ -125,6 +125,67 @@ const (
 	ErrSchoolLDAPConfigMissing    ErrorCode = "A0040013" // 学校未配置 LDAP 连接
 	ErrLDAPConfigInvalid          ErrorCode = "A0040014" // 学校 LDAP 配置无效
 	ErrSystemConfigNotFound       ErrorCode = "A0040015" // 系统配置不存在
+
+	// 独立学生认证域 (0100-0199)
+	ErrStudentVerificationSchoolNotFound          ErrorCode = "A0040100" // 认证学校不存在
+	ErrStudentVerificationSchoolUnavailable       ErrorCode = "A0040101" // 学校认证暂不可用
+	ErrStudentVerificationMethodUnavailable       ErrorCode = "A0040102" // 认证方法暂不可用
+	ErrStudentVerificationApplicationMissing      ErrorCode = "A0040103" // 认证申请不存在
+	ErrStudentVerificationApplicationExpired      ErrorCode = "A0040104" // 认证申请已过期
+	ErrStudentVerificationStateConflict           ErrorCode = "A0040105" // 认证申请状态冲突
+	ErrStudentVerificationConsentRequired         ErrorCode = "A0040106" // 需要同意当前隐私说明
+	ErrStudentVerificationCannotComplete          ErrorCode = "A0040107" // 当前方式无法完成核验
+	ErrStudentVerificationCredentialMissing       ErrorCode = "A0040108" // 学生凭据不存在
+	ErrStudentVerificationCredentialConflict      ErrorCode = "A0040109" // 学生凭据状态冲突
+	ErrStudentVerificationContinuationInvalid     ErrorCode = "A0040110" // 认证回跳令牌无效
+	ErrStudentVerificationOTPCooldown             ErrorCode = "A0040111" // 验证码发送冷却中
+	ErrStudentVerificationOTPExpired              ErrorCode = "A0040112" // 验证码已过期
+	ErrStudentVerificationOTPInvalid              ErrorCode = "A0040113" // 验证码无效
+	ErrStudentVerificationOTPMaxAttempts          ErrorCode = "A0040114" // 验证码尝试次数超限
+	ErrStudentVerificationInboundChallengeMissing ErrorCode = "A0040115" // 入站学校邮箱挑战不存在
+
+	// 账号级手机号验证域 (0120-0139)
+	ErrAccountPhoneInvalid           ErrorCode = "A0040120" // 手机号格式无效
+	ErrAccountPhoneOperationMissing  ErrorCode = "A0040121" // 手机号操作不存在
+	ErrAccountPhoneOperationConflict ErrorCode = "A0040122" // 手机号操作状态冲突
+	ErrAccountPhoneBindingConflict   ErrorCode = "A0040123" // 手机号绑定冲突（不可枚举）
+	ErrAccountPhoneAlreadyBound      ErrorCode = "A0040124" // 当前账号已有活动手机号
+	ErrAccountPhoneNotBound          ErrorCode = "A0040125" // 当前账号没有可变更手机号
+	ErrAccountPhoneOTPCooldown       ErrorCode = "A0040126" // 手机验证码发送冷却中
+	ErrAccountPhoneOTPExpired        ErrorCode = "A0040127" // 手机验证码已过期
+	ErrAccountPhoneOTPInvalid        ErrorCode = "A0040128" // 手机验证码无效
+	ErrAccountPhoneOTPMaxAttempts    ErrorCode = "A0040129" // 手机验证码尝试次数超限
+	ErrAccountPhoneLegacyEndpoint    ErrorCode = "A0040130" // 旧手机号绑定端点已退场
+
+	// 版本化学籍快照管理域 (0140-0159)
+	ErrStudentVerificationRosterSnapshotMissing  ErrorCode = "A0040140" // 学籍快照不存在
+	ErrStudentVerificationRosterSnapshotConflict ErrorCode = "A0040141" // 学籍快照状态或源版本冲突
+	ErrStudentVerificationRosterQualityFailed    ErrorCode = "A0040142" // 学籍快照质量门禁未通过
+
+	// 人工学生认证审核域 (0160-0179)
+	ErrStudentVerificationManualReviewMissing        ErrorCode = "A0040160" // 人工审核申请不存在
+	ErrStudentVerificationManualReviewConflict       ErrorCode = "A0040161" // 人工审核状态冲突
+	ErrStudentVerificationManualReviewInvalid        ErrorCode = "A0040162" // 人工审核表单无效
+	ErrStudentVerificationManualReviewSelfDecision   ErrorCode = "A0040163" // 审核员不能审核本人申请
+	ErrStudentVerificationManualMaterialUnavailable  ErrorCode = "A0040164" // 人工审核材料存储不可用
+	ErrStudentVerificationManualMaterialInvalid      ErrorCode = "A0040165" // 人工审核材料无效
+	ErrStudentVerificationManualMaterialTooLarge     ErrorCode = "A0040166" // 人工审核材料过大
+	ErrStudentVerificationManualMaterialLimit        ErrorCode = "A0040167" // 人工审核材料数量超限
+	ErrStudentVerificationManualMaterialMissing      ErrorCode = "A0040168" // 人工审核材料不存在或尚未提交
+	ErrStudentVerificationManualHandoffMissing       ErrorCode = "A0040169" // 拍摄交接不存在
+	ErrStudentVerificationManualHandoffExpired       ErrorCode = "A0040170" // 拍摄交接已过期
+	ErrStudentVerificationManualHandoffConflict      ErrorCode = "A0040171" // 拍摄交接状态冲突
+	ErrStudentVerificationManualEmailRequired        ErrorCode = "A0040172" // 需要完成辅助邮箱验证
+	ErrStudentVerificationManualEmailOTPCooldown     ErrorCode = "A0040173" // 辅助邮箱验证码冷却中
+	ErrStudentVerificationManualEmailOTPExpired      ErrorCode = "A0040174" // 辅助邮箱验证码已过期
+	ErrStudentVerificationManualEmailOTPInvalid      ErrorCode = "A0040175" // 辅助邮箱验证码无效
+	ErrStudentVerificationManualEmailOTPMaxAttempts  ErrorCode = "A0040176" // 辅助邮箱验证码尝试超限
+	ErrStudentVerificationAdminConfigInvalid         ErrorCode = "A0040180" // 学生认证管理配置无效
+	ErrStudentVerificationAdminConfigConflict        ErrorCode = "A0040181" // 学生认证管理配置修订冲突
+	ErrStudentVerificationAdminDependencyUnavailable ErrorCode = "A0040182" // 学生认证管理依赖不可用
+	ErrStudentVerificationSubjectConflictMissing     ErrorCode = "A0040183" // 学籍主体冲突不存在
+	ErrStudentVerificationSubjectConflictState       ErrorCode = "A0040184" // 学籍主体冲突状态变化
+	ErrStudentVerificationRosterSyncConflict         ErrorCode = "A0040185" // 已存在待处理或执行中的手动学籍同步
 )
 
 // ============================================================================

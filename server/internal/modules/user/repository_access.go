@@ -24,12 +24,20 @@ func (r *Repository) GetReviewAccessSubjectByCasdoorSubject(ctx context.Context,
 	var subject ReviewAccessSubject
 	err := r.db.QueryRow(ctx, `
 		SELECT u.id,
-		       up.school_id,
-		       COALESCE(up.verification_status = 'verified', false) AS student_verified,
-		       COALESCE(ui.verified, false) AS identity_verified
+		       student.school_id,
+		       student.school_id IS NOT NULL AS student_verified,
+		       false AS identity_verified
 		FROM users u
-		LEFT JOIN user_profiles up ON up.user_id = u.id
-		LEFT JOIN user_identities ui ON ui.user_id = u.id
+		LEFT JOIN LATERAL (
+		    SELECT credential.school_id
+		    FROM current_student_qualifying_credentials credential
+		    WHERE credential.user_id = u.id
+		    ORDER BY
+		        CASE credential.credential_class WHEN 'formal_student' THEN 0 ELSE 1 END,
+		        credential.verified_at DESC,
+		        credential.id DESC
+		    LIMIT 1
+		) student ON true
 		WHERE u.casdoor_subject = $1
 	`, casdoorSubject).Scan(
 		&subject.InternalUserID,

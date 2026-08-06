@@ -435,6 +435,7 @@ func admissionPendingAction(
 		QQID:                   session.QQID,
 		AuthURL:                session.AuthURL,
 		DeadlineAt:             deadline,
+		EligibilityRevision:    session.EligibilityRevision,
 		FailureCount:           session.FailureCount,
 		RemainingRetryCount:    session.RemainingRetryCount,
 		WillBlacklistOnTimeout: session.WillBlacklistOnTimeout,

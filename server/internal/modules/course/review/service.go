@@ -76,6 +76,7 @@ type Service struct {
 	fgaWriter      reviewFGAWriter
 	notifSender    ReviewNotificationSender
 	accessReader   ReviewAccessReader
+	phoneGate      PhoneGateReader
 	accessPolicySF singleflight.Group
 	backgroundCtx  context.Context
 }
@@ -100,6 +101,10 @@ type ReviewAccessReader interface {
 	ListReviewAccessSchoolConfigs(ctx context.Context) ([]reviewaccess.SchoolConfig, error)
 	ListReviewAccessSystemConfigs(ctx context.Context) ([]reviewaccess.SystemConfig, error)
 	GetReviewAccessSubject(ctx context.Context, externalSubject string) (*reviewaccess.Subject, error)
+}
+
+type PhoneGateReader interface {
+	PhonePublishingRequirementSatisfied(ctx context.Context, userID int64) (bool, error)
 }
 
 type ServiceOption func(*serviceOptions)
@@ -163,11 +168,18 @@ func NewService(
 		notifSender:  notifSender,
 		accessReader: accessReader,
 	}
+	if phoneGate, ok := accessReader.(PhoneGateReader); ok {
+		s.phoneGate = phoneGate
+	}
 	// 初始化时加载维度缓存
 	if err := s.refreshDimensionCache(opts.initialCacheContext); err != nil {
 		logger.L().Warn("failed to initialize dimension cache", zap.Error(err))
 	}
 	return s
+}
+
+func (s *Service) SetPhoneGateReader(reader PhoneGateReader) {
+	s.phoneGate = reader
 }
 
 // refreshDimensionCache 刷新评分维度缓存

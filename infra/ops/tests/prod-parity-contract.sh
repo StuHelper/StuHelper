@@ -292,7 +292,7 @@ assert_not_contains "${REPO_ROOT}/docker-compose.prod.yml" 'id\.stuhelper\.com:h
 assert_contains "${REPO_ROOT}/docker-compose.prod.yml" 'join\.stuhelper\.com:host-gateway'
 assert_contains "${REPO_ROOT}/docker-compose.prod.yml" 'sso\.stuhelper\.com:host-gateway'
 assert_contains "${REPO_ROOT}/docker-compose.prod.yml" 'host\.docker\.internal:host-gateway'
-assert_contains "${WEB_NGINX}" 'location /admission/freshman/camera/'
+assert_contains "${WEB_NGINX}" 'location /student-verification/manual-camera/'
 assert_contains "${WEB_NGINX}" 'location = /start'
 assert_contains "${WEB_NGINX}" 'location /start/'
 assert_contains "${WEB_NGINX}" 'location @spa_camera'

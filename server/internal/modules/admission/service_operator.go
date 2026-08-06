@@ -89,7 +89,7 @@ func (s *Service) ensureOperatorCapability(ctx context.Context, userID, schoolID
 	allowed, err := s.operatorAccess.UserHasCapabilityInSchool(
 		ctx,
 		userID,
-		capability.AdmissionFreshmanReview,
+		capability.StudentManualReviewDecide,
 		schoolID,
 	)
 	if err != nil {

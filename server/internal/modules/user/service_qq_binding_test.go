@@ -331,17 +331,17 @@ func TestGetQQVerificationStateByQQID_ReturnsUnboundWhenMissingBinding(t *testin
 	assert.Nil(t, state.UserID)
 }
 
-func TestGetQQVerificationStateByQQID_ReturnsVerifiedForVerifiedProfile(t *testing.T) {
+func TestGetQQVerificationStateByQQID_ReturnsVerifiedForCurrentStudentCredential(t *testing.T) {
 	repo := newQQBindingMockRepo()
 	repo.onGetQQBindingByQQID = func(_ context.Context, qqID string) (*QQBinding, error) {
 		return &QQBinding{UserID: 77, QQID: qqID}, nil
 	}
-	repo.onGetProfileByUserID = func(_ context.Context, userID int64) (*Profile, error) {
-		return &Profile{UserID: userID, VerificationStatus: StatusVerified}, nil
-	}
 
 	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
+	svc.SetVerificationStatusGateway(fakeVerificationStatusGateway{
+		student: CurrentStudentStatus{Eligible: true},
+	})
 
 	state, err := svc.GetQQVerificationStateByQQID(context.Background(), "123456789")
 	require.NoError(t, err)
@@ -351,20 +351,17 @@ func TestGetQQVerificationStateByQQID_ReturnsVerifiedForVerifiedProfile(t *testi
 	assert.Equal(t, int64(77), *state.UserID)
 	assert.Equal(t, QQVerificationStateVerified, state.VerificationState)
 	assert.True(t, state.StudentVerified)
-	assert.Equal(t, StatusVerified, state.ProfileVerificationStatus)
 }
 
-func TestGetQQVerificationStateByQQID_ReturnsBoundUnverifiedForPendingProfile(t *testing.T) {
+func TestGetQQVerificationStateByQQID_ReturnsBoundUnverifiedWithoutCurrentCredential(t *testing.T) {
 	repo := newQQBindingMockRepo()
 	repo.onGetQQBindingByQQID = func(_ context.Context, qqID string) (*QQBinding, error) {
 		return &QQBinding{UserID: 77, QQID: qqID}, nil
 	}
-	repo.onGetProfileByUserID = func(_ context.Context, userID int64) (*Profile, error) {
-		return &Profile{UserID: userID, VerificationStatus: StatusPending}, nil
-	}
 
 	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
+	svc.SetVerificationStatusGateway(fakeVerificationStatusGateway{})
 
 	state, err := svc.GetQQVerificationStateByQQID(context.Background(), "123456789")
 	require.NoError(t, err)
@@ -372,7 +369,6 @@ func TestGetQQVerificationStateByQQID_ReturnsBoundUnverifiedForPendingProfile(t 
 
 	assert.Equal(t, QQVerificationStateBoundUnverified, state.VerificationState)
 	assert.False(t, state.StudentVerified)
-	assert.Equal(t, StatusPending, state.ProfileVerificationStatus)
 }
 
 func TestConsumeQQBindingCode_PropagatesTxError(t *testing.T) {

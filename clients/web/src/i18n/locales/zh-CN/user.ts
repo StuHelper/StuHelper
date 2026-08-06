@@ -328,6 +328,214 @@ export default {
                 school_email_otp: "学校邮箱验证码",
                 school_sso: "学校 SSO",
             },
+            platform: {
+                eyebrow: "可信学生身份",
+                title: "学生认证",
+                subtitle:
+                    "选择学校和适合你的校验方式。认证凭据与 QQ 绑定、群聊申请和手机号相互独立，可被不同校园服务安全复用。",
+                verify: "开始校验",
+                processing: "正在处理…",
+                cancel: "取消本次申请",
+                cancelConfirm:
+                    "确定取消本次认证申请吗？未提交的材料和临时验证挑战将同时失效。",
+                school: {
+                    title: "选择学校",
+                    description:
+                        "学校目录不等于认证白名单；这里只显示已经完成配置校验且当前可用的学校。",
+                    search: "搜索学校",
+                    placeholder: "输入学校名称、地区或学校代码",
+                    notFound: "没有找到可用的学校",
+                    suggest: "建议添加学校",
+                    schoolName: "学校名称",
+                    location: "所在地区（可选）",
+                    submitSuggestion: "提交建议",
+                    suggestionSent: "学校建议已提交",
+                    change: "更换学校",
+                },
+                method: {
+                    title: "选择校验方式",
+                    description: "可用方式由学校独立配置，任一方式通过即可形成学生凭据。",
+                    available: "可用",
+                    unavailable: "暂不可用",
+                    change: "返回选择其他方式",
+                },
+                methods: {
+                    realName: "实名信息校验",
+                    sso: "统一身份认证校验",
+                    emailReceive: "学校邮箱接收验证码",
+                    emailSend: "从学校邮箱发送验证邮件",
+                    manual: "人工材料审核",
+                    realNameDescription:
+                        "填写学号、姓名和大陆居民身份证号完成一次校验。敏感信息只用于本次请求，不会作为可读取的个人资料保存。",
+                    ssoDescription:
+                        "本功能模拟登录你的学校统一身份认证账号进行校验。StuHelper 不存储、缓存或记录你的统一身份认证密码。",
+                    emailReceiveDescription:
+                        "校验学号和姓名后，验证码只发送到由系统生成的规范学号邮箱，不接受别名邮箱。",
+                    emailSendDescription:
+                        "从规范学号邮箱向指定地址发送一次性挑战邮件，适合验证码发送服务繁忙时使用。",
+                    manualDescription:
+                        "适用于留学生、外校学生或自动校验无法完成的情况。不同学校复用安全表单和拍照流程，由授权审核员处理。",
+                },
+                fields: {
+                    studentID: "学号",
+                    name: "姓名",
+                    documentNumber: "大陆居民身份证号",
+                    documentHint:
+                        "用于本次实名信息校验；页面不会展示后端数据源或内部匹配细节。",
+                    password: "统一身份认证密码",
+                    passwordHint:
+                        "密码仅在本次加密请求的受控内存中使用，不写入数据库、缓存、队列或日志。",
+                },
+                privacy: {
+                    dataUsed: "本次使用的数据",
+                    learnMore: "查看隐私与权利说明",
+                    consent:
+                        "我已阅读以上说明，确认信息由本人提交，并同意为本次学生认证处理所列数据。",
+                },
+                email: {
+                    code: "邮箱验证码",
+                    sendCode: "发送验证码",
+                    sent: "验证码已发送至 {email}",
+                    expiry: "请在 {time} 前完成回填。",
+                    verifyCode: "校验验证码",
+                },
+                inbound: {
+                    title: "发送验证邮件",
+                    create: "生成邮件挑战",
+                    from: "使用 {email} 对应的规范学号邮箱发件。",
+                    to: "收件地址填写 {email}。",
+                    subject: "邮件主题填写：",
+                    body: "邮件正文包含：",
+                    waiting: "页面会自动检测验证结果，无需重复创建挑战。",
+                },
+                manual: {
+                    materialType: "材料类型",
+                    campusCard: "校园卡",
+                    studentCard: "学生证",
+                    admissionNotice: "录取通知书",
+                    otherApproved: "学校允许的其他材料",
+                    createDraft: "保存并进入材料拍摄",
+                    updateDraft: "更新审核资料",
+                    emailTitle: "联系邮箱校验",
+                    emailDescription:
+                        "邮箱验证码只作为审核辅助证据，不会单独授予学生身份。",
+                    emailVerified: "联系邮箱已验证",
+                    sendEmailCode: "发送邮箱验证码",
+                    codeSentTo: "验证码已发送至 {email}",
+                    cameraTitle: "实时拍摄材料",
+                    cameraDescription:
+                        "请使用实时摄像头拍摄原件。浏览器请求后置摄像头，但普通网页无法对硬件来源作设备级证明。",
+                    openCamera: "打开摄像头",
+                    cameraUnsupported: "本机不可拍摄",
+                    capture: "拍摄并上传",
+                    uploading: "正在上传…",
+                    capturePreview: "认证材料拍摄预览",
+                    usePhone: "手机扫码拍摄",
+                    qrAlt: "手机拍摄一次性二维码",
+                    openPhoneLink: "在此设备打开拍摄链接",
+                    scanTitle: "等待手机扫码",
+                    scanDescription:
+                        "二维码是一次性短期链接，不包含姓名、学号或材料内容。上传后本页会自动刷新。",
+                    uploadedTitle: "手机已上传材料",
+                    chooseDeviceDescription:
+                        "请在手机页面确认回到电脑端继续，避免两端重复提交。",
+                    returnedTitle: "材料已同步",
+                    returnedDescription: "手机拍摄的材料已安全同步到本次审核申请。",
+                    expiredTitle: "拍摄链接已过期",
+                    expiredDescription: "请重新生成一次性二维码。",
+                    retentionConfirmation:
+                        "提交即确认材料仅用于学生身份人工审核，并按上方隐私说明的期限保留。",
+                    submit: "提交人工审核",
+                    submitting: "正在提交…",
+                    pendingTitle: "等待人工审核",
+                    pendingDescription:
+                        "材料已进入学校范围的授权审核队列。结果会在认证中心更新。",
+                    approvedTitle: "人工审核已通过",
+                    approvedDescription: "学生凭据已经形成，可由授权校园服务实时读取资格。",
+                    rejectedTitle: "本次审核未通过",
+                    closedTitle: "本次申请已结束",
+                    closedDescription: "你可以根据提示重新发起申请或使用其他校验方式。",
+                },
+                credentials: {
+                    activeTitle: "学生身份凭据有效",
+                    activeDescription:
+                        "资格由当前有效凭据实时派生，不使用永久的 verified 布尔标记。",
+                    expires: "有效期至 {date}",
+                    noExpiry: "持续有效；仍可能因学校状态变化或主动撤销而失效",
+                    revoke: "撤销",
+                    revokeConfirm:
+                        "撤销后，依赖这条凭据的资格会立即失效。确定继续吗？",
+                    revoked: "学生认证凭据已撤销",
+                },
+                result: {
+                    approved: "学生认证已完成",
+                    approvedDescription:
+                        "已形成可审计、可撤销的学生身份凭据。手机号和 QQ 绑定仍由各自独立流程维护。",
+                    pending: "材料已提交",
+                    pendingDescription:
+                        "人工审核期间无需重复提交。审核结果不会影响其他学校的独立凭据。",
+                    done: "返回账号中心",
+                    addAnother: "认证另一所学校",
+                },
+                recovery: {
+                    manual: "无法自动完成？转人工材料审核",
+                },
+                trust: {
+                    title: "认证进度",
+                    school: "确认学校",
+                    schoolPending: "选择你的学校",
+                    method: "完成身份校验",
+                    methodPending: "选择一项可用方式",
+                    credential: "形成学生凭据",
+                    credentialPending: "通过后实时派生资格",
+                    credentialDone: "凭据已激活",
+                    separation:
+                        "学生凭据不包含 QQ、群号或手机号。加群模块只读取最小资格结果。",
+                    phoneLink: "单独维护账号手机号",
+                },
+                mobileCamera: {
+                    title: "手机拍摄认证材料",
+                    subtitle: "一次性安全接力，仅用于当前人工审核申请。",
+                    privacy:
+                        "此链接不展示姓名、学号或其他表单内容。照片会直接进入受保护的审核材料存储。",
+                    previewAlt: "手机拍摄的认证材料预览",
+                    openCamera: "打开摄像头",
+                    unsupported: "当前浏览器不支持摄像头",
+                    capture: "拍摄并上传",
+                    uploading: "正在上传…",
+                    uploadedTitle: "材料已上传",
+                    uploadedDescription:
+                        "请选择后续在哪台设备继续；确认后另一端会锁定，避免重复提交。",
+                    continueMobile: "在手机端继续",
+                    returnDesktop: "回到电脑端继续",
+                    desktopTitle: "请回到电脑端继续",
+                    desktopDescription: "材料已经同步，电脑页面会自动刷新。",
+                    expiredTitle: "链接已过期",
+                    expiredDescription: "请回到电脑端重新生成一次性二维码。",
+                    errorTitle: "无法打开拍摄链接",
+                    errorDescription: "链接无效或服务暂时不可用。",
+                    cameraError: "无法打开摄像头，请检查浏览器权限。",
+                    uploadError: "材料上传失败，请重新拍摄。",
+                    choiceError: "无法确认继续设备，请重试。",
+                },
+                errors: {
+                    loadTitle: "认证服务暂时无法打开",
+                    load: "无法加载认证能力，请稍后重试。",
+                    createApplication: "无法创建认证申请，请稍后重试。",
+                    cannotComplete:
+                        "暂时无法使用此方式完成校验。请核对输入、改用其他方式，或提交人工核查。",
+                    refresh: "状态刷新失败，请稍后重试。",
+                    cancel: "取消申请失败，请刷新后重试。",
+                    revoke: "撤销凭据失败，请稍后重试。",
+                    suggestion: "提交学校建议失败，请稍后重试。",
+                    saveDraft: "保存人工审核资料失败，请检查填写内容。",
+                    emailCode: "发送邮箱验证码失败，请稍后重试。",
+                    invalidCode: "验证码无效或已过期，请重新获取。",
+                    camera: "无法拍摄或上传材料，请重试。",
+                    handoff: "手机拍摄接力暂时不可用，请重试。",
+                    submitReview: "提交人工审核失败，请检查材料和邮箱验证状态。",
+                },
+            },
         },
         phone: {
             title: "绑定手机",
@@ -338,6 +546,8 @@ export default {
             phoneNumber: "手机号码",
             verifyCode: "验证码",
             sendCode: "发送验证码",
+            verified: "已验证",
+            unverified: "未验证",
             bound: "已绑定",
             unbound: "未绑定",
             sending: "发送中...",
@@ -354,6 +564,80 @@ export default {
             ssoEquivalent:
                 "此处绑定或修改手机号会校验短信验证码，并同步写入统一身份认证账号；StuHelper 仅保留同步后的掩码手机号和验证状态。",
             updateSuccess: "手机号已同步更新",
+            platform: {
+                eyebrow: "账号安全",
+                title: "手机号",
+                subtitle:
+                    "手机号用于内容发布账号核验和安全联系，与学生身份认证相互独立。",
+                success: "手机号已验证并同步",
+                status: {
+                    verified: "手机号已验证",
+                    verifiedDescription:
+                        "当前号码已写入统一登录账号，并形成独立的手机号验证凭据。",
+                    syncing: "数据同步中",
+                    syncingDescription:
+                        "号码正在更新到统一登录账号并回读校验；完成前发布门槛保持关闭。",
+                    reviewRequired: "手机号状态需要确认",
+                    reviewDescription:
+                        "统一登录账号与本地只读投影暂不一致，请稍后重试或联系支持。",
+                    unbound: "尚未绑定手机号",
+                    unboundDescription:
+                        "学生认证无需手机号；当你发布内容或主动维护账号安全时，可以在这里完成绑定。",
+                    method: "确认方式",
+                    verifiedAt: "确认时间",
+                    schoolConfirmed: "学校账号信息确认",
+                    smsConfirmed: "短信验证码确认",
+                    verifiedMethod: "已验证",
+                },
+                form: {
+                    bindTitle: "绑定手机号",
+                    changeTitle: "更换手机号",
+                    description:
+                        "请手动输入你当前使用的中国大陆手机号。系统会自行选择最短的安全校验路径。",
+                    phone: "手机号码",
+                    authority:
+                        "完整规范化号码以 Casdoor 统一登录账号为唯一可写权威源；StuHelper 只保存受保护、可重建的业务投影和验证凭据。",
+                    continue: "继续",
+                },
+                sms: {
+                    title: "输入短信验证码",
+                    sent: "验证码已发送至 {phone}",
+                    code: "短信验证码",
+                    verify: "确认并绑定",
+                    resend: "重新发送验证码",
+                    resendIn: "{seconds} 秒后可重发",
+                    changeNumber: "改用其他号码",
+                },
+                syncing: {
+                    title: "正在安全同步",
+                    description:
+                        "这通常只需几秒。即使页面关闭，后台也会通过幂等任务继续对账。",
+                },
+                manage: {
+                    title: "管理当前号码",
+                    description:
+                        "换号和解绑会影响内容发布门槛、账号找回和安全联系，需要再次完成高风险操作确认。",
+                    change: "更换号码",
+                    unbind: "解绑手机号",
+                    unbindConfirm:
+                        "解绑后将暂时无法发布需要手机号凭据的内容，并可能影响账号找回。确定继续吗？",
+                },
+                why: {
+                    title: "为什么需要手机号？",
+                    description:
+                        "StuHelper 将已验证手机号作为内容发布等能力的产品风控门槛，并用于必要的安全联系。法规允许多种真实身份信息认证方式，我们不会表述为法律只允许手机号。",
+                    notStudentEvidence:
+                        "手机号不是学生身份证据，也不会单独或组合授予学生身份。",
+                },
+                errors: {
+                    load: "无法加载手机号状态，请稍后重试。",
+                    create: "无法创建手机号操作，请检查号码或稍后重试。",
+                    sms: "短信验证码发送失败，请稍后重试。",
+                    invalidCode: "验证码无效或已过期，请重新获取。",
+                    sync: "号码同步暂未完成，请稍后刷新。",
+                    unbind: "解绑操作未完成，请稍后重试。",
+                },
+            },
         },
         qq: {
             title: "绑定 QQ",

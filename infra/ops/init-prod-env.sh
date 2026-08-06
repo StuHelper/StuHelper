@@ -8,6 +8,8 @@ source "${SCRIPT_DIR}/lib/common.sh"
 source "${SCRIPT_DIR}/lib/retired-idp-env.sh"
 
 require_cmd python3
+require_cmd jq
+require_cmd openssl
 export STUHELPER_PRESERVE_POSTGRES_URL_PLACEHOLDERS=true
 
 if [[ -z "${ENV_TEMPLATE_FILE:-}" || "${ENV_TEMPLATE_FILE}" == ".env.example" || "${ENV_TEMPLATE_FILE}" == "${REPO_ROOT}/.env.example" ]]; then
@@ -156,7 +158,7 @@ if placeholder_or_empty "${EXTERNAL_STUDENT_SOURCE_ORACLE_HOST:-}"; then
   upsert_env_file "${SECRETS_ENV_FILE}" "EXTERNAL_STUDENT_SOURCE_ORACLE_HOST" "REPLACE_WITH_EXTERNAL_STUDENT_SOURCE_ORACLE_HOST"
 fi
 if placeholder_or_empty "${EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME:-}"; then
-  upsert_env_file "${SECRETS_ENV_FILE}" "EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME" "REPLACE_WITH_EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME"
+  upsert_env_file "${SECRETS_ENV_FILE}" "EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME" "REPLACE_WITH_EXISTING_EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME"
 fi
 if placeholder_or_empty "${EXTERNAL_STUDENT_SOURCE_ORACLE_PASSWORD:-}"; then
   upsert_env_file "${SECRETS_ENV_FILE}" "EXTERNAL_STUDENT_SOURCE_ORACLE_PASSWORD" "REPLACE_WITH_EXTERNAL_STUDENT_SOURCE_ORACLE_PASSWORD"
@@ -169,6 +171,9 @@ if placeholder_or_empty "${METRICS_PASSWORD:-}"; then
 fi
 if placeholder_or_empty "${GRAFANA_ADMIN_PASSWORD:-}"; then
   upsert_env_file "${SECRETS_ENV_FILE}" "GRAFANA_ADMIN_PASSWORD" "prod-grafana-$(random_hex 12)"
+fi
+if placeholder_or_empty "${ALERTMANAGER_WEBHOOK_TOKEN:-}"; then
+  upsert_env_file "${SECRETS_ENV_FILE}" "ALERTMANAGER_WEBHOOK_TOKEN" "$(random_hex 32)"
 fi
 if placeholder_or_empty "${OBJECT_STORAGE_SECRET_ACCESS_KEY:-}"; then
   upsert_env_file "${SECRETS_ENV_FILE}" "OBJECT_STORAGE_SECRET_ACCESS_KEY" "REPLACE_WITH_OBJECT_STORAGE_SECRET_ACCESS_KEY"
@@ -250,6 +255,25 @@ ensure_prod_default "REDIS_TLS_ENABLED" "${REDIS_TLS_ENABLED:-}" "true" "false"
 ensure_prod_default "REDIS_TLS_CA" "${REDIS_TLS_CA:-}" "/tls/ca.crt"
 ensure_prod_default "CORS_ORIGINS" "${CORS_ORIGINS:-}" "https://stuhelper.com,https://join.stuhelper.com,https://sso.stuhelper.com" "https://stuhelper.com" "REPLACE_WITH_PRODUCTION_CORS_ORIGINS" "http://localhost:3000,http://localhost:3001" "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001" "http://localhost:3000,http://127.0.0.1:3000,http://join.localhost:3000,http://localhost:3001,http://127.0.0.1:3001"
 ensure_prod_default "ADMISSION_PUBLIC_BASE_URL" "${ADMISSION_PUBLIC_BASE_URL:-}" "https://join.stuhelper.com" "REPLACE_WITH_ADMISSION_PUBLIC_BASE_URL" "http://localhost:3000" "http://join.localhost:3000" "http://join.stuhelper.com"
+ensure_prod_default "STUDENT_VERIFICATION_PUBLIC_BASE_URL" "${STUDENT_VERIFICATION_PUBLIC_BASE_URL:-}" "https://stuhelper.com" "REPLACE_WITH_STUDENT_VERIFICATION_PUBLIC_BASE_URL" "http://localhost:3000" "http://127.0.0.1:3000"
+ensure_prod_default "CAMPUS_CONNECTOR_GATEWAY_ENABLED" "${CAMPUS_CONNECTOR_GATEWAY_ENABLED:-}" "false"
+ensure_value "CAMPUS_CONNECTOR_GATEWAY_LISTEN_ADDRESS" "${CAMPUS_CONNECTOR_GATEWAY_LISTEN_ADDRESS:-}" ":9444"
+ensure_prod_default "CAMPUS_CONNECTOR_GATEWAY_PUBLIC_HOST" "${CAMPUS_CONNECTOR_GATEWAY_PUBLIC_HOST:-}" "connector.stuhelper.com" "REPLACE_WITH_CAMPUS_CONNECTOR_GATEWAY_PUBLIC_HOST" "localhost"
+ensure_value "CAMPUS_CONNECTOR_GATEWAY_EXTERNAL_PORT" "${CAMPUS_CONNECTOR_GATEWAY_EXTERNAL_PORT:-}" "19444"
+ensure_value "CAMPUS_CONNECTOR_PKI_DIR" "${CAMPUS_CONNECTOR_PKI_DIR:-}" "./infra/generated/campus-connector-pki"
+ensure_value "CAMPUS_CONNECTOR_GATEWAY_SECRET_DIR" "${CAMPUS_CONNECTOR_GATEWAY_SECRET_DIR:-}" "./infra/generated/campus-connector-pki/gateway"
+ensure_value "CAMPUS_CONNECTOR_GATEWAY_TLS_CERT_FILE" "${CAMPUS_CONNECTOR_GATEWAY_TLS_CERT_FILE:-}" "/run/secrets/campus-connector/gateway.crt"
+ensure_value "CAMPUS_CONNECTOR_GATEWAY_TLS_KEY_FILE" "${CAMPUS_CONNECTOR_GATEWAY_TLS_KEY_FILE:-}" "/run/secrets/campus-connector/gateway.key"
+ensure_value "CAMPUS_CONNECTOR_GATEWAY_CLIENT_CA_FILE" "${CAMPUS_CONNECTOR_GATEWAY_CLIENT_CA_FILE:-}" "/run/secrets/campus-connector/client-ca.crt"
+ensure_value "CAMPUS_CONNECTOR_SNAPSHOT_PRIVATE_KEY_FILE" "${CAMPUS_CONNECTOR_SNAPSHOT_PRIVATE_KEY_FILE:-}" "/run/secrets/campus-connector/snapshot-x25519.key"
+ensure_value "CAMPUS_CONNECTOR_SNAPSHOT_KEY_ID" "${CAMPUS_CONNECTOR_SNAPSHOT_KEY_ID:-}" "REPLACE_WITH_CAMPUS_CONNECTOR_SNAPSHOT_KEY_ID"
+ensure_value "CAMPUS_CONNECTOR_PROTOCOL_VERSION" "${CAMPUS_CONNECTOR_PROTOCOL_VERSION:-}" "1"
+ensure_value "CAMPUS_CONNECTOR_POLL_WAIT_SECONDS" "${CAMPUS_CONNECTOR_POLL_WAIT_SECONDS:-}" "25"
+ensure_value "CAMPUS_CONNECTOR_SIGNATURE_MAX_SKEW_SECONDS" "${CAMPUS_CONNECTOR_SIGNATURE_MAX_SKEW_SECONDS:-}" "120"
+ensure_value "CAMPUS_CONNECTOR_REPLAY_TTL_SECONDS" "${CAMPUS_CONNECTOR_REPLAY_TTL_SECONDS:-}" "360"
+ensure_value "CAMPUS_CONNECTOR_MAX_SNAPSHOT_PLAINTEXT_BYTES" "${CAMPUS_CONNECTOR_MAX_SNAPSHOT_PLAINTEXT_BYTES:-}" "134217728"
+ensure_value "CAMPUS_CONNECTOR_MAX_SNAPSHOT_REQUEST_BYTES" "${CAMPUS_CONNECTOR_MAX_SNAPSHOT_REQUEST_BYTES:-}" "201326592"
+ensure_value "CAMPUS_CONNECTOR_MAX_PASSWORD_BYTES" "${CAMPUS_CONNECTOR_MAX_PASSWORD_BYTES:-}" "256"
 ensure_value "ADMISSION_PRODUCTION_READINESS_ENABLED" "${ADMISSION_PRODUCTION_READINESS_ENABLED:-}" "true"
 ensure_value "ADMISSION_READINESS_REQUIRED_PLATFORM" "${ADMISSION_READINESS_REQUIRED_PLATFORM:-}" "qq"
 ensure_value "ADMISSION_READINESS_REQUIRED_GUILD_IDS" "${ADMISSION_READINESS_REQUIRED_GUILD_IDS:-}" ""
@@ -317,7 +341,7 @@ ensure_value "EXTERNAL_STUDENT_SOURCE_PROVIDER" "${EXTERNAL_STUDENT_SOURCE_PROVI
 ensure_value "EXTERNAL_STUDENT_SOURCE_SCHOOL_CODE" "${EXTERNAL_STUDENT_SOURCE_SCHOOL_CODE:-}" "4111010006"
 ensure_value "EXTERNAL_STUDENT_SOURCE_ORACLE_PORT" "${EXTERNAL_STUDENT_SOURCE_ORACLE_PORT:-}" "2484"
 ensure_value "EXTERNAL_STUDENT_SOURCE_ORACLE_SERVICE_NAME" "${EXTERNAL_STUDENT_SOURCE_ORACLE_SERVICE_NAME:-}" "ORCLPDB1"
-ensure_value "EXTERNAL_STUDENT_SOURCE_ORACLE_READONLY_USERNAME" "${EXTERNAL_STUDENT_SOURCE_ORACLE_READONLY_USERNAME:-}" "STUHELPER_ACADEMIC_RO"
+ensure_value "EXTERNAL_STUDENT_SOURCE_ORACLE_READONLY_USERNAME" "${EXTERNAL_STUDENT_SOURCE_ORACLE_READONLY_USERNAME:-}" "REPLACE_WITH_EXISTING_EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME"
 ensure_value "EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_MODE" "${EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_MODE:-}" "verify-full"
 ensure_value "EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_FILE" "${EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_FILE:-}" "/external-student-source-tls/ca.crt"
 ensure_value "EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_HOST_PATH" "${EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_HOST_PATH:-}" ""
@@ -448,6 +472,7 @@ ensure_value "WAL_ARCHIVE_RETENTION_DAYS" "${WAL_ARCHIVE_RETENTION_DAYS:-}" "14"
 ensure_prod_default "GRAFANA_ROOT_URL" "${GRAFANA_ROOT_URL:-}" "REPLACE_WITH_GRAFANA_ROOT_URL" "http://localhost:3003"
 ensure_prod_default "ALLOW_LOCAL_ALERT_SINK" "${ALLOW_LOCAL_ALERT_SINK:-}" "false" "true"
 ensure_prod_default "ALERTMANAGER_WEBHOOK_URL" "${ALERTMANAGER_WEBHOOK_URL:-}" "REPLACE_WITH_ALERTMANAGER_WEBHOOK_URL" "http://alert-webhook-sink:8080/alerts"
+ensure_value "ALERTMANAGER_CONFIG_GID" "${ALERTMANAGER_CONFIG_GID:-}" "65534"
 ensure_prod_default "TAG" "${TAG:-}" "" "latest"
 ensure_managed_runtime_image "POSTGRES_IMAGE_REF" "cgr.dev/chainguard/postgres:latest@sha256:dc2f04037c1044a22af76cee4de70b9111885b17c561b939d7ed70103d100759" "postgres:18.3-alpine@sha256:54451ecb8ab38c24c3ec123f2fd501303a3a1856a5c66e98cecf2460d5e1e9d7"
 ensure_managed_runtime_image "REDIS_IMAGE_REF" "redis:8.8.1-alpine@sha256:8096655e437712b07503796fb64d81359256cfcff0ab29d95a7da72863786efb" "redis:8.6.2-alpine@sha256:c5e375abb885e6b2021c0377879e4890bf76f9065b8922ffc113f2b226b9fc17"
@@ -465,12 +490,28 @@ ensure_managed_runtime_image "NODE_EXPORTER_IMAGE_REF" "prom/node-exporter:v1.12
 ensure_managed_runtime_image "CADVISOR_IMAGE_REF" "ghcr.io/google/cadvisor:v0.60.5@sha256:763aecf1c32c2be8a1a75f9abfc2fc461005c9dbbaa39cb356b354aac1296dbe" "gcr.io/cadvisor/cadvisor:v0.52.1@sha256:f40e65878e25c2e78ea037f73a449527a0fb994e303dc3e34cb6b187b4b91435"
 ensure_managed_runtime_image "POSTGRES_EXPORTER_IMAGE_REF" "quay.io/prometheuscommunity/postgres-exporter:v0.20.1@sha256:ac5ec343104fae0e2d84a27bb8d69b38430a11910c5382cad85d478d2bab713e" "quay.io/prometheuscommunity/postgres-exporter:v0.17.1@sha256:38606faa38c54787525fb0ff2fd6b41b4cfb75d455c1df294927c5f611699b17"
 ensure_managed_runtime_image "REDIS_EXPORTER_IMAGE_REF" "oliver006/redis_exporter:v1.88.0@sha256:2c8c55c63ce4d915389f03d337b8acef56aaaca9fab8728291287e612d4d6398" "oliver006/redis_exporter:v1.76.0@sha256:1542bc6a88decfc16db6603045accd502cc3a46c46659d7cfd568e1f6965fe59"
-ensure_managed_runtime_image "BLACKBOX_EXPORTER_IMAGE_REF" "quay.io/prometheus/blackbox-exporter:master@sha256:9a7db82eecc48c8f226a24ca72c7b367b749b7994881824aa9b6a05b24ff4579" "quay.io/prometheus/blackbox-exporter:v0.27.0@sha256:a50c4c0eda297baa1678cd4dc4712a67fdea713b832d43ce7fcc5f9bea05094d"
+ensure_managed_runtime_image "BLACKBOX_EXPORTER_IMAGE_REF" "quay.io/prometheus/blackbox-exporter:master@sha256:7255d55a425fbc8b3a1d8e4109465e7c0f4f33b9e48f965ec3c9a93bfbcd4f5c" "quay.io/prometheus/blackbox-exporter:master@sha256:9a7db82eecc48c8f226a24ca72c7b367b749b7994881824aa9b6a05b24ff4579"
 ensure_prod_default "BACKEND_IMAGE_REF" "${BACKEND_IMAGE_REF:-}" "REPLACE_WITH_BACKEND_IMAGE_REF" "registry.stuhelper.com/stuhelper/backend:latest" "stuhelper/backend:dev-placeholder"
 ensure_prod_default "FRONTEND_IMAGE_REF" "${FRONTEND_IMAGE_REF:-}" "REPLACE_WITH_FRONTEND_IMAGE_REF" "registry.stuhelper.com/stuhelper/frontend:latest" "stuhelper/frontend:dev-placeholder"
 ensure_prod_default "ADMIN_IMAGE_REF" "${ADMIN_IMAGE_REF:-}" "REPLACE_WITH_ADMIN_IMAGE_REF" "registry.stuhelper.com/stuhelper/admin:latest" "stuhelper/admin:dev-placeholder"
 
 load_env
+campus_connector_pki_dir="$(resolve_env_path "${CAMPUS_CONNECTOR_PKI_DIR:-./infra/generated/campus-connector-pki}")"
+"${SCRIPT_DIR}/generate-campus-connector-pki.sh" \
+  --output "${campus_connector_pki_dir}" \
+  --gateway-host "${CAMPUS_CONNECTOR_GATEWAY_PUBLIC_HOST:-connector.stuhelper.com}"
+generated_campus_connector_snapshot_key_id="$(
+  jq -er '.snapshotKeyID' "${campus_connector_pki_dir}/public-metadata.json"
+)"
+if placeholder_or_empty "${CAMPUS_CONNECTOR_SNAPSHOT_KEY_ID:-}"; then
+  upsert_env_file \
+    "${ENV_FILE}" \
+    "CAMPUS_CONNECTOR_SNAPSHOT_KEY_ID" \
+    "${generated_campus_connector_snapshot_key_id}"
+  export CAMPUS_CONNECTOR_SNAPSHOT_KEY_ID="${generated_campus_connector_snapshot_key_id}"
+elif [[ "${CAMPUS_CONNECTOR_SNAPSHOT_KEY_ID}" != "${generated_campus_connector_snapshot_key_id}" ]]; then
+  die "CAMPUS_CONNECTOR_SNAPSHOT_KEY_ID does not match generated campus connector PKI"
+fi
 materialize_postgres_runtime_urls
 require_production_postgres_ssl
 if [[ "${EXTERNAL_POSTGRES_ENABLED:-false}" != "true" ]]; then

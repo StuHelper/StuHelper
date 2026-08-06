@@ -4,6 +4,7 @@ set -euo pipefail
 DEPLOY_USER="${DEPLOY_USER:-stuhelper}"
 DEPLOY_GROUP="${DEPLOY_GROUP:-${DEPLOY_USER}}"
 DEPLOY_APP_DIR="${DEPLOY_APP_DIR:-/opt/stuhelper}"
+DEPLOY_APP_MODE="${DEPLOY_APP_MODE:-0750}"
 DEPLOY_SSH_PUBKEY="${DEPLOY_SSH_PUBKEY:-}"
 CONFIGURE_UFW="${CONFIGURE_UFW:-true}"
 ALLOW_HTTP_PORTS="${ALLOW_HTTP_PORTS:-80,443}"
@@ -47,6 +48,11 @@ require_non_root_deploy_identity() {
   fi
 }
 
+validate_deploy_app_mode() {
+  [[ "${DEPLOY_APP_MODE}" =~ ^0[0-7]{3,4}$ ]] ||
+    die "DEPLOY_APP_MODE must be an explicit octal directory mode"
+}
+
 apt_install() {
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -y
@@ -76,7 +82,7 @@ ensure_deploy_user() {
   fi
 
   usermod -aG docker "${DEPLOY_USER}"
-  install -d -o "${DEPLOY_USER}" -g "${DEPLOY_GROUP}" -m 0755 "${DEPLOY_APP_DIR}"
+  install -d -o "${DEPLOY_USER}" -g "${DEPLOY_GROUP}" -m "${DEPLOY_APP_MODE}" "${DEPLOY_APP_DIR}"
   install -d -o "${DEPLOY_USER}" -g "${DEPLOY_GROUP}" -m 0700 "${DEPLOY_APP_DIR}/.deploy"
   install -d -o "${DEPLOY_USER}" -g "${DEPLOY_GROUP}" -m 0700 "${DEPLOY_APP_DIR}/.secrets"
   install -d -o "${DEPLOY_USER}" -g "${DEPLOY_GROUP}" -m 0700 "${DEPLOY_APP_DIR}/.secrets/vault"
@@ -387,8 +393,9 @@ EOF
 }
 
 main() {
-  require_root
-  require_non_root_deploy_identity
+require_root
+require_non_root_deploy_identity
+validate_deploy_app_mode
 
   log "installing base packages"
   apt_install ca-certificates curl gnupg iproute2 jq openssl git bash python3 util-linux

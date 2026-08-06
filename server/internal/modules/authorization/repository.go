@@ -617,17 +617,15 @@ func (r *Repository) ResolveAccessSnapshotByUserID(ctx context.Context, userID i
 			EXISTS (SELECT 1 FROM users u WHERE u.id = $1),
 			EXISTS (
 				SELECT 1
-				FROM user_profiles p
-				WHERE p.user_id = $1
-				  AND p.verification_status = 'verified'
+				FROM current_student_qualifying_credentials credential
+				WHERE credential.user_id = $1
+				  AND credential.credential_class = 'formal_student'
 			),
 			EXISTS (
 				SELECT 1
-				FROM user_verification_credentials c
-				WHERE c.user_id = $1
-				  AND c.kind = 'freshman_material_manual'
-				  AND c.revoked_at IS NULL
-				  AND (c.expires_at IS NULL OR c.expires_at > NOW())
+				FROM current_student_qualifying_credentials credential
+				WHERE credential.user_id = $1
+				  AND credential.credential_class = 'temporary_freshman'
 			)
 	`, userID).Scan(&userExists, &verifiedStudent, &freshmanProvisional)
 	if err != nil {

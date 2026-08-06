@@ -50,11 +50,18 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4318
       OTEL_EXPORTER_OTLP_INSECURE: "true"
       OTEL_TRACE_SAMPLE_RATIO: ${OTEL_TRACE_SAMPLE_RATIO:-0.2}
+      # Oracle belongs to the isolated campus connector/one-shot smoke process.
+      # Never expose its network endpoint or credentials to the online API.
+      EXTERNAL_STUDENT_SOURCE_ENABLED: "false"
+      EXTERNAL_STUDENT_SOURCE_ORACLE_HOST: ""
+      EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME: ""
+      EXTERNAL_STUDENT_SOURCE_ORACLE_PASSWORD: ""
     volumes:
     - ./infra/generated/postgres-client-ca:/tls:ro
     - ./infra/generated/redis-client-ca:/redis-tls:ro
     - ./infra/generated/external-student-source-client-ca:/external-student-source-tls:ro
     - ${OBJECT_STORAGE_CLIENT_CA_DIR:-./infra/generated/object-storage-client-ca}:/object-storage-tls:ro
+    - ${CAMPUS_CONNECTOR_GATEWAY_SECRET_DIR:-./infra/generated/campus-connector-pki/gateway}:/run/secrets/campus-connector:ro
     extra_hosts:
     - "stuhelper.com:host-gateway"
     - "join.stuhelper.com:host-gateway"
@@ -62,6 +69,9 @@ services:
     - "host.docker.internal:host-gateway"
     ports:
     - "127.0.0.1:${BACKEND_EXTERNAL_PORT:-18080}:8080"
+    # Expose only to an approved TCP passthrough/firewall edge. TLS must
+    # terminate inside StuHelper so the gateway can verify the node certificate.
+    - "127.0.0.1:${CAMPUS_CONNECTOR_GATEWAY_EXTERNAL_PORT:-19444}:9444"
     depends_on:
       redis:
         condition: service_healthy

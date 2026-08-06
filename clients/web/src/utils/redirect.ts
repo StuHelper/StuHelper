@@ -150,12 +150,15 @@ export function accountCenterURL(path: string): string {
 }
 
 export function accountCenterURLWithRedirect(path: string, redirect: string): string {
-    if (!isSafeRelativeRedirect(redirect)) {
+    const safeRedirect = isSafeRelativeRedirect(redirect)
+        ? redirect
+        : sanitizePostLoginRedirect(redirect);
+    if (!safeRedirect) {
         return accountCenterURL(path);
     }
 
     const separator = path.includes("?") ? "&" : "?";
-    const params = new URLSearchParams({ redirect });
+    const params = new URLSearchParams({ redirect: safeRedirect });
     return accountCenterURL(`${path}${separator}${params.toString()}`);
 }
 

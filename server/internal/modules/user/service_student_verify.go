@@ -14,7 +14,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/StuHelper/StuHelper/server/internal/pkg/logger"
-	"github.com/StuHelper/StuHelper/server/internal/pkg/phoneutil"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/schoolauth"
 )
 
@@ -94,7 +93,6 @@ func (s *Service) VerifyStudent(ctx context.Context, userID int64, req VerifyStu
 	now := time.Now()
 	method := VerifyMethodLDAP
 	schoolID := req.SchoolID
-	verifiedPhoneRaw := ""
 	profile := &Profile{
 		UserID:             userID,
 		SchoolID:           &schoolID,
@@ -187,12 +185,10 @@ func (s *Service) VerifyStudent(ctx context.Context, userID int64, req VerifyStu
 			profile.VerificationStatus = StatusPending
 		}
 
-		if ldapInfo != nil && ldapInfo.Mobile != "" {
-			phone := strings.TrimSpace(ldapInfo.Mobile)
-			if phoneutil.IsValidMainlandPhone(phone) {
-				verifiedPhoneRaw = phone
-			}
-		}
+		// LDAP attributes, including a school-sourced phone number, are never
+		// interpreted as user consent to bind or update an account phone. Phone
+		// binding is an independent flow and always starts from user input.
+		_ = ldapInfo
 	} else {
 		manualMethod := VerifyMethodManual
 		profile.VerificationMethod = &manualMethod
@@ -249,15 +245,6 @@ func (s *Service) VerifyStudent(ctx context.Context, userID int64, req VerifyStu
 		return nil, err
 	}
 
-	if verifiedPhoneRaw != "" {
-		if err := s.syncVerifiedPhoneProjection(ctx, userID, verifiedPhoneRaw); err != nil {
-			logger.L().Warn("failed to sync LDAP phone projection",
-				zap.Int64("user_id", userID),
-				zap.Error(err),
-			)
-		}
-	}
-
 	result, err := s.repo.GetProfileByUserID(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("VerifyStudent reload: %w", err)
@@ -277,27 +264,6 @@ func validateOptionalStudentID(studentID string) error {
 	}
 	if !schoolauth.IsValidStudentID(studentID) {
 		return ErrStudentIDInvalid
-	}
-	return nil
-}
-
-func (s *Service) syncVerifiedPhoneProjection(ctx context.Context, userID int64, phone string) error {
-	if s.profileIdentitySync == nil {
-		return ErrProfileIdentitySyncMissing
-	}
-	_, phoneEnc, phoneHash, err := s.prepareAvailablePhoneProjection(ctx, userID, phone)
-	if err != nil {
-		return err
-	}
-	subject, err := s.repo.GetCasdoorSubject(ctx, userID)
-	if err != nil {
-		return fmt.Errorf("get Casdoor subject: %w", err)
-	}
-	if err := s.profileIdentitySync.UpdatePhone(ctx, subject, "+86"+phone); err != nil {
-		return err
-	}
-	if err := s.repo.SetUserPhone(ctx, userID, phoneEnc, phoneHash); err != nil {
-		return fmt.Errorf("set phone projection: %w", err)
 	}
 	return nil
 }
@@ -521,14 +487,6 @@ func isEmptySchoolLDAPSettings(settings schoolLDAPSettings) bool {
 		settings.SystemBindDN == "" &&
 		settings.SystemBindPassword == "" &&
 		!settings.UseTLS
-}
-
-func optionalTrimmedString(value string) *string {
-	trimmed := strings.TrimSpace(value)
-	if trimmed == "" {
-		return nil
-	}
-	return &trimmed
 }
 
 func parseSchoolLDAPConfig(raw json.RawMessage) (LDAPConfig, error) {

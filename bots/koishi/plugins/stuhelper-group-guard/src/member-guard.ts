@@ -25,10 +25,6 @@ import {
   kickBlacklistedPendingMember,
 } from './member-blacklist-rejection'
 import {
-  forwardFreshmanMaterial,
-  resolveFreshmanForwardBot,
-} from './freshman-forward'
-import {
   applyJoinRequestReviewStrategy,
   type JoinRequestReviewRecordInput,
 } from './join-request-review-strategy'
@@ -62,6 +58,7 @@ import {
   groupGuardMessage,
   type GroupGuardMessageProvider,
 } from './group-guard-message-provider'
+import { opaqueLogReference } from './log-reference'
 
 const DUPLICATE_REMINDER_SUPPRESS_MS = 30_000
 
@@ -71,7 +68,6 @@ interface MemberGuardDeps {
   policyStore: GuardPolicyStore
   moderationStore: ModerationStore
   logger: Logger
-  isFreshmanForwardEnabled?: () => Promise<boolean> | boolean
   isTimeCodeReminderEnabled?: () => Promise<boolean> | boolean
   admissionSubjectCoordinator?: AdmissionSubjectCoordinator
   reminderDeduper?: AdmissionReminderDeduper
@@ -108,8 +104,8 @@ export class MemberGuardService {
       if (isAdmissionPolicyNotFound(error)) {
         this.deps.logger.warn('group guard admission join request policy not found', {
           platform: admissionPlatform,
-          guildId,
-          memberId,
+          guildRef: opaqueLogReference('guild', guildId),
+          memberRef: opaqueLogReference('member', memberId),
         })
         return
       }
@@ -212,7 +208,6 @@ export class MemberGuardService {
         now: this.deps.now,
       })
     }
-    await this.forwardFreshmanMaterials(bots)
   }
 
   async handleQueuedAdmissionAction(bot: GuardBotRuntime, action: AdmissionPendingAction) {
@@ -258,23 +253,9 @@ export class MemberGuardService {
         qqID: record.memberId,
         botSelfID: record.botSelfId,
       })
-      if (admission.session.status === 'verified') {
-        await bot.muteGuildMember(record.guildId, record.memberId, 0)
+      if (admission.session.status === 'admitted' || admission.session.status === 'released') {
         const released = await this.deps.guardStore.markReleased(record.id, now)
         if (released === false) return
-        await this.deps.moderationStore.appendEvent({
-          platform: record.platform,
-          botSelfId: record.botSelfId,
-          guildId: record.guildId,
-          channelId: record.channelId,
-          memberId: record.memberId,
-          type: 'join_guarded',
-          level: 'low',
-          summary: groupGuardMessage(messages, 'admissionJoinBackendVerifiedEventSummary', { memberId: record.memberId }),
-          payload: {
-            admissionSessionID: admission.session.id,
-          },
-        })
         return
       }
       const update = backendSyncUpdate(admission)
@@ -305,7 +286,7 @@ export class MemberGuardService {
       const message = formatAdmissionActionError(error)
       await this.deps.guardStore.markLastError(record.id, message, now)
       this.deps.logger.warn('group guard admission backend sync failed', {
-        guardRecordID: record.id,
+        guardRecordRef: opaqueLogReference('guard', record.id),
         error: message,
       })
     }
@@ -382,7 +363,7 @@ export class MemberGuardService {
       })
     } catch (error) {
       this.deps.logger.warn('group guard admission reminder state sync failed', {
-        sessionID,
+        sessionRef: opaqueLogReference('session', sessionID),
         error: formatAdmissionActionError(error),
       })
     }
@@ -392,7 +373,7 @@ export class MemberGuardService {
     if (action.actionID) {
       const dispatchAttempt = action.dispatchAttempt
       if (!Number.isInteger(dispatchAttempt) || dispatchAttempt! <= 0) {
-        throw new Error(`admission action ${action.sessionID} missing valid dispatchAttempt`)
+        throw new Error('admission action missing valid dispatchAttempt')
       }
       await this.deps.platform.recordAdmissionActionEvent(action.actionID, {
         ...event,
@@ -451,60 +432,10 @@ export class MemberGuardService {
     })
     this.deps.logger.warn('group guard admission action failed', {
       action: action.action,
-      sessionID: action.sessionID,
-      guardRecordID: record?.id,
+      sessionRef: opaqueLogReference('session', action.sessionID),
+      guardRecordRef: opaqueLogReference('guard', record?.id),
       error: message,
     })
-  }
-
-  private async forwardFreshmanMaterials(bots: readonly GuardBotRuntime[]) {
-    if (this.deps.isFreshmanForwardEnabled && !await this.deps.isFreshmanForwardEnabled()) {
-      return
-    }
-    const forwardBots = bots.filter(isAdmissionActionPlatform)
-    if (!forwardBots.length) {
-      return
-    }
-
-    const items = await this.deps.platform.listPendingFreshmanForwards()
-    const messages = await this.getMessages()
-    const failures: unknown[] = []
-    for (const item of items) {
-      try {
-        const bot = resolveFreshmanForwardBot(forwardBots, item)
-        await forwardFreshmanMaterial(bot, item, messages)
-      } catch (error) {
-        failures.push(error)
-        this.deps.logger.warn('group guard freshman forward failed', {
-          applicationID: item.application.id,
-          phase: 'delivery',
-          error: formatAdmissionActionError(error),
-        })
-        continue
-      }
-      try {
-        await this.deps.platform.markFreshmanForwarded(item.application.id)
-      } catch (error) {
-        this.deps.logger.warn('group guard freshman forward failed', {
-          applicationID: item.application.id,
-          phase: 'ack',
-          error: formatAdmissionActionError(error),
-        })
-        if (failures.length) {
-          throw new AggregateError(
-            [...failures, error],
-            'freshman forward batch failed during acknowledgement',
-          )
-        }
-        throw error
-      }
-    }
-    if (failures.length === 1) {
-      throw failures[0]
-    }
-    if (failures.length > 1) {
-      throw new AggregateError(failures, 'freshman forward batch failed')
-    }
   }
 
   private async getMessages() {

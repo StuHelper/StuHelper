@@ -82,7 +82,7 @@ const baseSession: AdmissionSession = {
   channelID: '178037297',
   qqID: '1390191645',
   userID: '42',
-  status: 'linked',
+  status: 'awaiting_requirements',
   tokenExpiresAt: '2026-06-02T06:00:00Z',
   tokenConsumedAt: '2026-06-02T05:00:00Z',
   linkWaitDeadlineAt: '2026-06-02T06:00:00Z',
@@ -157,7 +157,9 @@ describe('AdmissionSessionTable', () => {
     expect(wrapper.text()).toContain('unmute failed');
     expect(wrapper.text()).toContain('后端 admission session');
     expect(wrapper.text()).toContain('Koishi WebUI 显示现场 guard record');
-    expect(wrapper.text()).toContain('账号已绑定，等待学生认证或材料提交。');
+    expect(wrapper.text()).toContain(
+      '账号已关联，但当前学生资格尚未满足群策略。',
+    );
     expect(wrapper.text()).toContain('存在 Bot 执行错误');
     expect(wrapper.find('[data-field="statusHint"]').exists()).toBe(true);
     expect(wrapper.find('[data-field="runtimeBoundary"]').exists()).toBe(true);
@@ -264,12 +266,14 @@ describe('AdmissionSessionTable', () => {
   });
 
   it('uses operator-facing status labels and tag severity', () => {
-    expect(statusLabel('joined_muted')).toBe('已入群禁言');
-    expect(statusTagType('joined_muted')).toBe('danger');
-    expect(statusLabel('verified')).toBe('已通过');
-    expect(statusTagType('verified')).toBe('success');
-    expect(statusOperationHint('joined_muted')).toContain('等待用户打开链接');
-    expect(statusOperationHint('verified')).toContain('Koishi 解除禁言同步');
+    expect(statusLabel('awaiting_account_link')).toBe('等待绑定账号');
+    expect(statusTagType('awaiting_account_link')).toBe('primary');
+    expect(statusLabel('admitted')).toBe('已准入');
+    expect(statusTagType('admitted')).toBe('success');
+    expect(statusOperationHint('awaiting_account_link')).toContain(
+      '绑定到 StuHelper',
+    );
+    expect(statusOperationHint('action_pending')).toContain('Koishi');
     expect(admissionReissueCommand(baseSession)).toBe(
       '重新生成认证链接 1390191645',
     );
@@ -277,7 +281,7 @@ describe('AdmissionSessionTable', () => {
     expect(botErrorLabel({ ...baseSession, lastBotError: null })).toBe(
       '暂无 Bot 错误',
     );
-    expect(canManageAdmissionSession('linked')).toBe(true);
-    expect(canManageAdmissionSession('verified')).toBe(false);
+    expect(canManageAdmissionSession('awaiting_requirements')).toBe(true);
+    expect(canManageAdmissionSession('admitted')).toBe(false);
   });
 });

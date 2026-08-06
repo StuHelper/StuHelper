@@ -13,10 +13,10 @@ test('syncGuardPolicyFromAdmissionTargets creates default template and qq bindin
   const store = createPolicyStore()
 
   const targets = [
-    { policyID: 'policy-178', platform: 'qq', guildID: '178037297', guardEnabled: true },
-    { policyID: 'policy-duplicate', platform: 'qq', guildID: '178037297', guardEnabled: true },
-    { policyID: 'policy-empty', platform: 'qq', guildID: ' ', guardEnabled: true },
-    { policyID: 'policy-other', platform: 'telegram', guildID: 'ignored', guardEnabled: true },
+    { policyID: 'policy-178', platform: 'qq', guildID: '178037297', guardEnabled: true, managementGuildIDs: [] },
+    { policyID: 'policy-duplicate', platform: 'qq', guildID: '178037297', guardEnabled: true, managementGuildIDs: [] },
+    { policyID: 'policy-empty', platform: 'qq', guildID: ' ', guardEnabled: true, managementGuildIDs: [] },
+    { policyID: 'policy-other', platform: 'telegram', guildID: 'ignored', guardEnabled: true, managementGuildIDs: [] },
   ]
 
   const first = await syncGuardPolicyFromAdmissionTargets(store as unknown as GuardPolicyStore, targets)
@@ -49,18 +49,19 @@ test('syncGuardPolicyFromAdmissionTargets creates default template and qq bindin
 test('syncGuardPolicyFromAdmissionTargets applies backend policy target enabled state', async () => {
   const store = createPolicyStore()
   await syncGuardPolicyFromAdmissionTargets(store as unknown as GuardPolicyStore, [
-    { policyID: 'policy-178', platform: 'qq', guildID: '178037297', guardEnabled: true },
+    { policyID: 'policy-178', platform: 'qq', guildID: '178037297', guardEnabled: true, managementGuildIDs: [] },
   ])
 
   const result = await syncGuardPolicyFromAdmissionTargets(store as unknown as GuardPolicyStore, [
-    { policyID: 'policy-178', platform: 'qq', guildID: '178037297', guardEnabled: false },
-    { policyID: 'policy-743', platform: 'qq', guildID: '743762161', guardEnabled: true },
+    { policyID: 'policy-178', platform: 'qq', guildID: '178037297', guardEnabled: false, managementGuildIDs: [] },
+    { policyID: 'policy-743', platform: 'qq', guildID: '743762161', guardEnabled: true, managementGuildIDs: [] },
     {
       policyID: 'policy-review',
       platform: 'qq',
       guildID: 'review-only',
       guardEnabled: true,
       joinHandlingStrategy: 'join_request_review',
+      managementGuildIDs: [],
     },
     {
       policyID: 'policy-code',
@@ -69,9 +70,10 @@ test('syncGuardPolicyFromAdmissionTargets applies backend policy target enabled 
       guardEnabled: true,
       joinHandlingStrategy: 'post_join_time_code',
       linkWaitSeconds: 450,
+      managementGuildIDs: [],
     },
-    { policyID: 'policy-old-backend', platform: 'qq', guildID: 'old-backend' },
-    { policyID: 'policy-other', platform: 'telegram', guildID: 'ignored', guardEnabled: true },
+    { policyID: 'policy-old-backend', platform: 'qq', guildID: 'old-backend', managementGuildIDs: [] },
+    { policyID: 'policy-other', platform: 'telegram', guildID: 'ignored', guardEnabled: true, managementGuildIDs: [] },
   ])
 
   assert.deepEqual(result, {
@@ -96,12 +98,12 @@ test('syncGuardPolicyFromAdmissionTargets applies backend policy target enabled 
 test('syncGuardPolicyFromAdmissionTargets disables stale qq bindings absent from backend targets', async () => {
   const store = createPolicyStore()
   await syncGuardPolicyFromAdmissionTargets(store as unknown as GuardPolicyStore, [
-    { policyID: 'policy-178', platform: 'qq', guildID: '178037297', guardEnabled: true },
-    { policyID: 'policy-743', platform: 'qq', guildID: '743762161', guardEnabled: true },
+    { policyID: 'policy-178', platform: 'qq', guildID: '178037297', guardEnabled: true, managementGuildIDs: [] },
+    { policyID: 'policy-743', platform: 'qq', guildID: '743762161', guardEnabled: true, managementGuildIDs: [] },
   ])
 
   const result = await syncGuardPolicyFromAdmissionTargets(store as unknown as GuardPolicyStore, [
-    { policyID: 'policy-743', platform: 'qq', guildID: '743762161', guardEnabled: true },
+    { policyID: 'policy-743', platform: 'qq', guildID: '743762161', guardEnabled: true, managementGuildIDs: [] },
   ])
 
   assert.deepEqual(result, {

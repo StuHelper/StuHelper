@@ -109,10 +109,10 @@ const shortcuts: WorkspaceLink[] = [
     path: '/content/reports',
   },
   {
-    authority: ['user:identity:review'],
-    icon: 'lucide:id-card',
-    label: '实名审核',
-    path: '/users/identity-review',
+    authority: ['student:manual_review:read', 'student:manual_review:decide'],
+    icon: 'lucide:badge-check',
+    label: '学生材料审核',
+    path: '/users/student-verification',
   },
   {
     authority: ['member_blacklist:read', 'member_blacklist:manage'],

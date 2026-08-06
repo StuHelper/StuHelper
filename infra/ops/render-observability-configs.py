@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 from pathlib import Path
 
 
@@ -17,9 +18,12 @@ GENERATED_OBS_DIR = Path(
 )
 PROM_OUTPUT = GENERATED_OBS_DIR / "prometheus/prometheus.yml"
 ALERT_OUTPUT = GENERATED_OBS_DIR / "alertmanager/alertmanager.yml"
+ALERT_TOKEN_OUTPUT = GENERATED_OBS_DIR / "alertmanager/webhook-token"
+ALERT_TOKEN_CONTAINER_PATH = "/etc/alertmanager/secrets/webhook-token"
 PRODUCTION_EXTERNAL_HTTP_TARGETS = (
     "          - https://sso.stuhelper.com/.well-known/openid-configuration"
 )
+ALERT_TOKEN_PATTERN = re.compile(r"^[A-Za-z0-9._~+/=-]+$")
 
 
 def env(name: str, default: str = "") -> str:
@@ -47,10 +51,36 @@ def write_prometheus(mode: str) -> None:
 
 def write_alertmanager(mode: str) -> None:
     webhook = env("ALERTMANAGER_WEBHOOK_URL")
+    token = env("ALERTMANAGER_WEBHOOK_TOKEN")
     if mode == "prod" and not webhook:
         raise SystemExit("ALERTMANAGER_WEBHOOK_URL is required in production deploy mode")
+    if mode == "prod" and not token:
+        raise SystemExit("ALERTMANAGER_WEBHOOK_TOKEN is required in production deploy mode")
+    if token and (
+        len(token.encode("utf-8")) < 32
+        or len(token.encode("utf-8")) > 512
+        or not ALERT_TOKEN_PATTERN.fullmatch(token)
+    ):
+        raise SystemExit(
+            "ALERTMANAGER_WEBHOOK_TOKEN must be 32-512 bytes using the approved token alphabet"
+        )
+
+    ALERT_TOKEN_OUTPUT.parent.mkdir(parents=True, exist_ok=True)
+    token_fd = os.open(ALERT_TOKEN_OUTPUT, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o640)
+    try:
+        os.fchmod(token_fd, 0o640)
+        os.write(token_fd, token.encode("utf-8"))
+    finally:
+        os.close(token_fd)
 
     if webhook:
+        authorization = ""
+        if token:
+            authorization = f"""
+        http_config:
+          authorization:
+            type: Bearer
+            credentials_file: {ALERT_TOKEN_CONTAINER_PATH}"""
         rendered = f"""global:
   resolve_timeout: 5m
 
@@ -71,8 +101,8 @@ route:
 receivers:
   - name: webhook
     webhook_configs:
-              - url: {yaml_quote(webhook)}
-                send_resolved: true
+      - url: {yaml_quote(webhook)}
+        send_resolved: true{authorization}
 """
     else:
         rendered = """global:

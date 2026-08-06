@@ -6,7 +6,6 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import {
   ElAlert,
   ElButton,
-  ElDatePicker,
   ElDialog,
   ElForm,
   ElFormItem,
@@ -34,7 +33,6 @@ const loading = ref(false);
 const loadError = ref('');
 const actionError = ref('');
 const policies = ref<AdmissionPolicy[]>([]);
-const managementGuildText = reactive<Record<string, string>>({});
 const savingPolicyIDs = reactive<Record<string, boolean>>({});
 const createPolicyDialogVisible = ref(false);
 const createPolicySubmitting = ref(false);
@@ -45,23 +43,15 @@ const createPolicyForm = reactive({
 });
 let fetchRequestSeq = 0;
 
-const POLICY_DATETIME_FORMAT = 'YYYY-MM-DDTHH:mm:ssZ';
-
 const policyFieldLabels = {
+  allowTemporaryFreshman: '允许临时新生凭据入群',
   blacklistDurationSeconds: '自动拉黑时长（秒）',
   failedJoinLimit: '失败入群上限',
-  forwardRawMaterialToQQ: '转发原始材料到 QQ',
-  freshmanChannelClosesAt: '新生通道关闭时间',
-  freshmanChannelEnabled: '启用新生入群通道',
-  freshmanDefaultExpiresAt: '默认临时认证到期时间',
   guardEnabled: '启用入群认证守卫',
   initialMuteDurationSeconds: '入群初始禁言（秒）',
   joinHandlingStrategy: '入群处理策略',
   linkWaitSeconds: '学生认证链接等待（秒）',
-  managementGuildIDs: '材料审核通知群号',
   manualReviewTimeoutSeconds: '人工审核超时（秒）',
-  maxExtensionDays: '最大延期天数',
-  maxMaterialBytes: '材料大小上限（字节）',
   reminderIntervalSeconds: '提醒间隔（秒）',
   submissionWaitSeconds: '材料提交等待（秒）',
   unverifiedJoinRejectReason: '未认证拒绝理由',
@@ -80,26 +70,15 @@ const createSourceOptions = computed(() =>
   })),
 );
 
-type AdmissionPolicyBoundary = Omit<AdmissionPolicy, 'managementGuildIDs'> & {
+type AdmissionPolicyBoundary = AdmissionPolicy & {
   joinHandlingStrategy?: AdmissionPolicy['joinHandlingStrategy'];
-  managementGuildIDs?: null | string[];
   unverifiedJoinRejectReason?: null | string;
 };
-
-function normalizeManagementGuildIDs(values?: null | string[]) {
-  if (!Array.isArray(values)) {
-    return [];
-  }
-  return values
-    .map((value) => value.trim())
-    .filter((value) => value.length > 0);
-}
 
 function normalizePolicy(policy: AdmissionPolicyBoundary): AdmissionPolicy {
   return {
     ...policy,
     joinHandlingStrategy: policy.joinHandlingStrategy ?? 'post_join_guard',
-    managementGuildIDs: normalizeManagementGuildIDs(policy.managementGuildIDs),
     unverifiedJoinRejectReason:
       policy.unverifiedJoinRejectReason?.trim() ||
       '请先完成 StuHelper 学生认证后再申请入群。',
@@ -114,9 +93,6 @@ async function fetchData() {
     const data = await listAdmissionPolicies();
     if (requestSeq !== fetchRequestSeq) return;
     policies.value = data.map((policy) => normalizePolicy(policy));
-    for (const policy of policies.value) {
-      managementGuildText[policy.id] = policy.managementGuildIDs.join('\n');
-    }
     if (!createPolicyForm.sourcePolicyID) {
       createPolicyForm.sourcePolicyID = policies.value[0]?.id ?? '';
     }
@@ -128,14 +104,6 @@ async function fetchData() {
       loading.value = false;
     }
   }
-}
-
-function parseManagementGuildIDs(policyID: string) {
-  return parseGuildIDText(managementGuildText[policyID] ?? '');
-}
-
-function managementGuildCount(policy: AdmissionPolicy) {
-  return parseManagementGuildIDs(policy.id).length;
 }
 
 function joinHandlingStrategyLabel(policy: AdmissionPolicy) {
@@ -203,10 +171,8 @@ function saveImpactSummary(policy: AdmissionPolicy) {
   const summary = [
     `目标认证群：${policy.platform.toUpperCase()} ${policy.guildID}`,
     `执行状态：${guardSyncLabel(policy)}`,
+    `临时新生凭据：${policy.allowTemporaryFreshman ? '允许' : '不允许'}`,
   ];
-  if (usesStudentVerificationFlow(policy)) {
-    summary.push(`审核通知群：${managementGuildCount(policy)} 个`);
-  }
   return summary.join('；');
 }
 
@@ -280,7 +246,6 @@ async function savePolicy(policy: AdmissionPolicy) {
       autoApproveJoin: isPostJoinLocalStrategy(policy),
       autoApproveVerifiedJoin: true,
       autoApproveUnverifiedJoin: isPostJoinLocalStrategy(policy),
-      managementGuildIDs: parseManagementGuildIDs(policy.id),
     });
     ElMessage.success(
       `已保存 ${policy.platform.toUpperCase()} 群 ${policy.guildID} 入群认证策略`,
@@ -380,10 +345,12 @@ onMounted(fetchData);
           >
             <span>目标认证群：{{ policy.guildID }}</span>
             <span>入群处理：{{ joinHandlingStrategyLabel(policy) }}</span>
-            <span v-if="usesStudentVerificationFlow(policy)">
-              审核通知群：{{ managementGuildCount(policy) }} 个
+            <span>
+              临时新生凭据：{{
+                policy.allowTemporaryFreshman ? '允许入群' : '不允许入群'
+              }}
             </span>
-            <span v-else-if="isPostJoinTimeCodeStrategy(policy)">
+            <span v-if="isPostJoinTimeCodeStrategy(policy)">
               验证码等待：{{ policy.linkWaitSeconds }} 秒
             </span>
           </div>
@@ -498,56 +465,20 @@ onMounted(fetchData);
           </div>
         </section>
 
-        <section
-          v-if="usesStudentVerificationFlow(policy)"
-          class="grid gap-4 border-b border-slate-200 py-4"
-        >
+        <section class="grid gap-4 border-b border-slate-200 py-4">
           <div>
-            <h3 class="text-sm font-semibold text-slate-900">
-              新生材料与审核通知
-            </h3>
+            <h3 class="text-sm font-semibold text-slate-900">学生资格策略</h3>
             <p class="mt-1 text-sm text-slate-500">
-              审核通知群只接收材料审核提醒，不会被同步为 Koishi 入群认证目标群。
+              正式学生凭据始终可满足学生资格。临时新生凭据仅在本开关启用且凭据仍有效时可入群；人工材料审核在独立学生认证模块完成。
             </p>
           </div>
-          <div class="grid gap-4 lg:grid-cols-3">
-            <ElFormItem :label="policyFieldLabels.freshmanChannelEnabled">
-              <ElSwitch v-model="policy.freshmanChannelEnabled" />
-            </ElFormItem>
-            <ElFormItem :label="policyFieldLabels.freshmanChannelClosesAt">
-              <ElDatePicker
-                v-model="policy.freshmanChannelClosesAt"
-                type="datetime"
-                :value-format="POLICY_DATETIME_FORMAT"
-              />
-            </ElFormItem>
-            <ElFormItem :label="policyFieldLabels.freshmanDefaultExpiresAt">
-              <ElDatePicker
-                v-model="policy.freshmanDefaultExpiresAt"
-                type="datetime"
-                :value-format="POLICY_DATETIME_FORMAT"
-              />
-            </ElFormItem>
-          </div>
-          <div
-            class="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(260px,1fr)]"
-          >
-            <ElFormItem :label="policyFieldLabels.managementGuildIDs">
-              <ElInput
-                v-model="managementGuildText[policy.id]"
-                placeholder="每行一个材料审核通知群号，可留空；这里不是目标认证群"
-                :rows="3"
-                type="textarea"
-              />
-              <p class="mt-2 text-xs leading-5 text-slate-500">
-                当前将向
-                {{ managementGuildCount(policy) }} 个审核通知群转发审核提醒。
-              </p>
-            </ElFormItem>
-            <ElFormItem :label="policyFieldLabels.forwardRawMaterialToQQ">
-              <ElSwitch v-model="policy.forwardRawMaterialToQQ" />
-            </ElFormItem>
-          </div>
+          <ElFormItem :label="policyFieldLabels.allowTemporaryFreshman">
+            <ElSwitch
+              v-model="policy.allowTemporaryFreshman"
+              active-text="允许"
+              inactive-text="仅正式学生"
+            />
+          </ElFormItem>
         </section>
 
         <section
@@ -557,10 +488,10 @@ onMounted(fetchData);
           <div>
             <h3 class="text-sm font-semibold text-slate-900">失败与限制</h3>
             <p class="mt-1 text-sm text-slate-500">
-              控制多次未认证、黑名单、延期和上传材料大小限制。
+              控制多次未认证和自动黑名单。凭据延期与人工材料由学生认证管理面负责。
             </p>
           </div>
-          <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div class="grid gap-4 md:grid-cols-2">
             <ElFormItem :label="policyFieldLabels.failedJoinLimit">
               <ElInputNumber v-model="policy.failedJoinLimit" :min="1" />
             </ElFormItem>
@@ -569,12 +500,6 @@ onMounted(fetchData);
                 v-model="policy.blacklistDurationSeconds"
                 :min="0"
               />
-            </ElFormItem>
-            <ElFormItem :label="policyFieldLabels.maxMaterialBytes">
-              <ElInputNumber v-model="policy.maxMaterialBytes" :min="1" />
-            </ElFormItem>
-            <ElFormItem :label="policyFieldLabels.maxExtensionDays">
-              <ElInputNumber v-model="policy.maxExtensionDays" :min="1" />
             </ElFormItem>
           </div>
         </section>

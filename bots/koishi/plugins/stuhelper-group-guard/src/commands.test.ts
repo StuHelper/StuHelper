@@ -439,7 +439,7 @@ test('入群认证管理员命令会抑制短时间重复重新生成链接', as
   }
 })
 
-test('重新生成认证链接遇到已认证 QQ 时解除禁言且不重发链接', async () => {
+test('重新生成认证链接遇到已准入 QQ 时不重复执行解禁且不重发链接', async () => {
   const requests: CapturedAdmissionAdminRequest[] = []
   const server = createServer((req, res) => respondAdmissionAdminRequest(req, res, requests))
   await new Promise<void>((resolve) => server.listen(0, resolve))
@@ -481,14 +481,11 @@ test('重新生成认证链接遇到已认证 QQ 时解除禁言且不重发链�
     assert.match(replies[0], /10003[\s\S]*已完成 StuHelper 学生身份认证[\s\S]*已解除禁言/)
     assert.doesNotMatch(replies[0], /https:\/\/join\.stuhelper\.com\/verify\//)
 
-    await waitForRequestCount(requests, 2)
+    await waitForRequestCount(requests, 1)
     assert.deepEqual(requests.map((item) => [item.method, item.path]), [
       ['POST', '/api/v1/bot/admission/sessions/member/regenerate'],
-      ['POST', '/api/v1/bot/admission/sessions/session-token-verified/events'],
     ])
-    assert.equal(requests[1].body.action, 'release')
-    assert.equal(requests[1].body.success, true)
-    assert.deepEqual(muteActions, [{ guildId: 'group-1', memberId: '10003', duration: 0 }])
+    assert.deepEqual(muteActions, [])
 
     const [record] = await root.database.get(GUARD_MEMBER_TABLE, { id: 'qq:514:group-1:10003' })
     assert.ok(record)
@@ -749,15 +746,15 @@ async function respondAdmissionAdminRequest(
     if (url.searchParams.get('qqID') === '10002') {
       res.end(JSON.stringify({
         success: true,
-        data: admissionAdminSession('expired_kicked', 'token-expired', { userID: 6 }),
+        data: admissionAdminSession('expired', 'token-expired', { userID: 6 }),
       }))
       return
     }
-    res.end(JSON.stringify({ success: true, data: admissionAdminSession('linked', 'token-current') }))
+    res.end(JSON.stringify({ success: true, data: admissionAdminSession('awaiting_requirements', 'token-current') }))
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/v1/bot/admission/sessions/member/resend') {
-    res.end(JSON.stringify({ success: true, data: admissionAdminSession('linked', 'token-current') }))
+    res.end(JSON.stringify({ success: true, data: admissionAdminSession('awaiting_requirements', 'token-current') }))
     return
   }
   if (req.method === 'POST' && url.pathname === '/api/v1/bot/admission/sessions/member/regenerate') {
@@ -766,7 +763,7 @@ async function respondAdmissionAdminRequest(
       res.end(JSON.stringify({
         success: true,
         data: {
-          session: admissionAdminSession('verified', 'token-verified', {
+          session: admissionAdminSession('admitted', 'token-verified', {
             qqID: '10003',
             userID: 7,
             tokenConsumedAt: new Date().toISOString(),
@@ -781,7 +778,7 @@ async function respondAdmissionAdminRequest(
     res.end(JSON.stringify({
       success: true,
       data: {
-        session: admissionAdminSession('joined_muted', 'token-new'),
+        session: admissionAdminSession('awaiting_account_link', 'token-new'),
         token: 'token-new',
         authURL: 'https://join.stuhelper.com/verify/token-new',
       },

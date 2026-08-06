@@ -138,7 +138,7 @@ function sessionActionDisabled(row: AdmissionSession) {
             复制认证链接
           </ElButton>
           <ElButton
-            v-if="row.status !== 'verified'"
+            v-if="canManageAdmissionSession(row.status)"
             data-action="copyReissueCommand"
             link
             size="small"

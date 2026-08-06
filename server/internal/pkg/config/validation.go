@@ -200,6 +200,18 @@ func (c *Config) validate(parseErrs []string) error {
 			errs = append(errs, "EMAIL_DRIVER must be smtp, blackhole, tencent_ses, resend, or multi")
 		}
 	}
+	if c.Email.InboundEnabled {
+		if configStringMissing(c.Email.InboundTargetAddress) ||
+			!strings.Contains(strings.TrimSpace(c.Email.InboundTargetAddress), "@") {
+			errs = append(errs, "EMAIL_INBOUND_TARGET_ADDRESS must be a mailbox when EMAIL_INBOUND_ENABLED=true")
+		}
+		if len(c.Email.InboundWebhookSecret) < 32 {
+			errs = append(errs, "EMAIL_INBOUND_WEBHOOK_SECRET must be at least 32 bytes when EMAIL_INBOUND_ENABLED=true")
+		}
+		if c.Email.InboundWebhookMaxSkewSeconds < 60 || c.Email.InboundWebhookMaxSkewSeconds > 1800 {
+			errs = append(errs, "EMAIL_INBOUND_WEBHOOK_MAX_SKEW_SECONDS must be between 60 and 1800")
+		}
+	}
 
 	if productionLike {
 		if configStringMissing(c.Database.URL) {
@@ -238,6 +250,9 @@ func (c *Config) validate(parseErrs []string) error {
 		if configStringMissing(c.Admission.PublicBaseURL) {
 			errs = append(errs, "ADMISSION_PUBLIC_BASE_URL is required in production")
 		}
+		if configStringMissing(c.StudentVerification.PublicBaseURL) {
+			errs = append(errs, "STUDENT_VERIFICATION_PUBLIC_BASE_URL is required in production")
+		}
 		if !c.SMS.Enabled {
 			errs = append(errs, "SMS_ENABLED must be true in production")
 		}
@@ -271,6 +286,11 @@ func (c *Config) validate(parseErrs []string) error {
 		}
 	}
 	errs = append(errs, validateAdmissionPublicBaseURL(c.Admission.PublicBaseURL, productionLike)...)
+	errs = append(errs, validateStudentVerificationPublicBaseURL(
+		c.StudentVerification.PublicBaseURL,
+		productionLike,
+	)...)
+	errs = append(errs, validateCampusConnectorGatewayConfig(c.CampusConnector)...)
 	errs = append(errs, validateExternalDataConfig(c.ExternalData, productionLike)...)
 
 	if len(parseErrs) > 0 {
@@ -840,17 +860,14 @@ func validateExternalOracleStudentSource(cfg ExternalOracleStudentSourceConfig, 
 		}
 	}
 	if isDisallowedExternalOracleRuntimeUsername(cfg.Username) {
-		errs = append(errs, "EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME must be a dedicated non-administrative account")
+		errs = append(errs, "EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME must not be a built-in administrative account")
 	}
 	if strings.TrimSpace(cfg.ExpectedUsername) != "" && !isSafeExternalOracleIdentifier(cfg.ExpectedUsername) {
 		errs = append(errs, "EXTERNAL_STUDENT_SOURCE_ORACLE_READONLY_USERNAME must be a safe Oracle identifier")
 	}
 	if strings.TrimSpace(cfg.Username) != "" && strings.TrimSpace(cfg.ExpectedUsername) != "" &&
 		!strings.EqualFold(strings.TrimSpace(cfg.Username), strings.TrimSpace(cfg.ExpectedUsername)) {
-		errs = append(errs, "EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME must match EXTERNAL_STUDENT_SOURCE_ORACLE_READONLY_USERNAME")
-	}
-	if strings.EqualFold(strings.TrimSpace(cfg.Username), strings.TrimSpace(cfg.Schema)) {
-		errs = append(errs, "EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME must not own the source schema")
+		errs = append(errs, "EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME must match the explicitly configured existing account")
 	}
 	if cfg.Port <= 0 || cfg.Port > 65535 {
 		errs = append(errs, fmt.Sprintf("EXTERNAL_STUDENT_SOURCE_ORACLE_PORT must be between 1 and 65535 (got %d)", cfg.Port))
@@ -964,6 +981,76 @@ func validateAdmissionPublicBaseURL(raw string, productionLike bool) []string {
 		return []string{"ADMISSION_PUBLIC_BASE_URL must be https://join.stuhelper.com in production"}
 	}
 	return nil
+}
+
+func validateStudentVerificationPublicBaseURL(raw string, productionLike bool) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" ||
+		(parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return []string{"STUDENT_VERIFICATION_PUBLIC_BASE_URL must be an absolute http(s) URL"}
+	}
+	if parsed.RawQuery != "" || parsed.Fragment != "" {
+		return []string{"STUDENT_VERIFICATION_PUBLIC_BASE_URL must not include query or fragment"}
+	}
+	if parsed.Path != "" && parsed.Path != "/" {
+		return []string{"STUDENT_VERIFICATION_PUBLIC_BASE_URL must not include a path"}
+	}
+	if productionLike && parsed.Scheme != "https" {
+		return []string{"STUDENT_VERIFICATION_PUBLIC_BASE_URL must use https in production"}
+	}
+	if productionLike && strings.TrimRight(raw, "/") != "https://stuhelper.com" {
+		return []string{"STUDENT_VERIFICATION_PUBLIC_BASE_URL must be https://stuhelper.com in production"}
+	}
+	return nil
+}
+
+func validateCampusConnectorGatewayConfig(cfg CampusConnectorGatewayConfig) []string {
+	if !cfg.Enabled {
+		return nil
+	}
+	var errs []string
+	if strings.TrimSpace(cfg.ListenAddress) == "" {
+		errs = append(errs, "CAMPUS_CONNECTOR_GATEWAY_LISTEN_ADDRESS is required when the gateway is enabled")
+	} else if _, _, err := net.SplitHostPort(cfg.ListenAddress); err != nil {
+		errs = append(errs, "CAMPUS_CONNECTOR_GATEWAY_LISTEN_ADDRESS must be a host:port address")
+	}
+	for name, value := range map[string]string{
+		"CAMPUS_CONNECTOR_GATEWAY_TLS_CERT_FILE":     cfg.ServerCertificateFile,
+		"CAMPUS_CONNECTOR_GATEWAY_TLS_KEY_FILE":      cfg.ServerPrivateKeyFile,
+		"CAMPUS_CONNECTOR_GATEWAY_CLIENT_CA_FILE":    cfg.ClientCAFile,
+		"CAMPUS_CONNECTOR_SNAPSHOT_PRIVATE_KEY_FILE": cfg.SnapshotDecryptionKeyFile,
+		"CAMPUS_CONNECTOR_SNAPSHOT_KEY_ID":           cfg.SnapshotDecryptionKeyID,
+	} {
+		if strings.TrimSpace(value) == "" {
+			errs = append(errs, name+" is required when the campus connector gateway is enabled")
+		}
+	}
+	if cfg.ProtocolVersion != "1" {
+		errs = append(errs, "CAMPUS_CONNECTOR_PROTOCOL_VERSION must be 1")
+	}
+	if cfg.PollWaitSeconds < 1 || cfg.PollWaitSeconds > 60 {
+		errs = append(errs, "CAMPUS_CONNECTOR_POLL_WAIT_SECONDS must be between 1 and 60")
+	}
+	if cfg.SignatureMaxSkewSeconds < 10 || cfg.SignatureMaxSkewSeconds > 600 {
+		errs = append(errs, "CAMPUS_CONNECTOR_SIGNATURE_MAX_SKEW_SECONDS must be between 10 and 600")
+	}
+	if cfg.ReplayTTLSeconds < cfg.SignatureMaxSkewSeconds*2 || cfg.ReplayTTLSeconds > 3600 {
+		errs = append(errs, "CAMPUS_CONNECTOR_REPLAY_TTL_SECONDS must be at least twice the signature skew and at most 3600")
+	}
+	if cfg.MaxSnapshotPlaintextBytes < 1<<20 || cfg.MaxSnapshotPlaintextBytes > 1<<30 {
+		errs = append(errs, "CAMPUS_CONNECTOR_MAX_SNAPSHOT_PLAINTEXT_BYTES must be between 1 MiB and 1 GiB")
+	}
+	if cfg.MaxSnapshotRequestBytes < cfg.MaxSnapshotPlaintextBytes || cfg.MaxSnapshotRequestBytes > 1536<<20 {
+		errs = append(errs, "CAMPUS_CONNECTOR_MAX_SNAPSHOT_REQUEST_BYTES must be no smaller than plaintext limit and at most 1536 MiB")
+	}
+	if cfg.MaxInteractivePasswordBytes < 64 || cfg.MaxInteractivePasswordBytes > 4096 {
+		errs = append(errs, "CAMPUS_CONNECTOR_MAX_PASSWORD_BYTES must be between 64 and 4096")
+	}
+	return errs
 }
 
 func validateOpenPlatformTokenProbe(cfg OpenPlatformTokenProbeConfig, production bool) []string {

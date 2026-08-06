@@ -45,12 +45,13 @@ type Runtime struct {
 	shutdownOnce  sync.Once
 	cleanupOnce   sync.Once
 
-	pgPool       *pgxpool.Pool
-	redisClient  *redisclient.Client
-	database     *db.DB
-	fgaClient    *fga.Client
-	tokenService *token.Service
-	oidcClient   *oidc.Client
+	pgPool          *pgxpool.Pool
+	redisClient     *redisclient.Client
+	database        *db.DB
+	fgaClient       *fga.Client
+	tokenService    *token.Service
+	oidcClient      *oidc.Client
+	campusConnector *campusConnectorRuntime
 }
 
 // Run 启动应用。

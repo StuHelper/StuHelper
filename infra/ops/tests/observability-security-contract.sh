@@ -40,6 +40,9 @@ assert_block_not_contains() {
 
 proxy_block="$(service_block "${OBS_COMPOSE}" docker-socket-proxy)"
 alloy_block="$(service_block "${OBS_COMPOSE}" alloy)"
+prometheus_block="$(service_block "${OBS_COMPOSE}" prometheus)"
+alertmanager_block="$(service_block "${OBS_COMPOSE}" alertmanager)"
+blackbox_block="$(service_block "${OBS_COMPOSE}" blackbox-exporter)"
 tempo_block="$(service_block "${OBS_COMPOSE}" tempo)"
 grafana_block="$(service_block "${OBS_COMPOSE}" grafana)"
 
@@ -62,6 +65,21 @@ assert_block_contains "${alloy_block}" 'read_only: true'
 assert_block_contains "${alloy_block}" 'cap_drop:'
 assert_block_not_contains "${alloy_block}" '/var/run/docker.sock'
 assert_block_not_contains "${alloy_block}" '/var/lib/docker/containers'
+
+# Prometheus scrapes app:8080 directly, so it must share the backend network
+# with the application while retaining the isolated observability network for
+# exporters and the rest of the telemetry stack.
+assert_block_contains "${prometheus_block}" '- backend'
+assert_block_contains "${prometheus_block}" '- observability'
+
+assert_block_contains "${alertmanager_block}" 'webhook-token:/etc/alertmanager/secrets/webhook-token:ro'
+assert_block_contains "${alertmanager_block}" '"${ALERTMANAGER_CONFIG_GID:-65534}"'
+assert_block_not_contains "${alertmanager_block}" 'ALERTMANAGER_WEBHOOK_TOKEN:'
+
+# Blackbox executes the probes for app/frontend/admin/OpenFGA itself; reaching
+# only the Prometheus-facing observability network is insufficient.
+assert_block_contains "${blackbox_block}" '- backend'
+assert_block_contains "${blackbox_block}" '- observability'
 
 grep -Fq '__meta_docker_container_label_com_docker_compose_project' "${ALLOY_CONFIG}" ||
   fail "Alloy must filter discovery by Compose project"
@@ -88,7 +106,8 @@ for setting in \
   'GF_ANALYTICS_REPORTING_ENABLED: "false"' \
   'GF_ANALYTICS_CHECK_FOR_UPDATES: "false"' \
   'GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"' \
-  'GF_NEWS_NEWS_FEED_ENABLED: "false"'; do
+  'GF_NEWS_NEWS_FEED_ENABLED: "false"' \
+  'GF_SERVER_SERVE_FROM_SUB_PATH: "true"'; do
   assert_block_contains "${grafana_block}" "${setting}"
 done
 

@@ -53,6 +53,11 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build \
     -o /app/bin/openfga-resource-smoke \
     ./cmd/openfga-resource-smoke
 
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build \
+    -ldflags="-s -w" \
+    -o /app/bin/campus-connector-registry \
+    ./cmd/campus-connector-registry
+
 # Final stage
 FROM ${RUNTIME_IMAGE}
 
@@ -75,6 +80,7 @@ COPY --from=builder /app/bin/migrate-runtime /app/migrate-runtime
 COPY --from=builder /app/bin/backfill-user-hashes /app/backfill-user-hashes
 COPY --from=builder /app/bin/external-student-source-smoke /app/external-student-source-smoke
 COPY --from=builder /app/bin/openfga-resource-smoke /app/openfga-resource-smoke
+COPY --from=builder /app/bin/campus-connector-registry /app/campus-connector-registry
 COPY --from=builder /app/migrations /app/migrations
 COPY --from=builder /app/scripts/casdoor-runtime-token-probe-runner.mjs /app/casdoor-runtime-token-probe-runner.mjs
 

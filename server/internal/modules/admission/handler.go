@@ -2,19 +2,12 @@ package admission
 
 import (
 	"context"
-	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/redis/go-redis/v9"
 
 	"github.com/StuHelper/StuHelper/server/internal/pkg/botcredential"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/httputil"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/middleware"
-)
-
-const (
-	schoolEmailLookupRateLimitPerMinute = 5
-	schoolEmailLookupRateLimitKey       = "admission-school-email-academic-lookup"
 )
 
 type BotCredentialVerifier interface {
@@ -25,20 +18,17 @@ type Handler struct {
 	service                *Service
 	internalUserIDResolver middleware.InternalUserIDResolver
 	botCredentialVerifier  BotCredentialVerifier
-	schoolEmailLimiter     *middleware.RedisRateLimiter
 	adminAuthorizers       AdminAuthorizers
 	streamStop             <-chan struct{}
 }
 
 type AdminAuthorizers struct {
-	AdmissionPolicyRead     gin.HandlerFunc
-	AdmissionPolicyUpdate   gin.HandlerFunc
-	AdmissionSessionRead    gin.HandlerFunc
-	AdmissionSessionManage  gin.HandlerFunc
-	AdmissionFreshmanRead   gin.HandlerFunc
-	AdmissionFreshmanReview gin.HandlerFunc
-	MemberBlacklistRead     gin.HandlerFunc
-	MemberBlacklistManage   gin.HandlerFunc
+	AdmissionPolicyRead    gin.HandlerFunc
+	AdmissionPolicyUpdate  gin.HandlerFunc
+	AdmissionSessionRead   gin.HandlerFunc
+	AdmissionSessionManage gin.HandlerFunc
+	MemberBlacklistRead    gin.HandlerFunc
+	MemberBlacklistManage  gin.HandlerFunc
 }
 
 type HandlerOption func(*Handler)
@@ -46,20 +36,6 @@ type HandlerOption func(*Handler)
 func WithAdminAuthorizers(authorizers AdminAuthorizers) HandlerOption {
 	return func(h *Handler) {
 		h.adminAuthorizers = authorizers
-	}
-}
-
-// WithSchoolEmailRateLimiter protects the two admission school-email routes
-// that query the external academic source with one shared per-user budget.
-func WithSchoolEmailRateLimiter(rdb *redis.Client) HandlerOption {
-	return func(h *Handler) {
-		if rdb != nil {
-			h.schoolEmailLimiter = middleware.NewRedisRateLimiter(
-				rdb,
-				schoolEmailLookupRateLimitPerMinute,
-				time.Minute,
-			)
-		}
 	}
 }
 
@@ -103,34 +79,6 @@ func (h *Handler) RegisterRoutes(api *gin.RouterGroup, authMW gin.HandlerFunc) {
 	admission.GET("/sessions/:token", h.handlePreviewAdmissionSession)
 	admission.POST("/sessions/:token/link", authMW, h.handleLinkAdmissionSession)
 	admission.GET("/me", authMW, h.handleAdmissionMe)
-	admission.POST("/freshman/applications", authMW, h.handleCreateFreshmanApplication)
-	admission.POST("/freshman/applications/:id/camera-captures", authMW, h.handleUploadFreshmanCameraCapture)
-	admission.POST("/freshman/applications/:id/camera-handoffs", authMW, h.handleCreateFreshmanCameraHandoff)
-	admission.GET("/freshman/camera-handoffs/:id", authMW, h.handleGetFreshmanCameraHandoff)
-	admission.GET("/freshman/camera-handoffs/:id/events", authMW, h.handleWatchFreshmanCameraHandoff)
-	admission.GET("/freshman/mobile-camera-handoffs/:token", h.handlePreviewFreshmanCameraHandoff)
-	admission.POST("/freshman/mobile-camera-handoffs/:token/camera-capture", h.handleUploadFreshmanCameraHandoffCapture)
-	admission.POST("/freshman/mobile-camera-handoffs/:token/continue", h.handleChooseFreshmanCameraHandoffContinuation)
-	if h.schoolEmailLimiter != nil {
-		admission.POST(
-			"/school-email/academic-match",
-			authMW,
-			middleware.EndpointRateLimitMiddleware(h.schoolEmailLimiter, schoolEmailLookupRateLimitKey),
-			h.handleMatchSchoolEmailAcademicStudent,
-		)
-		admission.POST(
-			"/school-email/request-otp",
-			authMW,
-			middleware.EndpointRateLimitMiddleware(h.schoolEmailLimiter, schoolEmailLookupRateLimitKey),
-			h.handleRequestSchoolEmailOTP,
-		)
-	} else {
-		admission.POST("/school-email/academic-match", authMW, h.handleMatchSchoolEmailAcademicStudent)
-		admission.POST("/school-email/request-otp", authMW, h.handleRequestSchoolEmailOTP)
-	}
-	admission.POST("/school-email/verify-otp", authMW, h.handleVerifySchoolEmailOTP)
-	admission.GET("/school-sso/:schoolCode/login", authMW, h.handleStartSchoolSSO)
-	admission.GET("/school-sso/:schoolCode/callback", authMW, h.handleCompleteSchoolSSO)
 }
 
 func (h *Handler) RegisterBotRoutes(api *gin.RouterGroup) {
@@ -204,26 +152,6 @@ func (h *Handler) registerBotAdmissionRoutes(bot *gin.RouterGroup) {
 		h.handleRecordBotActionEvent,
 	)
 	bot.POST("/sessions/:id/events", h.requireBotCredential(botcredential.ScopeBotAdmissionEvent), h.handleRecordBotEvent)
-	bot.GET(
-		"/freshman/applications/pending-forward",
-		h.requireBotCredential(botcredential.ScopeBotAdmissionForward),
-		h.handleListBotPendingFreshmanForwards,
-	)
-	bot.POST(
-		"/freshman/applications/:id/forwarded",
-		h.requireBotCredential(botcredential.ScopeBotAdmissionForward),
-		h.handleMarkBotFreshmanApplicationForwarded,
-	)
-	bot.POST(
-		"/freshman/applications/:id/view",
-		h.requireBotCredential(botcredential.ScopeBotAdmissionReview),
-		h.handleBotViewFreshmanApplication,
-	)
-	bot.POST(
-		"/freshman/applications/:id/review",
-		h.requireBotCredential(botcredential.ScopeBotAdmissionReview),
-		h.handleBotReviewFreshmanApplication,
-	)
 }
 
 func (h *Handler) registerBotMemberBlacklistRoutes(memberBlacklist *gin.RouterGroup) {
@@ -287,18 +215,6 @@ func (h *Handler) registerAdminAdmissionRoutes(admin *gin.RouterGroup) {
 	admin.POST(
 		"/admission/sessions/:id/cancel",
 		httputil.RouteHandlers(h.handleAdminCancelAdmissionSession, h.adminAuthorizers.AdmissionSessionManage)...,
-	)
-	admin.GET(
-		"/freshman-verifications",
-		httputil.RouteHandlers(h.handleAdminListFreshmanVerifications, h.adminAuthorizers.AdmissionFreshmanRead)...,
-	)
-	admin.GET(
-		"/freshman-verifications/:id",
-		httputil.RouteHandlers(h.handleAdminGetFreshmanVerification, h.adminAuthorizers.AdmissionFreshmanRead)...,
-	)
-	admin.PUT(
-		"/freshman-verifications/:id",
-		httputil.RouteHandlers(h.handleAdminReviewFreshmanVerification, h.adminAuthorizers.AdmissionFreshmanReview)...,
 	)
 }
 

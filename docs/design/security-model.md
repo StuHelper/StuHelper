@@ -180,13 +180,13 @@ CSV 加 UTF-8 BOM，公式注入字符（`=`、`+`、`-`、`@`）添加前缀转
 - 生产 TLS 连接只接受完整证书链与主机名校验；LDAP、PostgreSQL、Redis、对象存储和外部 Oracle 学籍源均不得使用跳过验证或仅加密不验身份的模式
 - PostgreSQL 服务端 CA 私钥/私钥证书目录只挂载到 PostgreSQL；Redis 服务端 CA 私钥、服务端私钥和仅含密码哈希的 ACL 目录只挂载到 Redis。两者启动时分别复制到 UID 70/999 可读的私有 tmpfs，源文件保持 0600。Redis 应用与 exporter 使用独立密码和显式命令白名单，exporter 无应用 key 访问权。
 - 应用、迁移、OpenFGA 和 exporter 只挂载 `postgres-client-ca` / `redis-client-ca` 中的公开 `ca.crt`；部署脚本会拒绝客户端 CA 目录中的额外文件、符号链接和私钥。
-- Oracle 学籍源只允许 TCPS `verify-full`，默认端口为 `2484`；应用只挂载独立的 `/external-student-source-tls/ca.crt` 公共 CA，不挂载服务端密钥、CA 私钥或数据库数据目录
-- Oracle 运行账号必须与源 schema owner 不同，且不得是 `SYS`、`SYSTEM`、`SYSBACKUP`、`SYSDG`、`SYSKM` 或 `SYSRAC`。账号不得继承任何 role 或列级权限；只允许直接授予无 `ADMIN OPTION` 的 `CREATE SESSION`，以及目标表上无 `GRANT OPTION`、无 `HIERARCHY OPTION` 的 `SELECT`。学号和姓名都经过长度、字符集与控制字符校验，冲突重复行和非法源记录按数据完整性故障关闭
+- Oracle 学籍源只允许由学校批准的 Campus Connector 节点通过 TCPS `verify-full` 访问；在线应用不持有 Oracle 地址、账号、口令或 CA。Oracle 公共 CA 与账号 secret 只存在于校园节点，中心应用只挂载 Campus Connector 网关所需的节点 CA、网关证书与私钥，不挂载 Oracle 或数据库服务端密钥、CA 私钥和数据目录
+- Oracle 只能使用用户明确指定的既有账号，且不得是 `SYS`、`SYSTEM`、`SYSBACKUP`、`SYSDG`、`SYSKM` 或 `SYSRAC`；StuHelper 不创建、更换、授权、回收或修改账号。运行账号必须与配置的预期 session identity 一致；账号权限较宽时记录风险但不操作 Oracle，客户端仍只允许认证和固定 `SELECT`。学号和姓名都经过长度、字符集与控制字符校验，冲突重复行和非法源记录按数据完整性故障关闭
 - 外部依赖统一通过受控 client 调用，记录固定低基数的延迟/结果指标并启用熔断；外部学籍源不可用时 User 与 Admission API 返回 503，不回退为“未匹配”，避免把基础设施故障误判为学生身份失败
 
 ## CI 安全门禁
 
-- Go：`gosec`（版本固定 v2.22.4，零 issue 零 nolint 注释）+ `govulncheck`
+- Go：一方代码使用固定版本 v2.22.4 的 `gosec`（零未处置 issue；现有逐行 suppression 必须标明规则和可验证理由，禁止目录级或规则级静默放行）并执行 `govulncheck`。内嵌的 go-ora 协议兼容叉不伪装成一方代码：门禁先校验其未修改文件与 checksum 固定的 v2.9.0 逐字节一致、策略修改文件与已审阅哈希一致，再对其 SELECT-only 运行时策略执行正常 Go 测试；Oracle 协议自身要求的兼容密码学不会被错误改写为不兼容实现
 - Node：Web、Admin、UniAppX 通过 npm 官方审计端点执行全依赖 `pnpm audit`；Koishi 执行全工作区 `yarn npm audit`；两者均阻断 `MODERATE` 及以上风险，不使用通告忽略项。`brace-expansion` 统一锁定到含 CVE-2026-14257 修复的 `5.0.8`，仓库补丁仅恢复旧版 `minimatch` 的 callable CommonJS/default export，并由 `check:dependency-compat` 验证安全版本、命名导出和实际 brace 匹配行为
 - 应用候选镜像：固定 digest 的 `Trivy` 阻断 `HIGH` / `CRITICAL`
 - 第三方运行时镜像：`infra/security/runtime-images.json` 管理完整 `tag@sha256` 清单，Trivy 同时检查 `HIGH` / `CRITICAL` / `UNKNOWN`；`CRITICAL` 只接受带证据且最长 30 天复核周期的 `not_affected` VEX，`HIGH` / `UNKNOWN` 只接受逐包逐版本、最长 30 天的显式例外

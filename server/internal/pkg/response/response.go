@@ -38,6 +38,14 @@ func Created(c *gin.Context, data any) {
 	})
 }
 
+// Accepted 返回已接受并进入可恢复异步处理的响应。
+func Accepted(c *gin.Context, data any) {
+	c.JSON(http.StatusAccepted, Response{
+		Success: true,
+		Data:    data,
+	})
+}
+
 // NoContent 返回无响应体的成功响应。
 func NoContent(c *gin.Context) {
 	c.Status(http.StatusNoContent)

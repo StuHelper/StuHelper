@@ -38,10 +38,9 @@ const (
 
 // QQVerificationStatus 是机器人按 QQ 查询到的聚合状态。
 type QQVerificationStatus struct {
-	QQID                      string
-	UserID                    *int64
-	BoundAt                   *time.Time
-	VerificationState         QQVerificationState
-	ProfileVerificationStatus string
-	StudentVerified           bool
+	QQID              string
+	UserID            *int64
+	BoundAt           *time.Time
+	VerificationState QQVerificationState
+	StudentVerified   bool
 }

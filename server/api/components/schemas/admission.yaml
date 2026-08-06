@@ -1,11 +1,17 @@
 AdmissionStatus:
   type: string
-  enum: [joined_muted, linked, material_submitted, verified, expired_kicked, cancelled]
-
-FreshmanApplicationStatus:
-  type: string
-  enum: [pending, approved, rejected]
-
+  enum:
+    - created
+    - awaiting_account_link
+    - awaiting_requirements
+    - pending_manual_review
+    - eligible
+    - action_pending
+    - admitted
+    - released
+    - rejected
+    - cancelled
+    - expired
 AdmissionErrorCode:
   type: string
   enum:
@@ -73,6 +79,18 @@ AdmissionSession:
       type:
         - string
         - "null"
+    eligibilityRevision:
+      type:
+        - integer
+        - "null"
+      format: int64
+      minimum: 1
+      description: Monotonic student-eligibility fence used by this admission decision.
+    eligibilityEvaluatedAt:
+      type:
+        - string
+        - "null"
+      format: date-time
     projectionPending:
       type: boolean
     failureCount:
@@ -86,9 +104,6 @@ AdmissionSession:
     authURL:
       type: string
       format: uri
-    maxMaterialBytes:
-      type: integer
-      format: int64
 
 AdmissionMe:
   type: object
@@ -100,14 +115,6 @@ AdmissionMe:
       type: boolean
     session:
       $ref: '#/AdmissionSession'
-    credentialKind:
-      type: string
-      enum: [school_sso, school_email_otp, freshman_material_manual]
-    provisionalExpiresAt:
-      type:
-        - string
-        - "null"
-      format: date-time
 
 CreatedAdmissionSession:
   type: object
@@ -135,7 +142,7 @@ AdmissionQQAccess:
 AdmissionPolicy:
   type: object
   required:
-    [id, platform, guildID, guardEnabled, joinHandlingStrategy, autoApproveJoin, autoApproveVerifiedJoin, autoApproveUnverifiedJoin, unverifiedJoinRejectReason, initialMuteDurationSeconds, linkWaitSeconds, submissionWaitSeconds, manualReviewTimeoutSeconds, reminderIntervalSeconds, failedJoinLimit, freshmanChannelEnabled, freshmanChannelClosesAt, freshmanDefaultExpiresAt, forwardRawMaterialToQQ, managementGuildIDs, maxMaterialBytes, maxExtensionDays]
+    [id, platform, guildID, guardEnabled, joinHandlingStrategy, autoApproveJoin, autoApproveVerifiedJoin, autoApproveUnverifiedJoin, unverifiedJoinRejectReason, initialMuteDurationSeconds, linkWaitSeconds, submissionWaitSeconds, manualReviewTimeoutSeconds, reminderIntervalSeconds, failedJoinLimit, allowTemporaryFreshman]
   properties:
     id:
       type: string
@@ -181,25 +188,10 @@ AdmissionPolicy:
       type:
         - integer
         - "null"
-    freshmanChannelEnabled:
+    allowTemporaryFreshman:
       type: boolean
-    freshmanChannelClosesAt:
-      type: string
-      format: date-time
-    freshmanDefaultExpiresAt:
-      type: string
-      format: date-time
-    forwardRawMaterialToQQ:
-      type: boolean
-    managementGuildIDs:
-      type: array
-      items:
-        type: string
-    maxMaterialBytes:
-      type: integer
-      format: int64
-    maxExtensionDays:
-      type: integer
+      default: false
+      description: 是否允许有效期内的临时新生凭据满足本群准入；正式学生凭据不受此开关影响。
 
 AdmissionPolicyCreateRequest:
   type: object
@@ -213,11 +205,11 @@ AdmissionPolicyCreateRequest:
       default: qq
     guildID:
       type: string
-      description: 新生认证目标群号。
+      description: 入群认证目标群号。
 
 BotAdmissionPolicyTarget:
   type: object
-  required: [policyID, platform, guildID, guardEnabled, joinHandlingStrategy, linkWaitSeconds]
+  required: [policyID, platform, guildID, guardEnabled, joinHandlingStrategy, linkWaitSeconds, managementGuildIDs]
   properties:
     policyID:
       type: string
@@ -237,87 +229,13 @@ BotAdmissionPolicyTarget:
       description: |
         入群后等待秒数。`post_join_guard` 下表示学生认证链接等待时间；`post_join_time_code`
         下表示群内动态验证码等待时间，Koishi 会按该值生成本地超时踢出期限。
-
-FreshmanApplication:
-  type: object
-  required: [id, userID, schoolID, status, applicantNameMasked, materialType, createdAt]
-  properties:
-    id:
-      type: string
-    userID:
-      type: string
-    schoolID:
-      type: integer
-      format: int64
-    admissionSessionID:
-      type: string
-    applicantName:
-      type: string
-    applicantNameMasked:
-      type: string
-    departmentOrMajor:
-      type: string
-    materialType:
-      type: string
-      enum: [admission_notice, admission_certificate]
-    materialURL:
-      type: string
-      format: uri
-    qqID:
-      type: string
-    failureCount:
-      type: integer
-    status:
-      $ref: '#/FreshmanApplicationStatus'
-    provisionalExpiresAt:
-      type:
-        - string
-        - "null"
-      format: date-time
-    reviewedAt:
-      type:
-        - string
-        - "null"
-      format: date-time
-    createdAt:
-      type: string
-      format: date-time
-
-FreshmanReviewRequest:
-  type: object
-  required: [action]
-  properties:
-    action:
-      type: string
-      enum: [approve, reject]
-    reason:
-      type: string
-    expiresInDays:
-      type: integer
-      minimum: 1
-
-BotFreshmanCommandContext:
-  type: object
-  required: [operatorQQID, guildID, rawCommand]
-  properties:
-    operatorQQID:
-      type: string
-    platform:
-      type: string
-    targetGuildID:
-      type: string
-    guildID:
-      type: string
-    channelID:
-      type: string
-    rawCommand:
-      type: string
-
-BotFreshmanReviewRequest:
-  allOf:
-    - $ref: '#/FreshmanReviewRequest'
-    - $ref: '#/BotFreshmanCommandContext'
-
+    managementGuildIDs:
+      type: array
+      items:
+        type: string
+      description: |
+        由 PostgreSQL admission policy 下发的 QQ 管理群白名单。Koishi 只能把它用于固定的
+        管理通知和受权命令边界，不得接受 webhook 或事件载荷覆盖目标群。
 BotAdmissionSessionCreateRequest:
   type: object
   required: [platform, guildID, channelID, qqID, botSelfID]
@@ -403,6 +321,11 @@ BotAdmissionPendingAction:
       type: integer
       minimum: 1
       description: actionID 对应的派发代次；ACK 时必须原样提交。
+    eligibilityRevision:
+      type: integer
+      format: int64
+      minimum: 1
+      description: release 动作使用的学生资格修订号；执行器不得修改或缓存为学生身份真源。
     sessionID:
       type: string
     action:
@@ -497,160 +420,3 @@ BotAdmissionJoinRequestDecision:
       type: string
     userID:
       type: string
-
-CameraCaptureRequest:
-  type: object
-  required: [contentType, imageBase64]
-  properties:
-    contentType:
-      type: string
-      enum: [image/jpeg, image/png, image/webp]
-    imageBase64:
-      type: string
-
-FreshmanCameraHandoff:
-  type: object
-  required: [id, applicationID, userID, status, expiresAt, createdAt, maxMaterialBytes]
-  properties:
-    id:
-      type: string
-    applicationID:
-      type: string
-    userID:
-      type: string
-    status:
-      type: string
-      enum: [pending, uploaded, locked, expired]
-    continueOn:
-      type: string
-      enum: [desktop, mobile]
-    mobileURL:
-      type: string
-      format: uri
-    expiresAt:
-      type: string
-      format: date-time
-    uploadedAt:
-      type: string
-      format: date-time
-    chosenAt:
-      type: string
-      format: date-time
-    createdAt:
-      type: string
-      format: date-time
-    maxMaterialBytes:
-      type: integer
-      format: int64
-
-FreshmanCameraHandoffContinuationRequest:
-  type: object
-  required: [continueOn]
-  properties:
-    continueOn:
-      type: string
-      enum: [desktop, mobile]
-
-SchoolEmailAcademicMatchRequest:
-  type: object
-  required: [schoolCode, studentID, studentName]
-  properties:
-    schoolCode:
-      type: string
-      pattern: '^[0-9]{10}$'
-      description: 教育部学校标识码；即时学籍匹配必须以此字段识别学校。
-    admissionSessionID:
-      type: string
-      description: 当前 Join 页面绑定的 admission session ID；用于确认匹配请求属于当前页面 session。
-    studentID:
-      type: string
-      minLength: 1
-      maxLength: 50
-      pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,49}$'
-      description: 学号。
-    studentName:
-      type: string
-      minLength: 1
-      maxLength: 80
-      description: 姓名。
-
-SchoolEmailAcademicMatchResponse:
-  type: object
-  required: [matched]
-  properties:
-    matched:
-      type: boolean
-      description: 学号和姓名是否在学校学籍数据源中匹配。
-    email:
-      type: string
-      format: email
-      description: 匹配通过后由后端按学号派生出的学校邮箱。
-    studentID:
-      type: string
-      description: 规范化后的学号。
-    message:
-      type: string
-      description: 面向前端展示的匹配提示。
-
-SchoolEmailOTPRequest:
-  type: object
-  required: [schoolCode]
-  properties:
-    schoolCode:
-      type: string
-      pattern: '^[0-9]{10}$'
-      description: 教育部学校标识码；公开 admission 学校邮箱 OTP 请求必须以此字段识别学校。
-    admissionSessionID:
-      type: string
-      description: 当前 Join 页面绑定的 admission session ID；用于多群/多会话时校验 OTP 请求属于当前页面 session。
-    email:
-      type: string
-      format: email
-      maxLength: 320
-      description: 普通学校邮箱 OTP 可直接提交邮箱；配置学籍邮箱策略时由后端按学号派生并校验不可篡改
-    studentID:
-      type: string
-      minLength: 1
-      maxLength: 50
-      pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,49}$'
-      description: 配置 academic_student_email 策略的学校必填
-    studentName:
-      type: string
-      minLength: 1
-      maxLength: 80
-      description: 配置 academic_student_email 且 requireStudentName=true 的学校必填
-
-SchoolEmailOTPVerifyRequest:
-  type: object
-  required: [schoolCode, email, code]
-  properties:
-    schoolCode:
-      type: string
-      pattern: '^[0-9]{10}$'
-      description: 教育部学校标识码；公开 admission 学校邮箱 OTP 校验请求必须以此字段识别学校。
-    admissionSessionID:
-      type: string
-      description: 当前 Join 页面绑定的 admission session ID；用于多群/多会话时返回当前页面 session 的 admission 状态。
-    email:
-      type: string
-      format: email
-      maxLength: 320
-    code:
-      type: string
-      minLength: 4
-      maxLength: 12
-
-SchoolEmailOTPResponse:
-  type: object
-  required: [email, cooldownSeconds]
-  properties:
-    email:
-      type: string
-      format: email
-      description: 后端最终锁定并发送验证码的学校邮箱
-    studentID:
-      type: string
-      description: 学籍邮箱策略下已匹配的学号
-    cooldownSeconds:
-      type: integer
-      minimum: 1

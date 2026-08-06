@@ -29,10 +29,8 @@ describe('admission policy admin view contract', () => {
     const source = await readFile(sourcePath, 'utf8');
 
     for (const token of [
-      'freshmanChannelEnabled',
+      'allowTemporaryFreshman',
       'guardEnabled',
-      'freshmanChannelClosesAt',
-      'freshmanDefaultExpiresAt',
       'initialMuteDurationSeconds',
       'linkWaitSeconds',
       'submissionWaitSeconds',
@@ -40,15 +38,9 @@ describe('admission policy admin view contract', () => {
       'reminderIntervalSeconds',
       'failedJoinLimit',
       'blacklistDurationSeconds',
-      'maxMaterialBytes',
-      'maxExtensionDays',
-      'managementGuildIDs',
-      'forwardRawMaterialToQQ',
       'createAdmissionPolicy',
       'sourcePolicyID',
       'parseCreateGuildIDs',
-      'POLICY_DATETIME_FORMAT',
-      ':value-format="POLICY_DATETIME_FORMAT"',
       'ElMessage.success',
       ':loading="savingPolicyIDs[policy.id]"',
     ]) {
@@ -56,11 +48,9 @@ describe('admission policy admin view contract', () => {
     }
   });
 
-  it('normalizes missing management guild arrays before rendering', async () => {
+  it('normalizes target policy defaults before rendering', async () => {
     const source = await readFile(sourcePath, 'utf8');
 
-    expect(source).toContain('function normalizeManagementGuildIDs');
-    expect(source).toContain('Array.isArray(values)');
     expect(source).toContain('const data = await listAdmissionPolicies()');
     expect(source).toContain('data.map((policy) => normalizePolicy(policy))');
   });
@@ -71,17 +61,13 @@ describe('admission policy admin view contract', () => {
 
     for (const label of [
       'Admin 是入群认证策略权威源',
-      '启用新生入群通道',
+      '允许临时新生凭据入群',
       '启用入群认证守卫',
-      '新生通道关闭时间',
-      '默认临时认证到期时间',
       '入群初始禁言（秒）',
-      '材料审核通知群号',
       '目标认证群',
       '新增目标认证群',
       '目标认证群号',
-      '转发原始材料到 QQ',
-      '审核通知群只接收材料审核提醒',
+      '人工材料审核在独立学生认证模块完成',
       '验证码等待（秒）',
       'Koishi 同步后会按该值创建群内验证码挑战的超时踢出期限',
       'Koishi 会在下次同步后显示执行态',
@@ -89,8 +75,8 @@ describe('admission policy admin view contract', () => {
       expect(normalizedSource).toContain(label);
     }
 
-    expect(source).toContain('policyFieldLabels.freshmanChannelEnabled');
-    expect(source).not.toContain('label="freshmanChannelEnabled"');
+    expect(source).toContain('policyFieldLabels.allowTemporaryFreshman');
+    expect(source).not.toContain('label="allowTemporaryFreshman"');
   });
 
   it('keeps Admin as policy authority and exposes save impact summary', async () => {
@@ -103,7 +89,6 @@ describe('admission policy admin view contract', () => {
       'data-policy-save-impact',
       'function guardSyncLabel',
       'function saveImpactSummary',
-      'function managementGuildCount',
       'function usesStudentVerificationFlow',
       'function linkWaitLabel',
       'joinHandlingStrategyHelp',

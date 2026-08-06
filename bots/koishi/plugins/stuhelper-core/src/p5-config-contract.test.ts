@@ -41,6 +41,11 @@ test('koishi.yml keeps admission production-safe startup config without static g
   assert.doesNotMatch(guardBlock, /targetGroups|muteDurationSeconds|kickAfterMinutes|reminderTemplate|exemptUsers/)
   assert.match(guardBlock, /scheduler:\s*\n\s+scanIntervalSeconds: 300/)
   assert.match(guardBlock, /actionStream:\s*\n\s+reconnectDelaySeconds: 5/)
+  assert.match(
+    guardBlock,
+    /alerting:\s*\n\s+enabled: \$\{\{ env\.STUHELPER_ALERTMANAGER_WEBHOOK_ENABLED === 'true' \}\}/,
+    'Alertmanager enabled env must be converted to a boolean fail-closed instead of passing a string to Schema.boolean().',
+  )
   assert.doesNotMatch(guardBlock, /admissionCommands|minAuthority|operatorQQIDs/)
   assert.doesNotMatch(guardBlock, /fallbackScanEnabled:/)
   assert.doesNotMatch(guardBlock, /actionStream:\s*\n\s+enabled:/)
@@ -127,7 +132,7 @@ test('group-guard runtime switches are WebUI settings, not native plugin config'
   assert.match(runtimeSettings, /admissionCommandsEnabled: true/)
   assert.match(runtimeSettings, /actionStreamEnabled: true/)
   assert.match(runtimeSettings, /moderationEnabled: false/)
-  assert.match(runtimeSettings, /freshmanForwardEnabled: false/)
+  assert.doesNotMatch(runtimeSettings, /freshmanForwardEnabled/)
   assert.match(runtimeSettings, /fallbackScanEnabled: true/)
   assert.match(runtimeSettings, /reminderGroupEnabled: true/)
   assert.match(runtimeSettings, /reminderDirectEnabled: false/)
@@ -172,11 +177,10 @@ test('README documents admission scopes and backend policy boundary', async () =
   for (const scope of [
     'bot.admission.session',
     'bot.admission.event',
-    'bot.admission.review',
-    'bot.admission.forward',
   ]) {
     assert.match(readme, new RegExp(scope), `README must document ${scope}.`)
   }
+  assert.doesNotMatch(readme, /bot\.admission\.(review|forward)/)
   assert.match(readme, /Admission 策略边界/)
   assert.match(readme, /后端 admission policy/)
   assert.match(readme, /同步绑定/)

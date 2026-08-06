@@ -1,6 +1,6 @@
 # StuHelper Server Makefile
 
-.PHONY: help tidy fmt lint test test-coverage build run clean security ci check-casdoor-boundary \
+.PHONY: help tidy fmt lint test test-coverage build run clean security ci check-casdoor-boundary check-goora-fork \
        bundle-spec lint-spec generate generate-go generate-ts check-drift check-bundled-drift check-drift-go check-drift-ts check-drift-all \
        check-drift-capabilities check-doc-sync check-coverage-threshold \
        migrate-up migrate-down-one migrate-status migrate-verify seed-dev
@@ -47,7 +47,7 @@ help:
 	@echo ""
 	@echo "CI/CD:"
 	@echo "  ci            - run all CI checks (lint, test, build, drift check)"
-	@echo "  security      - run security scan with gosec"
+	@echo "  security      - verify the Oracle policy fork and run gosec on first-party code"
 	@echo "  clean         - remove build artifacts"
 	@echo ""
 	@echo "Database:"
@@ -85,8 +85,11 @@ build:
 run:
 	go run ./cmd/stuhelper
 
-security:
-	go run github.com/securego/gosec/v2/cmd/gosec@v2.22.4 -exclude-generated ./...
+check-goora-fork:
+	bash scripts/check-goora-fork.sh
+
+security: check-goora-fork
+	go run github.com/securego/gosec/v2/cmd/gosec@v2.22.4 -exclude-generated -exclude-dir=internal/thirdparty/goora ./...
 
 clean:
 	rm -rf $(BUILD_DIR)

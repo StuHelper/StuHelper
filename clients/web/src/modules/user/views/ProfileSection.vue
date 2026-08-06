@@ -1,314 +1,114 @@
 <template>
-    <div class="bg-bg-card rounded-xl p-5 shadow-card mb-6">
-        <!-- User info header -->
-        <div
-            class="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
-        >
-            <div class="flex min-w-0 items-center gap-4">
-                <div
-                    class="p-[3px] bg-gradient-to-br from-primary to-accent rounded-full shrink-0"
-                >
-                    <div
-                        class="size-14 bg-bg-card rounded-full flex items-center justify-center overflow-hidden"
-                    >
-                        <img
-                            v-if="user?.avatar"
-                            :src="user.avatar"
-                            :alt="displayName"
-                            class="size-full object-cover"
-                        />
-                        <User v-else class="size-7 text-text-muted" />
-                    </div>
-                </div>
-                <div class="min-w-0">
-                    <h2
-                        class="text-base font-bold text-text-primary m-0 truncate"
-                    >
-                        {{ displayName }}
-                    </h2>
-                    <p class="text-sm text-text-muted m-0 mt-0.5 truncate">
-                        {{ user?.email ?? "" }}
-                    </p>
-                </div>
-            </div>
-
-            <router-link
-                to="/account/profile"
-                class="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-border bg-bg-base px-3 text-sm font-medium text-text-secondary no-underline transition-colors duration-fast hover:border-primary/40 hover:text-primary"
-            >
-                <User class="size-4" aria-hidden="true" />
-                {{ t("user.identityHome.accountProfile.title") }}
-            </router-link>
+  <section class="mb-6 rounded-xl bg-bg-card p-5 shadow-card">
+    <header class="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div class="flex min-w-0 items-center gap-4">
+        <span class="grid size-14 shrink-0 place-items-center overflow-hidden rounded-full bg-gradient-to-br from-primary to-accent p-[3px]">
+          <span class="grid size-full place-items-center overflow-hidden rounded-full bg-bg-card">
+            <img v-if="user?.avatar" :src="user.avatar" :alt="displayName" class="size-full object-cover" />
+            <User v-else class="size-7 text-text-muted" aria-hidden="true" />
+          </span>
+        </span>
+        <div class="min-w-0">
+          <h2 class="m-0 truncate text-base font-bold text-text-primary">{{ displayName }}</h2>
+          <p class="m-0 mt-0.5 truncate text-sm text-text-muted">{{ user?.email ?? '' }}</p>
         </div>
+      </div>
+      <router-link
+        to="/account/profile"
+        class="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-border bg-bg-base px-3 text-sm font-medium text-text-secondary no-underline transition-colors duration-fast hover:border-primary/40 hover:text-primary"
+      >
+        <User class="size-4" aria-hidden="true" />
+        {{ t('user.identityHome.accountProfile.title') }}
+      </router-link>
+    </header>
 
-        <!-- Status cards grid -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <!-- Identity verification card -->
-            <div class="border-0 rounded-lg p-4 transition-all duration-fast">
-                <div class="flex items-center gap-3 mb-3">
-                    <div
-                        class="p-2 rounded-lg"
-                        :class="
-                            identityVerified ? 'bg-green-500/10' : 'bg-bg-base'
-                        "
-                    >
-                        <ShieldCheck
-                            class="size-5"
-                            :class="
-                                identityVerified
-                                    ? 'text-green-500'
-                                    : 'text-text-muted'
-                            "
-                        />
-                    </div>
-                    <div class="min-w-0">
-                        <p class="text-sm font-semibold text-text-primary m-0">
-                            {{ t("user.verification.identity.title") }}
-                        </p>
-                        <span
-                            class="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium"
-                            :class="identityStatusClass"
-                        >
-                            {{ identityStatusLabel }}
-                        </span>
-                    </div>
-                </div>
-                <router-link
-                    v-if="!identityVerified"
-                    to="/user/identity-verification"
-                    class="block w-full py-2 bg-text-primary text-bg-base rounded-lg text-xs font-medium text-center no-underline transition-all duration-fast hover:bg-accent hover:text-white"
-                >
-                    {{ t("user.verification.identity.unverified") }}
-                </router-link>
-            </div>
-
-            <!-- Student verification card -->
-            <div class="border-0 rounded-lg p-4 transition-all duration-fast">
-                <div class="flex items-center gap-3 mb-3">
-                    <div
-                        class="p-2 rounded-lg"
-                        :class="
-                            studentVerified ? 'bg-green-500/10' : 'bg-bg-base'
-                        "
-                    >
-                        <GraduationCap
-                            class="size-5"
-                            :class="
-                                studentVerified
-                                    ? 'text-green-500'
-                                    : 'text-text-muted'
-                            "
-                        />
-                    </div>
-                    <div class="min-w-0">
-                        <p class="text-sm font-semibold text-text-primary m-0">
-                            {{ t("user.verification.student.title") }}
-                        </p>
-                        <span
-                            class="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium"
-                            :class="studentStatusClass"
-                        >
-                            {{ studentStatusLabel }}
-                        </span>
-                    </div>
-                </div>
-                <template v-if="!studentVerified">
-                    <router-link
-                        to="/user/student-verification"
-                        class="block w-full py-2 bg-text-primary text-bg-base rounded-lg text-xs font-medium text-center no-underline transition-all duration-fast hover:bg-accent hover:text-white"
-                    >
-                        {{ t("user.verification.student.unverified") }}
-                    </router-link>
-                </template>
-                <router-link
-                    v-if="studentVerified"
-                    to="/user/academic-info"
-                    class="block w-full py-2 bg-accent/10 text-accent rounded-lg text-xs font-medium text-center no-underline transition-all duration-fast hover:bg-accent hover:text-white"
-                >
-                    {{ t("user.verification.academic.title") }}
-                </router-link>
-            </div>
-
-            <!-- QQ binding card -->
-            <div class="border-0 rounded-lg p-4 transition-all duration-fast">
-                <div class="flex items-center gap-3 mb-3">
-                    <div
-                        class="p-2 rounded-lg"
-                        :class="qqBound ? 'bg-green-500/10' : 'bg-bg-base'"
-                    >
-                        <Bot
-                            class="size-5"
-                            :class="
-                                qqBound ? 'text-green-500' : 'text-text-muted'
-                            "
-                        />
-                    </div>
-                    <div class="min-w-0">
-                        <p class="text-sm font-semibold text-text-primary m-0">
-                            {{ t("user.verification.qq.title") }}
-                        </p>
-                        <span
-                            class="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium"
-                            :class="
-                                qqBound
-                                    ? 'bg-green-500/10 text-green-600'
-                                    : 'bg-bg-base text-text-muted'
-                            "
-                        >
-                            {{
-                                qqBound
-                                    ? t("user.verification.qq.bound")
-                                    : t("user.verification.qq.unbound")
-                            }}
-                        </span>
-                    </div>
-                </div>
-                <router-link
-                    to="/user/qq-binding"
-                    class="block w-full py-2 rounded-lg text-xs font-medium text-center no-underline transition-all duration-fast"
-                    :class="
-                        qqBound
-                            ? 'bg-accent/10 text-accent hover:bg-accent hover:text-white'
-                            : 'bg-text-primary text-bg-base hover:bg-accent hover:text-white'
-                    "
-                >
-                    {{
-                        qqBound
-                            ? t("common.actions.more")
-                            : t("user.verification.qq.createCode")
-                    }}
-                </router-link>
-            </div>
-
-            <!-- Phone binding card -->
-            <div class="border-0 rounded-lg p-4 transition-all duration-fast">
-                <div class="flex items-center gap-3 mb-3">
-                    <div
-                        class="p-2 rounded-lg"
-                        :class="phoneBound ? 'bg-green-500/10' : 'bg-bg-base'"
-                    >
-                        <Phone
-                            class="size-5"
-                            :class="
-                                phoneBound
-                                    ? 'text-green-500'
-                                    : 'text-text-muted'
-                            "
-                        />
-                    </div>
-                    <div class="min-w-0">
-                        <p class="text-sm font-semibold text-text-primary m-0">
-                            {{ t("user.verification.phone.title") }}
-                        </p>
-                        <span
-                            class="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium"
-                            :class="
-                                phoneBound
-                                    ? 'bg-green-500/10 text-green-600'
-                                    : 'bg-bg-base text-text-muted'
-                            "
-                        >
-                            {{
-                                phoneBound
-                                    ? t("user.verification.phone.bound")
-                                    : t("user.verification.phone.unbound")
-                            }}
-                        </span>
-                    </div>
-                </div>
-                <router-link
-                    to="/user/phone-binding"
-                    class="block w-full py-2 bg-text-primary text-bg-base rounded-lg text-xs font-medium text-center no-underline transition-all duration-fast hover:bg-accent hover:text-white"
-                >
-                    {{
-                        phoneBound
-                            ? t("user.verification.phone.update")
-                            : t("user.verification.phone.bind")
-                    }}
-                </router-link>
-            </div>
-        </div>
+    <div class="grid gap-4 sm:grid-cols-3">
+      <StatusCard
+        :icon="GraduationCap"
+        :title="t('user.verification.student.title')"
+        :complete="verificationStore.studentVerified"
+        :complete-label="t('user.verification.student.verified')"
+        :incomplete-label="t('user.verification.student.unverified')"
+        to="/user/student-verification"
+      />
+      <StatusCard
+        :icon="Phone"
+        :title="t('user.verification.phone.title')"
+        :complete="verificationStore.phoneVerified"
+        :complete-label="t('user.verification.phone.verified')"
+        :incomplete-label="t('user.verification.phone.unverified')"
+        to="/user/phone-binding"
+      />
+      <StatusCard
+        :icon="Bot"
+        :title="t('user.verification.qq.title')"
+        :complete="verificationStore.qqBound"
+        :complete-label="t('user.verification.qq.bound')"
+        :incomplete-label="t('user.verification.qq.unbound')"
+        to="/user/qq-binding"
+      />
     </div>
+  </section>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from "vue";
-import { useI18n } from "vue-i18n";
-import {
-    Bot,
-    ShieldCheck,
-    GraduationCap,
-    User,
-    Phone,
-} from "lucide-vue-next";
-import { useAuthStore } from "@/stores/auth";
-import { useVerificationStore } from "@/stores/verification";
+import { computed, defineComponent, h, markRaw, onMounted, type PropType } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { Bot, GraduationCap, Phone, User, type LucideIcon } from 'lucide-vue-next'
 
-const { t } = useI18n();
-const authStore = useAuthStore();
-const verificationStore = useVerificationStore();
+import { useAuthStore } from '@/stores/auth'
+import { useVerificationStore } from '@/stores/verification'
 
-const user = computed(() => authStore.user);
-const displayName = computed(
-    () => user.value?.displayName ?? user.value?.name ?? "",
-);
-const identityVerified = computed(() => verificationStore.identityVerified);
-const studentVerified = computed(() => verificationStore.studentVerified);
-const qqBound = computed(() => verificationStore.qqBound);
-const phoneBound = computed(() => profile.value?.phoneVerified === true);
+const StatusCard = defineComponent({
+  name: 'VerificationStatusCard',
+  props: {
+    icon: { type: [Object, Function] as PropType<LucideIcon>, required: true },
+    title: { type: String, required: true },
+    complete: { type: Boolean, required: true },
+    completeLabel: { type: String, required: true },
+    incompleteLabel: { type: String, required: true },
+    to: { type: String, required: true },
+  },
+  setup(props) {
+    const icon = markRaw(props.icon)
+    return () => h(
+      'a',
+      {
+        href: props.to,
+        class: 'group rounded-lg border border-border bg-bg-base/50 p-4 no-underline transition-all duration-fast hover:border-primary/40 hover:bg-bg-base',
+      },
+      [
+        h('div', { class: 'flex items-center gap-3' }, [
+          h('span', {
+            class: props.complete
+              ? 'grid size-10 place-items-center rounded-lg bg-success/10 text-success'
+              : 'grid size-10 place-items-center rounded-lg bg-bg-card text-text-muted',
+          }, [h(icon, { class: 'size-5', 'aria-hidden': 'true' })]),
+          h('span', { class: 'min-w-0' }, [
+            h('span', { class: 'block truncate text-sm font-semibold text-text-primary' }, props.title),
+            h('span', {
+              class: props.complete
+                ? 'mt-1 inline-flex rounded-full bg-success/10 px-2 py-0.5 text-xs font-medium text-success'
+                : 'mt-1 inline-flex rounded-full bg-bg-card px-2 py-0.5 text-xs font-medium text-text-muted',
+            }, props.complete ? props.completeLabel : props.incompleteLabel),
+          ]),
+        ]),
+      ],
+    )
+  },
+})
 
-const identity = computed(() => verificationStore.identity);
-const profile = computed(() => verificationStore.profile);
-
-// 身份认证状态派生
-type StatusVariant = "verified" | "pending" | "rejected" | "unverified";
-
-const identityStatus = computed((): StatusVariant => {
-    if (!identity.value) return "unverified";
-    if (identity.value.verified) return "verified";
-    if (identity.value.reviewedAt) return "rejected";
-    return "pending";
-});
-
-const identityStatusLabel = computed(() => {
-    return t(`user.verification.identity.${identityStatus.value}`);
-});
-
-const studentStatus = computed((): StatusVariant => {
-    if (!profile.value) return "unverified";
-    const status = profile.value.verificationStatus;
-    if (status === "verified") return "verified";
-    if (status === "rejected") return "rejected";
-    if (status === "pending") return "pending";
-    return "unverified";
-});
-
-const studentStatusLabel = computed(() => {
-    return t(`user.verification.student.${studentStatus.value}`);
-});
-
-const statusClassMap: Record<StatusVariant, string> = {
-    verified: "bg-green-500/10 text-green-600",
-    pending: "bg-yellow-500/10 text-yellow-600",
-    rejected: "bg-red-500/10 text-red-600",
-    unverified: "bg-bg-base text-text-muted",
-};
-
-const identityStatusClass = computed(
-    () => statusClassMap[identityStatus.value],
-);
-const studentStatusClass = computed(() => statusClassMap[studentStatus.value]);
+const { t } = useI18n()
+const authStore = useAuthStore()
+const verificationStore = useVerificationStore()
+const user = computed(() => authStore.user)
+const displayName = computed(() => user.value?.displayName ?? user.value?.name ?? '')
 
 onMounted(() => {
-    if (authStore.isAuthenticated) {
-        void verificationStore.fetchStatus().catch((error) => {
-            if (import.meta.env.DEV) {
-                console.warn(
-                    "[ProfileSection] failed to fetch verification status",
-                    error,
-                );
-            }
-        });
-    }
-});
+  if (authStore.isAuthenticated) {
+    void verificationStore.fetchStatus().catch((error) => {
+      if (import.meta.env.DEV) console.warn('[ProfileSection] failed to load account gates', error)
+    })
+  }
+})
 </script>

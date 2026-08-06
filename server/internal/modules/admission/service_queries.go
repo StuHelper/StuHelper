@@ -29,6 +29,10 @@ func (s *Service) ListAdmissionPolicyTargets(ctx context.Context) ([]AdmissionPo
 		items[index].Platform = strings.TrimSpace(items[index].Platform)
 		items[index].GuildID = strings.TrimSpace(items[index].GuildID)
 		items[index].JoinHandlingStrategy = normalizeJoinHandlingStrategy(items[index].JoinHandlingStrategy)
+		items[index].ManagementGuildIDs = normalizeStringSlice(items[index].ManagementGuildIDs)
+		if items[index].ManagementGuildIDs == nil {
+			items[index].ManagementGuildIDs = []string{}
+		}
 	}
 	return items, nil
 }
@@ -165,17 +169,24 @@ func (s *Service) ResolveJoinRequestDecision(
 	if policy.JoinHandlingStrategy == AdmissionJoinHandlingPostJoinTimeCode {
 		return postJoinGuardDecision(policy, nil), nil
 	}
-	userID, err := s.repo.GetVerifiedAdmissionUserByQQ(ctx, input.QQID, policy.SchoolID, s.now())
+	eligibleUser, err := s.getEligibleAdmissionUserByQQ(ctx, input.QQID, policy)
 	if err != nil {
 		return nil, err
 	}
 	if policy.JoinHandlingStrategy == AdmissionJoinHandlingPostJoinGuard {
-		return postJoinGuardDecision(policy, userID), nil
+		return postJoinGuardDecision(policy, eligibleAdmissionUserID(eligibleUser)), nil
 	}
-	if userID != nil {
-		return verifiedJoinRequestDecision(policy, userID), nil
+	if eligibleUser != nil {
+		return verifiedJoinRequestDecision(policy, eligibleAdmissionUserID(eligibleUser)), nil
 	}
 	return unverifiedJoinRequestDecision(policy), nil
+}
+
+func eligibleAdmissionUserID(user *eligibleAdmissionUser) *int64 {
+	if user == nil {
+		return nil
+	}
+	return &user.UserID
 }
 
 func normalizeAdmissionPolicy(policy AdmissionPolicy) AdmissionPolicy {

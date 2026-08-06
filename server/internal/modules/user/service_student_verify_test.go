@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/StuHelper/StuHelper/server/internal/pkg/phoneutil"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/schoolauth"
 )
 
@@ -327,7 +326,7 @@ func TestVerifyStudent_LDAPRequiresAcademicStudentRecord(t *testing.T) {
 	assert.ErrorIs(t, err, ErrStudentNotFound)
 }
 
-func TestVerifyStudent_LDAPPhoneSyncRunsAfterProfileTransactionAndPersistsProjection(t *testing.T) {
+func TestVerifyStudent_LDAPPhoneIsNeverBoundWithoutUserInput(t *testing.T) {
 	const (
 		userID        = int64(1)
 		studentID     = "20240001"
@@ -337,14 +336,11 @@ func TestVerifyStudent_LDAPPhoneSyncRunsAfterProfileTransactionAndPersistsProjec
 
 	var (
 		capturedProfile *Profile
-		phoneProjection []byte
 		events          []string
-		syncedSubject   string
-		syncedPhone     string
+		identityCalls   int
+		projectionCalls int
 	)
 	hmacKey := []byte("test-hmac-key-at-least-32-chars!")
-	expectedPhoneHash, err := phoneutil.HashLookupWithKey(rawPhone, hmacKey)
-	require.NoError(t, err)
 
 	repo := &academicAwareMockRepo{
 		mockRepo: &mockRepo{
@@ -354,9 +350,6 @@ func TestVerifyStudent_LDAPPhoneSyncRunsAfterProfileTransactionAndPersistsProjec
 					return nil, nil
 				}
 				profile := *capturedProfile
-				if len(phoneProjection) > 0 {
-					profile.PhoneEnc = append([]byte(nil), phoneProjection...)
-				}
 				return &profile, nil
 			},
 			onGetSchoolConfig: func(_ context.Context, schoolID int64) (*SchoolConfig, error) {
@@ -386,15 +379,11 @@ func TestVerifyStudent_LDAPPhoneSyncRunsAfterProfileTransactionAndPersistsProjec
 				return nil
 			},
 			onGetCasdoorSubject: func(_ context.Context, gotUserID int64) (string, error) {
-				assert.Equal(t, userID, gotUserID)
-				return "casdoor-subject-1", nil
+				t.Fatalf("Casdoor subject must not be loaded from LDAP student verification; user=%d", gotUserID)
+				return "", nil
 			},
-			onSetUserPhone: func(_ context.Context, gotUserID int64, phoneEnc []byte, phoneHash string) error {
-				assert.Equal(t, userID, gotUserID)
-				assert.Equal(t, "encrypted:138****8000", string(phoneEnc))
-				assert.Equal(t, expectedPhoneHash, phoneHash)
-				phoneProjection = append([]byte(nil), phoneEnc...)
-				events = append(events, "phone_projection")
+			onSetUserPhone: func(_ context.Context, _ int64, _ []byte, _ string) error {
+				projectionCalls++
 				return nil
 			},
 		},
@@ -405,10 +394,8 @@ func TestVerifyStudent_LDAPPhoneSyncRunsAfterProfileTransactionAndPersistsProjec
 		},
 	}
 
-	gateway := profileIdentitySyncFunc(func(_ context.Context, subject, phone string) error {
-		syncedSubject = subject
-		syncedPhone = phone
-		events = append(events, "identity_phone")
+	gateway := profileIdentitySyncFunc(func(_ context.Context, _, _ string) error {
+		identityCalls++
 		return nil
 	})
 
@@ -432,10 +419,10 @@ func TestVerifyStudent_LDAPPhoneSyncRunsAfterProfileTransactionAndPersistsProjec
 	require.NoError(t, err)
 	require.NotNil(t, profile)
 
-	assert.Equal(t, "casdoor-subject-1", syncedSubject)
-	assert.Equal(t, "+8613800138000", syncedPhone)
-	assert.True(t, profile.PhoneVerified)
-	assert.Equal(t, []string{"tx_begin", "create_profile", "tx_commit", "identity_phone", "phone_projection"}, events)
+	assert.False(t, profile.PhoneVerified)
+	assert.Zero(t, identityCalls)
+	assert.Zero(t, projectionCalls)
+	assert.Equal(t, []string{"tx_begin", "create_profile", "tx_commit"}, events)
 }
 
 func TestVerifyStudent_LDAPPhoneSyncSkippedWhenProfileTransactionFails(t *testing.T) {

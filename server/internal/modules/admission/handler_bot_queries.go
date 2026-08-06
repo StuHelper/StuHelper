@@ -33,13 +33,6 @@ type botJoinRequestDecisionHTTPRequest struct {
 	RawEvent  map[string]any `json:"rawEvent"`
 }
 
-type botFreshmanCommandHTTPRequest struct {
-	OperatorQQID string  `json:"operatorQQID" binding:"required"`
-	GuildID      string  `json:"guildID" binding:"required"`
-	ChannelID    *string `json:"channelID"`
-	RawCommand   string  `json:"rawCommand" binding:"required"`
-}
-
 func botSessionSubjectFromQuery(c *gin.Context) (BotSessionSubjectInput, bool) {
 	platform := strings.TrimSpace(c.Query("platform"))
 	guildID := strings.TrimSpace(c.Query("guildID"))
@@ -230,45 +223,6 @@ func botPendingActionLimit(c *gin.Context) (int, bool) {
 	return limit, true
 }
 
-func (h *Handler) handleListBotPendingFreshmanForwards(c *gin.Context) {
-	items, err := h.service.ListPendingFreshmanForwards(c.Request.Context())
-	if err != nil {
-		respondAdmissionError(c, err)
-		return
-	}
-	response.Success(c, items)
-}
-
-func (h *Handler) handleMarkBotFreshmanApplicationForwarded(c *gin.Context) {
-	if err := h.service.MarkFreshmanApplicationForwarded(c.Request.Context(), c.Param("id")); err != nil {
-		respondAdmissionError(c, err)
-		return
-	}
-	response.Success(c, gin.H{"message": "freshman application forwarded"})
-}
-
-func (h *Handler) handleBotViewFreshmanApplication(c *gin.Context) {
-	command, ok := h.bindBotFreshmanCommand(c)
-	if !ok {
-		return
-	}
-	app, err := h.service.ViewFreshmanApplicationFromBot(c.Request.Context(), command)
-	if err != nil {
-		respondAdmissionError(c, err)
-		return
-	}
-	response.Success(c, app)
-}
-
-func (h *Handler) bindBotFreshmanCommand(c *gin.Context) (BotFreshmanCommandInput, bool) {
-	var req botFreshmanCommandHTTPRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "invalid request parameters")
-		return BotFreshmanCommandInput{}, false
-	}
-	return botFreshmanCommandInput(c.Param("id"), req), true
-}
-
 func botJoinRequestEventInput(req botJoinRequestEventHTTPRequest) AdmissionJoinRequestEventInput {
 	return AdmissionJoinRequestEventInput{
 		Platform:  req.Platform,
@@ -284,14 +238,4 @@ func botJoinRequestEventInput(req botJoinRequestEventHTTPRequest) AdmissionJoinR
 
 func botJoinRequestDecisionInput(req botJoinRequestDecisionHTTPRequest) AdmissionJoinRequestDecisionInput {
 	return AdmissionJoinRequestDecisionInput(req)
-}
-
-func botFreshmanCommandInput(applicationID string, req botFreshmanCommandHTTPRequest) BotFreshmanCommandInput {
-	return BotFreshmanCommandInput{
-		ApplicationID: applicationID,
-		OperatorQQID:  req.OperatorQQID,
-		GuildID:       req.GuildID,
-		ChannelID:     req.ChannelID,
-		RawCommand:    req.RawCommand,
-	}
 }

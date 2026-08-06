@@ -1,189 +1,119 @@
-import { expect, mockNotificationStream, test, type Page } from "./fixtures";
+import {
+    expect,
+    mockCurrentAccountProjections,
+    mockNotificationStream,
+    test,
+    type Page,
+} from "./fixtures";
+
+const now = "2026-08-05T08:00:00Z";
+const applicationID = "11111111-1111-4111-8111-111111111111";
+const credentialID = "22222222-2222-4222-8222-222222222222";
+const phoneOperationID = "33333333-3333-4333-8333-333333333333";
 
 const user = {
     id: "u2",
     name: "bob",
     displayName: "Bob",
     email: "bob@example.com",
-    roles: ["verified_student"],
-    capabilities: [
-        "review:list:full",
-        "review:create",
-        "review:edit:own",
-        "review:delete:own",
-    ],
-    globalCapabilities: [
-        "review:list:full",
-        "review:create",
-        "review:edit:own",
-        "review:delete:own",
-    ],
+    roles: ["user"],
+    capabilities: ["review:create"],
+    globalCapabilities: ["review:create"],
     capabilityGrants: [],
     isPlatformAdmin: false,
     canAccessAdmin: false,
 };
 
-const now = "2026-05-24T04:00:00Z";
-
-const verifiedIdentity = {
-    userID: 12,
-    docType: "MAINLAND_ID",
-    realName: "张三",
-    verified: true,
-    verifyMethod: "manual",
-    reviewedAt: now,
-    verifiedAt: now,
-    rejectionReason: null,
-    createdAt: now,
-    updatedAt: now,
+const privacyNotice = {
+    version: "buaa-verification-v1",
+    title: "学生身份信息处理说明",
+    summary: "仅用于本次学生身份一致性校验。",
+    dataCategories: ["学号", "姓名", "身份证件号"],
+    retentionSummary: "本次填写的姓名和身份证件号原文不持久化。",
 };
 
-const rejectedIdentity = {
-    ...verifiedIdentity,
-    verified: false,
-    reviewedAt: now,
-    verifiedAt: null,
-    rejectionReason: "证件号码与姓名不匹配",
-};
-
-const unverifiedProfile = {
-    userID: 12,
-    schoolID: null,
-    studentIDs: [],
-    activeStudentID: null,
-    verificationStatus: "unverified",
-    verificationMethod: null,
-    rejectionReason: null,
-    reviewedAt: null,
-    phone: null,
-    phoneVerified: false,
-    consentGivenAt: null,
-    verifiedAt: null,
-    createdAt: now,
-    updatedAt: now,
-};
-
-const verifiedProfile = {
-    ...unverifiedProfile,
-    schoolID: 4111010001,
-    studentIDs: ["20260001"],
-    activeStudentID: "20260001",
-    verificationStatus: "verified",
-    verificationMethod: "ldap",
-    verifiedAt: now,
-};
-
-const rejectedProfile = {
-    ...unverifiedProfile,
-    schoolID: 4111010001,
-    studentIDs: [],
-    activeStudentID: null,
-    verificationStatus: "rejected",
-    verificationMethod: "ldap",
-    rejectionReason: "统一身份认证失败",
-    reviewedAt: now,
-};
-
-const schools = [
-    {
-        schoolID: 4111010001,
-        schoolCode: "4111010001",
-        schoolName: "测试大学",
-        verificationMethod: "ldap",
-        consentText: "仅用于校内身份认证",
-        manualFormFields: null,
-        enabled: true,
-        schoolSsoEnabled: false,
-        schoolEmailOtpEnabled: false,
-    },
-    {
-        schoolID: 4111010002,
-        schoolCode: "4111010002",
-        schoolName: "人工审核大学",
-        verificationMethod: "manual",
-        consentText: "请确认人工审核材料真实有效",
-        manualFormFields: [
-            {
-                key: "studentId",
-                label: "学号",
-                type: "text",
-                required: true,
-                placeholder: "请输入学号",
-            },
-            {
-                key: "college",
-                label: "学院",
-                type: "select",
-                required: true,
-                options: ["计算机学院", "材料学院"],
-                placeholder: "请选择学院",
-            },
-            {
-                key: "note",
-                label: "补充说明",
-                type: "textarea",
-                required: false,
-                placeholder: "补充说明",
-            },
-            {
-                key: "enrolledAt",
-                label: "入学日期",
-                type: "date",
-                required: false,
-            },
-        ],
-        enabled: true,
-        schoolSsoEnabled: false,
-        schoolEmailOtpEnabled: false,
-    },
-    {
-        schoolID: 4111010006,
-        schoolCode: "4111010006",
-        schoolName: "北京航空航天大学",
-        verificationMethod: "manual",
-        consentText: "仅用于北航学生身份认证",
-        manualFormFields: null,
-        enabled: true,
-        schoolSsoEnabled: false,
-        schoolEmailOtpEnabled: true,
-        schoolEmailIdentityPolicy: {
-            type: "academic_student_email",
-            studentIDEmailDomain: "buaa.edu.cn",
-            requireStudentName: true,
+const school = {
+    code: "4111010006",
+    name: "北京航空航天大学",
+    location: "北京",
+    methods: [
+        {
+            method: "real_name_identity_check",
+            displayName: "实名信息校验",
+            description: "通过服务端完成实名信息一致性校验。",
+            availability: "available",
+            formFields: [],
+            privacyNotice,
         },
-    },
-];
-
-type UserApiState = {
-    identity: null | Record<string, unknown>;
-    profile: Record<string, unknown>;
-    qqBinding?: null | Record<string, unknown>;
+        {
+            method: "school_sso",
+            displayName: "统一身份认证验证",
+            description: "使用学校统一身份认证账号完成一次性校验。",
+            availability: "available",
+            formFields: [],
+            privacyNotice: {
+                ...privacyNotice,
+                version: "buaa-sso-v1",
+                dataCategories: ["学号", "统一身份认证密码"],
+                retentionSummary: "统一身份认证密码仅在本次请求中使用，不会保存。",
+            },
+        },
+        {
+            method: "student_email_outbound_otp",
+            displayName: "学校邮箱接收验证码",
+            description: "验证码只发送到规范学号邮箱。",
+            availability: "available",
+            formFields: [],
+            privacyNotice: {
+                ...privacyNotice,
+                version: "buaa-email-v1",
+                dataCategories: ["学号", "姓名", "学校邮箱"],
+            },
+        },
+        {
+            method: "manual_material_review",
+            displayName: "人工材料审核",
+            description: "自动方式不可用时拍摄材料提交审核。",
+            availability: "available",
+            formFields: [
+                {
+                    key: "department",
+                    label: "学院",
+                    inputType: "text",
+                    required: true,
+                    maxLength: 100,
+                },
+                {
+                    key: "studentID",
+                    label: "学号或录取编号",
+                    inputType: "text",
+                    required: true,
+                    maxLength: 64,
+                },
+                {
+                    key: "name",
+                    label: "姓名",
+                    inputType: "text",
+                    required: true,
+                    maxLength: 100,
+                },
+                {
+                    key: "email",
+                    label: "学校邮箱",
+                    inputType: "email",
+                    required: true,
+                    maxLength: 320,
+                },
+            ],
+            privacyNotice: {
+                ...privacyNotice,
+                version: "manual-v1",
+                dataCategories: ["学校信息", "学生材料", "学校邮箱"],
+                retentionSummary: "材料按公示的保留期限加密保存，到期删除。",
+            },
+        },
+    ],
 };
-
-function statusToSurfaceStatus(value: unknown) {
-    if (value === "verified") return "approved";
-    if (value === "pending") return "pending";
-    if (value === "rejected") return "rejected";
-    return "none";
-}
-
-function buildUserSurface(state: UserApiState) {
-    return {
-        displayName: user.displayName,
-        phone: state.profile.phone ?? null,
-        identityStatus:
-            state.identity && state.identity.verified === true
-                ? "approved"
-                : "none",
-        verificationStatus: statusToSurfaceStatus(
-            state.profile.verificationStatus,
-        ),
-        phoneBound:
-            state.profile.phoneVerified === true ||
-            typeof state.profile.phone === "string",
-        capabilities: user.capabilities,
-    };
-}
 
 function json(data: unknown, status = 200) {
     return {
@@ -193,783 +123,357 @@ function json(data: unknown, status = 200) {
     };
 }
 
-function ok(data: unknown = null) {
-    return json({ success: true, data });
+function ok(data: unknown = null, status = 200) {
+    return json({ success: true, data }, status);
 }
 
-function notFound(message = "not found") {
-    return json(
-        {
-            success: false,
-            error: { code: "A0040404", message },
-        },
-        404,
-    );
+function application(status: "created" | "in_progress" | "approved", method: string | null = null) {
+    return {
+        id: applicationID,
+        school: { code: school.code, name: school.name },
+        status,
+        currentMethod: method,
+        revision: status === "approved" ? 3 : method ? 2 : 1,
+        nextActions: status === "approved" ? ["return_to_consumer"] : method ? ["retry_current_method", "choose_another_method"] : ["choose_method"],
+        credential: status === "approved"
+            ? {
+                id: credentialID,
+                schoolCode: school.code,
+                schoolName: school.name,
+                method,
+                status: "active",
+                credentialClass: "formal_student",
+                subjectDisplay: "2337****",
+                verifiedAt: now,
+                expiresAt: null,
+                reviewRequiredAt: null,
+                revision: 1,
+            }
+            : null,
+        createdAt: now,
+        updatedAt: now,
+        expiresAt: "2026-08-05T09:00:00Z",
+    };
 }
 
-async function gotoAuthenticatedPage(page: Page, path: string) {
-    const unreadCountLoaded = page.waitForResponse((response) => {
-        const url = new URL(response.url());
-        return (
-            response.request().method() === "GET" &&
-            url.pathname ===
-                "/api/v1/course/review/user/notifications/unread-count" &&
-            response.status() === 200
-        );
-    });
-
-    await page.goto(path);
-    await unreadCountLoaded;
-}
-
-async function mockUserApi(page: Page, state: UserApiState) {
-    await page.addInitScript((u) => {
-        localStorage.setItem("stuhelper_user", JSON.stringify(u));
-        localStorage.setItem(
-            "stuhelper_token_expiry",
-            String(Date.now() + 60 * 60 * 1000),
-        );
+async function mockAuthenticatedShell(page: Page) {
+    await page.addInitScript((value) => {
+        localStorage.setItem("stuhelper_user", JSON.stringify(value));
+        localStorage.setItem("stuhelper_token_expiry", String(Date.now() + 60 * 60 * 1000));
+        sessionStorage.clear();
     }, user);
 
     await page.route("**/api/v1/auth/me", (route) => route.fulfill(ok(user)));
-    await page.route("**/api/v1/user/me", (route) =>
-        route.fulfill(ok(buildUserSurface(state))),
-    );
-    await page.route("**/api/v1/auth/refresh", (route) =>
-        route.fulfill(ok({ expiresIn: 3600 })),
-    );
-    await page.route(
-        "**/api/v1/course/review/user/notifications/unread-count*",
-        (route) => route.fulfill(ok({ count: 0 })),
+    await page.route("**/api/v1/auth/refresh", (route) => route.fulfill(ok({ expiresIn: 3600 })));
+    await mockCurrentAccountProjections(page, {
+        displayName: user.displayName,
+        studentVerified: false,
+        phoneBound: false,
+        capabilities: user.capabilities,
+    });
+    await page.route("**/api/v1/course/review/user/notifications/unread-count*", (route) =>
+        route.fulfill(ok({ count: 0 })),
     );
     await mockNotificationStream(page);
-    await page.route("**/api/v1/course/review/user/reviews*", (route) =>
-        route.fulfill(ok({ list: [], total: 0, page: 1, pageSize: 10 })),
+}
+
+async function mockStudentPlatform(page: Page) {
+    await page.route("**/api/v1/student-verification/schools", (route) =>
+        route.fulfill(ok([school])),
     );
-    await page.route("**/api/v1/course/review/user/votes*", (route) =>
-        route.fulfill(ok({ list: [], total: 0, page: 1, pageSize: 10 })),
+    await page.route("**/api/v1/student-verification/credentials", (route) =>
+        route.fulfill(ok([])),
     );
-    await page.route("**/api/v1/course/review/user/favorites*", (route) =>
-        route.fulfill(ok({ list: [], total: 0, page: 1, pageSize: 10 })),
-    );
-    await page.route("**/api/v1/user/identity", async (route) => {
-        if (route.request().method() === "POST") {
-            const body = route.request().postDataJSON();
-            state.identity = {
-                userID: 12,
-                docType: body.docType,
-                realName: body.realName,
-                verified: false,
-                verifyMethod: "manual",
-                reviewedAt: null,
-                verifiedAt: null,
-                rejectionReason: null,
-                createdAt: now,
-                updatedAt: now,
-            };
-            await route.fulfill(ok(state.identity));
-            return;
-        }
-        await route.fulfill(
-            state.identity === null
-                ? notFound("identity not found")
-                : ok(state.identity),
-        );
-    });
-    await page.route("**/api/v1/user/profile", (route) =>
-        route.fulfill(ok(state.profile)),
-    );
-    await page.route("**/api/v1/user/profile/verify", async (route) => {
-        const body = route.request().postDataJSON();
-        const school = schools.find(
-            (item) => item.schoolCode === body.schoolCode,
-        );
-        state.profile = {
-            ...verifiedProfile,
-            schoolID: school?.schoolID ?? null,
-        };
-        await route.fulfill(ok(state.profile));
-    });
-    await page.route("**/api/v1/user/profile/bind-phone/otp", (route) =>
-        route.fulfill(ok()),
-    );
-    await page.route("**/api/v1/user/profile/bind-phone", async (route) => {
-        const body = route.request().postDataJSON();
-        const phone = String(body.phone ?? "");
-        state.profile = {
-            ...state.profile,
-            phone:
-                phone.length === 11
-                    ? `${phone.slice(0, 3)}****${phone.slice(7)}`
-                    : phone,
-            phoneVerified: true,
-            updatedAt: now,
-        };
-        await route.fulfill(ok({ phone: body.phone }));
-    });
-    await page.route("**/api/v1/user/qq-binding", (route) =>
-        route.fulfill(
-            state.qqBinding
-                ? ok(state.qqBinding)
-                : notFound("qq binding not found"),
-        ),
-    );
-    await page.route("**/api/v1/user/qq-binding/code", (route) =>
-        route.fulfill(
-            ok({
-                code: "QQ-CODE-1",
-                expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-            }),
-        ),
-    );
-    await page.route("**/api/v1/user/schools", (route) =>
-        route.fulfill(ok(schools)),
-    );
-    await page.route("**/api/v1/user/profile/academic-info", (route) =>
-        route.fulfill(
-            ok({
-                xh: "20260001",
-                xm: "张三",
-                yxdm: "计算机学院",
-                zydm: "软件工程",
-                bjdm: "软件 2601",
-                xznj: "2026",
-                rxnj: "2026",
-                pyccdm: "本科",
-                sjh: "138****5678",
-                dzxx: "zhangsan@example.com",
-            }),
-        ),
+    await page.route("**/api/v1/student-verification/eligibility**", (route) =>
+        route.fulfill(ok({
+            eligible: false,
+            schoolCode: school.code,
+            credentialClass: null,
+            credentialMethods: [],
+            expiresAt: null,
+            evaluatedAt: now,
+            revision: 1,
+        })),
     );
 }
 
-test.describe("User verification flows", () => {
-    test("rejected identity and student verification pages allow resubmission", async ({
-        page,
-    }) => {
-        const state: UserApiState = {
-            identity: { ...rejectedIdentity },
-            profile: { ...rejectedProfile },
-            qqBinding: null,
-        };
+async function selectSchoolAndMethod(page: Page, method: string) {
+    await page.locator("[data-verification-school-option]").click();
+    await page.locator(`[data-verification-method="${method}"]`).click();
+    await expect(page.locator("[data-verification-method-form]")).toBeVisible();
+}
 
-        await mockUserApi(page, state);
+async function fillOTP(page: Page, groupName: string, code: string) {
+    const inputs = page.getByRole("group", { name: groupName }).locator("input");
+    for (let index = 0; index < code.length; index += 1) {
+        await inputs.nth(index).fill(code[index] ?? "");
+    }
+}
 
-        await gotoAuthenticatedPage(page, "/user/identity-verification");
-        await expect(
-            page.getByRole("heading", { name: "已拒绝" }),
-        ).toBeVisible();
-        await expect(page.getByText("证件号码与姓名不匹配")).toBeVisible();
+test.describe("Current student verification and phone flows", () => {
+    test("real-name information verification uses the independent target API and never exposes roster internals", async ({ page }) => {
+        let submitted: Record<string, unknown> | null = null;
 
-        await page.getByRole("button", { name: "重新提交" }).click();
-        await expect(page.getByLabel("真实姓名")).toBeVisible();
-        await expect(page.getByLabel("证件号码")).toBeVisible();
-        await expect(
-            page.getByRole("button", { name: "提交认证" }),
-        ).toBeDisabled();
+        await mockAuthenticatedShell(page);
+        await mockStudentPlatform(page);
+        await page.route("**/api/v1/student-verification/applications", async (route) => {
+            expect(route.request().method()).toBe("POST");
+            await route.fulfill(ok(application("created"), 201));
+        });
+        await page.route(
+            `**/api/v1/student-verification/applications/${applicationID}/real-name/verify`,
+            async (route) => {
+                submitted = route.request().postDataJSON() as Record<string, unknown>;
+                await route.fulfill(ok(application("approved", "real_name_identity_check")));
+            },
+        );
 
-        state.identity = { ...verifiedIdentity };
-        await gotoAuthenticatedPage(page, "/user/student-verification");
-        await expect(
-            page.getByRole("heading", { name: "已拒绝" }),
-        ).toBeVisible();
-        await expect(
-            page.getByText("验证失败，请检查学号和密码"),
-        ).toBeVisible();
+        await page.goto("/user/student-verification");
+        await expect(page.getByRole("heading", { name: "学生认证" })).toBeVisible();
+        await selectSchoolAndMethod(page, "real_name_identity_check");
 
-        await page.getByRole("button", { name: "重新提交" }).click();
-        await expect(page.locator("#student-school")).toBeVisible();
-        await page.locator("#student-school").selectOption("4111010001");
-        await expect(page.getByRole("button", { name: "验证" })).toBeDisabled();
+        await page.locator("[data-verification-student-id]").fill("20990001");
+        await page.locator("[data-verification-name]").fill("测试学生");
+        await page.locator("[data-verification-document-number]").fill("110101200501010011");
+        await page.locator("[data-verification-consent]").check();
+        await page.locator("[data-verification-submit]").click();
+
+        await expect(page.locator("[data-verification-complete]")).toBeVisible();
+        expect(submitted).toEqual({
+            studentID: "20990001",
+            name: "测试学生",
+            documentNumber: "110101200501010011",
+            privacyNoticeVersion: "buaa-verification-v1",
+            sensitiveDataConsent: true,
+        });
+        await expect(page.locator("[data-student-verification-page]")).not.toContainText("Oracle");
+        await expect(page.locator("[data-student-verification-page]")).not.toContainText("SFZJH");
+        await expect(page.locator("[data-student-verification-page]")).not.toContainText("腾讯云人脸核身");
     });
 
-    test("verified and bound account detail pages render persisted status", async ({
-        page,
-    }) => {
-        const state: UserApiState = {
-            identity: { ...verifiedIdentity },
-            profile: {
-                ...verifiedProfile,
-                phone: "138****5678",
-                phoneVerified: true,
+    test("school-email verification derives the mailbox server-side and accepts a returned OTP", async ({ page }) => {
+        let identityRequest: unknown = null;
+        let otpRequest: unknown = null;
+
+        await mockAuthenticatedShell(page);
+        await mockStudentPlatform(page);
+        await page.route("**/api/v1/student-verification/applications", (route) =>
+            route.fulfill(ok(application("created"), 201)),
+        );
+        await page.route(
+            `**/api/v1/student-verification/applications/${applicationID}/email/outbound/otp`,
+            async (route) => {
+                identityRequest = route.request().postDataJSON();
+                await route.fulfill(ok({
+                    applicationID,
+                    maskedEmail: "2337****@buaa.edu.cn",
+                    expiresAt: "2026-08-05T08:10:00Z",
+                    resendAvailableAt: "2026-08-05T08:01:00Z",
+                    remainingAttempts: 5,
+                }));
             },
-            qqBinding: {
-                userID: 12,
-                qqID: "123456",
-                boundAt: now,
-                createdAt: now,
-                updatedAt: now,
+        );
+        await page.route(
+            `**/api/v1/student-verification/applications/${applicationID}/email/outbound/verify`,
+            async (route) => {
+                otpRequest = route.request().postDataJSON();
+                await route.fulfill(ok(application("approved", "student_email_outbound_otp")));
             },
-        };
+        );
 
-        await mockUserApi(page, state);
+        await page.goto("/user/student-verification");
+        await selectSchoolAndMethod(page, "student_email_outbound_otp");
+        await page.locator("[data-verification-student-id]").fill("20990001");
+        await page.locator("[data-verification-name]").fill("测试学生");
+        await page.locator("[data-verification-consent]").check();
+        await page.locator("[data-verification-submit]").click();
 
-        await gotoAuthenticatedPage(page, "/user/identity-verification");
-        await expect(
-            page.getByRole("heading", { name: "实名认证" }),
-        ).toBeVisible();
-        await expect(
-            page.getByRole("heading", { name: "已认证" }),
-        ).toBeVisible();
-        await expect(page.getByText("大陆居民身份证")).toBeVisible();
-        await expect(page.getByText("张三")).toBeVisible();
+        await expect(page.getByText("2337****@buaa.edu.cn")).toBeVisible();
+        await fillOTP(page, "验证码", "654321");
+        await page.locator("[data-verification-submit]").click();
 
-        await gotoAuthenticatedPage(page, "/user/student-verification");
-        await expect(
-            page.getByRole("heading", { name: "学生认证" }),
-        ).toBeVisible();
-        await expect(
-            page.getByRole("heading", { name: "已认证" }),
-        ).toBeVisible();
-        await expect(page.getByText("测试大学")).toBeVisible();
+        await expect(page.locator("[data-verification-complete]")).toBeVisible();
+        expect(identityRequest).toEqual({
+            studentID: "20990001",
+            name: "测试学生",
+            privacyNoticeVersion: "buaa-email-v1",
+            sensitiveDataConsent: true,
+        });
+        expect(otpRequest).toEqual({ code: "654321" });
+    });
 
-        await gotoAuthenticatedPage(page, "/user/phone-binding");
-        await expect(
-            page.getByRole("heading", { name: "绑定手机" }),
-        ).toBeVisible();
-        await expect(
-            page.getByRole("heading", { name: "已绑定" }),
-        ).toBeVisible();
+    test("a user-entered phone can complete through the school-confirmed path without an SMS step", async ({ page }) => {
+        let submitted: unknown = null;
+        let statusReads = 0;
+
+        await mockAuthenticatedShell(page);
+        await page.route("**/api/v1/account/phone", (route) => {
+            statusReads += 1;
+            return route.fulfill(ok(statusReads === 1
+                ? {
+                    state: "unbound",
+                    maskedPhone: null,
+                    method: null,
+                    verifiedAt: null,
+                    expiresAt: null,
+                    publishingRequirementSatisfied: false,
+                    revision: 1,
+                }
+                : {
+                    state: "verified",
+                    maskedPhone: "138****5678",
+                    method: "school_roster_phone_match",
+                    verifiedAt: now,
+                    expiresAt: null,
+                    publishingRequirementSatisfied: true,
+                    revision: 2,
+                }));
+        });
+        await page.route("**/api/v1/account/phone/operations", async (route) => {
+            submitted = route.request().postDataJSON();
+            await route.fulfill(ok({
+                id: phoneOperationID,
+                operationKind: "bind",
+                status: "completed",
+                maskedPhone: "138****5678",
+                verificationStep: "none",
+                smsResendAvailableAt: null,
+                expiresAt: "2026-08-05T08:15:00Z",
+                revision: 3,
+            }, 201));
+        });
+
+        await page.goto("/user/phone-binding");
+        await page.locator("[data-phone-number]").fill("13812345678");
+        await page.getByRole("button", { name: "继续" }).click();
+
         await expect(page.getByText("138****5678")).toBeVisible();
-
-        await gotoAuthenticatedPage(page, "/user/qq-binding");
-        await expect(
-            page.getByRole("heading", { name: "绑定 QQ" }),
-        ).toBeVisible();
-        await expect(
-            page.getByRole("heading", { name: "已绑定" }),
-        ).toBeVisible();
-        await expect(page.getByText("123456")).toBeVisible();
-
-        await gotoAuthenticatedPage(page, "/user/academic-info");
-        await expect(page.getByText("20260001")).toBeVisible();
-        await expect(page.getByText("张三")).toBeVisible();
-        await expect(page.getByText("计算机学院")).toBeVisible();
-        await expect(page.getByText("软件工程")).toBeVisible();
+        await expect(page.getByText("学校账号信息确认")).toBeVisible();
+        expect(submitted).toEqual({ phone: "13812345678" });
+        await expect(page.locator("[data-phone-sms-step]")).toHaveCount(0);
     });
 
-    test("user submits identity verification and completes LDAP student verification", async ({
-        page,
-    }) => {
-        const state: UserApiState = {
-            identity: null,
-            profile: { ...unverifiedProfile },
-            qqBinding: null,
-        };
-        let identityBody: unknown = null;
-        let studentBody: unknown = null;
+    test("a phone not confirmed by school data silently falls back to SMS possession verification", async ({ page }) => {
+        let smsRequests = 0;
+        let verifiedCode: unknown = null;
+        let statusReads = 0;
 
-        await mockUserApi(page, state);
-        await page.route("**/api/v1/user/identity", async (route) => {
-            if (route.request().method() === "POST") {
-                identityBody = route.request().postDataJSON();
-            }
-            await route.fallback();
+        await mockAuthenticatedShell(page);
+        await page.route("**/api/v1/account/phone", (route) => {
+            statusReads += 1;
+            return route.fulfill(ok(statusReads === 1
+                ? {
+                    state: "unbound",
+                    maskedPhone: null,
+                    method: null,
+                    verifiedAt: null,
+                    expiresAt: null,
+                    publishingRequirementSatisfied: false,
+                    revision: 1,
+                }
+                : {
+                    state: "verified",
+                    maskedPhone: "139****2468",
+                    method: "sms_possession",
+                    verifiedAt: now,
+                    expiresAt: null,
+                    publishingRequirementSatisfied: true,
+                    revision: 2,
+                }));
         });
-        await page.route("**/api/v1/user/profile/verify", async (route) => {
-            studentBody = route.request().postDataJSON();
-            await route.fallback();
+        await page.route("**/api/v1/account/phone/operations", (route) =>
+            route.fulfill(ok({
+                id: phoneOperationID,
+                operationKind: "bind",
+                status: "pending_verification",
+                maskedPhone: "139****2468",
+                verificationStep: "sms_otp",
+                smsResendAvailableAt: null,
+                expiresAt: "2026-08-05T08:15:00Z",
+                revision: 1,
+            }, 201)),
+        );
+        await page.route(`**/api/v1/account/phone/operations/${phoneOperationID}/sms`, (route) => {
+            smsRequests += 1;
+            return route.fulfill(ok({
+                id: phoneOperationID,
+                operationKind: "bind",
+                status: "pending_verification",
+                maskedPhone: "139****2468",
+                verificationStep: "sms_otp",
+                smsResendAvailableAt: "2026-08-05T08:01:00Z",
+                expiresAt: "2026-08-05T08:15:00Z",
+                revision: 2,
+            }));
         });
+        await page.route(
+            `**/api/v1/account/phone/operations/${phoneOperationID}/sms/verify`,
+            async (route) => {
+                verifiedCode = route.request().postDataJSON();
+                await route.fulfill(ok({
+                    id: phoneOperationID,
+                    operationKind: "bind",
+                    status: "completed",
+                    maskedPhone: "139****2468",
+                    verificationStep: "none",
+                    smsResendAvailableAt: null,
+                    expiresAt: "2026-08-05T08:15:00Z",
+                    revision: 3,
+                }));
+            },
+        );
 
-        await gotoAuthenticatedPage(page, "/user/identity-verification");
+        await page.goto("/user/phone-binding");
+        await page.locator("[data-phone-number]").fill("13912342468");
+        await page.getByRole("button", { name: "继续" }).click();
 
-        await page.getByLabel("真实姓名").fill("张三");
-        await page.getByLabel("证件号码").fill("110101200001010010");
-        await page.getByRole("button", { name: "提交认证" }).click();
+        await expect(page.locator("[data-phone-sms-step]")).toBeVisible();
+        await fillOTP(page, "短信验证码", "123456");
+        await page.getByRole("button", { name: "确认并绑定" }).click();
 
-        await expect(
-            page.getByRole("heading", { name: "审核中" }),
-        ).toBeVisible();
-        await expect(page.getByText("张三")).toBeVisible();
-        expect(identityBody).toMatchObject({
-            docType: "MAINLAND_ID",
-            realName: "张三",
-            docNumber: "110101200001010010",
-        });
-
-        state.identity = { ...verifiedIdentity };
-        await gotoAuthenticatedPage(page, "/user/student-verification");
-
-        await page.locator("#student-school").selectOption("4111010001");
-        await page.getByLabel("学号").fill("20260001");
-        await page.getByLabel("统一身份认证密码").fill("secret-pass");
-        await page.getByRole("checkbox").check();
-        await page.getByRole("button", { name: "验证" }).click();
-
-        await expect(
-            page.getByRole("heading", { name: "已认证" }),
-        ).toBeVisible();
-        await expect(page.getByText("测试大学")).toBeVisible();
-        expect(studentBody).toMatchObject({
-            schoolCode: "4111010001",
-            studentID: "20260001",
-            password: "secret-pass",
-            consent: true,
-        });
+        await expect(page.getByText("139****2468")).toBeVisible();
+        await expect(page.getByText("短信验证码确认")).toBeVisible();
+        expect(smsRequests).toBe(1);
+        expect(verifiedCode).toEqual({ code: "123456" });
     });
 
-    test("BUAA student verification derives and locks the student email by school code", async ({
-        page,
-    }) => {
-        const state: UserApiState = {
-            identity: { ...verifiedIdentity },
-            profile: { ...unverifiedProfile },
-            qqBinding: null,
-        };
-        let academicMatchBody: unknown = null;
-        let otpRequestBody: unknown = null;
-        let otpVerifyBody: unknown = null;
+    test("student verification remains usable at target widths and honors reduced motion", async ({ page }) => {
+        await mockAuthenticatedShell(page);
+        await mockStudentPlatform(page);
+        await page.emulateMedia({ reducedMotion: "reduce" });
 
-        await mockUserApi(page, state);
-        await page.route(
-            "**/api/v1/user/profile/school-email/academic-match",
-            async (route) => {
-                academicMatchBody = route.request().postDataJSON();
-                await route.fulfill(
-                    ok({
-                        matched: true,
-                        email: "20250001@buaa.edu.cn",
-                        studentID: "20250001",
-                        message: "学号和姓名已匹配。",
-                    }),
-                );
-            },
-        );
-        await page.route(
-            "**/api/v1/user/profile/school-email/request-otp",
-            async (route) => {
-                otpRequestBody = route.request().postDataJSON();
-                await route.fulfill(
-                    ok({
-                        email: "20250001@buaa.edu.cn",
-                        studentID: "20250001",
-                        cooldownSeconds: 60,
-                    }),
-                );
-            },
-        );
-        await page.route(
-            "**/api/v1/user/profile/school-email/verify-otp",
-            async (route) => {
-                otpVerifyBody = route.request().postDataJSON();
-                state.profile = {
-                    ...verifiedProfile,
-                    schoolID: 4111010006,
-                    studentIDs: ["20250001"],
-                    activeStudentID: "20250001",
-                    verificationMethod: "school_email_otp",
+        const viewports = [
+            { width: 375, height: 812 },
+            { width: 667, height: 375 },
+            { width: 768, height: 1024 },
+            { width: 1024, height: 900 },
+            { width: 1440, height: 900 },
+        ];
+
+        for (const viewport of viewports) {
+            await page.setViewportSize(viewport);
+            await page.goto("/user/student-verification");
+
+            const root = page.locator("[data-student-verification-page]");
+            const schoolOption = page.locator("[data-verification-school-option]");
+            await expect(root).toBeVisible();
+            await expect(schoolOption).toBeVisible();
+
+            const layout = await page.evaluate(() => ({
+                clientWidth: document.documentElement.clientWidth,
+                scrollWidth: document.documentElement.scrollWidth,
+            }));
+            expect(layout.scrollWidth).toBeLessThanOrEqual(layout.clientWidth + 1);
+
+            const interactionStyle = await schoolOption.evaluate((element) => {
+                const style = window.getComputedStyle(element);
+                return {
+                    height: element.getBoundingClientRect().height,
+                    transitionDuration: Number.parseFloat(style.transitionDuration),
                 };
-                await route.fulfill(ok(state.profile));
-            },
-        );
-
-        await gotoAuthenticatedPage(page, "/user/student-verification");
-
-        await page.locator("#student-school").selectOption("4111010006");
-        const emailInput = page.locator("[data-student-school-email-input]");
-        await expect(emailInput).toHaveJSProperty("readOnly", true);
-        await expect(emailInput).toHaveValue("");
-        await page.locator("[data-student-id-input]").fill("20250001");
-        await page.locator("[data-student-name-input]").fill("张三");
-        await page.locator("[data-student-email-otp-request]").click();
-        await expect(emailInput).toHaveValue("20250001@buaa.edu.cn");
-        await page.locator("[data-student-email-code-input]").fill("123456");
-        await page.locator("[data-student-consent-checkbox]").check();
-        await page.locator("[data-student-verification-submit]").click();
-
-        await expect(
-            page.getByRole("heading", { name: "已认证" }),
-        ).toBeVisible();
-        await expect(
-            page.getByText("北京航空航天大学（4111010006）"),
-        ).toBeVisible();
-        expect(academicMatchBody).toEqual({
-            schoolCode: "4111010006",
-            studentID: "20250001",
-            studentName: "张三",
-        });
-        expect(otpRequestBody).toEqual({
-            schoolCode: "4111010006",
-            studentID: "20250001",
-            studentName: "张三",
-        });
-        expect(otpVerifyBody).toEqual({
-            schoolCode: "4111010006",
-            email: "20250001@buaa.edu.cn",
-            code: "123456",
-            consent: true,
-        });
-    });
-
-    test("user submits passport identity with uploaded document photos", async ({
-        page,
-    }) => {
-        const state: UserApiState = {
-            identity: null,
-            profile: { ...unverifiedProfile },
-            qqBinding: null,
-        };
-        const uploads: unknown[] = [];
-        let identityBody: unknown = null;
-
-        await mockUserApi(page, state);
-        await page.route("**/api/v1/user/identity/uploads", async (route) => {
-            const body = route.request().postDataJSON();
-            uploads.push(body);
-            await route.fulfill(
-                ok({ key: `identity/${body.slot}-${body.filename}` }),
-            );
-        });
-        await page.route("**/api/v1/user/identity", async (route) => {
-            if (route.request().method() === "POST") {
-                identityBody = route.request().postDataJSON();
-            }
-            await route.fallback();
-        });
-
-        await gotoAuthenticatedPage(page, "/user/identity-verification");
-
-        await page.getByText("护照").click();
-        await page.getByLabel("真实姓名").fill("Alice Passport");
-        await page.getByLabel("证件号码").fill("P12345678");
-
-        const png = {
-            name: "passport.png",
-            mimeType: "image/png",
-            buffer: Buffer.from(
-                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMB/az+0XcAAAAASUVORK5CYII=",
-                "base64",
-            ),
-        };
-
-        const imagePreviews = page.locator("img");
-        await page.locator('input[type="file"]').nth(0).setInputFiles(png);
-        await expect(imagePreviews).toHaveCount(1);
-        await page
-            .locator('input[type="file"]')
-            .nth(0)
-            .setInputFiles({
-                ...png,
-                name: "passport-back.png",
             });
-        await expect(imagePreviews).toHaveCount(2);
-        await page
-            .locator('input[type="file"]')
-            .nth(0)
-            .setInputFiles({
-                ...png,
-                name: "passport-selfie.png",
-            });
-        await expect(imagePreviews).toHaveCount(3);
-
-        await page.getByRole("button", { name: "提交认证" }).click();
-
-        await expect(
-            page.getByRole("heading", { name: "审核中" }),
-        ).toBeVisible();
-        expect(uploads).toEqual([
-            expect.objectContaining({
-                slot: "front",
-                filename: "passport.png",
-                contentType: "image/png",
-            }),
-            expect.objectContaining({
-                slot: "back",
-                filename: "passport-back.png",
-                contentType: "image/png",
-            }),
-            expect.objectContaining({
-                slot: "selfie",
-                filename: "passport-selfie.png",
-                contentType: "image/png",
-            }),
-        ]);
-        expect(identityBody).toMatchObject({
-            docType: "PASSPORT",
-            realName: "Alice Passport",
-            docNumber: "P12345678",
-            docPhotoFront: "identity/front-passport.png",
-            docPhotoBack: "identity/back-passport-back.png",
-            docPhotoSelfie: "identity/selfie-passport-selfie.png",
-        });
-    });
-
-    test("user submits manual student verification dynamic fields", async ({
-        page,
-    }) => {
-        const state: UserApiState = {
-            identity: null,
-            profile: { ...unverifiedProfile },
-            qqBinding: null,
-        };
-        let manualBody: unknown = null;
-
-        await mockUserApi(page, state);
-        await page.route("**/api/v1/user/profile/verify", async (route) => {
-            const body = route.request().postDataJSON();
-            manualBody = body;
-            state.profile = {
-                ...unverifiedProfile,
-                schoolID: 4111010001,
-                verificationStatus: "pending",
-                verificationMethod: "manual",
-                consentGivenAt: now,
-                manualFormData: body.manualFormData,
-                updatedAt: now,
-            };
-            await route.fulfill(ok(state.profile));
-        });
-
-        await gotoAuthenticatedPage(page, "/user/student-verification");
-
-        await page.locator("#student-school").selectOption("4111010002");
-        await expect(page.locator("#manual-studentId")).toBeVisible();
-        await expect(page.getByRole("button", { name: "验证" })).toBeDisabled();
-
-        await page.locator("#manual-studentId").fill("M20260002");
-        await page.locator("#manual-college").selectOption("计算机学院");
-        await page.locator("#manual-note").fill("人工审核材料已上传到学校系统");
-        await page.locator("#manual-enrolledAt").fill("2026-09-01");
-        await page.getByRole("checkbox").check();
-        await page.getByRole("button", { name: "验证" }).click();
-
-        await expect(
-            page.getByRole("heading", { name: "审核中" }),
-        ).toBeVisible();
-        expect(manualBody).toMatchObject({
-            schoolCode: "4111010002",
-            manualFormData: {
-                studentId: "M20260002",
-                college: "计算机学院",
-                note: "人工审核材料已上传到学校系统",
-                enrolledAt: "2026-09-01",
-            },
-            consent: true,
-        });
-    });
-
-    test("user updates SSO-synced phone, creates QQ binding code, and views academic info", async ({
-        page,
-    }) => {
-        await page.addInitScript(() => {
-            Object.defineProperty(navigator, "clipboard", {
-                configurable: true,
-                value: {
-                    writeText: (value: string) => {
-                        window.sessionStorage.setItem(
-                            "lastCopiedText",
-                            value,
-                        );
-                        return Promise.resolve();
-                    },
-                },
-            });
-        });
-        const state: UserApiState = {
-            identity: { ...verifiedIdentity },
-            profile: {
-                ...verifiedProfile,
-                phone: "138****5678",
-                phoneVerified: true,
-            },
-            qqBinding: null,
-        };
-        let otpBody: unknown = null;
-        let phoneBody: unknown = null;
-
-        await mockUserApi(page, state);
-        await page.route(
-            "**/api/v1/user/profile/bind-phone/otp",
-            async (route) => {
-                otpBody = route.request().postDataJSON();
-                await route.fallback();
-            },
-        );
-        await page.route("**/api/v1/user/profile/bind-phone", async (route) => {
-            phoneBody = route.request().postDataJSON();
-            await route.fallback();
-        });
-
-        await gotoAuthenticatedPage(page, "/user/phone-binding");
-
-        await expect(
-            page.getByRole("heading", { name: "已绑定" }),
-        ).toBeVisible();
-        await expect(page.getByText("138****5678")).toBeVisible();
-        await expect(page.getByText("同步写入统一身份认证账号")).toBeVisible();
-        await page.getByLabel("手机号码").fill("13912345678");
-        await page.getByRole("button", { name: "发送验证码" }).click();
-        await page.getByLabel("验证码").fill("123456");
-        const phoneUpdated = page.waitForResponse((response) => {
-            const url = new URL(response.url());
-            return (
-                response.request().method() === "POST" &&
-                url.pathname === "/api/v1/user/profile/bind-phone" &&
-                response.status() === 200
-            );
-        });
-        await page.getByRole("button", { name: "更新手机号" }).click();
-        await phoneUpdated;
-
-        await expect(page).toHaveURL(/\/user\/phone-binding/);
-        await expect(page.getByText("139****5678")).toBeVisible();
-        expect(otpBody).toEqual({ phone: "13912345678" });
-        expect(phoneBody).toEqual({
-            phone: "13912345678",
-            otpCode: "123456",
-        });
-
-        await page.goto("/user/qq-binding");
-        await expect(
-            page.getByRole("heading", { name: "绑定 QQ" }),
-        ).toBeVisible();
-        await page.getByRole("button", { name: "生成绑定码" }).click();
-        await expect(
-            page.getByText("机器人入口未配置。已有绑定码可用于已部署的机器人，请联系管理员补充入口信息。"),
-        ).toBeVisible();
-        await expect(page.getByText("未配置机器人入口")).toBeVisible();
-        await expect(page.getByText("绑定 QQ-CODE-1")).toBeVisible();
-        await page
-            .getByRole("button", { name: "复制绑定命令" })
-            .click();
-        await expect
-            .poll(() =>
-                page.evaluate(() =>
-                    window.sessionStorage.getItem("lastCopiedText"),
-                ),
-            )
-            .toBe("绑定 QQ-CODE-1");
-        await expect(
-            page.getByRole("alert").filter({ hasText: "绑定命令已复制" }),
-        ).toBeVisible();
-        await expect(
-            page.getByRole("button", { name: "刷新状态" }),
-        ).toBeVisible();
-
-        state.qqBinding = {
-            userID: 12,
-            qqID: "10001",
-            boundAt: now,
-            createdAt: now,
-            updatedAt: now,
-        };
-        await page.getByRole("button", { name: "刷新状态" }).click();
-        await expect(
-            page.getByRole("heading", { name: "已绑定" }),
-        ).toBeVisible();
-        await expect(page.getByText("10001")).toBeVisible();
-
-        await page.goto("/user/academic-info");
-        await expect(page.getByText("20260001")).toBeVisible();
-        await expect(page.getByText("张三")).toBeVisible();
-    });
-
-    test("invalid QQ binding code response fails closed", async ({ page }) => {
-        const state: UserApiState = {
-            identity: { ...verifiedIdentity },
-            profile: { ...verifiedProfile },
-            qqBinding: null,
-        };
-
-        await mockUserApi(page, state);
-        await page.unroute("**/api/v1/user/qq-binding/code");
-        await page.route("**/api/v1/user/qq-binding/code", (route) =>
-            route.fulfill(ok(null)),
-        );
-
-        await gotoAuthenticatedPage(page, "/user/qq-binding");
-        await page.getByRole("button", { name: "生成绑定码" }).click();
-
-        await expect(
-            page.getByRole("alert").filter({ hasText: "操作失败，请重试" }),
-        ).toBeVisible();
-        await expect(
-            page.getByText("请私聊机器人并发送下面这条命令"),
-        ).toHaveCount(0);
-        await expect(page.getByText("绑定 QQ-CODE-1")).toHaveCount(0);
-    });
-
-    test("academic info page renders verification-required and empty states", async ({
-        page,
-    }) => {
-        const state: UserApiState = {
-            identity: { ...verifiedIdentity },
-            profile: { ...unverifiedProfile },
-            qqBinding: null,
-        };
-
-        await mockUserApi(page, state);
-        await page.unroute("**/api/v1/user/profile/academic-info");
-        await page.route("**/api/v1/user/profile/academic-info", (route) =>
-            route.fulfill(
-                json(
-                    {
-                        success: false,
-                        error: {
-                            code: "A0040300",
-                            message: "student verification required",
-                        },
-                    },
-                    403,
-                ),
-            ),
-        );
-
-        await gotoAuthenticatedPage(page, "/user/academic-info");
-        await expect(
-            page.getByText("请先完成学生认证后查看学业信息"),
-        ).toBeVisible();
-        await expect(
-            page.getByRole("link", { name: "去认证" }),
-        ).toHaveAttribute("href", "/user/student-verification");
-
-        await page.unroute("**/api/v1/user/profile/academic-info");
-        await page.route("**/api/v1/user/profile/academic-info", (route) =>
-            route.fulfill(
-                json(
-                    {
-                        success: false,
-                        error: {
-                            code: "A0040404",
-                            message: "academic info not found",
-                        },
-                    },
-                    404,
-                ),
-            ),
-        );
-
-        await gotoAuthenticatedPage(page, "/user/academic-info");
-        await expect(page.getByText("暂无学籍数据")).toBeVisible();
-
-        await page.unroute("**/api/v1/user/profile/academic-info");
-        let malformedAcademicInfo = true;
-        await page.route("**/api/v1/user/profile/academic-info", (route) =>
-            route.fulfill(
-                ok(
-                    malformedAcademicInfo
-                        ? {
-                              xh: "20260001",
-                              xm: "张三",
-                              sjh: 13812345678,
-                          }
-                        : {
-                              xh: "20260001",
-                              xm: "张三",
-                              yxdm: "计算机学院",
-                          },
-                ),
-            ),
-        );
-
-        await gotoAuthenticatedPage(page, "/user/academic-info");
-        await expect(page.getByText("加载失败")).toBeVisible();
-        await expect(page.getByRole("button", { name: "重试" })).toBeVisible();
-        await expect(page.getByText("暂无学籍数据")).toHaveCount(0);
-
-        malformedAcademicInfo = false;
-        await page.getByRole("button", { name: "重试" }).click();
-        await expect(page.getByText("20260001")).toBeVisible();
-        await expect(page.getByText("计算机学院")).toBeVisible();
+            expect(interactionStyle.height).toBeGreaterThanOrEqual(44);
+            expect(interactionStyle.transitionDuration).toBeLessThanOrEqual(0.001);
+        }
     });
 });

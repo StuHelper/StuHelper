@@ -43,16 +43,16 @@ func TestSetClaimsToContextAndGetters(t *testing.T) {
 	assert.True(t, IsAuthenticated(c))
 
 	caps := GetCapabilities(c)
-	assert.Contains(t, caps, capability.UserStudentRead)
+	assert.Contains(t, caps, capability.StudentManualReviewRead)
 	assert.Contains(t, caps, capability.UserSchoolRead)
 	assert.Contains(t, caps, capability.UserSchoolUpdate)
-	assert.NotContains(t, caps, capability.UserIdentityRead)
+	assert.NotContains(t, caps, capability.CampusConnectorManage)
 
 	assert.False(t, HasGlobalCapability(c, capability.UserSchoolRead))
 	assert.True(t, HasCapabilityInSchool(c, capability.UserSchoolRead, "school-1"))
 	assert.False(t, HasCapabilityInSchool(c, capability.UserSchoolRead, "school-2"))
-	assert.True(t, HasCapability(c, capability.UserStudentRead))
-	assert.False(t, HasCapability(c, capability.UserIdentityRead))
+	assert.True(t, HasCapability(c, capability.StudentManualReviewRead))
+	assert.False(t, HasCapability(c, capability.CampusConnectorManage))
 
 	grants := GetCapabilityGrants(c)
 	require.NotEmpty(t, grants)
@@ -71,8 +71,8 @@ func TestAuthContextGettersAreNilSafe(t *testing.T) {
 	assert.Nil(t, GetCapabilities(nil))
 	assert.Nil(t, GetGlobalCapabilities(nil))
 	assert.Nil(t, GetCapabilityGrants(nil))
-	assert.False(t, HasCapability(nil, capability.UserStudentRead))
-	assert.False(t, HasGlobalCapability(nil, capability.UserStudentRead))
+	assert.False(t, HasCapability(nil, capability.StudentManualReviewRead))
+	assert.False(t, HasGlobalCapability(nil, capability.StudentManualReviewRead))
 	assert.False(t, HasCapabilityInSchool(nil, capability.UserSchoolRead, "school-1"))
 	assert.False(t, IsAuthenticated(nil))
 	assert.True(t, GetAuthenticationTime(nil).IsZero())
@@ -101,7 +101,7 @@ func TestAuthContextSliceGettersReturnCopies(t *testing.T) {
 		" ":              {"ignored"},
 	})
 	c.Set(CtxKeyRoles, []string{"student"})
-	c.Set(CtxKeyCapabilities, []string{capability.UserStudentRead})
+	c.Set(CtxKeyCapabilities, []string{capability.StudentManualReviewRead})
 	c.Set(CtxKeyGlobalCapabilities, []string{capability.UserSystemRead})
 	c.Set(CtxKeyCapabilityGrants, []capability.Grant{{
 		Name:            capability.UserSchoolRead,
@@ -130,7 +130,7 @@ func TestAuthContextSliceGettersReturnCopies(t *testing.T) {
 
 	caps := GetCapabilities(c)
 	caps[0] = "changed"
-	assert.Equal(t, []string{capability.UserStudentRead}, GetCapabilities(c))
+	assert.Equal(t, []string{capability.StudentManualReviewRead}, GetCapabilities(c))
 
 	globalCaps := GetGlobalCapabilities(c)
 	globalCaps[0] = "changed"

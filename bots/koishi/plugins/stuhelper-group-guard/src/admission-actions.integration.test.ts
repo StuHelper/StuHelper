@@ -17,7 +17,6 @@ import {
   respondAdmissionEvent,
   respondAdmissionPolicyTargets,
   respondAdmissionSession,
-  respondFreshmanForwards,
   respondPendingActions,
   sleep,
   waitFor,
@@ -32,7 +31,6 @@ test('未认证成员入群后会被禁言并收到提醒，认证完成后自�
     if (respondAdmissionSession({ req, res, qqID: '10001', guildID: 'group-1' })) return
     if (respondPendingActions(req, res, () => pendingActions)) return
     if (respondAdmissionEvent({ req, res, events: admissionEvents, afterEvent: () => { pendingActions = [] } })) return
-    if (respondFreshmanForwards(req, res)) return
     if (respondAdmissionPolicyTargets(req, res, [admissionPolicyTarget('group-1')])) return
     assert.fail(`unexpected platform request: ${req.method} ${req.url}`)
   })
@@ -105,7 +103,6 @@ test('重复入群事件只创建一个认证链接', async () => {
     if (respondAdmissionSession({ req, res, qqID: '10004', guildID: 'group-dup' })) return
     if (respondPendingActions(req, res, [])) return
     if (respondAdmissionEvent({ req, res, events: admissionEvents })) return
-    if (respondFreshmanForwards(req, res)) return
     if (respondAdmissionPolicyTargets(req, res, [admissionPolicyTarget('group-dup')])) return
     assert.fail(`unexpected platform request: ${req.method} ${req.url}`)
   })
@@ -174,7 +171,6 @@ test('超时未认证成员会被自动踢出', async () => {
     if (respondAdmissionSession({ req, res, qqID: '10002', guildID: 'group-2' })) return
     if (respondPendingActions(req, res, () => pendingActions)) return
     if (respondAdmissionEvent({ req, res, events: admissionEvents, afterEvent: () => { pendingActions = [] } })) return
-    if (respondFreshmanForwards(req, res)) return
     if (respondAdmissionPolicyTargets(req, res, [admissionPolicyTarget('group-2')])) return
     assert.fail(`unexpected platform request: ${req.method} ${req.url}`)
   })
@@ -232,7 +228,6 @@ test('扫描待认证成员时会路由到记录绑定的 bot 实例', async () 
       return [admissionAction('10003', 'group-3', 'release')]
     })) return
     if (respondAdmissionEvent({ req, res, events: admissionEvents, afterEvent: () => { releaseEnabled = false } })) return
-    if (respondFreshmanForwards(req, res)) return
     if (respondAdmissionPolicyTargets(req, res, [admissionPolicyTarget('group-3')])) return
     assert.fail(`unexpected platform request: ${req.method} ${req.url}`)
   })
@@ -321,6 +316,7 @@ function admissionPolicyTarget(guildID: string) {
     guildID,
     guardEnabled: true,
     joinHandlingStrategy: 'post_join_guard',
+    managementGuildIDs: [],
   }
 }
 

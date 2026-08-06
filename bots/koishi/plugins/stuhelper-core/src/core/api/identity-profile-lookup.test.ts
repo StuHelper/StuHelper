@@ -136,7 +136,6 @@ function createProfile(memberId: string): QQVerificationStatus {
     userID: Number(memberId),
     boundAt: '2026-04-20T08:00:00.000Z',
     verificationState: 'verified',
-    profileVerificationStatus: 'verified',
     studentVerified: true,
   }
 }

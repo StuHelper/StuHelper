@@ -1,151 +1,125 @@
 ---
 type: product-spec
-audience: product, backend-dev
+audience: product, backend-dev, frontend-dev
 status: current
-authoritative-source: server/api/openapi.yaml
-last-verified: 2026-07-31
+authoritative-source: server/api/openapi.yaml + docs/product-specs/student-verification-and-group-admission.md
+last-verified: 2026-08-05
 ---
 
 # 用户系统
 
-> 状态：现行
+> 状态：现行。学生认证、手机号验证和群聊准入的完整业务规则以
+> [学生认证与群聊准入](student-verification-and-group-admission.md) 为准。
 
-## 两级认证
+## 1. 领域边界
 
-### 实名认证
+用户系统只负责当前登录账号的聚合展示、QQ 绑定和账号级资料入口，不再保存或暴露旧的
+`verified=true` 学生档案，也没有独立的旧“实名认证”申请域。
 
-确认"这个人是谁"。
+- Casdoor 是登录身份、会话和规范化手机号的唯一可写权威源。
+- PostgreSQL 保存 StuHelper 业务用户、Casdoor 手机号的受保护只读投影、手机号验证凭据和 QQ 绑定。
+- 学生身份由独立学生认证域的活动凭据实时派生；姓名、证件号、手机号或 QQ 绑定都不能单独授予学生身份。
+- 群聊 admission 只消费最小学生资格与平台绑定结果，不写用户学生认证状态。
+- OpenFGA 是可重建资源关系投影，不是账号、学生凭据或手机号真源。
 
-**大陆身份证**：提交姓名 + 证件号 → 加密后存入数据库。只有当前账号已经完成学生认证，并且在该账号所属学校的学籍表中同时满足“证件记录一致、姓名一致、命中学号属于当前账号”时才自动通过；缺少任一账号绑定证据时进入人工审核。当前实现不调用第三方二要素核验服务。
+## 2. 当前账号聚合面
 
-**非大陆证件**：上传证件正面照和手持/自拍照 → 人工审核；背面照可选。
+`GET /api/v1/user/me` 返回账号中心需要的最小聚合信息：
 
-**人工审核材料门槛**：任何进入人工审核的申请都必须同时具备正面照和手持/自拍照。大陆身份证可以先不上传照片尝试自动匹配，但只有事务内锁定并复核学籍绑定仍满足自动通过条件时才会成功；不能自动通过时直接返回“需要照片”，不会创建一个缺少材料的 pending 申请。
+- 展示名和可选头像；
+- 当前手机号的脱敏展示值；
+- `studentVerificationStatus: none | approved`，由活动学生凭据实时派生；
+- `phoneBound`，只表示当前账号存在规范手机号，不替代手机号验证凭据；
+- 当前 capability 列表。
 
-提交流程分两步：
-1. `POST /api/v1/user/identity/uploads` — 上传照片
-2. `POST /api/v1/user/identity` — 提交证件信息 + 已上传照片 key
+学生资格、手机号验证和 QQ 绑定是三个独立响应。前端不得通过某一项推断另外两项，也不得在请求失败或
+首次加载完成前把未知状态显示成“未认证”或“未绑定”。
 
-支持证件类型：`MAINLAND_ID` / `HK_MACAU` / `TW` / `PASSPORT`
+## 3. 学生认证
 
-照片只接受 JPEG、PNG 或 WebP，单文件不超过 5 MiB；每个已登录用户最多上传 12 次/24 h。后端只接受由当前用户上传、槽位匹配且对象存储可验证的私有 key，不接受外部 URL 或跨用户 key。
+学生认证使用独立的 `/api/v1/student-verification/*` API、学校适配器、版本化本地学籍快照、人工材料
+审核和有期限凭据。主要方法包括：
 
-### 学生认证
+- 用户可见的“实名信息校验”；
+- 每校独立适配的学校 SSO；
+- 学号邮箱接收验证码或主动向指定邮箱发送挑战；
+- 可复用的人工材料审核。
 
-确认"这个人是否在校学生"。
+旧 `/api/v1/user/identity*`、`/api/v1/user/profile*`、`/api/v1/user/schools` 以及旧 Admin 身份/学生/
+新生审核接口已经停用，不是兼容入口。上线迁移直接清空旧学生认证事实，不迁移、不备份、不双读、不
+生成兼容凭据；用户需要通过新系统重新认证。
 
-**LDAP**：学号 + 密码 → 后端 LDAP bind → 成功自动通过 → 同步 `verified_student` 角色。
+## 4. 手机号验证
 
-**学籍邮箱 OTP**：学号 + 姓名 → 按学校代码路由到外部只读学籍源 → 匹配后由后端固定派生学校邮箱 → 邮箱 OTP 通过后自动认证。客户端不能替换后端派生的邮箱；学籍源不可用时返回服务不可用，不得作为“不匹配”处理。同一用户/学校的 Redis 冷却键已经存在时返回 429；Redis transport failure 返回 503，不得把依赖故障伪装成“请稍后重发”的冷却命中。
+手机号是账号级发布风控门槛，不是学生身份证据。学生认证页面不强制绑定手机号。
 
-Admission 的 `academic-match` 与 `request-otp` 都会在 OTP 冷却检查前访问外部学籍源，因此在
-认证之后共用同一个 Redis 用户预算：每用户 5 次/分钟，两条路由合计计数；第 6 次返回 429，
-Redis 限流依赖不可用时返回 503，且不得继续调用外部学籍源。`verify-otp` 不访问学籍源，保留
-自身的 OTP 尝试次数状态机，不占用这项查询预算。该预算与 OTP 的同用户/学校 60 秒发送冷却
-是两层不同约束。
+绑定或换号时用户必须当次手工输入中国大陆手机号。服务端创建有状态 operation，并自行选择路径：
 
-**手工表单**：学校配置动态表单 → 提交 → `pending` → 管理员审核。
+1. 北航用户的规范学号、姓名和手工输入号码与当前活动学籍快照一致时，以
+   `school_roster_phone_match` 完成，可免短信；
+2. 其他情况不向用户泄露学校是否保存该号码，统一切换到 `sms_possession` 短信验证码；
+3. 验证成功后先更新 Casdoor，再回读规范值并刷新 PostgreSQL 受保护投影与手机号凭据；
+4. 任一阶段部分失败时保持发布门槛关闭，由幂等 operation 和对账任务继续处理；本地投影不得反向覆盖
+   Casdoor；
+5. 换号和解绑仍通过 Casdoor 完成，同时递增 revision、撤销旧凭据并失效消费方缓存。
 
-学号只接受 1–50 位 ASCII 字母、数字、点、下划线和连字符，且首位必须是字母或数字；姓名规范化后最多 80 个 Unicode 字符，并拒绝控制字符、零宽格式字符和私用区字符。相同学号返回冲突姓名、空姓名或不一致学号时，学籍匹配失败关闭。
+内容发布服务只调用独立手机号门槛契约，不直接读取 Casdoor 表、用户手机号投影或学籍手机号。
 
-## 状态机
+## 5. QQ 绑定与机器人联动
 
-实名：数据库使用 `Verified bool` 字段 + `RejectionReason`，API 层映射为：`none`（未提交）→ `pending`（已提交未审核）→ `approved`（Verified=true）/ `rejected`（RejectionReason 非空）。大陆身份证仅在“已认证学生账号 + 同校 + 账号绑定学号 + 姓名 + 证件记录”全部一致时自动通过；自动匹配结果会在写入事务内再次锁定并校验学生档案和学校配置。其他情况转人工审核。
+用户在主站生成一次性绑定码，再到 StuHelper QQ 机器人私聊发送 `绑定 <code>` 建立绑定。
 
-学生：`unverified` → `pending` → `verified` / `rejected`（rejected 可重新提交）
+- 一个 StuHelper 账号最多绑定一个 QQ 号，一个 QQ 号最多绑定一个 StuHelper 账号，由数据库唯一约束
+  保证。
+- 绑定码一次性消费并带明确有效期；过期、已消费或账号冲突均 fail closed。
+- QQ 绑定不授予学生身份；机器人查询时由服务端实时组合绑定与当前学生资格。
+- 机器人内部接口只接受独立服务凭据，不接受用户 Cookie、用户 JWT 或浏览器直接调用。
+- QQ 申请入群会话属于 admission 域；学生认证系统不保存群号、群策略或 admission session。
 
-规则：`verified` 不重复提交，`pending` 不允许覆盖。
+机器人查询结果为：
 
-## 手机号绑定
+- `unbound`：QQ 尚未绑定 StuHelper 账号；
+- `bound_unverified`：已经绑定，但当前没有合格学生凭据；
+- `verified`：已经绑定，且当前学生资格满足查询策略。
 
-两步流程：
-1. `POST /api/v1/user/profile/bind-phone/otp` — 发送 OTP 验证码到目标手机号
-2. `POST /api/v1/user/profile/bind-phone` — 提交手机号 + OTP 验证码完成绑定
+## 6. 隐私与错误边界
 
-仅限中国大陆手机号。绑定手机号不授予学生身份。
+- 普通账号聚合响应不返回姓名、证件号、完整手机号、学校密码、人工材料或内部学籍字段。
+- 完整手机号的可写操作只发生在 Casdoor 适配层；日志、Trace、指标 label、审计摘要和 outbox 不保存
+  完整号码或号码 HMAC。
+- 用户可见的学生认证文案使用中性、真实的“实名信息校验”，不披露 Oracle、表名、字段名或内部匹配
+  顺序，也不虚构未实际调用的第三方 provider。
+- 账号、学籍主体或手机号冲突统一提供不可枚举错误和人工核查入口，不披露另一账号信息。
 
-## QQ 绑定与机器人联动
-
-用户在主站内生成一次性绑定码，再到 StuHelper QQ 机器人私聊发送 `绑定 <code>` 完成绑定。
-
-核心规则：
-
-- 一个 StuHelper 账号最多绑定一个 QQ 号。
-- 一个 QQ 号最多绑定一个 StuHelper 账号。
-- 绑定码一次性消费，默认有效期 10 分钟，过期后必须重新生成。
-- 已经绑定的账号不再生成新绑定码，接口返回冲突。
-- 机器人消费绑定码后，会立即拿到当前学生认证状态，用于受控群的自动放行、继续禁言或超时踢出。
-- 机器人内部接口只接受服务令牌，不接受用户 Cookie、用户 JWT 或前端调用。
-
-机器人联动返回的认证状态固定为：
-
-- `unbound`：当前 QQ 号尚未绑定 StuHelper 账号
-- `bound_unverified`：已绑定，但学生认证未通过
-- `verified`：已绑定，且学生认证已通过
-
-## 学校配置
-
-`school_configs` 每校一条：
-- `verification_method`：`ldap` 或 `manual`
-- `ldap_config` / `manual_form_fields` / `consent_text`
-- `academic_db_table` / `enabled`
-- `manual_form_fields.admission.emailIdentityPolicy`：学籍邮箱策略、邮箱域和姓名匹配要求
-
-## 系统配置
-
-`system_configs` 全局 key-value：文案、预览长度、业务开关。
-
-## PII 保护
-
-- `doc_number_enc`：AES-256-GCM 密文
-- `person_uid`：HMAC 稳定标识
-- `doc_photo_*`：对象存储 key，审核时签发短时 URL
-
-## 后台审核
-
-实名认证审核、学生认证审核、学校配置管理、系统配置管理。
-
-实名认证列表不返回材料 key 或签名 URL。审核员必须先通过全局 `user:identity:read` capability 和 step-up MFA，再调用详情端点按需获取短时签名 URL；每次成功查看都会写入材料访问审计。批准操作要求 `user:identity:review` capability、step-up MFA，以及完整且可从对象存储验证的正面照和手持/自拍照。
-
-审核通过后更新应用数据库；学生/新生能力由 DB 业务事实派生。Casdoor 不得写入或同步学生、
-新生或 scoped admin 业务角色；目标 StuHelper organization `IsAdmin` 到 `super_admin` 的窄映射
-由 ADR-0009 单独定义，与学生认证流程无关。
-
-## 账号资料状态呈现
-
-`/account/profile` 的基础账号资料和邮箱来自当前已认证用户信息；手机号、QQ、实名与学生认证
-状态则必须以验证状态接口成功返回为准。首次加载完成前不得把未知状态显示成“未验证”或
-“未绑定”；请求失败时保留可靠的账号/邮箱信息，隐藏未经确认的负面结论，并显示可重试的
-错误状态。只有一次完整状态读取成功后，页面才可展示“未验证”“未绑定”等确定性结果。
-
-## 端点
+## 7. 当前端点
 
 | 路径 | 方法 | 说明 |
-|------|------|------|
-| `/api/v1/user/me` | GET | 用户综合概览（身份状态、认证状态、手机绑定、能力） |
-| `/api/v1/user/identity` | GET / POST | 实名认证 |
-| `/api/v1/user/identity/uploads` | POST | 上传证件照片 |
-| `/api/v1/user/profile` | GET | 学生认证档案 |
-| `/api/v1/user/profile/verify` | POST | 发起学生认证 |
-| `/api/v1/user/profile/bind-phone/otp` | POST | 发送绑定手机验证码 |
-| `/api/v1/user/profile/bind-phone` | POST | 绑定手机号 |
-| `/api/v1/user/qq-binding` | GET | 获取当前用户 QQ 绑定状态 |
+|---|---|---|
+| `/api/v1/user/me` | GET | 当前账号最小聚合面 |
+| `/api/v1/user/qq-binding` | GET | 当前 QQ 绑定；未绑定时 `data: null` |
 | `/api/v1/user/qq-binding/code` | POST | 生成一次性 QQ 绑定码 |
-| `/api/v1/user/profile/academic-info` | GET | 学籍信息 |
-| `/api/v1/bot/qq-binding/consume` | POST | 机器人消费绑定码并建立绑定 |
-| `/api/v1/bot/qq-users/{qqID}/verification` | GET | 机器人按 QQ 号查询绑定与学生认证状态 |
-| `/api/v1/user/schools` | GET | 学校列表 |
-| `/api/v1/admin/identities` | GET | 实名审核列表（不含材料） |
-| `/api/v1/admin/identities/{userID}` | GET / PUT | 按需读取签名材料 / 提交实名审核决定 |
-| `/api/v1/admin/student-verifications` | GET / PUT | 学生审核 |
-| `/api/v1/admin/school-configs` | GET / PUT | 学校配置 |
-| `/api/v1/admin/system-configs` | GET / PUT | 系统配置 |
+| `/api/v1/bot/qq-binding/consume` | POST | Koishi 消费绑定码并建立绑定 |
+| `/api/v1/bot/qq-users/{qqID}/verification` | GET | 按 QQ 查询绑定和实时学生资格 |
+| `/api/v1/student-verification/schools` | GET | 当前可用学校与方法能力 |
+| `/api/v1/student-verification/applications` | POST | 创建独立学生认证申请 |
+| `/api/v1/student-verification/credentials` | GET | 查询当前用户学生凭据 |
+| `/api/v1/student-verification/eligibility` | GET | 查询最小实时学生资格 |
+| `/api/v1/account/phone` | GET / DELETE | 查询手机号状态或发起解绑 |
+| `/api/v1/account/phone/operations` | POST | 创建手机号绑定 operation |
+| `/api/v1/account/phone/change-operations` | POST | 创建换号 operation |
+| `/api/v1/admin/student-verification/*` | 多种 | 学校方法、快照、审核、凭据、冲突与连接器控制面 |
+| `/api/v1/admin/system-configs` | GET / PUT | 非认证专属的系统配置 |
 
-## 代码入口
+字段、状态码和全部子路径以 `server/api/openapi.yaml` 为权威来源。
+
+## 8. 代码入口
 
 | 组件 | 位置 |
-|------|------|
-| 用户模块 | `server/internal/modules/user/` |
-| LDAP 客户端 | `server/internal/modules/ldap/` |
-| PII 加密 | `server/internal/pkg/crypto/pii/` |
-| QQ 绑定前端入口 | `clients/web/src/modules/user/views/QQBindingPage.vue` |
+|---|---|
+| 账号与 QQ 绑定 | `server/internal/modules/user/` |
+| 学生认证与手机号凭据 | `server/internal/modules/studentverification/` |
+| 校园连接器网关 | `server/internal/modules/campusconnector/` |
+| 校园侧连接器 | `server/internal/campusconnector/`、`server/cmd/campus-connector/` |
+| 群聊准入 | `server/internal/modules/admission/` |
+| 主站账号入口 | `clients/web/src/modules/user/` |
+| 管理控制面 | `clients/admin/apps/web-ele/src/views/users/` |

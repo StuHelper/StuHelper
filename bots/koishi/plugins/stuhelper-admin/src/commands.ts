@@ -19,7 +19,6 @@ import {
   ensureAdminCommandAccess,
   resolveGuildId,
 } from './command-access'
-import { registerFreshmanReviewCommands } from './admission-review-commands'
 
 interface AdminCommandDeps {
   guardMembers: GuardMemberAdminStore
@@ -38,7 +37,6 @@ export function registerAdminCommands(ctx: Context, deps: AdminCommandDeps) {
   registerBatchMuteCommand(ctx, deps)
   registerKickReviewCommand(ctx, deps)
   registerBlockReviewCommand(ctx, deps)
-  registerFreshmanReviewCommands(ctx, deps)
 }
 
 function registerStatusCommand(ctx: Context, deps: AdminCommandDeps) {

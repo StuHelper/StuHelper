@@ -50,6 +50,9 @@ try {
       KOISHI_CONFIG_FILE: '',
       STUHELPER_GROUP_CENTER_DATA_DIR: smokeDataDir,
       STUHELPER_CONSOLE_ADMIN_PASSWORD: process.env.STUHELPER_CONSOLE_ADMIN_PASSWORD ?? 'ui-smoke-password',
+      STUHELPER_ALERTMANAGER_WEBHOOK_ENABLED: 'false',
+      STUHELPER_ALERTMANAGER_BOT_SELF_ID: '',
+      ALERTMANAGER_WEBHOOK_TOKEN: '',
       STUHELPER_PLATFORM_BASE_URL: process.env.STUHELPER_PLATFORM_BASE_URL ?? platformStub.baseUrl,
       STUHELPER_PLATFORM_SERVICE_TOKEN: process.env.STUHELPER_PLATFORM_SERVICE_TOKEN ?? 'ui-smoke-service-token',
     },
@@ -760,8 +763,11 @@ function startPlatformStub() {
       writeJSON(response, {
         session: admissionSessionForMember(body, {
           id: 'session-regenerated-' + (body.qqID || 'unknown'),
+          userID: null,
+          status: 'awaiting_account_link',
           authURL: 'https://join.stuhelper.com/verify/regenerated-' + (body.qqID || 'unknown'),
           tokenExpiresAt: '2026-05-25T01:20:00.000Z',
+          tokenConsumedAt: null,
           linkWaitDeadlineAt: '2026-05-25T01:20:00.000Z',
           initialMuteUntil: '2026-06-25T00:20:00.000Z',
         }),
@@ -809,11 +815,6 @@ function startPlatformStub() {
       return
     }
 
-    if (method === 'GET' && url.pathname === '/api/v1/bot/admission/freshman/applications/pending-forward') {
-      writeJSON(response, [])
-      return
-    }
-
     if (method === 'POST' && /^\/api\/v1\/bot\/admission\/sessions\/[^/]+\/events$/.test(url.pathname)) {
       writeJSON(response, { message: 'ok' })
       return
@@ -846,7 +847,6 @@ function qqVerificationStatus(qqID) {
       userID: 4202,
       boundAt: '2026-05-25T00:30:00.000Z',
       verificationState: 'bound_unverified',
-      profileVerificationStatus: 'pending',
       studentVerified: false,
     }
   }
@@ -857,7 +857,6 @@ function qqVerificationStatus(qqID) {
       userID: 4203,
       boundAt: '2026-05-25T00:40:00.000Z',
       verificationState: 'verified',
-      profileVerificationStatus: 'verified',
       studentVerified: true,
     }
   }
@@ -867,7 +866,6 @@ function qqVerificationStatus(qqID) {
     userID: null,
     boundAt: null,
     verificationState: 'unbound',
-    profileVerificationStatus: 'unverified',
     studentVerified: false,
   }
 }
@@ -884,11 +882,13 @@ function admissionSessionForMember(input, overrides = {}) {
     channelID: String(input.channelID || guildID),
     botSelfID: String(input.botSelfID || '514'),
     qqID,
-    userID: overrides.userID ?? null,
-    status: overrides.status || 'linked',
+    userID: overrides.userID === undefined ? 4201 : overrides.userID,
+    status: overrides.status || 'awaiting_requirements',
     authURL: overrides.authURL || 'https://join.stuhelper.com/verify/' + id,
     tokenExpiresAt: overrides.tokenExpiresAt || '2026-05-25T01:00:00.000Z',
-    tokenConsumedAt: overrides.tokenConsumedAt ?? null,
+    tokenConsumedAt: overrides.tokenConsumedAt === undefined
+      ? '2026-05-25T00:25:00.000Z'
+      : overrides.tokenConsumedAt,
     linkWaitDeadlineAt: overrides.linkWaitDeadlineAt || '2026-05-25T01:00:00.000Z',
     submissionWaitDeadlineAt: overrides.submissionWaitDeadlineAt || '2026-05-25T01:10:00.000Z',
     manualReviewDeadlineAt: overrides.manualReviewDeadlineAt ?? null,

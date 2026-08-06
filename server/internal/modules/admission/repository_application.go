@@ -430,7 +430,12 @@ func (r *Repository) MarkUserLinkedSessionsVerifiedTx(
 ) error {
 	_, err := tx.Exec(ctx, `
 		UPDATE group_admission_sessions AS gas
-		SET status = $2, verified_at = $3, updated_at = NOW()
+		SET status = $2,
+		    verified_at = $3,
+		    requirements_status = gas.status,
+		    eligibility_revision = COALESCE(gas.eligibility_revision, 1),
+		    eligibility_evaluated_at = $3,
+		    updated_at = NOW()
 		FROM group_admission_policies AS gap
 		WHERE gas.user_id = $1
 		  AND gas.platform = gap.platform

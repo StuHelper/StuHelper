@@ -10,7 +10,7 @@ import (
 	"github.com/StuHelper/StuHelper/server/internal/testutil/postgresfixture"
 )
 
-func TestAdmissionMigration(t *testing.T) {
+func TestAdmissionTargetSchemaRejectsRetiredVerificationWriters(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	userID := seedAdmissionUser(t, fixture, "admission-migration")
 	ctx := context.Background()
@@ -25,16 +25,71 @@ func TestAdmissionMigration(t *testing.T) {
 	assertTokenHashUnique(t, fixture)
 	assertActiveSessionPartialUnique(t, fixture)
 
-	applicationID := insertFreshmanApplication(t, fixture, userID, sessionID)
-	insertFreshmanMaterial(t, fixture, applicationID)
-	assertPendingApplicationUnique(t, fixture, userID, sessionID)
-	assertFreshmanCredentialRequiresExpiry(t, fixture, userID)
+	_, err := fixture.Pool.Exec(ctx, `
+		INSERT INTO user_profiles (user_id, verification_status)
+		VALUES ($1, 'verified')
+	`, userID)
+	require.Error(t, err)
+
+	_, err = fixture.Pool.Exec(ctx, `
+		INSERT INTO freshman_verification_applications (
+			id, user_id, school_id, admission_session_id, applicant_name,
+			applicant_name_masked, material_type, status
+		)
+		VALUES ('retired-freshman-app', $1, 4111010006, $2, 'Retired', 'R***',
+			'admission_notice', 'pending')
+	`, userID, sessionID)
+	require.Error(t, err)
+
+	_, err = fixture.Pool.Exec(ctx, `
+		INSERT INTO user_verification_credentials (
+			id, user_id, school_id, kind, subject_hash, subject_display,
+			status, credential_class, roster_dependency, assurance,
+			verified_at, activated_at
+		)
+		VALUES (
+			'00000000-0000-4000-8000-000000000090', $1, 4111010006,
+			'school_sso', repeat('9', 64), 'retired credential',
+			'active', 'formal_student', 'independent', 'standard', NOW(), NOW()
+		)
+	`, userID)
+	require.Error(t, err)
+
+	applicationID := "00000000-0000-4000-8000-000000000091"
+	_, err = fixture.Pool.Exec(ctx, `
+		INSERT INTO student_verification_applications (
+			id, user_id, school_id, status, current_method,
+			privacy_notice_version, consented_at, expires_at, completed_at
+		)
+		VALUES ($1, $2, 4111010006, 'approved', 'school_sso',
+			'privacy-v1', NOW(), NOW() + INTERVAL '1 hour', NOW())
+	`, applicationID, userID)
+	require.NoError(t, err)
+	_, err = fixture.Pool.Exec(ctx, `
+		INSERT INTO user_verification_credentials (
+			id, user_id, school_id, kind, subject_hash, subject_display,
+			verification_application_id, status, credential_class,
+			roster_dependency, assurance, verified_at, activated_at
+		)
+		VALUES (
+			'00000000-0000-4000-8000-000000000092', $1, 4111010006,
+			'school_sso', repeat('a', 64), 'target credential', $2,
+			'active', 'formal_student', 'independent', 'standard', NOW(), NOW()
+		)
+	`, userID, applicationID)
+	require.NoError(t, err)
+
 	insertAdmissionFailure(t, fixture)
 
-	var policyCount int
-	err := fixture.Pool.QueryRow(ctx, "SELECT COUNT(*) FROM group_admission_policies").Scan(&policyCount)
+	var policyCount, qualifyingCredentialCount int
+	err = fixture.Pool.QueryRow(ctx, "SELECT COUNT(*) FROM group_admission_policies").Scan(&policyCount)
 	require.NoError(t, err)
 	require.Equal(t, 1, policyCount)
+	err = fixture.Pool.QueryRow(ctx, `
+		SELECT COUNT(*) FROM current_student_qualifying_credentials WHERE user_id = $1
+	`, userID).Scan(&qualifyingCredentialCount)
+	require.NoError(t, err)
+	require.Equal(t, 1, qualifyingCredentialCount)
 }
 
 func TestListAdmissionSessionsFiltersByRuntimeSubject(t *testing.T) {
@@ -115,6 +170,7 @@ func TestCreateAdmissionPolicyFromSourceForNewTargetGuild(t *testing.T) {
 	targets, err := repo.ListPolicyTargets(ctx)
 	require.NoError(t, err)
 	require.Len(t, targets, 2)
+	require.Equal(t, []string{"mgmt-1"}, targets[0].ManagementGuildIDs)
 	require.Equal(t, AdmissionPolicyTarget{
 		PolicyID:             created.ID,
 		Platform:             "qq",
@@ -122,6 +178,7 @@ func TestCreateAdmissionPolicyFromSourceForNewTargetGuild(t *testing.T) {
 		GuardEnabled:         true,
 		JoinHandlingStrategy: AdmissionJoinHandlingPostJoinGuard,
 		LinkWaitSeconds:      DefaultLinkWaitSeconds,
+		ManagementGuildIDs:   []string{},
 	}, targets[1])
 
 	_, err = repo.CreatePolicyFromSource(ctx, AdmissionPolicyCreateRequest{
@@ -170,9 +227,11 @@ func insertAdmissionSession(t *testing.T, fixture *postgresfixture.Fixture, seed
 	_, err := fixture.Pool.Exec(context.Background(), `
 		INSERT INTO group_admission_sessions (
 			id, platform, bot_self_id, guild_id, channel_id, qq_id, token_hash, token_expires_at,
-			status, link_wait_deadline_at, submission_wait_deadline_at, initial_mute_until
+			status, link_wait_deadline_at, submission_wait_deadline_at, initial_mute_until,
+			eligibility_revision
 		)
-		VALUES ($1, 'qq', '514', 'guild-1', 'channel-1', $2, $3, $4, $5, $6, $7, $8)
+		VALUES ($1, 'qq', '514', 'guild-1', 'channel-1', $2, $3, $4, $5, $6, $7, $8,
+		        CASE WHEN $5 = 'action_pending' THEN 1 END)
 	`, seed.ID, seed.QQID, seed.TokenHash, futureTime(1), seed.Status, futureTime(1), futureTime(2), futureTime(30))
 	require.NoError(t, err)
 	return seed.ID
@@ -198,9 +257,11 @@ func insertAdmissionSessionForFilter(
 	_, err := fixture.Pool.Exec(context.Background(), `
 		INSERT INTO group_admission_sessions (
 			id, platform, bot_self_id, guild_id, channel_id, qq_id, token_hash, token_expires_at,
-			status, link_wait_deadline_at, submission_wait_deadline_at, initial_mute_until
+			status, link_wait_deadline_at, submission_wait_deadline_at, initial_mute_until,
+			eligibility_revision
 		)
-		VALUES ($1, $2, $3, $4, 'channel-1', $5, $6, $7, $8, $9, $10, $11)
+		VALUES ($1, $2, $3, $4, 'channel-1', $5, $6, $7, $8, $9, $10, $11,
+		        CASE WHEN $8 = 'action_pending' THEN 1 END)
 	`,
 		seed.ID, seed.Platform, seed.BotSelfID, seed.GuildID, seed.QQID,
 		seed.TokenHash, futureTime(1), seed.Status, futureTime(1),
@@ -245,59 +306,6 @@ func assertActiveSessionPartialUnique(t *testing.T, fixture *postgresfixture.Fix
 		TokenHash: "token-hash-3",
 		Status:    StatusJoinedMuted,
 	})
-}
-
-func insertFreshmanApplication(t *testing.T, fixture *postgresfixture.Fixture, userID int64, sessionID string) string {
-	t.Helper()
-
-	_, err := fixture.Pool.Exec(context.Background(), `
-		INSERT INTO freshman_verification_applications (
-			id, user_id, school_id, admission_session_id, applicant_name, applicant_name_masked, material_type, status
-		)
-		VALUES ('freshman-app-1', $1, 4111010006, $2, 'Alice Applicant', 'A***', 'admission_notice', $3)
-	`, userID, sessionID, FreshmanApplicationPending)
-	require.NoError(t, err)
-	return "freshman-app-1"
-}
-
-func insertFreshmanMaterial(t *testing.T, fixture *postgresfixture.Fixture, applicationID string) {
-	t.Helper()
-
-	_, err := fixture.Pool.Exec(context.Background(), `
-		INSERT INTO freshman_verification_materials (
-			id, application_id, object_key, content_type, size_bytes, sha256
-		)
-		VALUES ('freshman-material-1', $1, 'admission/freshman/material-1.jpg', 'image/jpeg', 1200, repeat('a', 64))
-	`, applicationID)
-	require.NoError(t, err)
-}
-
-func assertPendingApplicationUnique(t *testing.T, fixture *postgresfixture.Fixture, userID int64, sessionID string) {
-	t.Helper()
-
-	_, err := fixture.Pool.Exec(context.Background(), `
-		INSERT INTO freshman_verification_applications (
-			id, user_id, school_id, admission_session_id, applicant_name, applicant_name_masked, material_type, status
-		)
-		VALUES ('freshman-app-dup', $1, 4111010006, $2, 'Bob Applicant', 'B***', 'admission_certificate', $3)
-	`, userID, sessionID, FreshmanApplicationPending)
-	require.Error(t, err)
-}
-
-func assertFreshmanCredentialRequiresExpiry(t *testing.T, fixture *postgresfixture.Fixture, userID int64) {
-	t.Helper()
-
-	_, err := fixture.Pool.Exec(context.Background(), `
-		INSERT INTO user_verification_credentials (id, user_id, school_id, kind, subject_hash, subject_display)
-		VALUES ('credential-no-expiry', $1, 4111010006, $2, 'manual-hash-1', 'freshman material')
-	`, userID, CredentialFreshmanMaterialManual)
-	require.Error(t, err)
-
-	_, err = fixture.Pool.Exec(context.Background(), `
-		INSERT INTO user_verification_credentials (id, user_id, school_id, kind, subject_hash, subject_display, expires_at)
-		VALUES ('credential-with-expiry', $1, 4111010006, $2, 'manual-hash-2', 'freshman material', $3)
-	`, userID, CredentialFreshmanMaterialManual, futureTime(90))
-	require.NoError(t, err)
 }
 
 func insertAdmissionFailure(t *testing.T, fixture *postgresfixture.Fixture) {

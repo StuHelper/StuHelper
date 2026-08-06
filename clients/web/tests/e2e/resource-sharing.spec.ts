@@ -1,5 +1,6 @@
 import {
   allowExpectedCriticalResourceFailure,
+  mockCurrentAccountProjections,
   mockNotificationStream,
   test,
   expect,
@@ -89,47 +90,12 @@ async function mockAuthenticated(page: Page) {
     '**/api/v1/course/review/user/notifications/unread-count*',
     (route) => route.fulfill(ok({ count: 0 })),
   )
-  await page.route('**/api/v1/user/identity', (route) =>
-    route.fulfill(ok({
-      userID: 1,
-      realName: 'Seed User',
-      verified: true,
-      verifyMethod: 'manual',
-      reviewedAt: '2026-05-01T08:00:00Z',
-      verifiedAt: '2026-05-01T08:00:00Z',
-      rejectionReason: null,
-      createdAt: '2026-05-01T08:00:00Z',
-      updatedAt: '2026-05-01T08:00:00Z',
-    })),
-  )
-  await page.route('**/api/v1/user/profile', (route) =>
-    route.fulfill(ok({
-      userID: 1,
-      schoolID: null,
-      studentIDs: [],
-      activeStudentID: null,
-      verificationStatus: 'verified',
-      verificationMethod: 'manual',
-      rejectionReason: null,
-      reviewedAt: '2026-05-01T08:00:00Z',
-      phone: null,
-      phoneVerified: false,
-      consentGivenAt: null,
-      verifiedAt: '2026-05-01T08:00:00Z',
-      createdAt: '2026-05-01T08:00:00Z',
-      updatedAt: '2026-05-01T08:00:00Z',
-    })),
-  )
-  await page.route('**/api/v1/user/qq-binding', (route) =>
-    route.fulfill({
-      status: 404,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        success: false,
-        error: { code: 'A0020001', message: 'QQ binding not found' },
-      }),
-    }),
-  )
+  await mockCurrentAccountProjections(page, {
+    displayName: authenticatedUser.displayName,
+    studentVerified: true,
+    phoneBound: true,
+    capabilities: authenticatedUser.capabilities,
+  })
   await mockNotificationStream(page)
 }
 

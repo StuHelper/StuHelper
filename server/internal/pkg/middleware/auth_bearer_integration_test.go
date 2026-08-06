@@ -127,8 +127,8 @@ func TestAuthMiddlewareWithAccessSnapshotResolverBuildsScopedGrants(t *testing.T
 	}))
 	r.GET("/me", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
-			"hasScopedStudentRead": HasCapabilityInSchool(c, capability.UserStudentRead, "4111010001"),
-			"hasGlobalStudentRead": HasGlobalCapability(c, capability.UserStudentRead),
+			"hasScopedStudentRead": HasCapabilityInSchool(c, capability.StudentManualReviewRead, "4111010001"),
+			"hasGlobalStudentRead": HasGlobalCapability(c, capability.StudentManualReviewRead),
 		})
 	})
 

@@ -132,20 +132,6 @@
             </router-link>
 
             <router-link
-                to="/user/identity-verification"
-                class="group rounded-lg border border-border bg-bg-card p-5 text-left no-underline shadow-sm transition-all duration-fast hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
-            >
-                <AccountAction
-                    :icon="UserRoundCheck"
-                    :title="t('user.accountSecurity.identity.title')"
-                    :description="
-                        t('user.accountSecurity.identity.description')
-                    "
-                    :action="t('user.identityHome.open')"
-                />
-            </router-link>
-
-            <router-link
                 to="/user/student-verification"
                 class="group rounded-lg border border-border bg-bg-card p-5 text-left no-underline shadow-sm transition-all duration-fast hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
             >
@@ -169,19 +155,6 @@
                 />
             </router-link>
 
-            <router-link
-                to="/user/academic-info"
-                class="group rounded-lg border border-border bg-bg-card p-5 text-left no-underline shadow-sm transition-all duration-fast hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
-            >
-                <AccountAction
-                    :icon="FileText"
-                    :title="t('user.accountSecurity.academic.title')"
-                    :description="
-                        t('user.accountSecurity.academic.description')
-                    "
-                    :action="t('user.identityHome.open')"
-                />
-            </router-link>
         </section>
     </section>
 </template>
@@ -193,13 +166,11 @@ import { useI18n } from "vue-i18n";
 import {
     ArrowLeft,
     Bot,
-    FileText,
     GraduationCap,
     LogOut,
     Phone,
     ShieldCheck,
     UserRound,
-    UserRoundCheck,
     type LucideIcon,
 } from "lucide-vue-next";
 import { useAuthStore } from "@/stores/auth";

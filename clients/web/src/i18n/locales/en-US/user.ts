@@ -359,6 +359,222 @@ export default {
                 school_email_otp: "School Email Code",
                 school_sso: "School SSO",
             },
+            platform: {
+                eyebrow: "Trusted student identity",
+                title: "Student verification",
+                subtitle:
+                    "Choose your school and a verification method that works for you. Student credentials remain independent from QQ binding, group admission, and phone binding.",
+                verify: "Verify",
+                processing: "Processing…",
+                cancel: "Cancel this application",
+                cancelConfirm:
+                    "Cancel this verification application? Unsubmitted material and temporary challenges will also expire.",
+                school: {
+                    title: "Choose a school",
+                    description:
+                        "The school directory is not an allowlist. Only schools with validated, currently available verification methods appear here.",
+                    search: "Search schools",
+                    placeholder: "School name, location, or school code",
+                    notFound: "No available school found",
+                    suggest: "Suggest a school",
+                    schoolName: "School name",
+                    location: "Location (optional)",
+                    submitSuggestion: "Submit suggestion",
+                    suggestionSent: "School suggestion submitted",
+                    change: "Change school",
+                },
+                method: {
+                    title: "Choose a verification method",
+                    description:
+                        "Methods are configured per school. Completing any one method can create a student credential.",
+                    available: "Available",
+                    unavailable: "Unavailable",
+                    change: "Choose another method",
+                },
+                methods: {
+                    realName: "Real-name information check",
+                    sso: "Unified school account check",
+                    emailReceive: "Receive a code at student email",
+                    emailSend: "Send a verification email",
+                    manual: "Manual material review",
+                    realNameDescription:
+                        "Enter your student ID, name, and Mainland China ID number for a one-time check. Sensitive values are not stored as readable profile fields.",
+                    ssoDescription:
+                        "This check simulates signing in to your school's unified account. StuHelper does not store, cache, or log your school password.",
+                    emailReceiveDescription:
+                        "After checking the student ID and name, a code is sent only to the canonical student-ID email address, never an alias.",
+                    emailSendDescription:
+                        "Send a one-time challenge from the canonical student-ID mailbox, useful when outbound code delivery is busy.",
+                    manualDescription:
+                        "For international students, students from other schools, or cases that automatic checks cannot complete. Schools reuse a secure form and camera workflow.",
+                },
+                fields: {
+                    studentID: "Student ID",
+                    name: "Name",
+                    documentNumber: "Mainland China ID number",
+                    documentHint:
+                        "Used only for this real-name information check. Internal data sources and matching details are not exposed here.",
+                    password: "Unified school account password",
+                    passwordHint:
+                        "Used only in controlled memory for this encrypted request. It is never written to databases, caches, queues, or logs.",
+                },
+                privacy: {
+                    dataUsed: "Data used for this check",
+                    learnMore: "Privacy and rights details",
+                    consent:
+                        "I have read this notice, confirm that I am submitting my own information, and consent to the listed data processing for this student verification.",
+                },
+                email: {
+                    code: "Email verification code",
+                    sendCode: "Send code",
+                    sent: "A code was sent to {email}",
+                    expiry: "Enter it before {time}.",
+                    verifyCode: "Verify code",
+                },
+                inbound: {
+                    title: "Send a verification email",
+                    create: "Create email challenge",
+                    from: "Send from the canonical mailbox represented by {email}.",
+                    to: "Send to {email}.",
+                    subject: "Use this subject:",
+                    body: "Include this in the body:",
+                    waiting: "This page checks the result automatically. Do not create duplicate challenges.",
+                },
+                manual: {
+                    materialType: "Material type",
+                    campusCard: "Campus card",
+                    studentCard: "Student ID card",
+                    admissionNotice: "Admission notice",
+                    otherApproved: "Other school-approved material",
+                    createDraft: "Save and capture material",
+                    updateDraft: "Update review details",
+                    emailTitle: "Contact email check",
+                    emailDescription:
+                        "The email code is supporting review evidence and never grants student identity by itself.",
+                    emailVerified: "Contact email verified",
+                    sendEmailCode: "Send email code",
+                    codeSentTo: "A code was sent to {email}",
+                    cameraTitle: "Capture material live",
+                    cameraDescription:
+                        "Photograph the original document with a live camera. The browser requests a rear camera, but an ordinary web page cannot attest the hardware source.",
+                    openCamera: "Open camera",
+                    cameraUnsupported: "Camera unavailable here",
+                    capture: "Capture and upload",
+                    uploading: "Uploading…",
+                    capturePreview: "Captured verification material preview",
+                    usePhone: "Scan with phone",
+                    qrAlt: "One-time phone camera QR code",
+                    openPhoneLink: "Open camera link on this device",
+                    scanTitle: "Waiting for phone scan",
+                    scanDescription:
+                        "This is a short-lived one-time link and contains no name, student ID, or material. This page refreshes after upload.",
+                    uploadedTitle: "Material uploaded from phone",
+                    chooseDeviceDescription:
+                        "Confirm on the phone that you want to return to the desktop, preventing duplicate submissions.",
+                    returnedTitle: "Material synchronized",
+                    returnedDescription: "The phone capture is now attached to this review application.",
+                    expiredTitle: "Camera link expired",
+                    expiredDescription: "Create a new one-time QR code.",
+                    retentionConfirmation:
+                        "By submitting, you confirm the material is used only for manual student verification and retained according to the privacy notice above.",
+                    submit: "Submit for manual review",
+                    submitting: "Submitting…",
+                    pendingTitle: "Waiting for manual review",
+                    pendingDescription:
+                        "Your material is in the school's authorized review queue. The result will appear in the verification center.",
+                    approvedTitle: "Manual review approved",
+                    approvedDescription:
+                        "A student credential is active and authorized campus services can read the current minimum eligibility result.",
+                    rejectedTitle: "This review was not approved",
+                    closedTitle: "This application has ended",
+                    closedDescription: "Follow the guidance to apply again or use another verification method.",
+                },
+                credentials: {
+                    activeTitle: "Student credential active",
+                    activeDescription:
+                        "Eligibility is derived from current credentials rather than a permanent verified boolean.",
+                    expires: "Valid until {date}",
+                    noExpiry: "No fixed expiry; school status changes or revocation can still invalidate it",
+                    revoke: "Revoke",
+                    revokeConfirm:
+                        "Revoking immediately invalidates eligibility that depends on this credential. Continue?",
+                    revoked: "Student credential revoked",
+                },
+                result: {
+                    approved: "Student verification complete",
+                    approvedDescription:
+                        "An auditable and revocable student credential is active. Phone and QQ bindings remain separate workflows.",
+                    pending: "Material submitted",
+                    pendingDescription:
+                        "You do not need to submit again while review is pending. It does not affect credentials for other schools.",
+                    done: "Back to account center",
+                    addAnother: "Verify another school",
+                },
+                recovery: {
+                    manual: "Can't complete automatically? Use manual review",
+                },
+                trust: {
+                    title: "Verification progress",
+                    school: "Confirm school",
+                    schoolPending: "Choose your school",
+                    method: "Complete identity check",
+                    methodPending: "Choose an available method",
+                    credential: "Create student credential",
+                    credentialPending: "Eligibility is derived after approval",
+                    credentialDone: "Credential activated",
+                    separation:
+                        "Student credentials contain no QQ number, group ID, or phone. Admission reads only minimum eligibility.",
+                    phoneLink: "Manage account phone separately",
+                },
+                mobileCamera: {
+                    title: "Capture verification material",
+                    subtitle:
+                        "A one-time secure handoff for this manual-review application only.",
+                    privacy:
+                        "This link shows no name, student ID, or form details. The photo goes directly to protected review-material storage.",
+                    previewAlt: "Captured verification material preview",
+                    openCamera: "Open camera",
+                    unsupported: "Camera is not supported in this browser",
+                    capture: "Capture and upload",
+                    uploading: "Uploading…",
+                    uploadedTitle: "Material uploaded",
+                    uploadedDescription:
+                        "Choose which device to continue on. The other side is locked after confirmation to prevent duplicates.",
+                    continueMobile: "Continue on phone",
+                    returnDesktop: "Return to desktop",
+                    desktopTitle: "Continue on your desktop",
+                    desktopDescription:
+                        "The material is synchronized and the desktop page will refresh automatically.",
+                    expiredTitle: "Link expired",
+                    expiredDescription:
+                        "Return to the desktop and create a new one-time QR code.",
+                    errorTitle: "Unable to open camera link",
+                    errorDescription:
+                        "The link is invalid or the service is temporarily unavailable.",
+                    cameraError:
+                        "Unable to open the camera. Check browser permissions.",
+                    uploadError: "Material upload failed. Capture it again.",
+                    choiceError:
+                        "Unable to confirm the continuation device. Try again.",
+                },
+                errors: {
+                    loadTitle: "Verification is temporarily unavailable",
+                    load: "Unable to load verification capabilities. Try again later.",
+                    createApplication: "Unable to create a verification application. Try again later.",
+                    cannotComplete:
+                        "This method could not complete the check. Review your input, choose another method, or request manual review.",
+                    refresh: "Unable to refresh status. Try again later.",
+                    cancel: "Unable to cancel the application. Refresh and try again.",
+                    revoke: "Unable to revoke this credential. Try again later.",
+                    suggestion: "Unable to submit the school suggestion. Try again later.",
+                    saveDraft: "Unable to save manual-review details. Check the form.",
+                    emailCode: "Unable to send the email code. Try again later.",
+                    invalidCode: "The code is invalid or expired. Request a new one.",
+                    camera: "Unable to capture or upload material. Try again.",
+                    handoff: "Phone camera handoff is temporarily unavailable. Try again.",
+                    submitReview: "Unable to submit manual review. Check the material and email status.",
+                },
+            },
         },
         phone: {
             title: "Phone Binding",
@@ -369,6 +585,8 @@ export default {
             phoneNumber: "Phone Number",
             verifyCode: "Verification Code",
             sendCode: "Send Code",
+            verified: "Verified",
+            unverified: "Not verified",
             bound: "Bound",
             unbound: "Not Bound",
             sending: "Sending...",
@@ -386,6 +604,80 @@ export default {
             ssoEquivalent:
                 "Binding or updating a phone number here verifies the SMS code and syncs the change to the unified sign-in account. StuHelper only keeps the synchronized masked phone and verification state.",
             updateSuccess: "Phone number synchronized",
+            platform: {
+                eyebrow: "Account security",
+                title: "Phone number",
+                subtitle:
+                    "Your phone supports publishing-account checks and security contact. It remains independent from student verification.",
+                success: "Phone verified and synchronized",
+                status: {
+                    verified: "Phone verified",
+                    verifiedDescription:
+                        "The current number is in your unified sign-in account and has a separate phone-verification credential.",
+                    syncing: "Synchronizing data",
+                    syncingDescription:
+                        "The number is being updated and read back from the unified sign-in account. Publishing remains closed until this completes.",
+                    reviewRequired: "Phone status needs review",
+                    reviewDescription:
+                        "The unified account and local read-only projection do not currently agree. Retry later or contact support.",
+                    unbound: "No phone bound",
+                    unboundDescription:
+                        "Student verification does not require a phone. Bind one here when publishing content or managing account security.",
+                    method: "Confirmation method",
+                    verifiedAt: "Confirmed at",
+                    schoolConfirmed: "School account information confirmation",
+                    smsConfirmed: "SMS code confirmation",
+                    verifiedMethod: "Verified",
+                },
+                form: {
+                    bindTitle: "Bind a phone number",
+                    changeTitle: "Change phone number",
+                    description:
+                        "Enter the Mainland China phone number you currently use. The service selects the shortest secure verification path.",
+                    phone: "Phone number",
+                    authority:
+                        "The canonical number in the Casdoor sign-in account is the only writable source of truth. StuHelper keeps only a protected, rebuildable business projection and verification credential.",
+                    continue: "Continue",
+                },
+                sms: {
+                    title: "Enter the SMS code",
+                    sent: "A code was sent to {phone}",
+                    code: "SMS verification code",
+                    verify: "Confirm and bind",
+                    resend: "Resend code",
+                    resendIn: "Resend in {seconds}s",
+                    changeNumber: "Use another number",
+                },
+                syncing: {
+                    title: "Synchronizing securely",
+                    description:
+                        "This usually takes only a few seconds. An idempotent background task continues reconciliation if you close the page.",
+                },
+                manage: {
+                    title: "Manage current number",
+                    description:
+                        "Changing or removing the number affects publishing requirements, account recovery, and security contact, and requires high-risk confirmation.",
+                    change: "Change number",
+                    unbind: "Remove phone",
+                    unbindConfirm:
+                        "Removing the phone temporarily blocks features that require a phone credential and may affect account recovery. Continue?",
+                },
+                why: {
+                    title: "Why is a phone needed?",
+                    description:
+                        "StuHelper uses a verified phone as a product risk-control requirement for publishing and for necessary security contact. Regulations permit multiple identity-information methods; we do not claim that only phones are legally allowed.",
+                    notStudentEvidence:
+                        "A phone is not student evidence and never grants student identity alone or in combination.",
+                },
+                errors: {
+                    load: "Unable to load phone status. Try again later.",
+                    create: "Unable to create the phone operation. Check the number or try later.",
+                    sms: "Unable to send the SMS code. Try again later.",
+                    invalidCode: "The code is invalid or expired. Request a new one.",
+                    sync: "Phone synchronization has not completed. Refresh later.",
+                    unbind: "The phone removal did not complete. Try again later.",
+                },
+            },
         },
         qq: {
             title: "QQ Binding",

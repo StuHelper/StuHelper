@@ -103,7 +103,7 @@ case "${external_student_source_enabled}" in
         die "${key} is required when EXTERNAL_STUDENT_SOURCE_ENABLED=true"
     done
     [[ "${EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME^^}" == "${EXTERNAL_STUDENT_SOURCE_ORACLE_READONLY_USERNAME^^}" ]] ||
-      die "EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME must match EXTERNAL_STUDENT_SOURCE_ORACLE_READONLY_USERNAME"
+      die "EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME must match the explicitly configured existing account"
     [[ "${EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_MODE:-}" == "verify-full" ]] ||
       die "EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_MODE must be verify-full in production"
     [[ "${EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_FILE:-}" == "/external-student-source-tls/ca.crt" ]] ||

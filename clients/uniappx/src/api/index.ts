@@ -7,6 +7,7 @@ import {
   createRatingApi,
   createReplyApi,
   createReviewApi,
+  createStudentVerificationApi,
   createUserApi,
 } from '@stuhelper/shared/api'
 import { apiClient } from './shared-client'
@@ -20,6 +21,7 @@ export const api = {
   rating: createRatingApi(apiClient),
   reply: createReplyApi(apiClient),
   review: createReviewApi(apiClient),
+  studentVerification: createStudentVerificationApi(apiClient),
   user: createUserApi(apiClient),
 }
 

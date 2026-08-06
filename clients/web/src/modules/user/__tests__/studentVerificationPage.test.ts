@@ -1,496 +1,285 @@
 // @vitest-environment jsdom
 
-import { flushPromises, mount } from "@vue/test-utils";
-import { createPinia, setActivePinia } from "pinia";
-import type { Pinia } from "pinia";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { flushPromises, mount } from '@vue/test-utils'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import enUSUser from "@/i18n/locales/en-US/user";
-import zhCNUser from "@/i18n/locales/zh-CN/user";
+import enUSUser from '@/i18n/locales/en-US/user'
+import zhCNUser from '@/i18n/locales/zh-CN/user'
 
-const mockRouterPush = vi.fn();
-const mockToastSuccess = vi.fn();
-const mockToastError = vi.fn();
+const mockRouterPush = vi.fn()
+const mockRouterReplace = vi.fn()
+const mockToastSuccess = vi.fn()
+const mockToastError = vi.fn()
 const mockRoute = vi.hoisted(() => ({
-    query: {} as Record<string, string>,
-}));
+  query: {} as Record<string, string>,
+}))
 
-const mockIdentityApi = vi.hoisted(() => ({
-    getIdentity: vi.fn(),
-    getProfile: vi.fn(),
-    getQQBinding: vi.fn(),
-    listSchools: vi.fn(),
-    matchStudentEmailAcademicStudent: vi.fn(),
-    requestStudentEmailOTP: vi.fn(),
-    verifyStudentEmailOTP: vi.fn(),
-    verifyStudent: vi.fn(),
-    submitIdentity: vi.fn(),
-    uploadIdentityPhoto: vi.fn(),
-    createQQBindingCode: vi.fn(),
-    bindPhone: vi.fn(),
-    requestBindPhoneOTP: vi.fn(),
-}));
+const mockVerificationApi = vi.hoisted(() => ({
+  listSchools: vi.fn(),
+  listCredentials: vi.fn(),
+  getEligibility: vi.fn(),
+  createApplication: vi.fn(),
+  getApplication: vi.fn(),
+  cancelApplication: vi.fn(),
+  verifyRealName: vi.fn(),
+  verifySchoolSSO: vi.fn(),
+  requestStudentEmailOTP: vi.fn(),
+  verifyStudentEmailOTP: vi.fn(),
+  createInboundEmailChallenge: vi.fn(),
+  getInboundEmailChallenge: vi.fn(),
+  revokeCredential: vi.fn(),
+  suggestSchool: vi.fn(),
+}))
 
-vi.mock("@/api", () => ({
-    api: {
-        identity: mockIdentityApi,
-    },
-}));
+vi.mock('@/api', () => ({
+  api: { studentVerification: mockVerificationApi },
+}))
 
-vi.mock("vue-router", () => ({
+vi.mock('vue-router', async () => {
+  const actual = await vi.importActual<typeof import('vue-router')>('vue-router')
+  return {
+    ...actual,
     useRoute: () => mockRoute,
-    useRouter: () => ({
-        push: mockRouterPush,
-    }),
-}));
+    useRouter: () => ({ push: mockRouterPush, replace: mockRouterReplace }),
+  }
+})
 
-vi.mock("vue-i18n", () => ({
-    createI18n: () => ({
-        global: {
-            t: (key: string) => key,
-            te: () => false,
-        },
-        install: vi.fn(),
-    }),
-    useI18n: () => ({
-        t: (key: string) => key,
-    }),
-}));
+vi.mock('vue-i18n', () => ({
+  createI18n: () => ({
+    global: { t: (key: string) => key, te: () => false },
+    install: vi.fn(),
+  }),
+  useI18n: () => ({ t: (key: string, params?: Record<string, unknown>) => `${key}${params ? JSON.stringify(params) : ''}` }),
+}))
 
-vi.mock("@/composables/useToast", () => ({
-    useToast: () => ({
-        success: mockToastSuccess,
-        error: mockToastError,
-    }),
-}));
+vi.mock('@/composables/useToast', () => ({
+  useToast: () => ({ success: mockToastSuccess, error: mockToastError }),
+}))
 
-const { default: StudentVerificationPage } =
-    await import("../views/StudentVerificationPage.vue");
+const { default: StudentVerificationPage } = await import('../views/StudentVerificationPage.vue')
 
-const now = "2026-05-31T00:00:00Z";
-let pinia: Pinia;
-
-function notFound() {
-    return Promise.reject({ status: 404 });
+const privacyNotice = {
+  version: '2026-08-05',
+  title: '学生认证隐私说明',
+  summary: '仅处理本次校验必要的数据。',
+  dataCategories: ['学号', '姓名'],
+  retentionSummary: '按认证策略保存最小凭据。',
 }
 
-function verifiedProfile() {
-    return {
-        userID: 42,
-        schoolID: 4111010006,
-        studentIDs: ["20250001"],
-        activeStudentID: "20250001",
-        verificationStatus: "verified",
-        verificationMethod: "school_email_otp",
-        rejectionReason: null,
-        reviewedAt: now,
-        phone: null,
-        phoneVerified: false,
-        consentGivenAt: now,
-        verifiedAt: now,
-        createdAt: now,
-        updatedAt: now,
-    };
+const school = {
+  code: '4111010006',
+  name: '北京航空航天大学',
+  location: '北京',
+  methods: [
+    {
+      method: 'real_name_identity_check' as const,
+      displayName: '实名信息校验',
+      description: '一次性实名信息校验',
+      availability: 'available' as const,
+      formFields: [],
+      privacyNotice,
+    },
+    {
+      method: 'student_email_outbound_otp' as const,
+      displayName: '学校邮箱接收验证码',
+      description: '发送到规范学号邮箱',
+      availability: 'available' as const,
+      formFields: [],
+      privacyNotice,
+    },
+    {
+      method: 'manual_material_review' as const,
+      displayName: '人工材料审核',
+      description: '提交学校材料',
+      availability: 'available' as const,
+      formFields: [
+        { key: 'department', label: '学院', inputType: 'text' as const, required: true },
+        { key: 'studentID', label: '学号', inputType: 'text' as const, required: true },
+        { key: 'name', label: '姓名', inputType: 'text' as const, required: true },
+        { key: 'email', label: '邮箱', inputType: 'email' as const, required: true },
+      ],
+      privacyNotice,
+    },
+  ],
 }
 
-describe("StudentVerificationPage", () => {
-    beforeEach(() => {
-        pinia = createPinia();
-        setActivePinia(pinia);
-        vi.clearAllMocks();
-        mockRoute.query = {};
+function ok<T>(data: T) {
+  return Promise.resolve({ data: { data } })
+}
 
-        mockIdentityApi.getIdentity.mockImplementation(notFound);
-        mockIdentityApi.getProfile.mockImplementation(notFound);
-        mockIdentityApi.getQQBinding.mockImplementation(notFound);
-        mockIdentityApi.listSchools.mockResolvedValue({
-            data: {
-                data: [
-                    {
-                        schoolID: 4111010006,
-                        schoolCode: "4111010006",
-                        schoolName: "北京航空航天大学",
-                        verificationMethod: "manual",
-                        approvalPolicy: "auto",
-                        consentText: "同意使用学校认证信息完成学生身份认证。",
-                        manualFormFields: null,
-                        enabled: true,
-                        schoolSsoEnabled: false,
-                        schoolEmailOtpEnabled: true,
-                        schoolEmailIdentityPolicy: {
-                            type: "academic_student_email",
-                            studentIDEmailDomain: "buaa.edu.cn",
-                            requireStudentName: true,
-                        },
-                    },
-                ],
-            },
-        });
-    });
+function application(status: 'created' | 'approved' = 'created') {
+  return {
+    id: '11111111-1111-4111-8111-111111111111',
+    school: { code: school.code, name: school.name },
+    status,
+    revision: status === 'approved' ? 2 : 1,
+    nextActions: status === 'approved' ? ['return_to_consumer'] : ['choose_method'],
+    credential: status === 'approved' ? {
+      id: '22222222-2222-4222-8222-222222222222',
+      schoolCode: school.code,
+      schoolName: school.name,
+      method: 'real_name_identity_check',
+      status: 'active',
+      credentialClass: 'formal_student',
+      subjectDisplay: '20****01',
+      verifiedAt: '2026-08-05T10:00:00Z',
+      revision: 1,
+    } : null,
+    createdAt: '2026-08-05T09:00:00Z',
+    updatedAt: '2026-08-05T10:00:00Z',
+    expiresAt: '2026-08-06T09:00:00Z',
+  }
+}
 
-    afterEach(() => {
-        vi.useRealTimers();
-    });
+async function mountPage() {
+  const wrapper = mount(StudentVerificationPage, {
+    global: {
+      stubs: {
+        RouterLink: { template: '<a><slot /></a>' },
+        ManualReviewEvidence: { template: '<div data-manual-review-stub />' },
+      },
+    },
+  })
+  await flushPromises()
+  return wrapper
+}
 
-    it("keeps academic email workflow copy complete in Chinese and English", () => {
-        const zhCopy = zhCNUser.verification.student.academicEmail;
-        const enCopy = enUSUser.verification.student.academicEmail;
+describe('StudentVerificationPage', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    sessionStorage.clear()
+    mockRoute.query = {}
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    mockVerificationApi.listSchools.mockImplementation(() => ok([school]))
+    mockVerificationApi.listCredentials.mockImplementation(() => ok([]))
+    mockVerificationApi.getEligibility.mockImplementation(() => ok({ eligible: false }))
+    mockVerificationApi.createApplication.mockImplementation(() => ok(application()))
+    mockVerificationApi.getApplication.mockImplementation(() => ok(application()))
+  })
 
-        expect(Object.keys(enCopy).sort()).toEqual(Object.keys(zhCopy).sort());
-        for (const key of Object.keys(zhCopy) as Array<keyof typeof zhCopy>) {
-            expect(zhCopy[key], `zh-CN ${key}`).toEqual(expect.any(String));
-            expect(enCopy[key], `en-US ${key}`).toEqual(expect.any(String));
-        }
-    });
+  it('keeps the new platform copy complete in Chinese and English', () => {
+    expect(Object.keys(enUSUser.verification.student.platform).sort()).toEqual(
+      Object.keys(zhCNUser.verification.student.platform).sort(),
+    )
+    expect(Object.keys(enUSUser.verification.student.platform.methods).sort()).toEqual(
+      Object.keys(zhCNUser.verification.student.platform.methods).sort(),
+    )
+  })
 
-    it("shows bound student information when verification is already complete", async () => {
-        mockIdentityApi.getProfile.mockResolvedValue({
-            data: {
-                data: {
-                    ...verifiedProfile(),
-                    studentIDs: ["20250001", "20250002"],
-                    verificationMethod: "school_sso",
-                },
-            },
-        });
+  it('loads independent student credentials and capability-driven school methods', async () => {
+    mockVerificationApi.listCredentials.mockImplementation(() => ok([{
+      id: '22222222-2222-4222-8222-222222222222',
+      schoolCode: school.code,
+      schoolName: school.name,
+      method: 'student_email_outbound_otp',
+      status: 'active',
+      credentialClass: 'formal_student',
+      subjectDisplay: '20****01',
+      verifiedAt: '2026-08-05T10:00:00Z',
+      expiresAt: null,
+      revision: 1,
+    }]))
 
-        const wrapper = mount(StudentVerificationPage, {
-            global: {
-                plugins: [pinia],
-            },
-        });
-        await flushPromises();
+    const wrapper = await mountPage()
 
-        const verifiedProfileDetails = wrapper.get(
-            "[data-student-verified-profile]",
-        );
-        expect(verifiedProfileDetails.text()).toContain("北京航空航天大学");
-        expect(verifiedProfileDetails.text()).toContain("20250001");
-        expect(verifiedProfileDetails.text()).toContain("20250002");
-        expect(verifiedProfileDetails.text()).toContain(
-            "user.verification.student.methods.school_sso",
-        );
-        expect(wrapper.find("[data-student-school-select]").exists()).toBe(
-            false,
-        );
-    });
+    expect(wrapper.get('[data-active-credentials]').text()).toContain(school.name)
+    await wrapper.get('[data-verification-school-option]').trigger('click')
+    expect(wrapper.findAll('[data-verification-method]')).toHaveLength(3)
+    expect(mockVerificationApi.createApplication).not.toHaveBeenCalled()
+  })
 
-    it("uses schoolCode and locks the BUAA student email after academic name match", async () => {
-        vi.useFakeTimers();
-        mockIdentityApi.matchStudentEmailAcademicStudent.mockResolvedValue({
-            data: {
-                data: {
-                    matched: true,
-                    email: "20250001@buaa.edu.cn",
-                    studentID: "20250001",
-                    message: "学号和姓名已匹配。",
-                },
-            },
-        });
-        mockIdentityApi.requestStudentEmailOTP.mockResolvedValue({
-            data: {
-                data: {
-                    email: "20250001@buaa.edu.cn",
-                    studentID: "20250001",
-                    cooldownSeconds: 60,
-                },
-            },
-        });
-        mockIdentityApi.verifyStudentEmailOTP.mockResolvedValue({
-            data: {
-                data: verifiedProfile(),
-            },
-        });
+  it('opens a requested available method after the user selects a school', async () => {
+    mockRoute.query = { method: 'real_name_identity_check', redirect: '/open-platform' }
+    const wrapper = await mountPage()
 
-        const wrapper = mount(StudentVerificationPage, {
-            global: {
-                plugins: [pinia],
-            },
-        });
-        await flushPromises();
+    await wrapper.get('[data-verification-school-option]').trigger('click')
+    await flushPromises()
 
-        expect(
-            wrapper.find<HTMLOptionElement>(
-                "[data-student-school-select] option",
-            ).element.value,
-        ).toBe("");
+    expect(mockVerificationApi.createApplication).toHaveBeenCalledWith({
+      schoolCode: school.code,
+    })
+    expect(wrapper.find('[data-verification-method-form]').exists()).toBe(true)
+    expect(mockRouterReplace).toHaveBeenCalledWith({
+      query: { redirect: '/open-platform' },
+    })
+  })
 
-        await wrapper
-            .find("[data-student-school-select]")
-            .setValue("4111010006");
-        await flushPromises();
+  it('submits real-name evidence only after explicit privacy consent', async () => {
+    mockVerificationApi.verifyRealName.mockImplementation(() => ok(application('approved')))
+    const wrapper = await mountPage()
 
-        const emailInput = wrapper.find<HTMLInputElement>(
-            "[data-student-school-email-input]",
-        );
-        expect(emailInput.element.readOnly).toBe(true);
-        expect(emailInput.element.value).toBe("");
+    await wrapper.get('[data-verification-school-option]').trigger('click')
+    await wrapper.get('[data-verification-method="real_name_identity_check"]').trigger('click')
+    await flushPromises()
 
-        await wrapper.find("[data-student-id-input]").setValue("20250001");
-        await wrapper.find("[data-student-name-input]").setValue("张三");
-        await vi.advanceTimersByTimeAsync(300);
-        await flushPromises();
+    await wrapper.get('[data-verification-student-id]').setValue('20990001')
+    await wrapper.get('[data-verification-name]').setValue('测试用户')
+    await wrapper.get('[data-verification-document-number]').setValue('11010519491231002X')
+    expect(wrapper.get<HTMLButtonElement>('[data-verification-submit]').element.disabled).toBe(true)
 
-        expect(
-            mockIdentityApi.matchStudentEmailAcademicStudent,
-        ).toHaveBeenCalledWith({
-            schoolCode: "4111010006",
-            studentID: "20250001",
-            studentName: "张三",
-        });
-        expect(emailInput.element.value).toBe("20250001@buaa.edu.cn");
+    await wrapper.get('[data-verification-consent]').setValue(true)
+    await wrapper.get('[data-verification-method-form]').trigger('submit')
+    await flushPromises()
 
-        await wrapper.find("[data-student-email-otp-request]").trigger("click");
-        await flushPromises();
+    expect(mockVerificationApi.verifyRealName).toHaveBeenCalledWith(
+      application().id,
+      {
+        studentID: '20990001',
+        name: '测试用户',
+        documentNumber: '11010519491231002X',
+        privacyNoticeVersion: privacyNotice.version,
+        sensitiveDataConsent: true,
+      },
+    )
+    expect(wrapper.find('[data-verification-complete]').exists()).toBe(true)
+  })
 
-        expect(mockIdentityApi.requestStudentEmailOTP).toHaveBeenCalledWith({
-            schoolCode: "4111010006",
-            studentID: "20250001",
-            studentName: "张三",
-        });
+  it('requests email OTP without accepting a user-supplied email address', async () => {
+    mockVerificationApi.requestStudentEmailOTP.mockImplementation(() => ok({
+      applicationID: application().id,
+      maskedEmail: '20****01@buaa.edu.cn',
+      expiresAt: '2026-08-05T10:10:00Z',
+      resendAvailableAt: '2026-08-05T10:01:00Z',
+      remainingAttempts: 5,
+    }))
+    const wrapper = await mountPage()
 
-        await wrapper
-            .find("[data-student-email-code-input]")
-            .setValue("123456");
-        await wrapper.find("[data-student-consent-checkbox]").setValue(true);
-        const verificationForm = wrapper.find<HTMLFormElement>(
-            "[data-student-verification-form]",
-        );
-        const verificationSubmit = wrapper.find<HTMLButtonElement>(
-            "[data-student-verification-submit]",
-        );
-        expect(verificationForm.exists()).toBe(true);
-        expect(verificationSubmit.attributes("type")).toBe("submit");
-        await verificationForm.trigger("submit");
-        await flushPromises();
+    await wrapper.get('[data-verification-school-option]').trigger('click')
+    await wrapper.get('[data-verification-method="student_email_outbound_otp"]').trigger('click')
+    await flushPromises()
+    await wrapper.get('[data-verification-student-id]').setValue('20990001')
+    await wrapper.get('[data-verification-name]').setValue('测试用户')
+    await wrapper.get('[data-verification-consent]').setValue(true)
+    await wrapper.get('[data-verification-method-form]').trigger('submit')
+    await flushPromises()
 
-        expect(mockIdentityApi.verifyStudentEmailOTP).toHaveBeenCalledWith({
-            schoolCode: "4111010006",
-            email: "20250001@buaa.edu.cn",
-            code: "123456",
-            consent: true,
-        });
-        expect(mockIdentityApi.verifyStudent).not.toHaveBeenCalled();
-    });
+    expect(mockVerificationApi.requestStudentEmailOTP).toHaveBeenCalledWith(
+      application().id,
+      {
+        studentID: '20990001',
+        name: '测试用户',
+        privacyNoticeVersion: privacyNotice.version,
+        sensitiveDataConsent: true,
+      },
+    )
+    expect(wrapper.find('input[type="email"]').exists()).toBe(false)
+  })
 
-    it("clears the derived BUAA email and code when academic identity changes", async () => {
-        vi.useFakeTimers();
-        mockIdentityApi.matchStudentEmailAcademicStudent.mockResolvedValue({
-            data: {
-                data: {
-                    matched: true,
-                    email: "20250001@buaa.edu.cn",
-                    studentID: "20250001",
-                    message: "学号和姓名已匹配。",
-                },
-            },
-        });
-        mockIdentityApi.requestStudentEmailOTP.mockResolvedValue({
-            data: {
-                data: {
-                    email: "20250001@buaa.edu.cn",
-                    studentID: "20250001",
-                    cooldownSeconds: 60,
-                },
-            },
-        });
+  it('cancels a recoverable application through the new lifecycle endpoint', async () => {
+    mockVerificationApi.cancelApplication.mockImplementation(() => ok({
+      ...application(),
+      status: 'cancelled',
+      terminalCode: 'user_cancelled',
+      revision: 2,
+    }))
+    const wrapper = await mountPage()
 
-        const wrapper = mount(StudentVerificationPage, {
-            global: {
-                plugins: [pinia],
-            },
-        });
-        await flushPromises();
+    await wrapper.get('[data-verification-school-option]').trigger('click')
+    await wrapper.get('[data-verification-method="real_name_identity_check"]').trigger('click')
+    await flushPromises()
+    await wrapper.get('[data-verification-cancel]').trigger('click')
+    await flushPromises()
 
-        await wrapper
-            .find("[data-student-school-select]")
-            .setValue("4111010006");
-        await wrapper.find("[data-student-id-input]").setValue("20250001");
-        await wrapper.find("[data-student-name-input]").setValue("张三");
-        await vi.advanceTimersByTimeAsync(300);
-        await flushPromises();
-        await wrapper.find("[data-student-email-otp-request]").trigger("click");
-        await flushPromises();
-
-        const emailInput = wrapper.find<HTMLInputElement>(
-            "[data-student-school-email-input]",
-        );
-        const codeInput = wrapper.find<HTMLInputElement>(
-            "[data-student-email-code-input]",
-        );
-        const submitButton = wrapper.find<HTMLButtonElement>(
-            "[data-student-verification-submit]",
-        );
-        expect(emailInput.element.value).toBe("20250001@buaa.edu.cn");
-
-        await codeInput.setValue("123456");
-        await wrapper.find("[data-student-consent-checkbox]").setValue(true);
-        expect(submitButton.element.disabled).toBe(false);
-
-        await wrapper.find("[data-student-id-input]").setValue("20250002");
-        await flushPromises();
-
-        expect(emailInput.element.value).toBe("");
-        expect(codeInput.element.value).toBe("");
-        expect(submitButton.element.disabled).toBe(true);
-        expect(mockIdentityApi.verifyStudentEmailOTP).not.toHaveBeenCalled();
-    });
-
-    it("returns to the intended page after successful student verification", async () => {
-        vi.useFakeTimers();
-        mockRoute.query = { redirect: "/courses/reviews/post" };
-        mockIdentityApi.getProfile
-            .mockImplementationOnce(notFound)
-            .mockResolvedValue({
-                data: {
-                    data: verifiedProfile(),
-                },
-            });
-        mockIdentityApi.matchStudentEmailAcademicStudent.mockResolvedValue({
-            data: {
-                data: {
-                    matched: true,
-                    email: "20250001@buaa.edu.cn",
-                    studentID: "20250001",
-                    message: "学号和姓名已匹配。",
-                },
-            },
-        });
-        mockIdentityApi.requestStudentEmailOTP.mockResolvedValue({
-            data: {
-                data: {
-                    email: "20250001@buaa.edu.cn",
-                    studentID: "20250001",
-                    cooldownSeconds: 60,
-                },
-            },
-        });
-        mockIdentityApi.verifyStudentEmailOTP.mockResolvedValue({
-            data: {
-                data: verifiedProfile(),
-            },
-        });
-
-        const wrapper = mount(StudentVerificationPage, {
-            global: {
-                plugins: [pinia],
-            },
-        });
-        await flushPromises();
-
-        await wrapper
-            .find("[data-student-school-select]")
-            .setValue("4111010006");
-        await wrapper.find("[data-student-id-input]").setValue("20250001");
-        await wrapper.find("[data-student-name-input]").setValue("张三");
-        await vi.advanceTimersByTimeAsync(300);
-        await flushPromises();
-        await wrapper.find("[data-student-email-otp-request]").trigger("click");
-        await flushPromises();
-
-        await wrapper
-            .find("[data-student-email-code-input]")
-            .setValue("123456");
-        await wrapper.find("[data-student-consent-checkbox]").setValue(true);
-        await wrapper
-            .find("[data-student-verification-form]")
-            .trigger("submit");
-        await flushPromises();
-
-        expect(mockRouterPush).toHaveBeenCalledWith("/courses/reviews/post");
-        expect(mockRouterPush).toHaveBeenCalledTimes(1);
-    });
-
-    it("prompts before requesting OTP when academic identity is incomplete", async () => {
-        const wrapper = mount(StudentVerificationPage, {
-            global: {
-                plugins: [pinia],
-            },
-        });
-        await flushPromises();
-
-        await wrapper
-            .find("[data-student-school-select]")
-            .setValue("4111010006");
-        await wrapper.find("[data-student-id-input]").setValue("20250001");
-        await wrapper.find("[data-student-email-otp-request]").trigger("click");
-        await flushPromises();
-
-        expect(mockToastError).toHaveBeenCalledWith(
-            "user.verification.student.academicEmail.enterIdentity",
-        );
-        expect(
-            mockIdentityApi.matchStudentEmailAcademicStudent,
-        ).not.toHaveBeenCalled();
-        expect(mockIdentityApi.requestStudentEmailOTP).not.toHaveBeenCalled();
-    });
-
-    it("requires explicit consent even when the school has no custom consent text", async () => {
-        mockIdentityApi.listSchools.mockResolvedValueOnce({
-            data: {
-                data: [
-                    {
-                        schoolID: 4111010007,
-                        schoolCode: "4111010007",
-                        schoolName: "测试大学",
-                        verificationMethod: "manual",
-                        approvalPolicy: "manual",
-                        consentText: null,
-                        manualFormFields: null,
-                        enabled: true,
-                        schoolSsoEnabled: false,
-                        schoolEmailOtpEnabled: false,
-                    },
-                ],
-            },
-        });
-        mockIdentityApi.verifyStudent.mockResolvedValue({
-            data: {
-                data: {
-                    ...verifiedProfile(),
-                    schoolID: 4111010007,
-                    verificationStatus: "pending",
-                    verificationMethod: "manual",
-                },
-            },
-        });
-
-        const wrapper = mount(StudentVerificationPage, {
-            global: {
-                plugins: [pinia],
-            },
-        });
-        await flushPromises();
-
-        await wrapper
-            .find("[data-student-school-select]")
-            .setValue("4111010007");
-        await flushPromises();
-
-        const submitButton = wrapper.find<HTMLButtonElement>(
-            "[data-student-verification-submit]",
-        );
-        expect(wrapper.find("[data-student-consent-checkbox]").exists()).toBe(
-            true,
-        );
-        expect(wrapper.text()).toContain(
-            "user.verification.student.consentPlain",
-        );
-        expect(submitButton.element.disabled).toBe(true);
-
-        await wrapper.find("[data-student-consent-checkbox]").setValue(true);
-        expect(submitButton.element.disabled).toBe(false);
-        await wrapper
-            .find("[data-student-verification-form]")
-            .trigger("submit");
-        await flushPromises();
-
-        expect(mockIdentityApi.verifyStudent).toHaveBeenCalledWith({
-            schoolCode: "4111010007",
-            studentID: undefined,
-            password: undefined,
-            manualFormData: undefined,
-            consent: true,
-        });
-    });
-});
+    expect(mockVerificationApi.cancelApplication).toHaveBeenCalledWith(application().id)
+  })
+})

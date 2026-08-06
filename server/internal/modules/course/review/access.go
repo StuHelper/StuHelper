@@ -33,6 +33,7 @@ type ReviewAccessFacts struct {
 	CanEditOwn               bool
 	CanDeleteOwn             bool
 	IdentityVerified         bool
+	PhoneVerified            bool
 	StudentVerified          bool
 	SchoolID                 *string
 	GuestPreviewContentRunes int
@@ -212,11 +213,18 @@ func (s *Service) ResolveAccessFacts(
 	facts.StudentVerified = subject.StudentVerified &&
 		subject.SchoolID != nil &&
 		policy.AllowsSchool(strconv.FormatInt(*subject.SchoolID, 10))
-	facts.IdentityVerified = subject.IdentityVerified
+	facts.IdentityVerified = false
+	if s.phoneGate == nil {
+		return facts, fmt.Errorf("phone publishing gate is unavailable")
+	}
+	facts.PhoneVerified, err = s.phoneGate.PhonePublishingRequirementSatisfied(ctx, subject.InternalUserID)
+	if err != nil {
+		return facts, fmt.Errorf("evaluate phone publishing gate: %w", err)
+	}
 	facts.CanViewFull = facts.CanManageReviews || (canViewFull && facts.StudentVerified)
-	facts.CanPostReview = canCreate && facts.StudentVerified && facts.IdentityVerified
-	facts.CanEditOwn = canEditOwn && facts.StudentVerified && facts.IdentityVerified
-	facts.CanDeleteOwn = canDeleteOwn && facts.StudentVerified && facts.IdentityVerified
+	facts.CanPostReview = canCreate && facts.StudentVerified && facts.PhoneVerified
+	facts.CanEditOwn = canEditOwn && facts.StudentVerified && facts.PhoneVerified
+	facts.CanDeleteOwn = canDeleteOwn && facts.StudentVerified && facts.PhoneVerified
 
 	return facts, nil
 }

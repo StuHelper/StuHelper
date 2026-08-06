@@ -414,6 +414,7 @@ func TestValidate_ProductionRejectsBlankCoreRequiredConfig(t *testing.T) {
 	c.ObjectStorage.SecretAccessKey = "  "
 	c.Bot.ServiceToken = "  "
 	c.Admission.PublicBaseURL = "  "
+	c.StudentVerification.PublicBaseURL = "  "
 
 	err := c.validate(nil)
 
@@ -430,6 +431,7 @@ func TestValidate_ProductionRejectsBlankCoreRequiredConfig(t *testing.T) {
 		"OBJECT_STORAGE_SECRET_ACCESS_KEY is required in production",
 		"BOT_SERVICE_TOKEN is required in production",
 		"ADMISSION_PUBLIC_BASE_URL is required in production",
+		"STUDENT_VERIFICATION_PUBLIC_BASE_URL is required in production",
 		"DB_SSL_ROOT_CERT is required in production",
 		"REDIS_TLS_CA is required in production",
 	} {
@@ -455,6 +457,40 @@ func TestValidate_ProductionRequiresAdmissionPublicBaseURL(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "ADMISSION_PUBLIC_BASE_URL is required in production")
+}
+
+func TestValidate_ProductionRequiresStudentVerificationPublicBaseURL(t *testing.T) {
+	c := validProductionConfigForTest()
+	c.StudentVerification.PublicBaseURL = ""
+
+	err := c.validate(nil)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "STUDENT_VERIFICATION_PUBLIC_BASE_URL is required in production")
+}
+
+func TestValidate_StudentVerificationPublicBaseURL(t *testing.T) {
+	tests := []struct {
+		name      string
+		baseURL   string
+		wantError string
+	}{
+		{name: "relative", baseURL: "stuhelper.com", wantError: "must be an absolute http(s) URL"},
+		{name: "path", baseURL: "https://stuhelper.com/verify", wantError: "must not include a path"},
+		{name: "query", baseURL: "https://stuhelper.com?from=env", wantError: "must not include query or fragment"},
+		{name: "production http", baseURL: "http://stuhelper.com", wantError: "must use https in production"},
+		{name: "wrong production origin", baseURL: "https://verify.stuhelper.com", wantError: "must be https://stuhelper.com in production"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := validProductionConfigForTest()
+			c.StudentVerification.PublicBaseURL = tt.baseURL
+			err := c.validate(nil)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantError)
+		})
+	}
 }
 
 func TestValidate_ProductionRequiresCanonicalAdmissionPublicBaseURL(t *testing.T) {
@@ -701,6 +737,8 @@ func TestLoad_EmptyOptionalTypedEnvUsesDefaults(t *testing.T) {
 	assert.Equal(t, 587, cfg.Email.SMTPPort)
 	assert.Equal(t, int64(0), cfg.Email.TencentTemplateID)
 	assert.Equal(t, 5, cfg.Email.TencentTemplateExpireMinutes)
+	assert.False(t, cfg.Email.InboundEnabled)
+	assert.Equal(t, 300, cfg.Email.InboundWebhookMaxSkewSeconds)
 	assert.InDelta(t, 0.2, cfg.Observability.TraceSampleRatio, 0.0001)
 	assert.Equal(t, 60, cfg.Review.TeacherStatsRefreshTimeoutSeconds)
 }
@@ -759,6 +797,23 @@ func TestValidate_EmailSMTPRequiresHostAndFrom(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "EMAIL_SMTP_HOST is required when EMAIL_ENABLED=true and EMAIL_DRIVER=smtp")
 	assert.Contains(t, err.Error(), "EMAIL_FROM is required when EMAIL_ENABLED=true and EMAIL_DRIVER=smtp")
+}
+
+func TestValidate_InboundEmailRequiresTargetStrongWebhookSecretAndBoundedSkew(t *testing.T) {
+	c := validProductionConfigForTest()
+	c.App.Env = "development"
+	c.Token.CookieSecure = false
+	c.Email.InboundEnabled = true
+	c.Email.InboundTargetAddress = "invalid"
+	c.Email.InboundWebhookSecret = "short"
+	c.Email.InboundWebhookMaxSkewSeconds = 30
+
+	err := c.validate(nil)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "EMAIL_INBOUND_TARGET_ADDRESS must be a mailbox")
+	assert.Contains(t, err.Error(), "EMAIL_INBOUND_WEBHOOK_SECRET must be at least 32 bytes")
+	assert.Contains(t, err.Error(), "EMAIL_INBOUND_WEBHOOK_MAX_SKEW_SECONDS must be between 60 and 1800")
 }
 
 func TestValidate_ProdParityAllowsBlackholeEmailDriver(t *testing.T) {
@@ -999,6 +1054,14 @@ func TestLoadAdmissionConfigFromEnv(t *testing.T) {
 	assert.Equal(t, "https://join.stuhelper.com", cfg.PublicBaseURL)
 }
 
+func TestLoadStudentVerificationConfigFromEnv(t *testing.T) {
+	t.Setenv("STUDENT_VERIFICATION_PUBLIC_BASE_URL", "https://stuhelper.com")
+
+	cfg := loadStudentVerificationConfig()
+
+	assert.Equal(t, "https://stuhelper.com", cfg.PublicBaseURL)
+}
+
 func TestLoadExternalDataConfigFromEnv(t *testing.T) {
 	t.Setenv("EXTERNAL_STUDENT_SOURCE_ENABLED", "true")
 	t.Setenv("EXTERNAL_STUDENT_SOURCE_PROVIDER", "oracle")
@@ -1136,18 +1199,19 @@ func TestValidateRejectsAdministrativeOracleStudentSourceAccount(t *testing.T) {
 			assert.Contains(
 				t,
 				errs,
-				"EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME must be a dedicated non-administrative account",
+				"EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME must not be a built-in administrative account",
 			)
 		})
 	}
 }
 
-func TestValidateRejectsOracleStudentSourceSchemaOwnerAccount(t *testing.T) {
+func TestValidateAllowsExplicitExistingOracleStudentSourceSchemaOwnerAccount(t *testing.T) {
 	errs := validateExternalOracleStudentSource(ExternalOracleStudentSourceConfig{
 		Host:                    "oracle.example.test",
 		Port:                    2484,
 		ServiceName:             "ORCLPDB1",
 		Username:                "usr_jwbiz",
+		ExpectedUsername:        "usr_jwbiz",
 		Password:                "secret",
 		TLSMode:                 "verify-full",
 		TLSCAFile:               "/external-student-source-tls/ca.crt",
@@ -1166,11 +1230,7 @@ func TestValidateRejectsOracleStudentSourceSchemaOwnerAccount(t *testing.T) {
 		BreakerOpenSeconds:      30,
 	}, true)
 
-	assert.Contains(
-		t,
-		errs,
-		"EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME must not own the source schema",
-	)
+	assert.Empty(t, errs)
 }
 
 func TestValidateRejectsOracleStudentSourceRuntimeIdentityDrift(t *testing.T) {
@@ -1201,7 +1261,7 @@ func TestValidateRejectsOracleStudentSourceRuntimeIdentityDrift(t *testing.T) {
 	assert.Contains(
 		t,
 		errs,
-		"EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME must match EXTERNAL_STUDENT_SOURCE_ORACLE_READONLY_USERNAME",
+		"EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME must match the explicitly configured existing account",
 	)
 }
 
@@ -2000,8 +2060,9 @@ func validProductionConfigForTest() *Config {
 		Observability: ObservabilityConfig{
 			Enabled: true, ServiceName: "stuhelper-backend", OTLPEndpoint: "http://alloy:4318", TraceSampleRatio: 0.2,
 		},
-		Admission: AdmissionConfig{PublicBaseURL: "https://join.stuhelper.com"},
-		RateLimit: ReviewRateLimitConfig{PostLimit: 5, VoteLimit: 30, ReportLimit: 10, ReplyLimit: 10, WriteLimit: 10, SearchAnonLimit: 5, SearchUserLimit: 60, BatchAnonLimit: 5, BatchUserLimit: 60},
+		Admission:           AdmissionConfig{PublicBaseURL: "https://join.stuhelper.com"},
+		StudentVerification: StudentVerificationConfig{PublicBaseURL: "https://stuhelper.com"},
+		RateLimit:           ReviewRateLimitConfig{PostLimit: 5, VoteLimit: 30, ReportLimit: 10, ReplyLimit: 10, WriteLimit: 10, SearchAnonLimit: 5, SearchUserLimit: 60, BatchAnonLimit: 5, BatchUserLimit: 60},
 		SMS: SMSConfig{
 			Enabled:     true,
 			SecretID:    "sms-secret-id",

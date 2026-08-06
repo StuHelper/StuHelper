@@ -42,6 +42,22 @@ func TestUserProfileClientRejectsMissingSubject(t *testing.T) {
 	assert.Contains(t, err.Error(), "user subject is required")
 }
 
+func TestUserProfileClientClearPhoneUsesExplicitMutation(t *testing.T) {
+	credential := validCredential()
+	credential.Purpose = PurposeUserProfile
+	users := &fakeUserAPI{user: &casdoorsdk.User{Name: "alice", Phone: "+8613800138000", CountryCode: "CN"}}
+	client, err := newUserProfileClient(credential, users, &fakeSMSAPI{})
+	require.NoError(t, err)
+
+	err = client.ClearPhone(context.Background(), "casdoor-subject-1")
+
+	require.NoError(t, err)
+	require.NotNil(t, users.updated)
+	assert.Empty(t, users.updated.Phone)
+	assert.Empty(t, users.updated.CountryCode)
+	assert.Equal(t, []string{"phone", "countryCode"}, users.columns)
+}
+
 func TestUserProfileClientGetPhone(t *testing.T) {
 	credential := validCredential()
 	credential.Purpose = PurposeUserProfile

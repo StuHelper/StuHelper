@@ -233,14 +233,14 @@
     {
       "id": "BLACKBOX_EXPORTER",
       "kind": "registry",
-      "image": "quay.io/prometheus/blackbox-exporter:master@sha256:9a7db82eecc48c8f226a24ca72c7b367b749b7994881824aa9b6a05b24ff4579",
+      "image": "quay.io/prometheus/blackbox-exporter:master@sha256:7255d55a425fbc8b3a1d8e4109465e7c0f4f33b9e48f965ec3c9a93bfbcd4f5c",
       "env_var": "BLACKBOX_EXPORTER_IMAGE_REF",
       "env_files": [".env.example", ".env.prod.example"],
       "scope": "private synthetic HTTP and TLS probe executor",
       "owner": "observability",
       "pin_review": {
-        "verified_on": "2026-07-29",
-        "review_by": "2026-08-12",
+        "verified_on": "2026-08-06",
+        "review_by": "2026-08-20",
         "upstream_evidence": "https://github.com/prometheus/blackbox_exporter/commits/master/"
       }
     },
@@ -548,8 +548,8 @@
     {
       "image_id": "BLACKBOX_EXPORTER",
       "owner": "platform-security",
-      "approved_on": "2026-07-29",
-      "expires_on": "2026-08-12",
+      "approved_on": "2026-08-06",
+      "expires_on": "2026-08-20",
       "rationale": "The pinned current master image has no high or critical finding and one unversioned module advisory.",
       "mitigations": [
         "Only repository-rendered allowlisted probe targets are accepted.",

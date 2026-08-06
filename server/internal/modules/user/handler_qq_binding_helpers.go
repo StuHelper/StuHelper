@@ -16,12 +16,11 @@ type qqBindingCodeResponse struct {
 }
 
 type qqVerificationStatusResponse struct {
-	QQID                      string              `json:"qqID"`
-	UserID                    *int64              `json:"userID"`
-	BoundAt                   *time.Time          `json:"boundAt"`
-	VerificationState         QQVerificationState `json:"verificationState"`
-	ProfileVerificationStatus string              `json:"profileVerificationStatus"`
-	StudentVerified           bool                `json:"studentVerified"`
+	QQID              string              `json:"qqID"`
+	UserID            *int64              `json:"userID"`
+	BoundAt           *time.Time          `json:"boundAt"`
+	VerificationState QQVerificationState `json:"verificationState"`
+	StudentVerified   bool                `json:"studentVerified"`
 }
 
 func qqBindingToJSON(binding *QQBinding) qqBindingResponse {
@@ -36,11 +35,10 @@ func qqBindingToJSON(binding *QQBinding) qqBindingResponse {
 
 func qqVerificationStatusToJSON(status *QQVerificationStatus) qqVerificationStatusResponse {
 	return qqVerificationStatusResponse{
-		QQID:                      status.QQID,
-		UserID:                    status.UserID,
-		BoundAt:                   status.BoundAt,
-		VerificationState:         status.VerificationState,
-		ProfileVerificationStatus: status.ProfileVerificationStatus,
-		StudentVerified:           status.StudentVerified,
+		QQID:              status.QQID,
+		UserID:            status.UserID,
+		BoundAt:           status.BoundAt,
+		VerificationState: status.VerificationState,
+		StudentVerified:   status.StudentVerified,
 	}
 }

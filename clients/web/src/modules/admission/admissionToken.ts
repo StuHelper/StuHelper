@@ -71,13 +71,6 @@ export function isAdmissionSessionExpiredError(error: unknown): boolean {
   return Boolean(code && EXPIRED_ADMISSION_SESSION_ERROR_CODES.has(code))
 }
 
-export function isFreshmanCameraHandoffLockedError(error: unknown): boolean {
-  const message = readAdmissionErrorMessage(error)
-  return /admission camera handoff locked|camera handoff locked|handoff locked/i.test(
-    message ?? '',
-  )
-}
-
 export function rememberLinkedAdmissionSession(
   token: string,
   admissionSessionID: string,

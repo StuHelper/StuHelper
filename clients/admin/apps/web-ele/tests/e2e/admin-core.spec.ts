@@ -9,14 +9,22 @@ const capabilities = [
   'admin:teachers:manage',
   'admin:sensitive_words:manage',
   'admin:logs:view',
-  'user:identity:read',
-  'user:identity:review',
-  'user:student:review',
-  'user:school:read',
-  'user:school:update',
+  'student:manual_review:read',
+  'student:manual_review:decide',
+  'student:manual_material:access',
+  'student:verification_config:read',
+  'student:verification_config:update',
+  'student:roster:read',
+  'student:roster:activate',
+  'student:credential:read',
+  'student:credential:revoke',
+  'student:subject_conflict:read',
+  'student:subject_conflict:resolve',
+  'campus_connector:health:read',
   'user:system:read',
   'user:system:update',
-  'admission:freshman:review',
+  'admission:session:read',
+  'admission:session:manage',
   'admission:policy:update',
   'member_blacklist:read',
   'member_blacklist:manage',
@@ -59,7 +67,9 @@ const dashboardOnlyAdminUser = {
 };
 
 const userSystemReadOnlyCapabilities = [
-  'user:school:read',
+  'student:verification_config:read',
+  'student:roster:read',
+  'campus_connector:health:read',
   'user:system:read',
   'member_blacklist:read',
 ];
@@ -86,25 +96,6 @@ const stats = {
   deletedReviews: 11,
   totalReports: 18,
   pendingReports: 3,
-};
-
-const schoolConfig = {
-  approvalPolicy: 'manual',
-  schoolID: 4_111_010_006,
-  schoolCode: '4111010006',
-  schoolName: '只读大学',
-  verificationMethod: 'ldap',
-  enabled: true,
-  schoolSsoEnabled: false,
-  schoolEmailOtpEnabled: false,
-  academicDbTable: 'academic_students',
-  consentText: '只读认证授权说明',
-  ldapConfig: {
-    url: 'ldap://readonly.example.com',
-    baseDN: 'dc=readonly,dc=example',
-    systemBindDN: 'cn=reader,dc=readonly,dc=example',
-    useTLS: true,
-  },
 };
 
 const systemConfig = {
@@ -169,11 +160,6 @@ async function mockReadOnlyUserSystemApi(
     const url = new URL(request.url());
     const path = url.pathname;
     const method = request.method();
-
-    if (path === '/api/v1/admin/school-configs' && method === 'GET') {
-      await route.fulfill(ok([schoolConfig]));
-      return;
-    }
 
     if (path === '/api/v1/admin/system-configs' && method === 'GET') {
       await route.fulfill(ok([systemConfig]));
@@ -380,15 +366,6 @@ test.describe('Admin user-system read-only capability boundaries', () => {
   }) => {
     const mutatingRequests: string[] = [];
     await mockReadOnlyUserSystemApi(page, mutatingRequests);
-
-    await page.goto('/users/school-config');
-    await expect(page.getByText('只读大学')).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText('人工审核')).toBeVisible();
-    await expect(page.getByText('未接入')).toBeVisible();
-    await expect(page.getByText('ldap://readonly.example.com')).toBeVisible();
-    await expect(page.getByRole('button', { name: /编辑|Edit/ })).toHaveCount(
-      0,
-    );
 
     await page.goto('/users/system-config');
     await expect(page.getByText('review.retention_days')).toBeVisible();

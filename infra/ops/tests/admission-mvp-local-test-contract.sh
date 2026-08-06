@@ -18,6 +18,14 @@ assert_file_contains() {
   grep -Eq -- "${pattern}" "${file}" || fail "${file#${ROOT_DIR}/} missing pattern: ${pattern}"
 }
 
+assert_file_not_contains() {
+  local file="$1"
+  local pattern="$2"
+  if grep -Eq -- "${pattern}" "${file}"; then
+    fail "${file#${ROOT_DIR}/} unexpectedly contains stale pattern: ${pattern}"
+  fi
+}
+
 [[ -f "${SCRIPT}" ]] || fail "missing infra/ops/admission-mvp-local-test.sh"
 [[ -x "${SCRIPT}" ]] || fail "infra/ops/admission-mvp-local-test.sh must be executable"
 
@@ -25,14 +33,19 @@ assert_file_contains "${SCRIPT}" '^#!/usr/bin/env bash$'
 assert_file_contains "${SCRIPT}" 'go test -count=1 -p 1 \./internal/modules/admission'
 assert_file_contains "${SCRIPT}" 'go test -count=1 -p 1 \./internal/modules/auth \./internal/modules/user'
 assert_file_contains "${SCRIPT}" 'admissionPageStates\.test\.ts'
-assert_file_contains "${SCRIPT}" 'cameraCapture\.test\.ts'
-assert_file_contains "${SCRIPT}" 'freshmanMobileCameraPage\.test\.ts'
-assert_file_contains "${SCRIPT}" 'oldStudentFlow\.test\.ts'
+assert_file_contains "${SCRIPT}" 'admissionToken\.test\.ts'
+assert_file_contains "${SCRIPT}" 'api\.test\.ts'
+assert_file_contains "${SCRIPT}" 'joinStartPage\.test\.ts'
 assert_file_contains "${SCRIPT}" 'projectionRefresh\.test\.ts'
 assert_file_contains "${SCRIPT}" 'authAuthorizeFlow\.test\.ts'
-assert_file_contains "${SCRIPT}" 'identityVerificationPage\.test\.ts'
+assert_file_contains "${SCRIPT}" 'verification\.test\.ts'
+assert_file_contains "${SCRIPT}" 'accountProfilePage\.test\.ts'
 assert_file_contains "${SCRIPT}" 'studentVerificationPage\.test\.ts'
 assert_file_contains "${SCRIPT}" 'mainlandID\.test\.ts'
+assert_file_not_contains "${SCRIPT}" 'cameraCapture\.test\.ts'
+assert_file_not_contains "${SCRIPT}" 'freshmanMobileCameraPage\.test\.ts'
+assert_file_not_contains "${SCRIPT}" 'oldStudentFlow\.test\.ts'
+assert_file_not_contains "${SCRIPT}" 'identityVerificationPage\.test\.ts'
 assert_file_contains "${SCRIPT}" 'auth-callback-and-admission\.spec\.ts'
 assert_file_contains "${SCRIPT}" 'auth-flow\.spec\.ts'
 assert_file_contains "${SCRIPT}" 'user-verification\.spec\.ts'

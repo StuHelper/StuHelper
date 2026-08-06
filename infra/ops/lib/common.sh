@@ -2700,12 +2700,10 @@ require_production_external_student_source_security() {
     [[ "${value}" =~ ^[A-Za-z][A-Za-z0-9_]{0,127}$ ]] ||
       die "${key} must be a safe Oracle identifier"
   done
-  [[ "${EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME^^}" == "${EXTERNAL_STUDENT_SOURCE_ORACLE_READONLY_USERNAME^^}" ]] ||
-    die "EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME must match EXTERNAL_STUDENT_SOURCE_ORACLE_READONLY_USERNAME"
-  [[ "${EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME^^}" != "${EXTERNAL_STUDENT_SOURCE_ORACLE_SCHEMA^^}" ]] ||
-    die "EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME must not own the source schema"
+	[[ "${EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME^^}" == "${EXTERNAL_STUDENT_SOURCE_ORACLE_READONLY_USERNAME^^}" ]] ||
+	  die "EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME must match the explicitly configured existing account"
 
-  [[ "${EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_MODE:-}" == "verify-full" ]] ||
+	[[ "${EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_MODE:-}" == "verify-full" ]] ||
     die "EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_MODE must be verify-full in production"
   [[ "${EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_FILE:-}" == "/external-student-source-tls/ca.crt" ]] ||
     die "EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_FILE must be /external-student-source-tls/ca.crt in production"
@@ -3147,6 +3145,7 @@ ensure_env_file() {
     cp "${template_file}" "${ENV_FILE}"
     log "created ${ENV_FILE} from $(basename "${template_file}")"
   fi
+  chmod 600 "${ENV_FILE}"
 }
 
 prefer_production_env_files_if_default() {
@@ -3175,6 +3174,7 @@ ensure_generated_files() {
   mkdir -p "${GENERATED_OBS_DIR}/prometheus" "${GENERATED_OBS_DIR}/alertmanager"
   touch "${GENERATED_ENV_FILE}"
   touch "${GENERATED_SECRET_ENV_FILE}"
+  chmod 600 "${GENERATED_ENV_FILE}" "${GENERATED_SECRET_ENV_FILE}"
 }
 
 should_source_generated_secret_from_backend() {
@@ -3218,6 +3218,7 @@ ensure_secrets_env_file() {
   if [[ -n "${SECRETS_ENV_FILE}" ]]; then
     mkdir -p "$(dirname "${SECRETS_ENV_FILE}")"
     touch "${SECRETS_ENV_FILE}"
+    chmod 600 "${SECRETS_ENV_FILE}"
   fi
 }
 

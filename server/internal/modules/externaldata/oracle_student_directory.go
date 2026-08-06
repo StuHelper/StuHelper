@@ -14,7 +14,9 @@ import (
 	"strings"
 	"time"
 
-	go_ora "github.com/sijms/go-ora/v2"
+	"github.com/sijms/go-ora/v2/configurations"
+
+	go_ora "github.com/StuHelper/StuHelper/server/internal/thirdparty/goora"
 
 	"github.com/StuHelper/StuHelper/server/internal/pkg/circuitbreaker"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/metrics"
@@ -104,6 +106,13 @@ type OracleRuntimeSecurityProbe struct {
 	ApprovedObjectGrantCount int
 	ColumnGrantCount         int
 	LeastPrivilegeVerified   bool
+}
+
+// oracleQueryRower is implemented by *sql.DB, *sql.Conn and *sql.Tx. Keeping
+// the probe on this small interface lets the full-roster reader collect the
+// same identity and grant evidence on the connection that will read the view.
+type oracleQueryRower interface {
+	QueryRowContext(context.Context, string, ...any) *sql.Row
 }
 
 func NewOracleStudentDirectory(cfg OracleStudentDirectoryConfig) (*OracleStudentDirectory, error) {
@@ -199,8 +208,21 @@ func (d *OracleStudentDirectory) ProbeRuntimeSecurity(
 
 	queryCtx, cancel := withOptionalTimeout(ctx, d.queryTimeout)
 	defer cancel()
+	return probeOracleRuntimeSecurity(queryCtx, d.db, d.expectedUsername, d.schema, d.table)
+}
+
+func probeOracleRuntimeSecurity(
+	ctx context.Context,
+	queryer oracleQueryRower,
+	expectedUsername string,
+	schema string,
+	table string,
+) (OracleRuntimeSecurityProbe, error) {
+	if queryer == nil {
+		return OracleRuntimeSecurityProbe{}, ErrStudentSourceNotConfigured
+	}
 	var probe OracleRuntimeSecurityProbe
-	err := d.db.QueryRowContext(queryCtx, oracleRuntimeSecurityProbeQuery, d.schema, d.table).Scan(
+	err := queryer.QueryRowContext(ctx, oracleRuntimeSecurityProbeQuery, schema, table).Scan(
 		&probe.SessionUsername,
 		&probe.RoleGrantCount,
 		&probe.SystemGrantCount,
@@ -215,7 +237,7 @@ func (d *OracleStudentDirectory) ProbeRuntimeSecurity(
 
 	probe.IdentityMatched = strings.EqualFold(
 		strings.TrimSpace(probe.SessionUsername),
-		strings.TrimSpace(d.expectedUsername),
+		strings.TrimSpace(expectedUsername),
 	)
 	probe.LeastPrivilegeVerified = probe.RoleGrantCount == 0 &&
 		probe.SystemGrantCount == 1 &&
@@ -224,11 +246,12 @@ func (d *OracleStudentDirectory) ProbeRuntimeSecurity(
 		probe.ApprovedObjectGrantCount == 1 &&
 		probe.ColumnGrantCount == 0
 	if !probe.IdentityMatched {
-		return probe, fmt.Errorf("oracle runtime identity does not match the configured readonly identity")
+		return probe, fmt.Errorf("oracle runtime identity does not match the configured existing account")
 	}
-	if !probe.LeastPrivilegeVerified {
-		return probe, fmt.Errorf("oracle runtime grants exceed the approved readonly boundary")
-	}
+	// The school-approved existing account can legitimately have grants beyond
+	// this application's preferred least-privilege shape. Preserve that fact as
+	// explicit risk evidence, but do not attempt to create, replace or regrant an
+	// Oracle account. The executable boundary remains the locally fixed SELECTs.
 	return probe, nil
 }
 
@@ -412,14 +435,14 @@ func normalizeOracleStudentDirectoryConfig(cfg OracleStudentDirectoryConfig) (Or
 		return cfg, fmt.Errorf("oracle host, service name, username and password are required")
 	}
 	if isDisallowedOracleRuntimeUsername(cfg.Username) {
-		return cfg, fmt.Errorf("oracle runtime username must be a dedicated non-administrative account")
+		return cfg, fmt.Errorf("oracle runtime username must not be a built-in administrative account")
 	}
 	if cfg.ExpectedUsername != "" {
 		if _, err := normalizeOracleIdentifier(cfg.ExpectedUsername, "expected username"); err != nil {
 			return cfg, err
 		}
 		if !strings.EqualFold(cfg.Username, cfg.ExpectedUsername) {
-			return cfg, fmt.Errorf("oracle runtime username must match the configured readonly username")
+			return cfg, fmt.Errorf("oracle runtime username must match the configured existing account")
 		}
 		cfg.ExpectedUsername = strings.ToUpper(cfg.ExpectedUsername)
 	}
@@ -428,9 +451,6 @@ func normalizeOracleStudentDirectoryConfig(cfg OracleStudentDirectoryConfig) (Or
 	}
 	if cfg.Schema, err = normalizeOracleIdentifier(cfg.Schema, "schema"); err != nil {
 		return cfg, err
-	}
-	if strings.EqualFold(cfg.Username, cfg.Schema) {
-		return cfg, fmt.Errorf("oracle runtime username must not own the source schema")
 	}
 	if cfg.Table, err = normalizeOracleIdentifier(cfg.Table, "table"); err != nil {
 		return cfg, err
@@ -645,17 +665,44 @@ func withOptionalTimeout(ctx context.Context, timeout time.Duration) (context.Co
 	return context.WithTimeout(ctx, timeout)
 }
 
-type verifiedTLSOracleConnector struct {
+type allowlistedOracleConnector struct {
 	driver        driver.Driver
 	driverContext driver.DriverContext
 	dsn           string
 	tlsConfig     *tls.Config
+	dialer        configurations.DialerContext
+}
+
+func newAllowlistedOracleConnectorWithDialer(
+	dsn string,
+	dialer configurations.DialerContext,
+) (*allowlistedOracleConnector, error) {
+	if dialer == nil {
+		return nil, errors.New("oracle allowlisted dialer is required")
+	}
+	base := go_ora.NewConnector(dsn)
+	baseDriver := base.Driver()
+	driverContext, ok := baseDriver.(driver.DriverContext)
+	if !ok {
+		return nil, fmt.Errorf("oracle driver does not support context-aware connectors")
+	}
+	return &allowlistedOracleConnector{
+		driver: baseDriver, driverContext: driverContext, dsn: dsn, dialer: dialer,
+	}, nil
 }
 
 func newVerifiedTLSOracleConnector(
 	dsn string,
 	tlsConfig *tls.Config,
-) (*verifiedTLSOracleConnector, error) {
+) (*allowlistedOracleConnector, error) {
+	return newVerifiedTLSOracleConnectorWithDialer(dsn, tlsConfig, nil)
+}
+
+func newVerifiedTLSOracleConnectorWithDialer(
+	dsn string,
+	tlsConfig *tls.Config,
+	dialer configurations.DialerContext,
+) (*allowlistedOracleConnector, error) {
 	if tlsConfig == nil || tlsConfig.RootCAs == nil || tlsConfig.InsecureSkipVerify {
 		return nil, fmt.Errorf("oracle verified TLS configuration is incomplete")
 	}
@@ -665,15 +712,16 @@ func newVerifiedTLSOracleConnector(
 	if !ok {
 		return nil, fmt.Errorf("oracle driver does not support context-aware connectors")
 	}
-	return &verifiedTLSOracleConnector{
+	return &allowlistedOracleConnector{
 		driver:        baseDriver,
 		driverContext: driverContext,
 		dsn:           dsn,
 		tlsConfig:     tlsConfig.Clone(),
+		dialer:        dialer,
 	}, nil
 }
 
-func (c *verifiedTLSOracleConnector) Connect(ctx context.Context) (driver.Conn, error) {
+func (c *allowlistedOracleConnector) Connect(ctx context.Context) (driver.Conn, error) {
 	connector, err := c.driverContext.OpenConnector(c.dsn)
 	if err != nil {
 		return nil, err
@@ -685,11 +733,16 @@ func (c *verifiedTLSOracleConnector) Connect(ctx context.Context) (driver.Conn, 
 	// go-ora assigns ServerName on the supplied tls.Config. Give every
 	// database/sql connection its own clone so concurrent dials never mutate a
 	// shared configuration object.
-	oracleConnector.WithTLSConfig(c.tlsConfig.Clone())
+	if c.dialer != nil {
+		oracleConnector.Dialer(c.dialer)
+	}
+	if c.tlsConfig != nil {
+		oracleConnector.WithTLSConfig(c.tlsConfig.Clone())
+	}
 	return oracleConnector.Connect(ctx)
 }
 
-func (c *verifiedTLSOracleConnector) Driver() driver.Driver {
+func (c *allowlistedOracleConnector) Driver() driver.Driver {
 	return c.driver
 }
 

@@ -115,7 +115,7 @@
           <template v-if="statusReady">
             <ProfileField
               :label="t('user.accountProfile.fields.phone')"
-              :value="profile?.phone || t('user.accountProfile.missing.phone')"
+              :value="phoneDisplay"
               :badge="phoneBadge"
             />
             <ProfileField
@@ -130,7 +130,7 @@
 
     <section
       v-if="statusReady"
-      class="mt-4 grid gap-4 md:grid-cols-3"
+      class="mt-4 grid gap-4 md:grid-cols-2"
       :aria-label="t('user.accountProfile.verification.actionsLabel')"
     >
       <router-link
@@ -163,11 +163,11 @@
 
     <section
       v-else-if="statusPending"
-      class="mt-4 grid gap-4 md:grid-cols-3"
+      class="mt-4 grid gap-4 md:grid-cols-2"
       aria-hidden="true"
     >
       <div
-        v-for="index in 3"
+        v-for="index in 2"
         :key="index"
         class="h-36 animate-pulse rounded-lg border border-border bg-bg-card"
       />
@@ -212,13 +212,12 @@ import {
   Phone,
   ShieldCheck,
   UserRound,
-  UserRoundCheck,
   type LucideIcon,
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useVerificationStore } from '@/stores/verification'
 
-type BadgeVariant = 'success' | 'warning' | 'danger' | 'muted'
+type BadgeVariant = 'success' | 'muted'
 
 interface BadgeInfo {
   label: string
@@ -330,8 +329,8 @@ const verificationStore = useVerificationStore()
 const statusLoadState = ref<StatusLoadState>('idle')
 
 const user = computed(() => authStore.user)
-const profile = computed(() => verificationStore.profile)
-const identity = computed(() => verificationStore.identity)
+const surface = computed(() => verificationStore.userSurface)
+const phoneStatus = computed(() => verificationStore.phoneStatus)
 const qqBinding = computed(() => verificationStore.qqBinding)
 const statusPending = computed(
   () =>
@@ -345,14 +344,10 @@ const displayName = computed(
 )
 
 const successClass = 'bg-success/10 text-success'
-const warningClass = 'bg-warning/10 text-warning'
-const dangerClass = 'bg-danger/10 text-danger'
 const mutedClass = 'bg-bg-elevated text-text-muted'
 
 function badgeClass(variant: BadgeVariant): string {
   if (variant === 'success') return successClass
-  if (variant === 'warning') return warningClass
-  if (variant === 'danger') return dangerClass
   return mutedClass
 }
 
@@ -366,9 +361,12 @@ const emailBadge = computed(() =>
     : statusBadge(t('user.accountProfile.status.missing'), 'muted'),
 )
 const phoneBadge = computed(() =>
-  profile.value?.phoneVerified
+  verificationStore.phoneVerified
     ? statusBadge(t('user.accountProfile.status.verified'), 'success')
     : statusBadge(t('user.accountProfile.status.unverified'), 'muted'),
+)
+const phoneDisplay = computed(
+  () => surface.value?.phone || phoneStatus.value?.maskedPhone || t('user.accountProfile.missing.phone'),
 )
 const qqBadge = computed(() =>
   qqBinding.value
@@ -380,29 +378,14 @@ const qqBindingLabel = computed(() => {
   return qqBinding.value.qqID
 })
 
-const identityStatus = computed(() => {
-  if (!identity.value) return { label: t('user.verification.identity.unverified'), variant: 'muted' as const }
-  if (identity.value.verified) return { label: t('user.verification.identity.verified'), variant: 'success' as const }
-  if (identity.value.reviewedAt) return { label: t('user.verification.identity.rejected'), variant: 'danger' as const }
-  return { label: t('user.verification.identity.pending'), variant: 'warning' as const }
-})
 const studentStatus = computed(() => {
-  const status = profile.value?.verificationStatus
-  if (status === 'verified') return { label: t('user.verification.student.verified'), variant: 'success' as const }
-  if (status === 'pending') return { label: t('user.verification.student.pending'), variant: 'warning' as const }
-  if (status === 'rejected') return { label: t('user.verification.student.rejected'), variant: 'danger' as const }
+  if (verificationStore.studentVerified) {
+    return { label: t('user.verification.student.verified'), variant: 'success' as const }
+  }
   return { label: t('user.verification.student.unverified'), variant: 'muted' as const }
 })
 
 const verificationItems = computed<VerificationItem[]>(() => [
-  {
-    to: '/user/identity-verification',
-    icon: markRaw(UserRoundCheck),
-    title: t('user.accountProfile.verification.identity.title'),
-    description: t('user.accountProfile.verification.identity.description'),
-    status: identityStatus.value.label,
-    badgeClass: badgeClass(identityStatus.value.variant),
-  },
   {
     to: '/user/student-verification',
     icon: markRaw(GraduationCap),
@@ -449,13 +432,6 @@ const disclosureFields = computed<DisclosureFieldInfo[]>(() => {
       description: t('user.accountProfile.disclosure.phone.description'),
       badge: phoneBadge.value.label,
       badgeClass: phoneBadge.value.className,
-    },
-    {
-      key: 'identity',
-      label: t('user.accountProfile.disclosure.identity.title'),
-      description: t('user.accountProfile.disclosure.identity.description'),
-      badge: identityStatus.value.label,
-      badgeClass: badgeClass(identityStatus.value.variant),
     },
     {
       key: 'student',

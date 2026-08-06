@@ -6,66 +6,36 @@ import (
 	"strings"
 )
 
-// GetUserSurface 聚合当前用户的身份认证、学生认证、手机绑定和能力信息。
+// GetUserSurface 聚合当前用户的目标学生资格、手机号门槛和能力信息。
 // displayName 和 avatarURL 由 auth 中间件注入，capabilities 由角色展开得到。
 func (s *Service) GetUserSurface(ctx context.Context, userID int64, displayName, avatarURL string, capabilities []string) (*UserSurface, error) {
 	if err := validateUserID(userID); err != nil {
 		return nil, err
 	}
-	identity, err := s.repo.GetIdentityStatusByUserID(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("GetUserSurface identity: %w", err)
+	if s.verificationStatus == nil {
+		return nil, fmt.Errorf("GetUserSurface: verification status gateway is not configured")
 	}
-
-	profile, err := s.repo.GetProfileByUserID(ctx, userID)
+	student, err := s.verificationStatus.GetCurrentStudentStatus(ctx, userID)
 	if err != nil {
-		return nil, fmt.Errorf("GetUserSurface profile: %w", err)
+		return nil, fmt.Errorf("GetUserSurface student status: %w", err)
 	}
-	phone, err := s.getAccountPhoneProjection(ctx, userID, profile)
+	phone, err := s.verificationStatus.GetCurrentPhoneStatus(ctx, userID)
 	if err != nil {
-		return nil, fmt.Errorf("GetUserSurface phone projection: %w", err)
+		return nil, fmt.Errorf("GetUserSurface phone status: %w", err)
+	}
+	studentVerificationStatus := "none"
+	if student.Eligible {
+		studentVerificationStatus = "approved"
 	}
 
 	return &UserSurface{
-		DisplayName:        displayName,
-		AvatarURL:          avatarURL,
-		Phone:              phone,
-		IdentityStatus:     deriveIdentityStatus(identity),
-		VerificationStatus: deriveVerificationStatus(profile),
-		PhoneBound:         phone != nil,
-		Capabilities:       capabilities,
+		DisplayName:               displayName,
+		AvatarURL:                 avatarURL,
+		Phone:                     phone.MaskedPhone,
+		StudentVerificationStatus: studentVerificationStatus,
+		PhoneBound:                phone.MaskedPhone != nil,
+		Capabilities:              capabilities,
 	}, nil
-}
-
-// deriveIdentityStatus 将实名认证记录映射为 API 枚举
-func deriveIdentityStatus(identity *IdentityStatus) string {
-	if identity == nil {
-		return "none"
-	}
-	if identity.Verified {
-		return "approved"
-	}
-	if identity.RejectionReason != nil {
-		return "rejected"
-	}
-	return "pending"
-}
-
-// deriveVerificationStatus 将学生认证档案映射为 API 枚举
-func deriveVerificationStatus(profile *Profile) string {
-	if profile == nil {
-		return "none"
-	}
-	switch profile.VerificationStatus {
-	case StatusVerified:
-		return "approved"
-	case StatusPending:
-		return "pending"
-	case StatusRejected:
-		return "rejected"
-	default:
-		return "none"
-	}
 }
 
 // GetProfile 获取学生认证档案

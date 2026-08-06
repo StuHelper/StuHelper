@@ -47,6 +47,13 @@ linters:
         - unnecessaryBlock
 
   exclusions:
+    # The files listed here are the checksum-pinned go-ora v2.9.0 upstream
+    # snapshot. Keep the two StuHelper policy files outside this expression so
+    # the repository-owned SELECT-only gate and its tests receive full linting.
+    # Compatibility-sensitive upstream code is covered by the policy test and
+    # full race/build gates instead of being mechanically rewritten for style.
+    paths:
+      - internal/thirdparty/goora/(auth_object|bfile|bulk_copy|command|connection|connection_string|custom_types|data_set|data_type_nego|db_version|driver|lob|number|oracle_type|oracletype_string|parameter|parameter_encode|ref_cursor|result_set|rowid|simple_object|tcp_protocol_nego|timestamp|timestampTZ|transaction|udt|urowid|utils|value_getter|value_setter|vector)\.go
     rules:
       - path: _test\.go
         linters:
@@ -68,6 +75,12 @@ formatters:
     - gofmt
     - goimports
 
+  exclusions:
+    # Same exact upstream snapshot as linters.exclusions.paths; the
+    # StuHelper-owned policy files are intentionally still formatted.
+    paths:
+      - internal/thirdparty/goora/(auth_object|bfile|bulk_copy|command|connection|connection_string|custom_types|data_set|data_type_nego|db_version|driver|lob|number|oracle_type|oracletype_string|parameter|parameter_encode|ref_cursor|result_set|rowid|simple_object|tcp_protocol_nego|timestamp|timestampTZ|transaction|udt|urowid|utils|value_getter|value_setter|vector)\.go
+
   settings:
     goimports:
       local-prefixes:
@@ -82,7 +95,6 @@ output:
     text:
       path: stdout
       print-linter-name: true
-  sort-results: true
   sort-order:
     - linter
     - file

@@ -10,19 +10,11 @@ import (
 	"github.com/StuHelper/StuHelper/server/internal/pkg/outbox"
 )
 
-var externalSyncOutboxStreams = []string{
-	outbox.StreamIAMOpenFGATupleSync,
-	externalSyncStreamAdmissionVerificationProjection,
-}
-
-const externalSyncStreamAdmissionVerificationProjection = "admission_verification_projection"
+var externalSyncOutboxStreams = []string{outbox.StreamIAMOpenFGATupleSync}
 
 var externalSyncJobTypesByStream = map[string][]string{
 	outbox.StreamIAMOpenFGATupleSync: {
 		externalSyncJobTypeUserProfileProjection,
-	},
-	externalSyncStreamAdmissionVerificationProjection: {
-		externalSyncJobTypeAdmissionVerification,
 	},
 }
 
@@ -150,12 +142,22 @@ func (r *Repository) ListStudentRoleProjectionStates(ctx context.Context, limit 
 	if limit <= 0 {
 		return nil, nil
 	}
-	ctx = withDBTable(ctx, "user_profiles")
+	ctx = withDBTable(ctx, "current_student_qualifying_credentials")
 	rows, err := r.db.Query(ctx, `
-		SELECT user_id,
-		       verification_status = 'verified' AS approved
-		FROM user_profiles
-		ORDER BY user_id ASC
+		SELECT candidate.user_id,
+		       EXISTS (
+		           SELECT 1
+		           FROM current_student_qualifying_credentials credential
+		           WHERE credential.user_id = candidate.user_id
+		       ) AS approved
+		FROM (
+		    SELECT revision.user_id
+		    FROM student_eligibility_revisions revision
+		    UNION
+		    SELECT credential.user_id
+		    FROM current_student_qualifying_credentials credential
+		) candidate
+		ORDER BY candidate.user_id ASC
 		LIMIT $1
 	`, limit)
 	if err != nil {
@@ -195,8 +197,6 @@ func externalSyncStreamForJobType(jobType string) (string, error) {
 	switch jobType {
 	case externalSyncJobTypeUserProfileProjection:
 		return outbox.StreamIAMOpenFGATupleSync, nil
-	case externalSyncJobTypeAdmissionVerification:
-		return externalSyncStreamAdmissionVerificationProjection, nil
 	default:
 		return "", fmt.Errorf("unsupported external sync job type: %s", jobType)
 	}

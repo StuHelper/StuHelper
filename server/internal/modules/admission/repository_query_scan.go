@@ -41,7 +41,8 @@ func scanAdmissionSessionWithTotal(row pgx.Row) (*AdmissionSession, int, error) 
 		&session.UserID, &session.TokenHash, &session.AuthURL, &session.TokenExpiresAt,
 		&session.TokenConsumedAt, &session.Status, &session.LinkWaitDeadlineAt,
 		&session.SubmissionWaitDeadlineAt, &session.ManualReviewDeadlineAt, &session.InitialMuteUntil,
-		&session.VerifiedAt, &session.CancelledAt, &session.LastBotError, &total,
+		&session.VerifiedAt, &session.CancelledAt, &session.LastBotError,
+		&session.EligibilityRevision, &session.EligibilityEvaluatedAt, &session.RequirementsStatus, &total,
 	)
 	if err != nil {
 		return nil, 0, err

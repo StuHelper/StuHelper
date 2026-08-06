@@ -26,7 +26,7 @@ test('member guard creates admission session, mutes, and sends canonical auth li
             guildID: 'guild-1',
             channelID: 'channel-1',
             qqID: '10001',
-            status: 'joined_muted',
+            status: 'awaiting_account_link',
             tokenExpiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
             linkWaitDeadlineAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
             submissionWaitDeadlineAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
@@ -341,7 +341,7 @@ test('member guard skips mute and reminder when backend marks member verified', 
             guildID: 'guild-1',
             channelID: 'channel-1',
             qqID: '10001',
-            status: 'verified',
+            status: 'admitted',
             tokenExpiresAt: new Date(now + 60 * 60 * 1000).toISOString(),
             tokenConsumedAt: new Date(now).toISOString(),
             linkWaitDeadlineAt: new Date(now + 60 * 60 * 1000).toISOString(),
@@ -783,7 +783,6 @@ test('member guard kicks expired post-join time-code challenge during scheduled 
   const service = new MemberGuardService({
     platform: {
       async listPendingAdmissionActions() { return [] },
-      async listPendingFreshmanForwards() { return [] },
     },
     policyStore: timeCodePolicyStore(),
     guardStore: {
@@ -833,7 +832,6 @@ test('member guard still kicks expired post-join time-code challenge when timeou
   const service = new MemberGuardService({
     platform: {
       async listPendingAdmissionActions() { return [] },
-      async listPendingFreshmanForwards() { return [] },
     },
     policyStore: timeCodePolicyStore(),
     guardStore: {
@@ -931,7 +929,6 @@ test('member guard fail-closes when platform session creation is unavailable and
         return admissionResult('session-synced', 'token-synced')
       },
       async listPendingAdmissionActions() { return [] },
-      async listPendingFreshmanForwards() { return [] },
       async recordAdmissionEvent(sessionID: string, input: unknown) {
         admissionEvents.push({ sessionID, input })
       },
@@ -1041,7 +1038,6 @@ test('member guard skips backend sync reminders when the local guard record is n
         return admissionResult('session-recovered', 'token-recovered')
       },
       async listPendingAdmissionActions() { return [] },
-      async listPendingFreshmanForwards() { return [] },
       async recordAdmissionEvent(sessionID: string, input: unknown) {
         admissionEvents.push({ sessionID, input })
       },
@@ -1204,7 +1200,6 @@ test('member guard retries backend reminder after initial group message send fai
           }),
         ]
       },
-      async listPendingFreshmanForwards() { return [] },
       async recordAdmissionEvent(sessionID: string, input: unknown) {
         admissionEvents.push({ sessionID, input })
       },
@@ -1309,7 +1304,6 @@ test('member guard claims pending admission actions and reports results', async 
       async recordAdmissionActionEvent(actionID: string, input: unknown) {
         actionEvents.push({ actionID, input })
       },
-      async listPendingFreshmanForwards() { return [] },
     },
     guardStore: {
       async listBackendSyncPending() { return [] },
@@ -1383,7 +1377,6 @@ test('member guard reports action failures, keeps errors visible, and continues 
       async recordAdmissionEvent(sessionID: string, input: unknown) {
         events.push({ sessionID, input })
       },
-      async listPendingFreshmanForwards() { return [] },
     },
     guardStore: {
       async listBackendSyncPending() { return [] },
@@ -1446,7 +1439,6 @@ test('member guard suppresses duplicate pending reminders shortly after a local 
       async recordAdmissionEvent(sessionID: string, input: unknown) {
         events.push({ sessionID, input })
       },
-      async listPendingFreshmanForwards() { return [] },
     },
     guardStore: {
       async listBackendSyncPending() { return [] },
@@ -1497,7 +1489,6 @@ test('member guard suppresses scheduler reminder after admin command reminder ev
       async recordAdmissionEvent(sessionID: string, input: unknown) {
         events.push({ sessionID, input })
       },
-      async listPendingFreshmanForwards() { return [] },
     },
     guardStore: {
       async listBackendSyncPending() { return [] },
@@ -1540,7 +1531,6 @@ test('member guard suppresses stale reminder after admission was skipped locally
       async recordAdmissionEvent(sessionID: string, input: unknown) {
         events.push({ sessionID, input })
       },
-      async listPendingFreshmanForwards() { return [] },
     },
     guardStore: {
       async listBackendSyncPending() { return [] },
@@ -1580,59 +1570,6 @@ test('member guard suppresses stale reminder after admission was skipped locally
   }])
 })
 
-test('member guard skips qq-only background polls without qq platform', async () => {
-  let pendingActionCalls = 0
-  let freshmanForwardCalls = 0
-  const service = new MemberGuardService({
-    platform: {
-      async listPendingAdmissionActions() {
-        pendingActionCalls += 1
-        return []
-      },
-      async listPendingFreshmanForwards() {
-        freshmanForwardCalls += 1
-        return []
-      },
-    },
-    guardStore: { async listBackendSyncPending() { return [] } },
-    policyStore: policyStoreFor(['guild-1']),
-    moderationStore: { async appendEvent() {} },
-    logger: { error() {}, warn() {} },
-  } as any)
-
-  await service.scanPendingMembers([{ selfId: '514', sid: 'missing:514' } as any])
-
-  assert.equal(pendingActionCalls, 0)
-  assert.equal(freshmanForwardCalls, 0)
-})
-
-test('member guard can explicitly disable freshman material forward polling', async () => {
-  let freshmanForwardCalls = 0
-  const service = new MemberGuardService({
-    platform: {
-      async listPendingAdmissionActions() { return [] },
-      async listPendingFreshmanForwards() {
-        freshmanForwardCalls += 1
-        return []
-      },
-    },
-    guardStore: { async listBackendSyncPending() { return [] } },
-    policyStore: policyStoreFor(['guild-1']),
-    moderationStore: { async appendEvent() {} },
-    logger: { error() {}, warn() {} },
-    isFreshmanForwardEnabled: () => false,
-  } as any)
-
-  await service.scanPendingMembers([{
-    platform: 'onebot',
-    selfId: '514',
-    sid: 'onebot:514',
-    sendMessage: async () => ['message-1'],
-  } as any])
-
-  assert.equal(freshmanForwardCalls, 0)
-})
-
 test('member guard refuses pending admission actions outside local guard policy', async () => {
   const events: unknown[] = []
   const errors: string[] = []
@@ -1644,7 +1581,6 @@ test('member guard refuses pending admission actions outside local guard policy'
       async recordAdmissionEvent(sessionID: string, input: unknown) {
         events.push({ sessionID, input })
       },
-      async listPendingFreshmanForwards() { return [] },
     },
     guardStore: {
       async listBackendSyncPending() { return [] },
@@ -1871,7 +1807,7 @@ function admissionResult(sessionID: string, token: string) {
       guildID: 'guild-1',
       channelID: 'channel-1',
       qqID: '10001',
-      status: 'joined_muted',
+      status: 'awaiting_account_link',
       tokenExpiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
       linkWaitDeadlineAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
       submissionWaitDeadlineAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),

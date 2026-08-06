@@ -1,5 +1,6 @@
 import {
     expect,
+    mockCurrentAccountProjections,
     mockNotificationStream,
     test,
     type Page,
@@ -79,29 +80,12 @@ async function mockAuth(page: Page) {
         (route) => route.fulfill(ok({ count: 0 })),
     );
     await mockNotificationStream(page);
-    await page.route("**/api/v1/user/identity", (route) =>
-        route.fulfill(ok({ verified: true, status: "verified" })),
-    );
-    await page.route("**/api/v1/user/profile", (route) =>
-        route.fulfill(
-            ok({
-                verificationStatus: "verified",
-                schoolName: "测试大学",
-                schoolID: 4111010006,
-            }),
-        ),
-    );
-    await page.route("**/api/v1/user/qq-binding", (route) =>
-        route.fulfill(
-            json(
-                {
-                    success: false,
-                    error: { code: "A0040404", message: "not bound" },
-                },
-                404,
-            ),
-        ),
-    );
+    await mockCurrentAccountProjections(page, {
+        displayName: user.displayName,
+        studentVerified: true,
+        phoneBound: true,
+        capabilities: user.capabilities,
+    });
 }
 
 const ownReview = {

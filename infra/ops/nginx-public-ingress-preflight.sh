@@ -391,6 +391,8 @@ def validate_main(block: Node, upstreams: dict[str, str]) -> None:
     require_location_return_code(block, label, "^~", "/start/", "404")
     require_location_proxy(block, label, "^~", "/api/", upstreams["backend"])
     require_location_proxy(block, label, "^~", "/health/", upstreams["backend"])
+    require_location_return(block, label, "=", "/admin/observability", "301", "/admin/observability/")
+    require_location_proxy(block, label, "^~", "/admin/observability/", upstreams["grafana"])
     require_location_proxy(block, label, "^~", "/admin/", upstreams["admin"])
     require_location_proxy(block, label, None, "/", upstreams["web"])
 
@@ -535,6 +537,7 @@ try:
         "backend": upstream("NGINX_PUBLIC_INGRESS_BACKEND_UPSTREAM", "BACKEND_EXTERNAL_PORT", "18080"),
         "web": upstream("NGINX_PUBLIC_INGRESS_WEB_UPSTREAM", "WEB_EXTERNAL_PORT", "18000"),
         "admin": upstream("NGINX_PUBLIC_INGRESS_ADMIN_UPSTREAM", "ADMIN_EXTERNAL_PORT", "18001"),
+        "grafana": upstream("NGINX_PUBLIC_INGRESS_GRAFANA_UPSTREAM", "GRAFANA_PORT", "3003"),
         "casdoor": upstream("NGINX_PUBLIC_INGRESS_CASDOOR_UPSTREAM", None, "8087"),
     }
 

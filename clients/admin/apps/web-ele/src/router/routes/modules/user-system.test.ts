@@ -47,21 +47,22 @@ describe('user-system routes', () => {
 
     expect(route.meta?.authority).toEqual(
       expect.arrayContaining([
-        'user:identity:read',
-        'user:identity:review',
-        'user:student:review',
-        'user:school:read',
+        'student:manual_review:read',
+        'student:manual_review:decide',
+        'student:verification_config:read',
+        'student:credential:read',
+        'student:subject_conflict:read',
+        'campus_connector:health:read',
         'user:system:read',
         'admission:session:read',
         'admission:session:manage',
-        'admission:freshman:review',
         'admission:policy:update',
         'member_blacklist:manage',
       ]),
     );
   });
 
-  it('registers admission session, review and policy routes with admission capabilities', () => {
+  it('registers target verification and admission routes with separate capabilities', () => {
     const route = routes[0];
     expect(route).toBeDefined();
     if (!route) {
@@ -71,15 +72,22 @@ describe('user-system routes', () => {
     const sessions = children.find(
       (route) => route.name === 'AdmissionSessions',
     );
-    const freshman = children.find(
-      (route) => route.name === 'FreshmanVerification',
+    const manualReview = children.find(
+      (route) => route.name === 'StudentVerification',
+    );
+    const credentials = children.find(
+      (route) => route.name === 'StudentCredentialGovernance',
     );
     const policy = children.find((route) => route.name === 'AdmissionPolicy');
 
     expect(sessions?.path).toBe('/users/admission-sessions');
     expect(sessions?.meta?.authority).toEqual(['admission:session:read']);
-    expect(freshman?.path).toBe('/users/freshman-verification');
-    expect(freshman?.meta?.authority).toEqual(['admission:freshman:review']);
+    expect(manualReview?.path).toBe('/users/student-verification');
+    expect(manualReview?.meta?.authority).toEqual([
+      'student:manual_review:read',
+      'student:manual_review:decide',
+    ]);
+    expect(credentials?.path).toBe('/users/student-credentials');
     expect(policy?.path).toBe('/users/admission-policy');
     expect(policy?.meta?.authority).toEqual(['admission:policy:update']);
   });
@@ -112,9 +120,9 @@ describe('user-system routes', () => {
 
     const visibleChildren = childNames(filtered);
     expect(visibleChildren).toContain('MemberBlacklist');
-    // operators without admission/identity codes should not see those children
-    expect(visibleChildren).not.toContain('IdentityReview');
-    expect(visibleChildren).not.toContain('FreshmanVerification');
+    // operators without admission/student-verification codes should not see those children
+    expect(visibleChildren).not.toContain('StudentVerification');
+    expect(visibleChildren).not.toContain('StudentCredentialGovernance');
     expect(visibleChildren).not.toContain('AdmissionPolicy');
     expect(visibleChildren).not.toContain('SystemConfig');
   });
@@ -130,7 +138,6 @@ describe('user-system routes', () => {
 
   it('exposes admission children to admission-only operators while keeping the parent', async () => {
     const filtered = await generateRoutesByFrontend(cloneRoutes(), [
-      'admission:freshman:review',
       'admission:policy:update',
       'admission:session:read',
     ]);
@@ -138,24 +145,22 @@ describe('user-system routes', () => {
     expect(findRouteByName(filtered, 'UserSystem')).toBeDefined();
     const visibleChildren = childNames(filtered);
     expect(visibleChildren).toEqual(
-      expect.arrayContaining([
-        'AdmissionSessions',
-        'FreshmanVerification',
-        'AdmissionPolicy',
-      ]),
+      expect.arrayContaining(['AdmissionSessions', 'AdmissionPolicy']),
     );
     expect(visibleChildren).not.toContain('MemberBlacklist');
-    expect(visibleChildren).not.toContain('IdentityReview');
+    expect(visibleChildren).not.toContain('StudentVerification');
   });
 
   it('keeps every child visible for the super-admin code set', async () => {
     const filtered = await generateRoutesByFrontend(cloneRoutes(), [
-      'user:identity:review',
-      'user:student:review',
-      'user:school:read',
+      'student:manual_review:read',
+      'student:verification_config:read',
+      'student:credential:read',
+      'student:subject_conflict:read',
+      'student:roster:read',
+      'campus_connector:health:read',
       'user:system:read',
       'admission:session:read',
-      'admission:freshman:review',
       'admission:policy:update',
       'member_blacklist:manage',
     ]);
@@ -163,11 +168,10 @@ describe('user-system routes', () => {
     const visibleChildren = childNames(filtered);
     expect(visibleChildren).toEqual(
       expect.arrayContaining([
-        'IdentityReview',
         'StudentVerification',
         'SchoolConfig',
+        'StudentCredentialGovernance',
         'AdmissionSessions',
-        'FreshmanVerification',
         'AdmissionPolicy',
         'MemberBlacklist',
         'SystemConfig',
