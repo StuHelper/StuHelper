@@ -100,6 +100,11 @@ grep -Fq 'backend_scheduler:' "${TEMPO_CONFIG}" ||
   fail "Tempo 3 retention scheduler configuration is missing"
 grep -Fq 'backend_worker:' "${TEMPO_CONFIG}" ||
   fail "Tempo 3 retention worker configuration is missing"
+if grep -Ev '^[[:space:]]*#' "${TEMPO_CONFIG}" | grep -Fq 'local-blocks'; then
+  fail "Tempo 3 config must not enable the removed local-blocks processor"
+fi
+grep -Fq 'processors: [service-graphs, span-metrics]' "${TEMPO_CONFIG}" ||
+  fail "Tempo metrics generator must retain service graph and span metrics processors"
 
 for setting in \
   'GF_SECURITY_DISABLE_GRAVATAR: "true"' \

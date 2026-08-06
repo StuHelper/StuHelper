@@ -43,7 +43,9 @@ storage:
 overrides:
   defaults:
     metrics_generator:
-      processors: [service-graphs, span-metrics, local-blocks]
+      # Tempo 3 removed the local-blocks processor; recent TraceQL metrics are
+      # served by live-store instead of the metrics generator.
+      processors: [service-graphs, span-metrics]
 
 usage_report:
   reporting_enabled: false
