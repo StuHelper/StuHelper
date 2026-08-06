@@ -46,6 +46,7 @@ const mockToast = vi.hoisted(() => ({
 const mockHasStoredSessionHint = vi.hoisted(() => vi.fn())
 const mockWaitForAdmissionProjection = vi.hoisted(() => vi.fn())
 const mountedWrappers: Array<{ unmount(): void }> = []
+const configuredWebOrigin = 'https://web.example.test'
 
 const mockRoute = vi.hoisted(() => ({
   fullPath: '/verify/ABCD',
@@ -84,6 +85,7 @@ vi.mock('vue-router', () => ({
 describe('AdmissionPage edge states', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.stubEnv('VITE_WEB_URL', configuredWebOrigin)
     mockAuth.isAuthenticated = true
     mockAuth.loading = false
     mockAuth.user = {
@@ -115,6 +117,7 @@ describe('AdmissionPage edge states', () => {
     }
     document.body.innerHTML = ''
     vi.useRealTimers()
+    vi.unstubAllEnvs()
   })
 
   it('renders a single element root compatible with route transitions', async () => {
@@ -344,7 +347,7 @@ describe('AdmissionPage edge states', () => {
     expect(mockAdmissionApi.getAdmissionMe).toHaveBeenCalledWith('session-awaiting_requirements')
     expect(mockVerificationStore.fetchSchools).not.toHaveBeenCalled()
     expect(wrapper.get('[data-admission-open-student-verification]').attributes('href')).toBe(
-      'http://localhost:3000/user/student-verification?redirect=http%3A%2F%2Flocalhost%3A3000%2Fverify%2FABCD',
+      `${configuredWebOrigin}/user/student-verification?redirect=http%3A%2F%2Flocalhost%3A3000%2Fverify%2FABCD`,
     )
     expect(wrapper.find('[data-admission-old-student-flow]').exists()).toBe(false)
     expect(wrapper.find('[data-admission-freshman-flow]').exists()).toBe(false)

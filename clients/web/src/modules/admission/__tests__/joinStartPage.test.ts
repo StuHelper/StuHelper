@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 
 import { flushPromises, mount } from '@vue/test-utils'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const configuredWebOrigin = 'https://web.example.test'
 
 const mockUpdatePageMeta = vi.fn()
 const mockToastError = vi.fn()
@@ -54,6 +56,7 @@ const { default: JoinStartPage } = await import('../views/JoinStartPage.vue')
 describe('JoinStartPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.stubEnv('VITE_WEB_URL', configuredWebOrigin)
     mockAuth.bootstrapSession.mockResolvedValue(false)
     mockAuth.isAuthenticated = false
     mockAuth.loading = false
@@ -61,6 +64,10 @@ describe('JoinStartPage', () => {
     mockVerificationStore.fetchSchools.mockResolvedValue(undefined)
     mockVerificationStore.qqBound = false
     mockVerificationStore.studentVerified = false
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
   })
 
   it('shows login actions when no StuHelper session is available', async () => {
@@ -88,7 +95,7 @@ describe('JoinStartPage', () => {
 
     expect(wrapper.find('[data-state="needsStudentVerification"]').exists()).toBe(true)
     expect(wrapper.get('[data-open-student-verification]').attributes('href')).toBe(
-      'http://localhost:3000/user/student-verification?redirect=http%3A%2F%2Flocalhost%3A3000%2Fstart',
+      `${configuredWebOrigin}/user/student-verification?redirect=http%3A%2F%2Flocalhost%3A3000%2Fstart`,
     )
     expect(mockVerificationStore.fetchStatus).toHaveBeenCalledTimes(1)
     expect(mockVerificationStore.fetchSchools).not.toHaveBeenCalled()
@@ -108,7 +115,7 @@ describe('JoinStartPage', () => {
 
     expect(wrapper.find('[data-state="needsQQBinding"]').exists()).toBe(true)
     expect(wrapper.get('[data-open-qq-binding]').attributes('href')).toBe(
-      'http://localhost:3000/user/qq-binding?redirect=http%3A%2F%2Flocalhost%3A3000%2Fstart',
+      `${configuredWebOrigin}/user/qq-binding?redirect=http%3A%2F%2Flocalhost%3A3000%2Fstart`,
     )
     expect(mockVerificationStore.fetchStatus).toHaveBeenCalledTimes(1)
     expect(mockVerificationStore.fetchSchools).not.toHaveBeenCalled()
