@@ -15,14 +15,14 @@ fail() {
 assert_file_contains() {
   local file="$1"
   local pattern="$2"
-  grep -Eq -- "${pattern}" "${file}" || fail "${file#${ROOT_DIR}/} missing pattern: ${pattern}"
+  grep -Eq -- "${pattern}" "${file}" || fail "${file#"${ROOT_DIR}"/} missing pattern: ${pattern}"
 }
 
 assert_file_not_contains() {
   local file="$1"
   local pattern="$2"
   if grep -Eq -- "${pattern}" "${file}"; then
-    fail "${file#${ROOT_DIR}/} unexpectedly contains stale pattern: ${pattern}"
+    fail "${file#"${ROOT_DIR}"/} unexpectedly contains stale pattern: ${pattern}"
   fi
 }
 
@@ -51,6 +51,10 @@ assert_file_contains "${SCRIPT}" 'auth-flow\.spec\.ts'
 assert_file_contains "${SCRIPT}" 'user-verification\.spec\.ts'
 assert_file_contains "${SCRIPT}" 'ADMISSION_MVP_PLAYWRIGHT_REUSE_SERVER'
 assert_file_contains "${SCRIPT}" 'ADMISSION_MVP_PLAYWRIGHT_RETRIES="\$\{ADMISSION_MVP_PLAYWRIGHT_RETRIES:-1\}"'
+assert_file_contains "${SCRIPT}" 'ADMISSION_MVP_TESTCONTAINERS_QUIESCE_TIMEOUT_SECONDS'
+assert_file_contains "${SCRIPT}" 'capture_testcontainers_baseline'
+assert_file_contains "${SCRIPT}" 'wait_for_testcontainers_network_quiescence'
+assert_file_contains "${SCRIPT}" "label=org\.testcontainers=true"
 assert_file_contains "${SCRIPT}" 'PLAYWRIGHT_REUSE_SERVER="\$\{ADMISSION_MVP_PLAYWRIGHT_REUSE_SERVER\}"'
 assert_file_contains "${SCRIPT}" '--workers=1'
 assert_file_contains "${SCRIPT}" '--retries="\$\{ADMISSION_MVP_PLAYWRIGHT_RETRIES\}"'

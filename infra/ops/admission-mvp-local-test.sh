@@ -11,6 +11,9 @@ ADMISSION_MVP_SKIP_USER_CENTER="${ADMISSION_MVP_SKIP_USER_CENTER:-false}"
 ADMISSION_MVP_SKIP_KOISHI="${ADMISSION_MVP_SKIP_KOISHI:-false}"
 ADMISSION_MVP_SKIP_INFRA_CONTRACTS="${ADMISSION_MVP_SKIP_INFRA_CONTRACTS:-false}"
 ADMISSION_MVP_PLAYWRIGHT_RETRIES="${ADMISSION_MVP_PLAYWRIGHT_RETRIES:-1}"
+ADMISSION_MVP_TESTCONTAINERS_QUIESCE_TIMEOUT_SECONDS="${ADMISSION_MVP_TESTCONTAINERS_QUIESCE_TIMEOUT_SECONDS:-60}"
+
+TESTCONTAINERS_BASELINE_FILE=""
 
 log() {
   printf '[admission-mvp-test] %s\n' "$*"
@@ -19,12 +22,72 @@ log() {
 run_in() {
   local dir="$1"
   shift
-  log "running in ${dir#${ROOT_DIR}/}: $*"
+  log "running in ${dir#"${ROOT_DIR}"/}: $*"
   (
     cd "${dir}"
     "$@"
   )
 }
+
+snapshot_running_testcontainers() {
+  docker ps \
+    --filter 'label=org.testcontainers=true' \
+    --format '{{.ID}}' 2>/dev/null | LC_ALL=C sort
+}
+
+capture_testcontainers_baseline() {
+  if ! command -v docker >/dev/null 2>&1 || ! docker ps >/dev/null 2>&1; then
+    return
+  fi
+
+  TESTCONTAINERS_BASELINE_FILE="$(mktemp -t stuhelper-admission-testcontainers-baseline.XXXXXX)"
+  snapshot_running_testcontainers >"${TESTCONTAINERS_BASELINE_FILE}"
+}
+
+cleanup_testcontainers_baseline() {
+  if [[ -n "${TESTCONTAINERS_BASELINE_FILE}" ]]; then
+    rm -f -- "${TESTCONTAINERS_BASELINE_FILE}"
+  fi
+}
+
+wait_for_testcontainers_network_quiescence() {
+  if [[ -z "${TESTCONTAINERS_BASELINE_FILE}" ]]; then
+    return
+  fi
+  if ! [[ "${ADMISSION_MVP_TESTCONTAINERS_QUIESCE_TIMEOUT_SECONDS}" =~ ^[1-9][0-9]*$ ]]; then
+    log "ADMISSION_MVP_TESTCONTAINERS_QUIESCE_TIMEOUT_SECONDS must be a positive integer"
+    return 1
+  fi
+
+  local deadline=$((SECONDS + ADMISSION_MVP_TESTCONTAINERS_QUIESCE_TIMEOUT_SECONDS))
+  local current_file
+  local outstanding_count
+  while (( SECONDS <= deadline )); do
+    current_file="$(mktemp -t stuhelper-admission-testcontainers-current.XXXXXX)"
+    if ! snapshot_running_testcontainers >"${current_file}"; then
+      rm -f -- "${current_file}"
+      log "failed to inspect Testcontainers cleanup state"
+      return 1
+    fi
+    outstanding_count="$(comm -13 "${TESTCONTAINERS_BASELINE_FILE}" "${current_file}" | wc -l)"
+    rm -f -- "${current_file}"
+
+    if (( outstanding_count == 0 )); then
+      # Chromium returns net::ERR_NETWORK_CHANGED when Docker removes a veth
+      # while a local page is loading. Give the final interface removal a
+      # bounded settling window before starting Playwright.
+      sleep 2
+      log "Testcontainers cleanup and Docker network changes have settled"
+      return
+    fi
+    sleep 1
+  done
+
+  log "timed out waiting for this run's Testcontainers to stop"
+  return 1
+}
+
+trap cleanup_testcontainers_baseline EXIT
 
 run_server_tests() {
   run_in "${ROOT_DIR}/server" go test -count=1 -p 1 ./internal/modules/admission
@@ -65,6 +128,7 @@ run_web_browser_tests() {
     log "skipping Playwright admission browser tests"
     return
   fi
+  wait_for_testcontainers_network_quiescence
   log "running in clients: PLAYWRIGHT_WEB_PORT=${PLAYWRIGHT_WEB_PORT} PLAYWRIGHT_REUSE_SERVER=${ADMISSION_MVP_PLAYWRIGHT_REUSE_SERVER} playwright admission flow"
   (
     cd "${ROOT_DIR}/clients"
@@ -137,6 +201,7 @@ run_infra_contracts() {
   done
 }
 
+capture_testcontainers_baseline
 run_server_tests
 run_identity_dependency_server_tests
 run_web_unit_tests
