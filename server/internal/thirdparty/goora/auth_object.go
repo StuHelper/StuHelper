@@ -4,22 +4,27 @@ import (
 	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
-	"crypto/des"
 	"crypto/hmac"
-	"crypto/md5"
 	"crypto/rand"
-	"crypto/sha1"
 	"crypto/sha512"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"strconv"
-	"strings"
 
 	"github.com/sijms/go-ora/v2/configurations"
 	"github.com/sijms/go-ora/v2/network"
 	"github.com/sijms/go-ora/v2/network/security"
 )
+
+const stuhelperOraclePasswordVerifier = 18453
+
+func validateStuHelperOraclePasswordVerifier(verifierType int) error {
+	if verifierType != stuhelperOraclePasswordVerifier {
+		return errors.New("StuHelper requires an Oracle 12c or newer PBKDF2 password verifier")
+	}
+	return nil
+}
 
 // E infront of the variable means encrypted
 type AuthObject struct {
@@ -42,7 +47,7 @@ type AuthObject struct {
 }
 
 // create authentication object through reading data from network
-func newAuthObject(username string, password string, tcpNego *TCPNego, conn *Connection) (*AuthObject, error) {
+func newAuthObject(_ string, password string, tcpNego *TCPNego, conn *Connection) (*AuthObject, error) {
 	session := conn.session
 	ret := new(AuthObject)
 	ret.tcpNego = tcpNego
@@ -88,18 +93,13 @@ func newAuthObject(username string, password string, tcpNego *TCPNego, conn *Con
 							return nil, network.NewOracleError(28041)
 						}
 						if ret.pbkdf2VgenCount < 4096 || ret.pbkdf2VgenCount > 100000000 {
-							ret.pbkdf2VgenCount = 4096
+							return nil, network.NewOracleError(28041)
 						}
 					}
 				} else if bytes.Compare(key, []byte("AUTH_PBKDF2_SDER_COUNT")) == 0 {
 					ret.pbkdf2SderCount, err = strconv.Atoi(string(val))
-					if ret.pbkdf2SderCount == 0 {
-						if err != nil {
-							return nil, network.NewOracleError(28041)
-						}
-						if ret.pbkdf2SderCount < 3 || ret.pbkdf2SderCount > 100000000 {
-							ret.pbkdf2SderCount = 3
-						}
+					if err != nil || ret.pbkdf2SderCount < 3 || ret.pbkdf2SderCount > 100000000 {
+						return nil, network.NewOracleError(28041)
 					}
 				}
 			}
@@ -137,48 +137,26 @@ func newAuthObject(username string, password string, tcpNego *TCPNego, conn *Con
 	if len(ret.EServerSessKey) != 64 && len(ret.EServerSessKey) != 96 {
 		return nil, errors.New("session key should be either 64, 96 bytes long")
 	}
-	var key []byte
-	var speedyKey []byte
-	padding := false
-	var err error
-
-	if ret.VerifierType == 2361 {
-		key, err = getKeyFromUserNameAndPassword(username, password)
-		if err != nil {
-			return nil, err
-		}
-	} else if ret.VerifierType == 6949 {
-
-		if ret.tcpNego.ServerCompileTimeCaps[4]&2 == 0 {
-			padding = true
-		}
-		result, err := hex.DecodeString(ret.Salt)
-		if err != nil {
-			return nil, err
-		}
-		result = append([]byte(password), result...)
-		hash := sha1.New()
-		_, err = hash.Write(result)
-		if err != nil {
-			return nil, err
-		}
-		key = hash.Sum(nil)           // 20 byte key
-		key = append(key, 0, 0, 0, 0) // 24 byte key
-	} else if ret.VerifierType == 18453 {
-		salt, err := hex.DecodeString(ret.Salt)
-		if err != nil {
-			return nil, err
-		}
-		message := append(salt, []byte("AUTH_PBKDF2_SPEEDY_KEY")...)
-		speedyKey = generateSpeedyKey(message, []byte(password), ret.pbkdf2VgenCount)
-
-		buffer := append(speedyKey, salt...)
-		hash := sha512.New()
-		hash.Write(buffer)
-		key = hash.Sum(nil)[:32]
-	} else {
-		return nil, errors.New("unsupported verifier type")
+	if err := validateStuHelperOraclePasswordVerifier(ret.VerifierType); err != nil {
+		return nil, err
 	}
+	if len(ret.pbkdf2ChkSalt) != 32 || ret.pbkdf2VgenCount < 4096 || ret.pbkdf2SderCount < 3 {
+		return nil, network.NewOracleError(28041)
+	}
+	salt, err := hex.DecodeString(ret.Salt)
+	if err != nil {
+		return nil, err
+	}
+	message := append(salt, []byte("AUTH_PBKDF2_SPEEDY_KEY")...)
+	speedyKey := generateSpeedyKey(message, []byte(password), ret.pbkdf2VgenCount)
+
+	buffer := append(speedyKey, salt...)
+	hash := sha512.New()
+	if _, err := hash.Write(buffer); err != nil {
+		return nil, err
+	}
+	key := hash.Sum(nil)[:32]
+	const padding = false
 	// get the server session key
 	ret.ServerSessKey, err = decryptSessionKey(padding, key, ret.EServerSessKey)
 	if err != nil {
@@ -209,21 +187,14 @@ func newAuthObject(username string, password string, tcpNego *TCPNego, conn *Con
 	if err != nil {
 		return nil, err
 	}
-	if ret.VerifierType == 18453 {
-		padding = false
-	} else {
-		padding = true
-	}
 	// encrypt the password
 	ret.EPassword, err = encryptPassword([]byte(password), newKey, true)
 	if err != nil {
 		return nil, err
 	}
-	if ret.VerifierType == 18453 {
-		ret.ESpeedyKey, err = encryptPassword(speedyKey, newKey, padding)
-		if err != nil {
-			return nil, err
-		}
+	ret.ESpeedyKey, err = encryptPassword(speedyKey, newKey, padding)
+	if err != nil {
+		return nil, err
 	}
 	return ret, nil
 }
@@ -323,51 +294,6 @@ func generateSpeedyKey(buffer, key []byte, turns int) []byte {
 	return firstHash
 }
 
-func getKeyFromUserNameAndPassword(username string, password string) ([]byte, error) {
-	username = strings.ToUpper(username)
-	password = strings.ToUpper(password)
-	extendString := func(str string) []byte {
-		ret := make([]byte, len(str)*2)
-		for index, char := range []byte(str) {
-			ret[index*2] = 0
-			ret[index*2+1] = char
-		}
-		return ret
-	}
-	buffer := append(extendString(username), extendString(password)...)
-	if len(buffer)%8 > 0 {
-		buffer = append(buffer, make([]byte, 8-len(buffer)%8)...)
-	}
-	key := []byte{1, 35, 69, 103, 137, 171, 205, 239}
-
-	DesEnc := func(input []byte, key []byte) ([]byte, error) {
-		ret := make([]byte, 8)
-		enc, err := des.NewCipher(key)
-		if err != nil {
-			return nil, err
-		}
-		for x := 0; x < len(input)/8; x++ {
-			for y := 0; y < 8; y++ {
-				ret[y] = uint8(int(ret[y]) ^ int(input[x*8+y]))
-			}
-			output := make([]byte, 8)
-			enc.Encrypt(output, ret)
-			copy(ret, output)
-		}
-		return ret, nil
-	}
-	key1, err := DesEnc(buffer, key)
-	if err != nil {
-		return nil, err
-	}
-	key2, err := DesEnc(buffer, key1)
-	if err != nil {
-		return nil, err
-	}
-	// function OSLogonHelper.Method1_bytearray (DecryptSessionKey)
-	return append(key2, make([]byte, 8)...), nil
-}
-
 // decrypt session key that come from the server
 func decryptSessionKey(padding bool, encKey []byte, sessionKey string) ([]byte, error) {
 	result, err := hex.DecodeString(sessionKey)
@@ -435,7 +361,7 @@ func encryptPassword(password, key []byte, padding bool) (string, error) {
 	buff1 := make([]byte, 0x10)
 	_, err := rand.Read(buff1)
 	if err != nil {
-		return "", nil
+		return "", err
 	}
 	buffer := append(buff1, password...)
 	return encryptSessionKey(padding, key, buffer)
@@ -443,69 +369,19 @@ func encryptPassword(password, key []byte, padding bool) (string, error) {
 
 // generate encryption key for the password this depends on database verifier type
 func (obj *AuthObject) generatePasswordEncKey() ([]byte, error) {
-	hash := md5.New()
-	key1 := obj.ServerSessKey
-	key2 := obj.ClientSessKey
-	start := 16
-
-	logonCompatibility := obj.tcpNego.ServerCompileTimeCaps[4]
-	if logonCompatibility&32 != 0 {
-		var keyBuffer string
-		var retKeyLen int
-		switch obj.VerifierType {
-		case 2361:
-			buffer := append(key2[:len(key2)/2], key1[:len(key1)/2]...)
-			keyBuffer = fmt.Sprintf("%X", buffer)
-			retKeyLen = 16
-		case 6949:
-			buffer := append(key2[:24], key1[:24]...)
-			keyBuffer = fmt.Sprintf("%X", buffer)
-			retKeyLen = 24
-		case 18453:
-			buffer := append(key2, key1...)
-			keyBuffer = fmt.Sprintf("%X", buffer)
-			retKeyLen = 32
-		default:
-			return nil, errors.New("unsupported verifier type")
-		}
-		df2key, err := hex.DecodeString(obj.pbkdf2ChkSalt)
-		if err != nil {
-			return nil, err
-		}
-		return generateSpeedyKey(df2key, []byte(keyBuffer), obj.pbkdf2SderCount)[:retKeyLen], nil
-	} else {
-		switch obj.VerifierType {
-		case 2361:
-			buffer := make([]byte, 16)
-			for x := 0; x < 16; x++ {
-				buffer[x] = key1[x+start] ^ key2[x+start]
-			}
-			_, err := hash.Write(buffer)
-			if err != nil {
-				return nil, err
-			}
-			return hash.Sum(nil), nil
-		case 6949:
-			buffer := make([]byte, 24)
-			for x := 0; x < 24; x++ {
-				buffer[x] = key1[x+start] ^ key2[x+start]
-			}
-			_, err := hash.Write(buffer[:16])
-			if err != nil {
-				return nil, err
-			}
-			ret := hash.Sum(nil)
-			hash.Reset()
-			_, err = hash.Write(buffer[16:])
-			if err != nil {
-				return nil, err
-			}
-			ret = append(ret, hash.Sum(nil)...)
-			return ret[:24], nil
-		default:
-			return nil, errors.New("unsupported verifier type")
-		}
+	if err := validateStuHelperOraclePasswordVerifier(obj.VerifierType); err != nil {
+		return nil, err
 	}
+	if obj.tcpNego.ServerCompileTimeCaps[4]&32 == 0 {
+		return nil, errors.New("Oracle server did not negotiate modern password derivation")
+	}
+	buffer := append(obj.ClientSessKey, obj.ServerSessKey...)
+	keyBuffer := fmt.Sprintf("%X", buffer)
+	df2key, err := hex.DecodeString(obj.pbkdf2ChkSalt)
+	if err != nil {
+		return nil, err
+	}
+	return generateSpeedyKey(df2key, []byte(keyBuffer), obj.pbkdf2SderCount)[:32], nil
 }
 
 //func (obj *AuthObject) VerifyResponse(response string) bool {

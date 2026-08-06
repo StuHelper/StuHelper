@@ -358,6 +358,17 @@ func (conn *Connection) Open() error {
 //	return err
 // }
 
+func parseOracleUint32Property(name string, raw string) (int, error) {
+	parsed, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, fmt.Errorf("parse Oracle %s: %w", name, err)
+	}
+	if parsed < 0 || int64(parsed) > int64(^uint32(0)) {
+		return 0, fmt.Errorf("Oracle %s is outside the unsigned 32-bit range", name)
+	}
+	return parsed, nil
+}
+
 // OpenWithContext open the connection with timeout context
 func (conn *Connection) OpenWithContext(ctx context.Context) error {
 	if len(conn.connOption.TraceDir) > 0 {
@@ -462,16 +473,20 @@ func (conn *Connection) OpenWithContext(ctx context.Context) error {
 	conn.session.SetConnected()
 	tracer.Print("Connected")
 	tracer.Print("Database Version: ", conn.dBVersion.Text)
-	sessionID, err := strconv.ParseUint(conn.SessionProperties["AUTH_SESSION_ID"], 10, 32)
+	sessionID, err := parseOracleUint32Property(
+		"AUTH_SESSION_ID", conn.SessionProperties["AUTH_SESSION_ID"],
+	)
 	if err != nil {
 		return err
 	}
-	conn.sessionID = int(sessionID)
-	serialNum, err := strconv.ParseUint(conn.SessionProperties["AUTH_SERIAL_NUM"], 10, 32)
+	conn.sessionID = sessionID
+	serialNum, err := parseOracleUint32Property(
+		"AUTH_SERIAL_NUM", conn.SessionProperties["AUTH_SERIAL_NUM"],
+	)
 	if err != nil {
 		return err
 	}
-	conn.serialID = int(serialNum)
+	conn.serialID = serialNum
 	conn.connOption.InstanceName = conn.SessionProperties["AUTH_SC_INSTANCE_NAME"]
 	// conn.connOption.Host = conn.SessionProperties["AUTH_SC_SERVER_HOST"]
 	conn.connOption.ServiceName = conn.SessionProperties["AUTH_SC_SERVICE_NAME"]

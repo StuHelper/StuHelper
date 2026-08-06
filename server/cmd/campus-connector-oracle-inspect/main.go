@@ -15,6 +15,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/sijms/go-ora/v2/network"
+
 	"github.com/StuHelper/StuHelper/server/internal/campusconnector/node"
 	"github.com/StuHelper/StuHelper/server/internal/modules/externaldata"
 )
@@ -58,8 +60,57 @@ func classifyInspectionError(err error) string {
 	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 		return "timeout"
 	}
+	if errors.Is(err, network.ErrConnReset) {
+		return "timeout"
+	}
+	var oracleErr *network.OracleError
+	if errors.As(err, &oracleErr) {
+		switch oracleErr.ErrCode {
+		case 1017:
+			return "authentication_rejected"
+		case 28000:
+			return "account_locked"
+		case 28001:
+			return "password_expired"
+		case 28040, 28041:
+			return "authentication_protocol_rejected"
+		case 12506, 12514, 12516, 12564:
+			return "listener_unavailable"
+		default:
+			return fmt.Sprintf("oracle_error_%05d", oracleErr.ErrCode)
+		}
+	}
 	value := strings.ToLower(err.Error())
 	switch {
+	case strings.Contains(value, "context timeout"),
+		strings.Contains(value, "i/o timeout"),
+		strings.Contains(value, "timed out"):
+		return "timeout"
+	case strings.Contains(value, "invalid username/password"),
+		strings.Contains(value, "invalid credential"):
+		return "authentication_rejected"
+	case strings.Contains(value, "requires an oracle 12c or newer pbkdf2 password verifier"):
+		return "legacy_password_verifier"
+	case strings.Contains(value, "authentication protocol"),
+		strings.Contains(value, "session key should be either"),
+		strings.Contains(value, "pbkdf2"),
+		strings.Contains(value, "ciphertext is not a multiple of the block size"):
+		return "authentication_protocol_rejected"
+	case strings.Contains(value, "unsupported server version"):
+		return "server_version_unsupported"
+	case strings.Contains(value, "connection refused"):
+		return "transport_refused"
+	case strings.Contains(value, "network is unreachable"),
+		strings.Contains(value, "no route to host"):
+		return "transport_unreachable"
+	case strings.Contains(value, "no such host"):
+		return "target_resolution_failed"
+	case value == "eof",
+		strings.Contains(value, "unexpected eof"),
+		strings.Contains(value, "connection reset"),
+		strings.Contains(value, "connection closed"),
+		strings.Contains(value, "broken pipe"):
+		return "transport_closed"
 	case strings.Contains(value, "listener redirect target is not approved"):
 		return "listener_redirect_not_approved"
 	case strings.Contains(value, "runtime identity"):

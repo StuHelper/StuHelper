@@ -3,12 +3,25 @@ package go_ora
 import (
 	"database/sql"
 	"fmt"
-	"github.com/sijms/go-ora/v2/converters"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/sijms/go-ora/v2/converters"
 )
+
+const (
+	maxNullByteValue  = int64(1<<8 - 1)
+	minNullInt16Value = int64(-1 << 15)
+	maxNullInt16Value = int64(1<<15 - 1)
+	minNullInt32Value = int64(-1 << 31)
+	maxNullInt32Value = int64(1<<31 - 1)
+)
+
+func integerOverflowError(input any, target reflect.Type) error {
+	return fmt.Errorf("integer value %v overflows %v", input, target)
+}
 
 // set null value from supported types
 func setNull(value reflect.Value) error {
@@ -33,13 +46,22 @@ func setNumber(value reflect.Value, input *Number) error {
 		if err != nil {
 			return err
 		}
+		if value.OverflowInt(temp) {
+			return integerOverflowError(temp, value.Type())
+		}
 		value.SetInt(temp)
 		return nil
 	}
 	if tUnsigned(value.Type()) {
+		if !input.isPositive() && !input.isZero() {
+			return fmt.Errorf("negative Oracle NUMBER cannot be assigned to %v", value.Type())
+		}
 		temp, err := input.Uint64()
 		if err != nil {
 			return err
+		}
+		if value.OverflowUint(temp) {
+			return integerOverflowError(temp, value.Type())
 		}
 		value.SetUint(temp)
 		return nil
@@ -48,6 +70,9 @@ func setNumber(value reflect.Value, input *Number) error {
 		temp, err := input.Float64()
 		if err != nil {
 			return err
+		}
+		if value.OverflowFloat(temp) {
+			return fmt.Errorf("floating-point value %v overflows %v", temp, value.Type())
 		}
 		value.SetFloat(temp)
 		return nil
@@ -66,39 +91,48 @@ func setNumber(value reflect.Value, input *Number) error {
 		if err != nil {
 			return err
 		}
-		value.Set(reflect.ValueOf(sql.NullString{temp, true}))
+		value.Set(reflect.ValueOf(sql.NullString{String: temp, Valid: true}))
 	case tyNullByte:
 		temp, err := input.Int64()
 		if err != nil {
 			return err
 		}
-		value.Set(reflect.ValueOf(sql.NullByte{uint8(temp), true}))
+		if temp < 0 || temp > maxNullByteValue {
+			return integerOverflowError(temp, value.Type())
+		}
+		value.Set(reflect.ValueOf(sql.NullByte{Byte: uint8(temp), Valid: true}))
 	case tyNullInt16:
 		temp, err := input.Int64()
 		if err != nil {
 			return err
 		}
-		value.Set(reflect.ValueOf(sql.NullInt16{int16(temp), true}))
+		if temp < minNullInt16Value || temp > maxNullInt16Value {
+			return integerOverflowError(temp, value.Type())
+		}
+		value.Set(reflect.ValueOf(sql.NullInt16{Int16: int16(temp), Valid: true}))
 	case tyNullInt32:
 		temp, err := input.Int64()
 		if err != nil {
 			return err
 		}
-		value.Set(reflect.ValueOf(sql.NullInt32{int32(temp), true}))
+		if temp < minNullInt32Value || temp > maxNullInt32Value {
+			return integerOverflowError(temp, value.Type())
+		}
+		value.Set(reflect.ValueOf(sql.NullInt32{Int32: int32(temp), Valid: true}))
 	case tyNullInt64:
 		temp, err := input.Int64()
 		if err != nil {
 			return err
 		}
-		value.Set(reflect.ValueOf(sql.NullInt64{temp, true}))
+		value.Set(reflect.ValueOf(sql.NullInt64{Int64: temp, Valid: true}))
 	case tyNullFloat64:
 		temp, err := input.Float64()
 		if err != nil {
 			return err
 		}
-		value.Set(reflect.ValueOf(sql.NullFloat64{temp, true}))
+		value.Set(reflect.ValueOf(sql.NullFloat64{Float64: temp, Valid: true}))
 	case tyNullBool:
-		value.Set(reflect.ValueOf(sql.NullBool{!input.isZero(), true}))
+		value.Set(reflect.ValueOf(sql.NullBool{Bool: !input.isZero(), Valid: true}))
 	case tyNullNVarChar:
 		temp, err := input.String()
 		if err != nil {
@@ -145,18 +179,31 @@ func setString(value reflect.Value, input string) error {
 	}
 	if tSigned(value.Type()) {
 		if intErr == nil {
+			if value.OverflowInt(tempInt) {
+				return integerOverflowError(tempInt, value.Type())
+			}
 			value.SetInt(tempInt)
 		}
 		return intErr
 	}
 	if tUnsigned(value.Type()) {
 		if intErr == nil {
-			value.SetUint(uint64(tempInt))
+			if tempInt < 0 {
+				return integerOverflowError(tempInt, value.Type())
+			}
+			tempUint := uint64(tempInt)
+			if value.OverflowUint(tempUint) {
+				return integerOverflowError(tempInt, value.Type())
+			}
+			value.SetUint(tempUint)
 		}
 		return intErr
 	}
 	if tFloat(value.Type()) {
 		if floatErr == nil {
+			if value.OverflowFloat(tempFloat) {
+				return fmt.Errorf("floating-point value %v overflows %v", tempFloat, value.Type())
+			}
 			value.SetFloat(tempFloat)
 		}
 		return floatErr
@@ -180,16 +227,25 @@ func setString(value reflect.Value, input string) error {
 		value.Set(reflect.ValueOf(sql.NullString{String: input, Valid: true}))
 	case tyNullByte:
 		if intErr == nil {
+			if tempInt < 0 || tempInt > maxNullByteValue {
+				return integerOverflowError(tempInt, value.Type())
+			}
 			value.Set(reflect.ValueOf(sql.NullByte{Byte: uint8(tempInt), Valid: true}))
 		}
 		return intErr
 	case tyNullInt16:
 		if intErr == nil {
+			if tempInt < minNullInt16Value || tempInt > maxNullInt16Value {
+				return integerOverflowError(tempInt, value.Type())
+			}
 			value.Set(reflect.ValueOf(sql.NullInt16{Int16: int16(tempInt), Valid: true}))
 		}
 		return intErr
 	case tyNullInt32:
 		if intErr == nil {
+			if tempInt < minNullInt32Value || tempInt > maxNullInt32Value {
+				return integerOverflowError(tempInt, value.Type())
+			}
 			value.Set(reflect.ValueOf(sql.NullInt32{Int32: int32(tempInt), Valid: true}))
 		}
 		return intErr
@@ -283,7 +339,7 @@ func setBytes(value reflect.Value, input []byte) error {
 	case tyNClob:
 		value.Set(reflect.ValueOf(NClob{String: string(input), Valid: true}))
 	case tyNullString:
-		value.Set(reflect.ValueOf(sql.NullString{string(input), true}))
+		value.Set(reflect.ValueOf(sql.NullString{String: string(input), Valid: true}))
 	case tyNullNVarChar:
 		value.Set(reflect.ValueOf(NullNVarChar{NVarChar(input), true}))
 	default:
@@ -321,9 +377,9 @@ func setTime(value reflect.Value, input time.Time) error {
 	case tyTimeStampTZ:
 		value.Set(reflect.ValueOf(TimeStampTZ(input)))
 	case tyNullString:
-		value.Set(reflect.ValueOf(sql.NullString{input.Format(time.RFC3339), true}))
+		value.Set(reflect.ValueOf(sql.NullString{String: input.Format(time.RFC3339), Valid: true}))
 	case tyNullTime:
-		value.Set(reflect.ValueOf(sql.NullTime{input, true}))
+		value.Set(reflect.ValueOf(sql.NullTime{Time: input, Valid: true}))
 	case tyNullTimeStamp:
 		value.Set(reflect.ValueOf(NullTimeStamp{TimeStamp(input), true}))
 	case tyNullTimeStampTZ:
@@ -459,7 +515,7 @@ func setLob(value reflect.Value, input Lob) error {
 		if err != nil {
 			return err
 		}
-		value.Set(reflect.ValueOf(sql.NullString{strConv.Decode(lobData), true}))
+		value.Set(reflect.ValueOf(sql.NullString{String: strConv.Decode(lobData), Valid: true}))
 	case tyNVarChar:
 		strConv, err = getStrConv()
 		if err != nil {

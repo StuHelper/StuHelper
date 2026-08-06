@@ -43,6 +43,43 @@ func TestStuHelperAutomaticConnectionPathIsAuthenticationAndSelectOnly(t *testin
 	}
 }
 
+func TestStuHelperOracleAuthenticationRequiresModernVerifier(t *testing.T) {
+	if err := validateStuHelperOraclePasswordVerifier(stuhelperOraclePasswordVerifier); err != nil {
+		t.Fatalf("accept modern Oracle password verifier: %v", err)
+	}
+	for _, legacyVerifier := range []int{2361, 6949} {
+		if err := validateStuHelperOraclePasswordVerifier(legacyVerifier); err == nil {
+			t.Fatalf("legacy Oracle password verifier %d was accepted", legacyVerifier)
+		}
+	}
+
+	_, currentFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("resolve policy test source path")
+	}
+	contents, err := os.ReadFile(filepath.Join(filepath.Dir(currentFile), "auth_object.go"))
+	if err != nil {
+		t.Fatalf("read auth_object.go: %v", err)
+	}
+	for _, forbidden := range []string{"crypto/des", "crypto/md5", "crypto/sha1"} {
+		if strings.Contains(string(contents), forbidden) {
+			t.Fatalf("auth_object.go retains forbidden legacy primitive %q", forbidden)
+		}
+	}
+}
+
+func TestParseOracleUint32PropertyRejectsInvalidValues(t *testing.T) {
+	parsed, err := parseOracleUint32Property("AUTH_SESSION_ID", "42")
+	if err != nil || parsed != 42 {
+		t.Fatalf("parse valid Oracle session identifier: value=%d err=%v", parsed, err)
+	}
+	for _, invalid := range []string{"-1", "4294967296", "not-a-number"} {
+		if _, err := parseOracleUint32Property("AUTH_SESSION_ID", invalid); err == nil {
+			t.Fatalf("invalid Oracle session identifier %q was accepted", invalid)
+		}
+	}
+}
+
 func TestStuHelperSelectOnlyRuntimeGate(t *testing.T) {
 	for _, query := range []string{
 		"SELECT XH, XM FROM ZHFWDB.T_XS_JBXX WHERE XH = :1",

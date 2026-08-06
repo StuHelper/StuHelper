@@ -13,13 +13,14 @@ fail() {
 
 approved_hash() {
   case "$1" in
-    auth_object.go) printf '%s\n' '4db55d4b019201067a52902014a85f7ae1385da51a241be74d5fcc6766987dc5' ;;
+    auth_object.go) printf '%s\n' 'bea0c9a95f2e6865da6ed822f4b5a22f818aacf0ea9518da8f740ae68579d0e1' ;;
     bulk_copy.go) printf '%s\n' 'fb2283a3f057cd93493f6d93158cab935cf190596201eb2af47d230d6c0767df' ;;
     command.go) printf '%s\n' 'e8467f0b9f8043744d83f859adb449fda95362d39c25017989cdf6ffda88d598' ;;
-    connection.go) printf '%s\n' '9a6853591ad6d7b0788f124135ba38619ffded8b684ad45c3ef444d08baeddf8' ;;
+    connection.go) printf '%s\n' '91bca82cc381c9d7d31edb5668a8b221191b96610acc97acfd2d517d26cbae2e' ;;
     connection_string.go) printf '%s\n' 'c95ec5cfaef84dd99813fb18d02181ad419c82f954623a874e7b136d827255ee' ;;
     driver.go) printf '%s\n' 'c41f97fa3ab7fe1f1863fc9693146802a7cfc2a9e668216f9213142442a6a33a' ;;
     transaction.go) printf '%s\n' 'a82857fd0e73f1b62b6394ad71d2e9daf5247ec77bfa7d0dbe1782324c121b00' ;;
+    value_setter.go) printf '%s\n' 'f5427d5e6def0008245820bbbde7b29a9556ee281375dd237e67530695ad03e7' ;;
   esac
 }
 

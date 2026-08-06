@@ -17,10 +17,14 @@ The intentional differences from v2.9.0 are limited to:
 - reject transactions and all `Exec` paths, and validate every query as one
   side-effect-free `SELECT` before it reaches the wire;
 - keep Oracle auto-commit flags disabled so cursor execution cannot emit a
-  commit operation, even when no data has changed.
+  commit operation, even when no data has changed;
+- require the Oracle 12c+ PBKDF2/SHA-512 password verifier and fail closed
+  instead of falling back to 10g DES or 11g SHA-1 authentication;
+- reject out-of-range session identifiers and numeric scan destinations instead
+  of silently narrowing attacker- or server-controlled integers.
 
 Do not merge an upstream update mechanically. Re-import the root non-test Go
-files, reapply these three changes, retain the license, and run the policy test,
+files, reapply these reviewed changes, retain the license, and run the policy test,
 the external-data tests, full lint, race tests, and build before use.
 
 The root package also inherits Oracle wire-compatibility primitives and integer
