@@ -20,7 +20,7 @@ approved_hash() {
     connection_string.go) printf '%s\n' 'c95ec5cfaef84dd99813fb18d02181ad419c82f954623a874e7b136d827255ee' ;;
     driver.go) printf '%s\n' 'c41f97fa3ab7fe1f1863fc9693146802a7cfc2a9e668216f9213142442a6a33a' ;;
     transaction.go) printf '%s\n' 'a82857fd0e73f1b62b6394ad71d2e9daf5247ec77bfa7d0dbe1782324c121b00' ;;
-    value_setter.go) printf '%s\n' 'f5427d5e6def0008245820bbbde7b29a9556ee281375dd237e67530695ad03e7' ;;
+    value_setter.go) printf '%s\n' 'b095f9cece82b7731ec69d0aa1586ad9a8b5f93f86acd1cd7d42461d6e01b228' ;;
   esac
 }
 

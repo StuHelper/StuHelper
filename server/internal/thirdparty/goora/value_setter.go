@@ -23,6 +23,30 @@ func integerOverflowError(input any, target reflect.Type) error {
 	return fmt.Errorf("integer value %v overflows %v", input, target)
 }
 
+func parseNullByteString(input string) (uint8, error) {
+	parsed, err := strconv.ParseUint(input, 10, 8)
+	if err != nil {
+		return 0, fmt.Errorf("can't assign string to sql.NullByte: %w", err)
+	}
+	return uint8(parsed), nil
+}
+
+func parseNullInt16String(input string) (int16, error) {
+	parsed, err := strconv.ParseInt(input, 10, 16)
+	if err != nil {
+		return 0, fmt.Errorf("can't assign string to sql.NullInt16: %w", err)
+	}
+	return int16(parsed), nil
+}
+
+func parseNullInt32String(input string) (int32, error) {
+	parsed, err := strconv.ParseInt(input, 10, 32)
+	if err != nil {
+		return 0, fmt.Errorf("can't assign string to sql.NullInt32: %w", err)
+	}
+	return int32(parsed), nil
+}
+
 // set null value from supported types
 func setNull(value reflect.Value) error {
 	if value.Kind() == reflect.Ptr && value.IsNil() {
@@ -226,29 +250,23 @@ func setString(value reflect.Value, input string) error {
 	case tyNullString:
 		value.Set(reflect.ValueOf(sql.NullString{String: input, Valid: true}))
 	case tyNullByte:
-		if intErr == nil {
-			if tempInt < 0 || tempInt > maxNullByteValue {
-				return integerOverflowError(tempInt, value.Type())
-			}
-			value.Set(reflect.ValueOf(sql.NullByte{Byte: uint8(tempInt), Valid: true}))
+		temp, parseErr := parseNullByteString(input)
+		if parseErr != nil {
+			return parseErr
 		}
-		return intErr
+		value.Set(reflect.ValueOf(sql.NullByte{Byte: temp, Valid: true}))
 	case tyNullInt16:
-		if intErr == nil {
-			if tempInt < minNullInt16Value || tempInt > maxNullInt16Value {
-				return integerOverflowError(tempInt, value.Type())
-			}
-			value.Set(reflect.ValueOf(sql.NullInt16{Int16: int16(tempInt), Valid: true}))
+		temp, parseErr := parseNullInt16String(input)
+		if parseErr != nil {
+			return parseErr
 		}
-		return intErr
+		value.Set(reflect.ValueOf(sql.NullInt16{Int16: temp, Valid: true}))
 	case tyNullInt32:
-		if intErr == nil {
-			if tempInt < minNullInt32Value || tempInt > maxNullInt32Value {
-				return integerOverflowError(tempInt, value.Type())
-			}
-			value.Set(reflect.ValueOf(sql.NullInt32{Int32: int32(tempInt), Valid: true}))
+		temp, parseErr := parseNullInt32String(input)
+		if parseErr != nil {
+			return parseErr
 		}
-		return intErr
+		value.Set(reflect.ValueOf(sql.NullInt32{Int32: temp, Valid: true}))
 	case tyNullInt64:
 		if intErr == nil {
 			value.Set(reflect.ValueOf(sql.NullInt64{Int64: tempInt, Valid: true}))
