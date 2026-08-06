@@ -56,15 +56,15 @@
     {
       "id": "RCLONE",
       "kind": "registry",
-      "image": "rclone/rclone:beta@sha256:f52965eba611ba8984117638b2a0539dcce170731937f93fbace66897d102698",
+      "image": "rclone/rclone:1.75.0@sha256:b06aed988cf5967de7c25be5925240983981c757f4ed1ac9d2fa659d51d60548",
       "env_var": "RCLONE_IMAGE_REF",
       "env_files": [".env.example", ".env.prod.example"],
       "scope": "short-lived production backup synchronization and development seed jobs",
       "owner": "platform",
       "pin_review": {
-        "verified_on": "2026-07-29",
-        "review_by": "2026-08-12",
-        "upstream_evidence": "https://github.com/rclone/rclone/releases"
+        "verified_on": "2026-08-07",
+        "review_by": "2026-08-21",
+        "upstream_evidence": "https://github.com/rclone/rclone/releases/tag/v1.75.0"
       }
     },
     {
@@ -288,7 +288,7 @@
       "owner": "platform-security",
       "approved_on": "2026-07-29",
       "expires_on": "2026-08-12",
-      "rationale": "The pinned beta build is otherwise clear and the remaining advisory has no fixed module version.",
+      "rationale": "The stable v1.75.0 image fixes the published HIGH advisories; the remaining OpenPGP maintenance advisory has no fixed module version.",
       "mitigations": [
         "Rclone runs as a short-lived, capability-free job with no inbound listener.",
         "Credentials and destination scope are restricted to the configured backup or seed bucket."

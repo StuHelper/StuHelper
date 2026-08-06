@@ -2308,7 +2308,7 @@ if address is None and force_path_style == "false":
 
 image_ref = os.environ.get(
     "RCLONE_IMAGE_REF",
-    "rclone/rclone:beta@sha256:f52965eba611ba8984117638b2a0539dcce170731937f93fbace66897d102698",
+    "rclone/rclone:1.75.0@sha256:b06aed988cf5967de7c25be5925240983981c757f4ed1ac9d2fa659d51d60548",
 )
 if not re.fullmatch(r".+@sha256:[0-9a-f]{64}", image_ref):
     raise SystemExit("RCLONE_IMAGE_REF must be a complete image@sha256 reference")
