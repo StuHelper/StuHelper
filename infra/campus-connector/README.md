@@ -151,10 +151,54 @@ LogMiner、CDC 或数据库日志读取。未来只有在不扩展当前 Oracle 
 8. 演练连接器离线、证书吊销、签名错误、上游超时、快照突变和中心拒绝。相关学校方法必须 fail
    closed，但其他学校和不依赖该连接器的方法不受影响。
 
-中心生产网关还需要一个不会终止 TLS 的公网 TCP 入口：DNS 指向生产边缘，边缘把连接原样透传到
-宿主 loopback 的 `CAMPUS_CONNECTOR_GATEWAY_EXTERNAL_PORT`。普通 HTTP 反代、CDN 代签证书或在边缘
-终止 TLS 都会丢失客户端证书身份，不能使用。启用前运行 `prod-deploy.sh` 预检；它会核对 SAN、证书
-链、证书/私钥配对、有效期、文件权限和 snapshot key ID。
+中心生产网关还需要一个不会终止 TLS 的公网 TCP 入口。仓库提供宝塔 Nginx stream 模板、严格渲染器、
+应用脚本和有效配置预检，固定链路为：
+
+```text
+校园 Connector
+  -> connector.stuhelper.com:9444
+  -> Baota Nginx stream raw TCP passthrough
+  -> 127.0.0.1:19444
+  -> StuHelper Gateway TLS 1.3 mTLS
+```
+
+DNS 只把 `connector.stuhelper.com` 指向生产边缘，不会自动建立 TCP 监听、内网路由或代理。先获得稳定、
+已批准的校园节点 IPv4 出口 CIDR，再配置生产 env；不得用个人开发机当前公网地址冒充长期节点地址，也
+不得配置 `0.0.0.0/0`：
+
+```env
+CAMPUS_CONNECTOR_GATEWAY_ENABLED=true
+CAMPUS_CONNECTOR_GATEWAY_PUBLIC_HOST=connector.stuhelper.com
+CAMPUS_CONNECTOR_GATEWAY_PUBLIC_PORT=9444
+CAMPUS_CONNECTOR_GATEWAY_EXTERNAL_PORT=19444
+CAMPUS_CONNECTOR_ALLOWED_SOURCE_CIDRS=REPLACE_WITH_APPROVED_CAMPUS_CONNECTOR_SOURCE_CIDRS
+NGINX_PUBLIC_INGRESS_PROFILE=app-all
+```
+
+应用 Connector stream 入口：
+
+```bash
+# 先 dry-run，不写文件。
+CAMPUS_CONNECTOR_ALLOWED_SOURCE_CIDRS=<approved-ipv4-cidr> \
+  ./infra/ops/apply-baota-nginx-templates.sh --profile connector
+
+# 再安装到 /www/server/panel/vhost/nginx/tcp/connector.stuhelper.com.conf。
+sudo \
+  CAMPUS_CONNECTOR_ALLOWED_SOURCE_CIDRS=<approved-ipv4-cidr> \
+  ./infra/ops/apply-baota-nginx-templates.sh \
+    --profile connector \
+    --apply \
+    --reload \
+    --preflight
+```
+
+脚本渲染精确 `allow` 列表和末尾 `deny all`，只允许 public port 与 loopback upstream 不同，安装后先
+运行 `nginx -t`，失败时恢复旧目标或移除新目标。生产防火墙也必须只对同一批准 CIDR 开放 TCP 9444；
+逐条执行 `sudo ufw allow proto tcp from <approved-ipv4-cidr> to any port 9444`，随后用
+`sudo ufw status numbered` 核对不存在任意来源规则。Nginx 必须原样透传：普通 HTTP 反代、
+`listen ... ssl`、`ssl_certificate`、`proxy_ssl*`、CDN 代签证书或边缘 TLS 终止都会丢失客户端证书身份，
+不能使用。启用前运行 `prod-deploy.sh` 预检；它会同时审计 Nginx 生效配置、allowlist、端口关系、SAN、
+证书链、证书/私钥配对、有效期、文件权限和 snapshot key ID。
 
 该出站应用层连接已经解决生产中心与校园节点之间的传输问题，生产中心不需要北航路由。EasyTier 或
 Tailscale 最多只能作为可选底层链路，当前公网 mTLS 方案不依赖它们；即使将来采用 overlay，也不能替代

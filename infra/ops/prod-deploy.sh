@@ -469,8 +469,14 @@ require_production_object_storage
 [[ "${STUDENT_VERIFICATION_PUBLIC_BASE_URL:-}" == "https://stuhelper.com" ]] || die "STUDENT_VERIFICATION_PUBLIC_BASE_URL must be exactly https://stuhelper.com for production deploy"
 if [[ "${CAMPUS_CONNECTOR_GATEWAY_ENABLED:-false}" == "true" ]]; then
   require_nonempty CAMPUS_CONNECTOR_GATEWAY_PUBLIC_HOST "${CAMPUS_CONNECTOR_GATEWAY_PUBLIC_HOST:-}"
+  require_nonempty CAMPUS_CONNECTOR_GATEWAY_PUBLIC_PORT "${CAMPUS_CONNECTOR_GATEWAY_PUBLIC_PORT:-}"
+  require_nonempty CAMPUS_CONNECTOR_ALLOWED_SOURCE_CIDRS "${CAMPUS_CONNECTOR_ALLOWED_SOURCE_CIDRS:-}"
   require_nonempty CAMPUS_CONNECTOR_GATEWAY_SECRET_DIR "${CAMPUS_CONNECTOR_GATEWAY_SECRET_DIR:-}"
   require_nonempty CAMPUS_CONNECTOR_SNAPSHOT_KEY_ID "${CAMPUS_CONNECTOR_SNAPSHOT_KEY_ID:-}"
+  reject_placeholder \
+    CAMPUS_CONNECTOR_ALLOWED_SOURCE_CIDRS \
+    "${CAMPUS_CONNECTOR_ALLOWED_SOURCE_CIDRS:-}" \
+    "REPLACE_WITH_APPROVED_CAMPUS_CONNECTOR_SOURCE_CIDRS"
   reject_placeholder \
     CAMPUS_CONNECTOR_SNAPSHOT_KEY_ID \
     "${CAMPUS_CONNECTOR_SNAPSHOT_KEY_ID:-}" \
@@ -478,9 +484,20 @@ if [[ "${CAMPUS_CONNECTOR_GATEWAY_ENABLED:-false}" == "true" ]]; then
   reject_local_value \
     CAMPUS_CONNECTOR_GATEWAY_PUBLIC_HOST \
     "${CAMPUS_CONNECTOR_GATEWAY_PUBLIC_HOST:-}"
-  [[ "${CAMPUS_CONNECTOR_GATEWAY_EXTERNAL_PORT:-}" =~ ^[0-9]+$ ]] &&
-    ((CAMPUS_CONNECTOR_GATEWAY_EXTERNAL_PORT >= 1 && CAMPUS_CONNECTOR_GATEWAY_EXTERNAL_PORT <= 65535)) ||
+  if [[ ! "${CAMPUS_CONNECTOR_GATEWAY_PUBLIC_PORT:-}" =~ ^[1-9][0-9]{0,4}$ ]] ||
+    ((10#${CAMPUS_CONNECTOR_GATEWAY_PUBLIC_PORT} > 65535)); then
+    die "CAMPUS_CONNECTOR_GATEWAY_PUBLIC_PORT must be between 1 and 65535"
+  fi
+  if [[ ! "${CAMPUS_CONNECTOR_GATEWAY_EXTERNAL_PORT:-}" =~ ^[1-9][0-9]{0,4}$ ]] ||
+    ((10#${CAMPUS_CONNECTOR_GATEWAY_EXTERNAL_PORT} > 65535)); then
     die "CAMPUS_CONNECTOR_GATEWAY_EXTERNAL_PORT must be between 1 and 65535"
+  fi
+  [[ "${CAMPUS_CONNECTOR_GATEWAY_PUBLIC_PORT}" != "${CAMPUS_CONNECTOR_GATEWAY_EXTERNAL_PORT}" ]] ||
+    die "CAMPUS_CONNECTOR_GATEWAY_PUBLIC_PORT must differ from CAMPUS_CONNECTOR_GATEWAY_EXTERNAL_PORT"
+  [[ "${PUBLIC_INGRESS_CONFIG_PREFLIGHT_ENABLED:-true}" == "true" ]] ||
+    die "PUBLIC_INGRESS_CONFIG_PREFLIGHT_ENABLED must be true when the Campus Connector Gateway is enabled"
+  [[ "${NGINX_PUBLIC_INGRESS_PROFILE:-}" == "app-all" ]] ||
+    die "NGINX_PUBLIC_INGRESS_PROFILE must be app-all when the Campus Connector Gateway is enabled"
   campus_connector_pki_dir="$(resolve_env_path "${CAMPUS_CONNECTOR_PKI_DIR:-./infra/generated/campus-connector-pki}")"
   "${SCRIPT_DIR}/generate-campus-connector-pki.sh" \
     --check \

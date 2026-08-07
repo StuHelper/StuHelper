@@ -510,6 +510,20 @@ grep -qF 'refusing to disrupt the production application' "${PROD_DEPLOY_FILE}" 
   fail "production deploy must not stop an existing app whose mapped gateway is unhealthy"
 grep -qF 'APP_RUNTIME_MODE must be app for production deploy' "${PROD_DEPLOY_FILE}" ||
   fail "production deploy must reject a shared environment configured as bootstrap mode"
+grep -qF 'require_nonempty CAMPUS_CONNECTOR_GATEWAY_PUBLIC_PORT' "${PROD_DEPLOY_FILE}" ||
+  fail "production deploy must require the Campus Connector public stream port when the gateway is enabled"
+grep -qF 'require_nonempty CAMPUS_CONNECTOR_ALLOWED_SOURCE_CIDRS' "${PROD_DEPLOY_FILE}" ||
+  fail "production deploy must require a non-empty Campus Connector source allowlist"
+grep -qF 'REPLACE_WITH_APPROVED_CAMPUS_CONNECTOR_SOURCE_CIDRS' "${PROD_DEPLOY_FILE}" ||
+  fail "production deploy must reject the sample Campus Connector source allowlist placeholder"
+grep -qF 'CAMPUS_CONNECTOR_GATEWAY_PUBLIC_PORT must be between 1 and 65535' "${PROD_DEPLOY_FILE}" ||
+  fail "production deploy must validate the Campus Connector public stream port"
+grep -qF 'CAMPUS_CONNECTOR_GATEWAY_PUBLIC_PORT must differ from CAMPUS_CONNECTOR_GATEWAY_EXTERNAL_PORT' "${PROD_DEPLOY_FILE}" ||
+  fail "production deploy must reject a Campus Connector stream proxy loop"
+grep -qF 'PUBLIC_INGRESS_CONFIG_PREFLIGHT_ENABLED must be true when the Campus Connector Gateway is enabled' "${PROD_DEPLOY_FILE}" ||
+  fail "production deploy must not allow the Connector ingress preflight to be disabled"
+grep -qF 'NGINX_PUBLIC_INGRESS_PROFILE must be app-all when the Campus Connector Gateway is enabled' "${PROD_DEPLOY_FILE}" ||
+  fail "production deploy must audit both the main HTTP ingress and Connector stream ingress"
 
 authz_block="$(
   awk '

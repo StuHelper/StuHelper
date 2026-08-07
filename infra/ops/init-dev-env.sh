@@ -323,6 +323,8 @@ ensure_dev_default "STACK_NAME" "${STACK_NAME:-}" "stuhelper-dev" "stuhelper-pro
 ensure_dev_default "COMPOSE_PROJECT_NAME" "${COMPOSE_PROJECT_NAME:-}" "stuhelper-dev" "stuhelper-prod" "stuhelper-prod-parity"
 ensure_dev_default "APP_ENV" "${APP_ENV:-}" "development" "production" "prod-parity"
 ensure_dev_default "APP_RUNTIME_MODE" "${APP_RUNTIME_MODE:-}" "app" "campus-connector-bootstrap"
+ensure_value "CAMPUS_CONNECTOR_GATEWAY_PUBLIC_PORT" "${CAMPUS_CONNECTOR_GATEWAY_PUBLIC_PORT:-}" "9444"
+ensure_value "CAMPUS_CONNECTOR_ALLOWED_SOURCE_CIDRS" "${CAMPUS_CONNECTOR_ALLOWED_SOURCE_CIDRS:-}" ""
 ensure_dev_default "API_IP_RATE_LIMIT" "${API_IP_RATE_LIMIT:-}" "5000" "100"
 ensure_dev_default "API_GLOBAL_RATE_LIMIT" "${API_GLOBAL_RATE_LIMIT:-}" "50000" "10000"
 ensure_dev_default "REVIEW_RATE_POST_LIMIT" "${REVIEW_RATE_POST_LIMIT:-}" "500" "5"

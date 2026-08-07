@@ -2,8 +2,8 @@
 type: guide
 audience: ops
 status: current
-authoritative-source: docker-compose.prod.yml + infra/ops/*.sh + infra/nginx/baota-stuhelper.conf + server/migrations/ + server/internal/app/modules.go
-last-verified: 2026-08-06
+authoritative-source: docker-compose.prod.yml + infra/ops/*.sh + infra/nginx/baota-stuhelper.conf + infra/nginx/baota-campus-connector-stream.conf.template + server/migrations/ + server/internal/app/modules.go
+last-verified: 2026-08-07
 ---
 
 # 生产上线缺漏清单与执行指导
@@ -15,8 +15,11 @@ last-verified: 2026-08-06
 - `stuhelper.com`：主站、后台、API、账号中心、学生认证、QQ 绑定、授权应用和开发者应用。
 - `join.stuhelper.com`：加群验证业务域，唯一公开验证链接是 `https://join.stuhelper.com/verify/<code>`。
 - `sso.stuhelper.com`：Casdoor，唯一公开登录认证系统和 OIDC issuer。
+- `connector.stuhelper.com:9444`：校园 Connector 专用原始 TCP 入口；不是 HTTP 站点，TLS 1.3 mTLS 在
+  StuHelper Gateway 内终止。
 
-主站生产 Compose 只把业务服务绑定到回环地址，公网 `80/443` 只由宝塔 Nginx 监听。
+主站生产 Compose 只把业务服务绑定到回环地址，公网 `80/443` 和 Connector TCP `9444` 只由宝塔
+Nginx 监听。
 
 默认回环端口：
 
@@ -24,14 +27,15 @@ last-verified: 2026-08-06
 backend 127.0.0.1:18080
 web     127.0.0.1:18000
 admin   127.0.0.1:18001
+campus connector gateway 127.0.0.1:19444
 ```
 
 ## 上线前阻断项
 
 | 项目 | 要求 |
 |------|------|
-| DNS | `stuhelper.com`、`www.stuhelper.com`、`join.stuhelper.com`、`sso.stuhelper.com` 指向对应公网入口；不再配置独立身份入口域名 |
-| 宝塔 Nginx | 主站机合并 `infra/nginx/baota-stuhelper.conf`；Casdoor 入口按 `infra/nginx/baota-casdoor-sso.conf` 或等价配置反代 |
+| DNS | `stuhelper.com`、`www.stuhelper.com`、`join.stuhelper.com`、`sso.stuhelper.com` 指向对应公网入口；启用校园 Connector 时，`connector.stuhelper.com` 也指向主站公网边缘；DNS 本身不会建立内网连接或 TCP 代理 |
+| 宝塔 Nginx | 主站机合并 `infra/nginx/baota-stuhelper.conf`；Connector 使用 `infra/nginx/baota-campus-connector-stream.conf.template` 渲染出的 stream 配置做原始 TCP 透传；Casdoor 入口按 `infra/nginx/baota-casdoor-sso.conf` 或等价配置反代 |
 | 生产 env | 使用 `infra/ops/init-prod-env.sh` 生成模板，替换占位符；不得提交真实 `.env.prod.*` |
 | 生产目标清单 | 从 `infra/ansible/inventory/production.example.ini` 创建被 Git 忽略的 `production.ini`，填写真实非本机主机和 SSH 用户；空清单或示例占位符必须阻断部署 |
 | Secret backend | 生产使用非 repo 的 secret backend；真实 token、密码、对象存储密钥不写入仓库 |
@@ -68,6 +72,14 @@ TOKEN_COOKIE_DOMAIN=.stuhelper.com
 ADMISSION_PRODUCTION_READINESS_ENABLED=true
 ADMISSION_READINESS_REQUIRED_PLATFORM=qq
 ADMISSION_READINESS_REQUIRED_GUILD_IDS=178037297
+
+# 仅在校园 Connector Gateway 上线时启用；CIDR 必须来自批准的稳定校园节点出口。
+CAMPUS_CONNECTOR_GATEWAY_ENABLED=true
+CAMPUS_CONNECTOR_GATEWAY_PUBLIC_HOST=connector.stuhelper.com
+CAMPUS_CONNECTOR_GATEWAY_PUBLIC_PORT=9444
+CAMPUS_CONNECTOR_GATEWAY_EXTERNAL_PORT=19444
+CAMPUS_CONNECTOR_ALLOWED_SOURCE_CIDRS=REPLACE_WITH_APPROVED_CAMPUS_CONNECTOR_SOURCE_CIDRS
+NGINX_PUBLIC_INGRESS_PROFILE=app-all
 ADMISSION_READINESS_REQUIRED_SCHOOL_CODES=4111010006
 ADMISSION_READINESS_REQUIRED_SCHOOL_IDS=
 ADMISSION_READINESS_REQUIRED_BOT_CREDENTIAL_NAME=koishi-runtime
@@ -154,11 +166,31 @@ sso.stuhelper.com /login/*                          -> Casdoor
 sso.stuhelper.com /api/*                            -> Casdoor
 ```
 
+校园 Connector 入口：
+
+```text
+校园 Connector
+  -> connector.stuhelper.com:9444
+  -> 宝塔 Nginx stream 原始 TCP 透传（不终止 TLS）
+  -> 127.0.0.1:19444
+  -> StuHelper Gateway TLS 1.3 mTLS
+```
+
+Connector stream 配置必须只有精确的公网 `listen`、loopback `proxy_pass`、有界超时、批准来源的
+`allow` 和末尾 `deny all`。不得出现 `listen ... ssl`、`ssl_certificate`、`proxy_ssl*`、HTTP 反代或
+CDN TLS 终止；否则客户端证书不会到达 Gateway。宿主防火墙必须使用同一批准 CIDR 开放公网端口，不能
+添加 `0.0.0.0/0` 兜底规则。
+
 执行审计：
 
 ```bash
 NGINX_PUBLIC_INGRESS_PROFILE=stuhelper ./infra/ops/nginx-public-ingress-preflight.sh
 NGINX_PUBLIC_INGRESS_PROFILE=sso ./infra/ops/nginx-public-ingress-preflight.sh
+
+# 主站启用 Connector 后，同时审计 HTTP 与 stream 配置。
+CAMPUS_CONNECTOR_ALLOWED_SOURCE_CIDRS=<approved-ipv4-cidr> \
+  NGINX_PUBLIC_INGRESS_PROFILE=app-all \
+  ./infra/ops/nginx-public-ingress-preflight.sh
 ```
 
 应用或恢复宝塔 vhost 模板：
@@ -173,9 +205,31 @@ sudo ./infra/ops/apply-baota-nginx-templates.sh --profile all --apply --reload -
 # 如果宝塔面板重写了 sso.stuhelper.com.conf，导致 discovery 变成 404，优先只恢复 SSO vhost
 sudo ./infra/ops/apply-baota-nginx-templates.sh --profile sso --apply --reload --preflight
 ./infra/ops/sso-public-smoke.sh
+
+# Connector 单独 dry-run；不会写配置或 reload。
+CAMPUS_CONNECTOR_ALLOWED_SOURCE_CIDRS=<approved-ipv4-cidr> \
+  ./infra/ops/apply-baota-nginx-templates.sh --profile connector
+
+# 主站首次接入时只应用 Connector stream；脚本会渲染 allowlist、备份旧目标、nginx -t、reload 和 preflight。
+sudo \
+  CAMPUS_CONNECTOR_ALLOWED_SOURCE_CIDRS=<approved-ipv4-cidr> \
+  ./infra/ops/apply-baota-nginx-templates.sh \
+    --profile connector \
+    --apply \
+    --reload \
+    --preflight
+
+# 主站后续可用 app-all 同时收敛主站 HTTP 与 Connector stream；它不包含独立 SSO 主机配置。
+sudo \
+  CAMPUS_CONNECTOR_ALLOWED_SOURCE_CIDRS=<approved-ipv4-cidr> \
+  ./infra/ops/apply-baota-nginx-templates.sh \
+    --profile app-all \
+    --apply \
+    --reload \
+    --preflight
 ```
 
-注意：`apply-baota-nginx-templates.sh` 是仓库事实来源的一部分，生产不应直接手改 vhost 后停留在漂移状态。`--profile sso` 会同时安装 `infra/nginx/baota-casdoor-sso.conf` 和 `infra/nginx/baota-casdoor-sso-well-known-extension.conf`。后者目标路径是宝塔扩展目录 `/www/server/panel/vhost/nginx/extension/sso.stuhelper.com/stuhelper-sso-well-known.conf`，用于在宝塔重写主 vhost 但保留 extension include 时继续让 OIDC discovery/JWKS 走 Casdoor。如果主站和 SSO 不在同一台机器，只在对应机器执行对应 profile；不要把另一台机器的 vhost 目标路径作为临时手改。宝塔面板保存站点配置后可能重写 vhost。若 `sso-public-smoke.sh` 报 discovery 404，先用上面的 `--profile sso` 恢复，再审计 `NGINX_PUBLIC_INGRESS_PROFILE=sso ./infra/ops/nginx-public-ingress-preflight.sh`。
+注意：`apply-baota-nginx-templates.sh` 是仓库事实来源的一部分，生产不应直接手改 vhost 后停留在漂移状态。历史 `--profile all` 为兼容既有流程，仍只表示 `stuhelper+sso` 两组 HTTP vhost，不会隐式要求 Connector；主站 HTTP 与 Connector 应使用 `--profile app-all`，仅 Connector 使用 `--profile connector`，SSO-only 主机仍使用 `--profile sso`。`--profile sso` 会同时安装 `infra/nginx/baota-casdoor-sso.conf` 和 `infra/nginx/baota-casdoor-sso-well-known-extension.conf`。后者目标路径是宝塔扩展目录 `/www/server/panel/vhost/nginx/extension/sso.stuhelper.com/stuhelper-sso-well-known.conf`，用于在宝塔重写主 vhost 但保留 extension include 时继续让 OIDC discovery/JWKS 走 Casdoor。Connector 目标路径是 `/www/server/panel/vhost/nginx/tcp/connector.stuhelper.com.conf`，必须被宝塔主配置的 `stream { include .../tcp/*.conf; }` 实际加载。若主站和 SSO 不在同一台机器，只在对应机器执行对应 profile；不要把另一台机器的 vhost 目标路径作为临时手改。宝塔面板保存站点配置后可能重写 vhost。若 `sso-public-smoke.sh` 报 discovery 404，先用上面的 `--profile sso` 恢复，再审计 `NGINX_PUBLIC_INGRESS_PROFILE=sso ./infra/ops/nginx-public-ingress-preflight.sh`。
 
 ## Admission 生产数据
 

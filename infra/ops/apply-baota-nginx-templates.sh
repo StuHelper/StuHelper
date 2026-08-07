@@ -14,7 +14,10 @@ vhost files in a repeatable way. The default mode is a dry run; pass --apply to
 write files.
 
 Options:
-  --profile stuhelper|sso|all   Template set to apply. Defaults to all.
+  --profile stuhelper|sso|connector|app-all|all
+                                Template set to apply. `all` preserves the
+                                existing HTTP stuhelper+sso behavior; `app-all`
+                                selects stuhelper+connector. Defaults to all.
   --apply                       Replace target files. Without this, no files are changed.
   --reload                      Run nginx -s reload after a successful nginx -t.
   --preflight                   Run nginx-public-ingress-preflight.sh after apply/dry-run.
@@ -24,10 +27,15 @@ Environment overrides:
   BAOTA_NGINX_STUHELPER_TEMPLATE
   BAOTA_NGINX_SSO_TEMPLATE
   BAOTA_NGINX_SSO_WELL_KNOWN_EXTENSION_TEMPLATE
+  BAOTA_NGINX_CONNECTOR_TEMPLATE
   BAOTA_NGINX_STUHELPER_TARGET
   BAOTA_NGINX_SSO_TARGET
   BAOTA_NGINX_SSO_WELL_KNOWN_EXTENSION_TARGET
+  BAOTA_NGINX_CONNECTOR_TARGET
   BAOTA_NGINX_BIN
+  CAMPUS_CONNECTOR_GATEWAY_PUBLIC_PORT
+  CAMPUS_CONNECTOR_GATEWAY_EXTERNAL_PORT
+  CAMPUS_CONNECTOR_ALLOWED_SOURCE_CIDRS
 
 This script intentionally contains no SSH host, credential, token, or secret.
 USAGE
@@ -41,7 +49,7 @@ preflight="false"
 while (($# > 0)); do
   case "$1" in
     --profile)
-      [[ $# -ge 2 ]] || die "--profile requires stuhelper, sso, or all"
+      [[ $# -ge 2 ]] || die "--profile requires stuhelper, sso, connector, app-all, or all"
       profile="$2"
       shift 2
       ;;
@@ -68,18 +76,29 @@ while (($# > 0)); do
 done
 
 case "${profile}" in
-  stuhelper|sso|all) ;;
-  *) die "--profile must be stuhelper, sso, or all" ;;
+  stuhelper|sso|connector|app-all|all) ;;
+  *) die "--profile must be stuhelper, sso, connector, app-all, or all" ;;
 esac
 
 nginx_bin="${BAOTA_NGINX_BIN:-nginx}"
 stuhelper_template="${BAOTA_NGINX_STUHELPER_TEMPLATE:-${REPO_ROOT}/infra/nginx/baota-stuhelper.conf}"
 sso_template="${BAOTA_NGINX_SSO_TEMPLATE:-${REPO_ROOT}/infra/nginx/baota-casdoor-sso.conf}"
 sso_extension_template="${BAOTA_NGINX_SSO_WELL_KNOWN_EXTENSION_TEMPLATE:-${REPO_ROOT}/infra/nginx/baota-casdoor-sso-well-known-extension.conf}"
+connector_template="${BAOTA_NGINX_CONNECTOR_TEMPLATE:-${REPO_ROOT}/infra/nginx/baota-campus-connector-stream.conf.template}"
+connector_renderer="${REPO_ROOT}/infra/ops/render-campus-connector-nginx-stream.py"
 stuhelper_target="${BAOTA_NGINX_STUHELPER_TARGET:-/www/server/panel/vhost/nginx/stuhelper.com.conf}"
 sso_target="${BAOTA_NGINX_SSO_TARGET:-/www/server/panel/vhost/nginx/sso.stuhelper.com.conf}"
 sso_extension_target="${BAOTA_NGINX_SSO_WELL_KNOWN_EXTENSION_TARGET:-/www/server/panel/vhost/nginx/extension/sso.stuhelper.com/stuhelper-sso-well-known.conf}"
+connector_target="${BAOTA_NGINX_CONNECTOR_TARGET:-/www/server/panel/vhost/nginx/tcp/connector.stuhelper.com.conf}"
 timestamp="${BAOTA_NGINX_BACKUP_TIMESTAMP:-$(date -u +%Y%m%dT%H%M%SZ)}"
+rendered_connector_template=""
+
+cleanup() {
+  if [[ -n "${rendered_connector_template}" ]]; then
+    rm -f "${rendered_connector_template}"
+  fi
+}
+trap cleanup EXIT
 
 selected_names=()
 selected_templates=()
@@ -91,6 +110,21 @@ add_entry() {
   selected_targets+=("$3")
 }
 
+add_connector_entry() {
+  require_cmd python3
+  [[ -f "${connector_renderer}" ]] || die "missing campus connector stream renderer: ${connector_renderer}"
+  rendered_connector_template="$(mktemp)"
+  if ! python3 "${connector_renderer}" \
+    --template "${connector_template}" \
+    --output "${rendered_connector_template}" \
+    --public-port "${CAMPUS_CONNECTOR_GATEWAY_PUBLIC_PORT:-9444}" \
+    --upstream-port "${CAMPUS_CONNECTOR_GATEWAY_EXTERNAL_PORT:-19444}" \
+    --allowed-cidrs "${CAMPUS_CONNECTOR_ALLOWED_SOURCE_CIDRS:-}"; then
+    die "failed to render fail-closed campus connector stream ingress"
+  fi
+  add_entry "connector" "${rendered_connector_template}" "${connector_target}"
+}
+
 case "${profile}" in
   stuhelper)
     add_entry "stuhelper" "${stuhelper_template}" "${stuhelper_target}"
@@ -98,6 +132,13 @@ case "${profile}" in
   sso)
     add_entry "sso" "${sso_template}" "${sso_target}"
     add_entry "sso-well-known-extension" "${sso_extension_template}" "${sso_extension_target}"
+    ;;
+  connector)
+    add_connector_entry
+    ;;
+  app-all)
+    add_entry "stuhelper" "${stuhelper_template}" "${stuhelper_target}"
+    add_connector_entry
     ;;
   all)
     add_entry "stuhelper" "${stuhelper_template}" "${stuhelper_target}"
@@ -126,6 +167,7 @@ run_preflight() {
   log "running Nginx public ingress preflight for profile=${preflight_profile}"
   NGINX_PUBLIC_INGRESS_PROFILE="${preflight_profile}" \
     NGINX_PUBLIC_INGRESS_NGINX_BIN="${nginx_bin}" \
+    NGINX_PUBLIC_INGRESS_CONNECTOR_CONFIG_FILE="${connector_target}" \
     "${SCRIPT_DIR}/nginx-public-ingress-preflight.sh"
 }
 
@@ -168,7 +210,7 @@ apply_templates() {
   local changed_names=()
   local changed_targets=()
   local changed_backups=()
-  local i template target backup tmp_target
+  local i template target target_dir backup tmp_target
 
   require_cmd install
   require_cmd cmp
