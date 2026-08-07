@@ -6,6 +6,9 @@ const (
 	EnvDevelopment = "development"
 	EnvProduction  = "production"
 	EnvProdParity  = "prod-parity"
+
+	RuntimeModeApp                      = "app"
+	RuntimeModeCampusConnectorBootstrap = "campus-connector-bootstrap"
 )
 
 // IsProductionLikeEnv reports whether an environment should use production-grade
@@ -206,6 +209,7 @@ type ObjectStorageConfig struct {
 // AppConfig 应用配置
 type AppConfig struct {
 	Env                string
+	RuntimeMode        string
 	Port               string
 	CORSOrigins        []string
 	TrustedProxies     []string
@@ -389,6 +393,7 @@ func Load() (*Config, error) {
 func loadAppConfig(parseErrs *[]string) AppConfig {
 	return AppConfig{
 		Env:            getEnv("APP_ENV", "development"),
+		RuntimeMode:    getEnv("APP_RUNTIME_MODE", RuntimeModeApp),
 		Port:           getEnv("APP_PORT", "8080"),
 		CORSOrigins:    getEnvSlice("CORS_ORIGINS", []string{}),
 		TrustedProxies: getEnvSlice("TRUSTED_PROXIES", []string{}),

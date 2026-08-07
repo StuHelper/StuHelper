@@ -272,6 +272,25 @@ endpoint，因此 Oracle listener redirect 会被拒绝。SSH 隧道不是 Oracl
 snapshot、校园连接器未健康或快照超过 14 天时都必须阻断生产发布，不得用旧 `academic.buaa_students`
 或 admission readiness 的通过结果替代。
 
+首次生产发布存在一个刻意保留的两阶段启动过程。migration 完成后，`prod-deploy.sh` 会启动与正式后端
+相同镜像的 `campus-connector-bootstrap` 服务，并把 `APP_RUNTIME_MODE` 固定为
+`campus-connector-bootstrap`。这个进程只初始化 HMAC、PII 加密、PostgreSQL、Redis、OTLP、mTLS Gateway
+和完整名册 importer；不监听 8080，不创建 Gin router，不初始化 OIDC、OpenFGA、token service、对象
+存储、普通业务 worker、Web 或 Admin。真实校园节点必须通过该 Gateway 上报心跳、operation 健康状态和
+签名加密完整快照，授权管理员完成质量审阅与激活后，readiness 才会通过。
+
+若 student verification 或后续 readiness 失败，发布脚本会以非零状态退出，但故意保留
+`${STACK_NAME}-campus-connector-bootstrap` 运行，供真实节点继续完成上述准备；它不会记录 release，也不会
+提前启动新版 App。修复真实缺口后重新执行同一个 `make prod-deploy`。不得手工伪造 heartbeat、operation
+状态或 active snapshot，也不得关闭 readiness。所有 migration/readiness/控制面 evidence 通过后，脚本
+才停止并移除 bootstrap、确认 `127.0.0.1:${CAMPUS_CONNECTOR_GATEWAY_EXTERNAL_PORT}` 已释放，再启动明确
+固定为 `APP_RUNTIME_MODE=app` 的正式 App/Web/Admin。
+
+普通升级若现有 `${STACK_NAME}-app` 已映射该 loopback 端口且容器内确实监听 9444，则直接复用现有
+Gateway，不并行启动 bootstrap。若 App 有映射却没有监听，或该宿主端口属于未知容器/非 Compose 进程，
+发布会 fail closed，且不会停止生产 App、未知容器或未知进程。应先只读取证并修复真实端口所有权，不要
+用 `docker rm -f`、`kill` 或临时改端口绕过。
+
 当前生产范围只包括北航，要求的方法集合为实名信息校验、学校 SSO 和人工材料审核。两种学校邮件方法
 保留在能力注册表中但继续停用，不发送真实邮件，也不得为了通过 readiness 伪造健康状态；待邮件收发
 链路、隐私告知和真实投递验收完成后，再显式加入

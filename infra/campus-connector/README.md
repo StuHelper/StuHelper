@@ -138,17 +138,27 @@ LogMiner、CDC 或数据库日志读取。未来只有在不扩展当前 Oracle 
      --apply
    ```
 
-5. 启动连接器，确认中心收到心跳，LDAP/Oracle operation 分别显示稳定的健康码；不要用真实学生密码
-   做周期探活。
+5. 在中心运行标准 `prod-deploy.sh`。首次发布时，migration 后会启动同一 backend image 的
+   `campus-connector-bootstrap` 运行模式；它只提供 PostgreSQL/Redis/OTLP、mTLS Gateway 和 roster
+   importer，不启动公网 API、OIDC、OpenFGA、token service 或普通业务 worker。然后启动校园连接器，
+   确认中心收到心跳，LDAP/Oracle operation 分别显示稳定的健康码；不要用真实学生密码做周期探活。
 6. 首次完整快照进入 `ready` 后检查行数、唯一性、状态码、密文/HMAC 成对生成、来源时间和校验和；
    自动激活默认关闭，首次上线应由授权管理员审阅并原子激活。
-7. 演练连接器离线、证书吊销、签名错误、上游超时、快照突变和中心拒绝。相关学校方法必须 fail
+7. readiness 未通过时，标准发布会失败但保留 bootstrap 容器运行，不记录 release，也不启动新版
+   App/Web/Admin。完成真实缺口后重新执行发布；门禁通过后脚本停止 bootstrap、确认 loopback 端口释放，
+   再由固定为 `APP_RUNTIME_MODE=app` 的正式 App 接管 Gateway。已有健康 App Gateway 的普通升级会直接
+   复用；映射但未监听或未知进程占用端口时 fail closed，不会自动停止或替换任何未知对象。
+8. 演练连接器离线、证书吊销、签名错误、上游超时、快照突变和中心拒绝。相关学校方法必须 fail
    closed，但其他学校和不依赖该连接器的方法不受影响。
 
 中心生产网关还需要一个不会终止 TLS 的公网 TCP 入口：DNS 指向生产边缘，边缘把连接原样透传到
 宿主 loopback 的 `CAMPUS_CONNECTOR_GATEWAY_EXTERNAL_PORT`。普通 HTTP 反代、CDN 代签证书或在边缘
 终止 TLS 都会丢失客户端证书身份，不能使用。启用前运行 `prod-deploy.sh` 预检；它会核对 SAN、证书
 链、证书/私钥配对、有效期、文件权限和 snapshot key ID。
+
+该出站应用层连接已经解决生产中心与校园节点之间的传输问题，生产中心不需要北航路由。EasyTier 或
+Tailscale 最多只能作为可选底层链路，当前公网 mTLS 方案不依赖它们；即使将来采用 overlay，也不能替代
+mTLS、Ed25519 签名、operation allowlist、重放保护、快照加密、固定 Oracle `SELECT` 或审计/质量门禁。
 
 ## 6. 运行与轮换
 

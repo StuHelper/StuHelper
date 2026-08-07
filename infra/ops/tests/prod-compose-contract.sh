@@ -46,7 +46,23 @@ app_block="$(
 )"
 
 [[ -n "${app_block}" ]] || fail "expected app service block in ${COMPOSE_PROD_FILE}"
+bootstrap_block="$(
+  awk '
+    /^  campus-connector-bootstrap:/ { in_block=1; next }
+    /^  app:/ { in_block=0 }
+    in_block { print }
+  ' "${COMPOSE_PROD_FILE}"
+)"
+[[ -n "${bootstrap_block}" ]] || fail "expected campus connector bootstrap service block in ${COMPOSE_PROD_FILE}"
 [[ -f "${COMPOSE_EXTERNAL_DATASTORE_FILE}" ]] || fail "missing external datastore compose overlay"
+external_bootstrap_block="$(
+  awk '
+    /^  campus-connector-bootstrap:/ { in_block=1; next }
+    /^  app:/ { in_block=0 }
+    in_block { print }
+  ' "${COMPOSE_EXTERNAL_DATASTORE_FILE}"
+)"
+[[ -n "${external_bootstrap_block}" ]] || fail "expected campus connector bootstrap override in ${COMPOSE_EXTERNAL_DATASTORE_FILE}"
 external_app_block="$(
   awk '
     /^  app:/ { in_block=1; next }
@@ -102,6 +118,63 @@ if ! printf '%s\n' "${app_block}" | grep -Eq '\$\{GENERATED_SECRET_ENV_FILE_PATH
 fi
 if printf '%s\n' "${app_block}" | grep -Eq 'CASDOOR_BOOTSTRAP_CLIENT_SECRET'; then
   fail "app service must not receive one-shot Casdoor bootstrap credentials"
+fi
+if ! printf '%s\n' "${app_block}" | grep -Eq '^      APP_RUNTIME_MODE: app$'; then
+  fail "production app must explicitly pin APP_RUNTIME_MODE=app"
+fi
+
+if ! printf '%s\n' "${bootstrap_block}" | grep -Eq '^    image: \$\{BACKEND_IMAGE_REF:\?BACKEND_IMAGE_REF is required\}$'; then
+  fail "campus connector bootstrap must use the exact production backend image"
+fi
+if ! printf '%s\n' "${bootstrap_block}" | grep -Eq '^      APP_RUNTIME_MODE: campus-connector-bootstrap$'; then
+  fail "campus connector bootstrap must select the isolated runtime mode"
+fi
+if ! printf '%s\n' "${bootstrap_block}" | grep -Eq '^      CAMPUS_CONNECTOR_GATEWAY_ENABLED: "true"$'; then
+  fail "campus connector bootstrap must always enable its mTLS gateway"
+fi
+if printf '%s\n' "${bootstrap_block}" | grep -Eq 'CAMPUS_CONNECTOR_SNAPSHOT_KEY_ID:\?'; then
+  fail "optional bootstrap variables must not break unrelated compose rendering before runtime validation"
+fi
+if printf '%s\n' "${bootstrap_block}" | grep -Eq '^    env_file:'; then
+  fail "campus connector bootstrap must not inherit unrelated online application secrets"
+fi
+for oracle_key in \
+  EXTERNAL_STUDENT_SOURCE_ORACLE_HOST \
+  EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME \
+  EXTERNAL_STUDENT_SOURCE_ORACLE_PASSWORD; do
+  if ! printf '%s\n' "${bootstrap_block}" | grep -Eq "^      ${oracle_key}: \"\"$"; then
+    fail "campus connector bootstrap must explicitly clear ${oracle_key}"
+  fi
+done
+if ! printf '%s\n' "${bootstrap_block}" | grep -Eq '^      EXTERNAL_STUDENT_SOURCE_ENABLED: "false"$'; then
+  fail "campus connector bootstrap must never initialize the legacy Oracle source"
+fi
+if printf '%s\n' "${bootstrap_block}" | grep -Eq 'CASDOOR_|OPENFGA_|TOKEN_|OBJECT_STORAGE_|SMS_|EMAIL_'; then
+  fail "campus connector bootstrap must not receive unrelated online control-plane credentials"
+fi
+if printf '%s\n' "${bootstrap_block}" | grep -Eq '^    - .*:8080$|^    - frontend$'; then
+  fail "campus connector bootstrap must not expose the public API or join the frontend network"
+fi
+if ! printf '%s\n' "${bootstrap_block}" | grep -Eq '127\.0\.0\.1:\$\{CAMPUS_CONNECTOR_GATEWAY_EXTERNAL_PORT:-19444\}:9444'; then
+  fail "campus connector bootstrap must expose only the loopback gateway handoff port"
+fi
+if ! printf '%s\n' "${bootstrap_block}" | grep -Eq '^    read_only: true$'; then
+  fail "campus connector bootstrap must use a read-only root filesystem"
+fi
+if ! printf '%s\n' "${bootstrap_block}" | grep -Eq '^    - ALL$'; then
+  fail "campus connector bootstrap must drop all Linux capabilities"
+fi
+if ! printf '%s\n' "${bootstrap_block}" | grep -Eq '/proc/net/tcp'; then
+  fail "campus connector bootstrap healthcheck must verify the listener without generating failed mTLS handshakes"
+fi
+if printf '%s\n' "${bootstrap_block}" | grep -Eq 'external-student-source|object-storage-tls|/run/secrets/casdoor'; then
+  fail "campus connector bootstrap must mount only datastore CAs and gateway PKI"
+fi
+if ! printf '%s\n' "${external_bootstrap_block}" | grep -Eq '^    - external-datastore$'; then
+  fail "external PostgreSQL deployments must attach campus connector bootstrap to external-datastore"
+fi
+if printf '%s\n' "${external_bootstrap_block}" | grep -Eq '^    - frontend$'; then
+  fail "external datastore override must not attach campus connector bootstrap to frontend"
 fi
 
 assert_contains "${COMMON_LIB_FILE}" 'SECRETS_ENV_FILE_PATH="\$\{SECRETS_ENV_FILE\}"'

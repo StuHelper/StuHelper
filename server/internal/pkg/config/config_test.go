@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -220,6 +221,80 @@ func TestLoadAppConfigDefaultBodyLimitAccommodatesTenMiBBase64Payload(t *testing
 
 	require.Empty(t, parseErrs)
 	assert.Equal(t, int64(16<<20), cfg.MaxBodySize)
+}
+
+func TestLoadAppConfigDefaultsToOnlineApplicationMode(t *testing.T) {
+	previous, existed := os.LookupEnv("APP_RUNTIME_MODE")
+	require.NoError(t, os.Unsetenv("APP_RUNTIME_MODE"))
+	t.Cleanup(func() {
+		if existed {
+			require.NoError(t, os.Setenv("APP_RUNTIME_MODE", previous))
+			return
+		}
+		require.NoError(t, os.Unsetenv("APP_RUNTIME_MODE"))
+	})
+	var parseErrs []string
+
+	cfg := loadAppConfig(&parseErrs)
+
+	require.Empty(t, parseErrs)
+	assert.Equal(t, RuntimeModeApp, cfg.RuntimeMode)
+}
+
+func TestValidateRejectsUnknownAppRuntimeMode(t *testing.T) {
+	c := validProductionConfigForTest()
+	c.App.RuntimeMode = "gateway"
+
+	err := c.validate(nil)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "APP_RUNTIME_MODE must be app or campus-connector-bootstrap")
+}
+
+func TestValidateCampusConnectorBootstrapDoesNotRequireOnlineControlPlanes(t *testing.T) {
+	c := validProductionConfigForTest()
+	c.App.RuntimeMode = RuntimeModeCampusConnectorBootstrap
+	c.CampusConnector = CampusConnectorGatewayConfig{
+		Enabled:                     true,
+		ListenAddress:               ":9444",
+		ServerCertificateFile:       "/run/secrets/campus-connector/gateway.crt",
+		ServerPrivateKeyFile:        "/run/secrets/campus-connector/gateway.key",
+		ClientCAFile:                "/run/secrets/campus-connector/client-ca.crt",
+		SnapshotDecryptionKeyFile:   "/run/secrets/campus-connector/snapshot-x25519.key",
+		SnapshotDecryptionKeyID:     "snapshot-key-id",
+		ProtocolVersion:             "1",
+		PollWaitSeconds:             25,
+		SignatureMaxSkewSeconds:     120,
+		ReplayTTLSeconds:            360,
+		MaxSnapshotPlaintextBytes:   128 << 20,
+		MaxSnapshotRequestBytes:     192 << 20,
+		MaxInteractivePasswordBytes: 256,
+	}
+	c.Casdoor = CasdoorConfig{}
+	c.OpenFGA = OpenFGAConfig{}
+	c.ObjectStorage = ObjectStorageConfig{}
+	c.Token = TokenConfig{}
+	c.SMS = SMSConfig{}
+	c.Email = EmailConfig{}
+	c.Bot = BotConfig{}
+	c.Admission = AdmissionConfig{}
+	c.StudentVerification = StudentVerificationConfig{}
+	c.RateLimit = ReviewRateLimitConfig{}
+	c.Review = ReviewConfig{}
+	c.OpenPlatform = OpenPlatformConfig{}
+
+	require.NoError(t, c.validate(nil))
+}
+
+func TestValidateCampusConnectorBootstrapRequiresEnabledGateway(t *testing.T) {
+	c := validProductionConfigForTest()
+	c.App.RuntimeMode = RuntimeModeCampusConnectorBootstrap
+	c.CampusConnector.Enabled = false
+
+	err := c.validate(nil)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "CAMPUS_CONNECTOR_GATEWAY_ENABLED must be true in campus connector bootstrap mode")
 }
 
 func TestValidate_RejectsAppEnvWhitespace(t *testing.T) {

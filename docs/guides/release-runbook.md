@@ -330,6 +330,13 @@ curl -fsS -o /dev/null -w 'ready=%{http_code}\n' http://127.0.0.1:18080/health/r
   secret store。
   在发布前运行 `make prod-student-verification-readiness`；证据必须显示所需学校、方法、健康连接器
   operation、签名完整快照和质量门禁全部通过。该命令只输出聚合计数，不得出现学生标识或上游连接信息。
+  首次发布时 `prod-deploy.sh` 会在 migration 后、该 readiness 前启动隔离的
+  `${STACK_NAME}-campus-connector-bootstrap`。它使用同一不可变 backend image，但只运行 mTLS Gateway 与
+  roster importer，不启动公网 API/OIDC/OpenFGA/token/业务 worker。readiness 失败时该容器应继续运行，
+  release 不会落账；完成真实 heartbeat、operation、签名快照、质量门禁和激活后，重新运行发布入口。
+  全部门禁通过后脚本会停止 bootstrap、确认 loopback 端口释放，再由 `APP_RUNTIME_MODE=app` 的正式 App
+  接管。已有健康 App Gateway 的普通升级不会启动 bootstrap；映射存在但未监听或端口所有者未知时会直接
+  失败，脚本不会杀进程或停止旧 App。
 
 - admission 聚合生产证据：`./infra/ops/admission-mvp-production-evidence.sh` 继续留档 SSO、公网入口、Web
   浏览器、Koishi 和真实 QQ 回写证据，但旧外部 Oracle/本地 fallback 检查不能证明新学生认证域就绪。
@@ -345,7 +352,7 @@ curl -fsS -o /dev/null -w 'ready=%{http_code}\n' http://127.0.0.1:18080/health/r
 - Open Platform 生产准入证据留档：`./infra/ops/open-platform-production-evidence.sh`
 - PostgreSQL 备份证据留档：`./infra/ops/postgres-backup-evidence.sh`
 - 观测证据留档：`OBS_SMOKE_STRICT=true ./infra/ops/observability-smoke-check.sh`
-- `docker compose -f docker-compose.yml -f docker-compose.observability.yml -f docker-compose.prod.yml --profile prod ps` 中 `app` / `frontend` / `admin` 为 healthy/running。
+- 最终成功后，`docker compose -f docker-compose.yml -f docker-compose.observability.yml -f docker-compose.prod.yml --profile prod ps` 中 `app` / `frontend` / `admin` 为 healthy/running，`campus-connector-bootstrap` 不应继续运行。首次 readiness 尚未通过的失败态则恰好相反：bootstrap 应为 healthy，新的 app/frontend/admin 不应被发布脚本提前启动。
 
 `open-platform-production-evidence.sh` 会把 Casdoor runtime token probe 和 OpenFGA resource smoke 的
 关键结果汇总到 `infra/generated/open-platform-production-evidence.json`，并确认子 evidence 匹配当前

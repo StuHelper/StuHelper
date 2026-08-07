@@ -110,6 +110,8 @@ fresh_bootstrap_env="${fresh_dir}/.env.casdoor-bootstrap.local"
 
 assert_file_contains "${fresh_dir}/stdout.log" 'from \.env\.prod\.example'
 assert_file_contains "${fresh_env}" '^# StuHelper 生产环境配置样板$'
+assert_env_value "${fresh_env}" "APP_ENV" "production"
+assert_env_value "${fresh_env}" "APP_RUNTIME_MODE" "app"
 assert_file_contains "${REPO_ROOT}/.env.prod.example" '^# 生成期占位：不是生产凭据。init-prod-env 只复制该占位符；prod-deploy 前必须从真实 bot service credential 或 secret backend 注入。$'
 assert_file_contains "${REPO_ROOT}/.env.prod.example" '^BOT_SERVICE_TOKEN=REPLACE_WITH_BOT_SERVICE_TOKEN_BOOTSTRAP$'
 assert_file_not_contains "${REPO_ROOT}/.env.prod.example" 'init-prod-env/bootstrap 会创建真实 bot service credential'
@@ -388,6 +390,8 @@ DEPLOY_STATE_DIR="${legacy_dir}/.deploy" \
 bash "${INIT_SCRIPT}" >"${legacy_dir}/stdout.log" 2>"${legacy_dir}/stderr.log"
 
 legacy_env="${legacy_dir}/.env.prod.shared"
+assert_env_value "${legacy_env}" "APP_ENV" "production"
+assert_env_value "${legacy_env}" "APP_RUNTIME_MODE" "app"
 assert_env_value "${legacy_env}" "DATABASE_URL" "postgres://stuhelper_app:REPLACE_WITH_STUHELPER_APP_DB_PASSWORD@postgres:5432/stuhelper?sslmode=verify-full&sslrootcert=/tls/ca.crt"
 assert_env_value "${legacy_env}" "BACKUP_DATABASE_URL" "postgres://stuhelper_backup:REPLACE_WITH_STUHELPER_BACKUP_DB_PASSWORD@postgres:5432/stuhelper?sslmode=verify-full&sslrootcert=/tls/ca.crt"
 assert_env_value "${legacy_env}" "REPLICATION_DATABASE_URL" "postgres://stuhelper_replication:REPLACE_WITH_STUHELPER_REPLICATION_DB_PASSWORD@postgres:5432/stuhelper?sslmode=verify-full&sslrootcert=/tls/ca.crt"

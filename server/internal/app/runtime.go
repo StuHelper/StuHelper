@@ -73,6 +73,9 @@ func (rt *Runtime) run() error {
 		return err
 	}
 	defer rt.closeLogger()
+	if rt.cfg.App.RuntimeMode == config.RuntimeModeCampusConnectorBootstrap {
+		return rt.runCampusConnectorBootstrap()
+	}
 
 	if err := rt.initCoreServices(); err != nil {
 		rt.runCleanups()
@@ -194,6 +197,31 @@ func (rt *Runtime) runCleanups() {
 }
 
 func (rt *Runtime) initCoreServices() error {
+	if err := rt.initSharedRuntimeServices(); err != nil {
+		return err
+	}
+
+	tokenService, err := token.NewService(token.ServiceConfig{
+		RedisClient: rt.redisClient.GetClient(),
+		AccessTTL:   rt.cfg.Token.AccessTokenTTL,
+		RefreshTTL:  rt.cfg.Token.RefreshTokenTTL,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to initialize token service: %w", err)
+	}
+	rt.tokenService = tokenService
+	rt.addCleanup(tokenService.Close)
+
+	oidcClient, err := oidc.NewClient(context.Background(), rt.cfg.Casdoor)
+	if err != nil {
+		return fmt.Errorf("failed to initialize OIDC client: %w", err)
+	}
+	rt.oidcClient = oidcClient
+
+	return nil
+}
+
+func (rt *Runtime) initSharedRuntimeServices() error {
 	if err := crypto.InitHMACKey(rt.cfg.App.HMACSecret, rt.isProduction); err != nil {
 		return fmt.Errorf("failed to initialize HMAC key: %w", err)
 	}
@@ -233,23 +261,6 @@ func (rt *Runtime) initCoreServices() error {
 	rt.database = db.NewDB(pgPool, time.Duration(rt.cfg.Database.QueryTimeout)*time.Second)
 	rt.addCleanup(rt.database.Close)
 	audit.ConfigureRepository(audit.NewRepository(rt.database))
-
-	tokenService, err := token.NewService(token.ServiceConfig{
-		RedisClient: redisClient.GetClient(),
-		AccessTTL:   rt.cfg.Token.AccessTokenTTL,
-		RefreshTTL:  rt.cfg.Token.RefreshTokenTTL,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to initialize token service: %w", err)
-	}
-	rt.tokenService = tokenService
-	rt.addCleanup(tokenService.Close)
-
-	oidcClient, err := oidc.NewClient(context.Background(), rt.cfg.Casdoor)
-	if err != nil {
-		return fmt.Errorf("failed to initialize OIDC client: %w", err)
-	}
-	rt.oidcClient = oidcClient
 
 	return nil
 }

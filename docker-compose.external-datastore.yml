@@ -54,6 +54,22 @@ services:
     - observability
     - external-datastore
 
+  campus-connector-bootstrap:
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      DB_SSL_ROOT_CERT: ${DB_SSL_ROOT_CERT:-}
+    depends_on: !override
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      alloy:
+        condition: service_healthy
+    networks: !override
+    - backend
+    - observability
+    - external-datastore
+
   app:
     environment:
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}

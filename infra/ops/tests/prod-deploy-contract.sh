@@ -59,18 +59,21 @@ render_postgres_tls_line="$(line_number 'render-postgres-tls.sh')"
 prepare_datastore_ca_line="$(line_number 'prepare-datastore-client-cas.sh')"
 external_pitr_evidence_line="$(line_number 'require_external_postgres_pitr_evidence')"
 render_redis_acl_line="$(line_number 'render-redis-acl.sh')"
-pull_release_images_line="$(line_number 'compose --profile prod pull app frontend admin')"
+pull_release_images_line="$(line_number 'compose --profile prod pull app campus-connector-bootstrap frontend admin')"
 start_infra_line="$(line_number 'compose --profile prod up -d --wait "${infra_services[@]}"')"
 predeploy_backup_line="$(line_number '"${SCRIPT_DIR}/backup-postgres.sh" "${predeploy_backup_path}"')"
 predeploy_basebackup_line="$(line_number '"${SCRIPT_DIR}/backup-postgres.sh" "${predeploy_basebackup_path}"')"
 sync_backup_line="$(line_number '"${SCRIPT_DIR}/sync-postgres-backups.sh"')"
 postgres_backup_evidence_line="$(line_number '"${SCRIPT_DIR}/postgres-backup-evidence.sh"')"
 migrate_line="$(line_number 'compose --profile prod up --no-deps migrate')"
+connector_readiness_gateway_line="$(line_number 'prepare_campus_connector_gateway_for_readiness # real gateway state must exist before readiness')"
+student_readiness_line="$(line_number '"${SCRIPT_DIR}/student-verification-production-readiness.sh"')"
 admission_readiness_line="$(line_number '"${SCRIPT_DIR}/admission-production-readiness.sh"')"
 start_authz_line="$(line_number 'compose --profile prod up -d --wait "${authz_services[@]}"')"
 bootstrap_platform_line="$(line_number '"${SCRIPT_DIR}/bootstrap-platform.sh" prod')"
 authorization_cutover_line="$(line_number '"${SCRIPT_DIR}/authorization-ledger-cutover.sh" prod')"
 open_platform_evidence_line="$(line_number '"${SCRIPT_DIR}/open-platform-production-evidence.sh"')"
+connector_handoff_line="$(line_number 'handoff_campus_connector_gateway_to_app # release the loopback port before the online app starts')"
 start_app_line="$(line_number 'compose --profile prod up -d --wait app frontend admin')"
 sso_public_smoke_line="$(line_number '"${SCRIPT_DIR}/sso-public-smoke.sh"')"
 admission_public_smoke_line="$(line_number '"${SCRIPT_DIR}/admission-public-smoke.sh"')"
@@ -487,9 +490,26 @@ fi
 if (( migrate_line <= postgres_backup_evidence_line )); then
   fail "database migrations must wait until PostgreSQL backup evidence passes"
 fi
+if (( connector_readiness_gateway_line <= migrate_line || connector_readiness_gateway_line >= student_readiness_line )); then
+  fail "campus connector bootstrap/reuse must happen after migrations and before student verification readiness"
+fi
+if (( admission_readiness_line <= student_readiness_line )); then
+  fail "admission readiness must run after student verification readiness"
+fi
 if (( admission_readiness_line <= migrate_line )); then
   fail "admission production readiness must run after database migrations"
 fi
+
+grep -qF 'compose --profile prod up -d --wait --no-deps campus-connector-bootstrap' "${PROD_DEPLOY_FILE}" ||
+  fail "production deploy must start the isolated campus connector bootstrap service"
+grep -qF 'it will remain running if a readiness gate fails' "${PROD_DEPLOY_FILE}" ||
+  fail "readiness failure semantics must preserve the campus connector bootstrap service"
+grep -qF 'refusing to stop or replace the unknown process' "${PROD_DEPLOY_FILE}" ||
+  fail "production deploy must fail closed when a non-Compose process owns the gateway port"
+grep -qF 'refusing to disrupt the production application' "${PROD_DEPLOY_FILE}" ||
+  fail "production deploy must not stop an existing app whose mapped gateway is unhealthy"
+grep -qF 'APP_RUNTIME_MODE must be app for production deploy' "${PROD_DEPLOY_FILE}" ||
+  fail "production deploy must reject a shared environment configured as bootstrap mode"
 
 authz_block="$(
   awk '
@@ -526,6 +546,9 @@ if (( open_platform_evidence_line <= authorization_cutover_line )); then
 fi
 if (( start_app_line <= open_platform_evidence_line )); then
   fail "application services must start after Open Platform production evidence smokes pass"
+fi
+if (( connector_handoff_line <= open_platform_evidence_line || connector_handoff_line >= start_app_line )); then
+  fail "the isolated gateway must hand off after control-plane evidence and before the production application starts"
 fi
 if (( sso_public_smoke_line <= start_app_line )); then
   fail "public SSO smoke must run after production application services start"

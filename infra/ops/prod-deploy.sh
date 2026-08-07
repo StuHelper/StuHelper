@@ -92,6 +92,149 @@ reject_local_value() {
   esac
 }
 
+campus_connector_gateway_owner="disabled"
+
+container_is_running() {
+  local container="$1"
+  [[ "$(docker inspect --format '{{.State.Running}}' "${container}" 2>/dev/null || true)" == "true" ]]
+}
+
+container_binds_campus_connector_gateway_port() {
+  local container="$1"
+  local host_port="${CAMPUS_CONNECTOR_GATEWAY_EXTERNAL_PORT:-19444}"
+
+  docker inspect "${container}" 2>/dev/null |
+    jq -e --arg host_port "${host_port}" '
+      .[0].HostConfig.PortBindings["9444/tcp"] // []
+      | any(.HostIp == "127.0.0.1" and .HostPort == $host_port)
+    ' >/dev/null
+}
+
+container_has_campus_connector_gateway_listener() {
+  local container="$1"
+
+  docker exec "${container}" node -e '
+    const fs = require("fs");
+    const listening = ["/proc/net/tcp", "/proc/net/tcp6"].some((path) =>
+      fs.readFileSync(path, "utf8").split("\n").some((line) => {
+        const fields = line.trim().split(/\s+/);
+        return fields[1]?.endsWith(":24E4") && fields[3] === "0A";
+      }),
+    );
+    process.exit(listening ? 0 : 1);
+  ' >/dev/null 2>&1
+}
+
+host_has_non_docker_campus_connector_listener() {
+  local host_port="${CAMPUS_CONNECTOR_GATEWAY_EXTERNAL_PORT:-19444}"
+
+  python3 - "${host_port}" <<'PY'
+import pathlib
+import sys
+
+target = int(sys.argv[1])
+for table in (pathlib.Path("/proc/net/tcp"), pathlib.Path("/proc/net/tcp6")):
+    try:
+        lines = table.read_text(encoding="ascii").splitlines()[1:]
+    except OSError:
+        continue
+    for line in lines:
+        fields = line.split()
+        if len(fields) < 4 or fields[3] != "0A":
+            continue
+        try:
+            port = int(fields[1].rsplit(":", 1)[1], 16)
+        except (IndexError, ValueError):
+            continue
+        if port == target:
+            raise SystemExit(0)
+raise SystemExit(1)
+PY
+}
+
+prepare_campus_connector_gateway_for_readiness() {
+  if [[ "${CAMPUS_CONNECTOR_GATEWAY_ENABLED:-false}" != "true" ]]; then
+    log "campus connector gateway is disabled; no bootstrap listener will be started"
+    campus_connector_gateway_owner="disabled"
+    return 0
+  fi
+
+  local stack_name="${STACK_NAME:-stuhelper}"
+  local app_container="${stack_name}-app"
+  local bootstrap_container="${stack_name}-campus-connector-bootstrap"
+  local published_containers
+  local container_name
+
+  if container_is_running "${app_container}" &&
+    container_binds_campus_connector_gateway_port "${app_container}"; then
+    if ! container_has_campus_connector_gateway_listener "${app_container}"; then
+      die "running application owns the campus connector gateway port mapping but is not listening on container port 9444; refusing to disrupt the production application"
+    fi
+    campus_connector_gateway_owner="app"
+    log "existing production application is serving the campus connector gateway; bootstrap service is not required"
+    return 0
+  fi
+
+  published_containers="$(
+    docker ps \
+      --filter "publish=${CAMPUS_CONNECTOR_GATEWAY_EXTERNAL_PORT:-19444}" \
+      --format '{{.Names}}'
+  )"
+  while IFS= read -r container_name; do
+    [[ -n "${container_name}" ]] || continue
+    if [[ "${container_name}" != "${bootstrap_container}" ]]; then
+      die "campus connector gateway host port is published by unexpected container ${container_name}; refusing to stop or replace it"
+    fi
+  done <<<"${published_containers}"
+
+  if container_is_running "${bootstrap_container}" &&
+    ! container_binds_campus_connector_gateway_port "${bootstrap_container}"; then
+    die "existing campus connector bootstrap container does not own the expected loopback port mapping; inspect it manually before retrying"
+  fi
+  if [[ -z "${published_containers}" ]] && host_has_non_docker_campus_connector_listener; then
+    die "campus connector gateway host port is occupied by a non-Compose listener; refusing to stop or replace the unknown process"
+  fi
+
+  log "starting isolated campus connector bootstrap gateway before student verification readiness"
+  compose --profile prod up -d --wait --no-deps campus-connector-bootstrap
+
+  container_is_running "${bootstrap_container}" ||
+    die "campus connector bootstrap container did not remain running"
+  container_binds_campus_connector_gateway_port "${bootstrap_container}" ||
+    die "campus connector bootstrap container is missing the expected loopback port mapping"
+  container_has_campus_connector_gateway_listener "${bootstrap_container}" ||
+    die "campus connector bootstrap container is not listening on container port 9444"
+
+  campus_connector_gateway_owner="bootstrap"
+  log "isolated campus connector bootstrap gateway is ready; it will remain running if a readiness gate fails"
+}
+
+handoff_campus_connector_gateway_to_app() {
+  [[ "${campus_connector_gateway_owner}" == "bootstrap" ]] || return 0
+
+  local bootstrap_container="${STACK_NAME:-stuhelper}-campus-connector-bootstrap"
+  local attempt
+
+  log "stopping isolated campus connector bootstrap gateway before the production application takes ownership"
+  compose --profile prod stop campus-connector-bootstrap ||
+    die "failed to stop campus connector bootstrap; production application will not be started"
+  compose --profile prod rm -f campus-connector-bootstrap ||
+    die "failed to remove campus connector bootstrap; production application will not be started"
+
+  for _ in {1..10}; do
+    if ! container_is_running "${bootstrap_container}" &&
+      [[ -z "$(docker ps --filter "publish=${CAMPUS_CONNECTOR_GATEWAY_EXTERNAL_PORT:-19444}" --format '{{.Names}}')" ]] &&
+      ! host_has_non_docker_campus_connector_listener; then
+      campus_connector_gateway_owner="released"
+      log "campus connector gateway host port is released for the production application"
+      return 0
+    fi
+    sleep 1
+  done
+
+  die "campus connector bootstrap gateway did not release its host port; production application will not be started"
+}
+
 resolve_env_path() {
   local raw="$1"
   case "${raw}" in
@@ -297,6 +440,7 @@ fi
   die "ALERTMANAGER_CONFIG_GID must be a numeric group ID"
 
 [[ "${APP_ENV:-production}" == "production" ]] || die "APP_ENV must be production for production deploy"
+[[ "${APP_RUNTIME_MODE:-app}" == "app" ]] || die "APP_RUNTIME_MODE must be app for production deploy"
 
 reject_local_value CORS_ORIGINS "${CORS_ORIGINS:-}"
 reject_local_value CASDOOR_ISSUER "${CASDOOR_ISSUER:-}"
@@ -378,7 +522,7 @@ fi
 "${SCRIPT_DIR}/render-observability.sh" prod
 
 log "pulling immutable production images for release ${TAG}"
-compose --profile prod pull app frontend admin
+compose --profile prod pull app campus-connector-bootstrap frontend admin
 
 infra_services=(
   docker-socket-proxy
@@ -444,6 +588,8 @@ log "running production database migrations"
 compose --profile prod up --no-deps migrate
 compose --profile prod up --no-deps openfga-migrate
 
+prepare_campus_connector_gateway_for_readiness # real gateway state must exist before readiness
+
 log "checking student verification production readiness"
 "${SCRIPT_DIR}/student-verification-production-readiness.sh"
 
@@ -461,6 +607,8 @@ log "importing and sealing the PostgreSQL authorization authority ledger"
 
 log "running Open Platform production evidence smokes"
 "${SCRIPT_DIR}/open-platform-production-evidence.sh"
+
+handoff_campus_connector_gateway_to_app # release the loopback port before the online app starts
 
 log "starting production application services"
 compose --profile prod up -d --wait app frontend admin

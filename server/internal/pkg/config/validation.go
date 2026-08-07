@@ -16,6 +16,10 @@ func (c *Config) validate(parseErrs []string) error {
 
 	productionLike := IsProductionLikeEnv(c.App.Env)
 	errs = append(errs, validateAppEnv(c.App.Env)...)
+	errs = append(errs, validateAppRuntimeMode(c.App.RuntimeMode)...)
+	if effectiveAppRuntimeMode(c.App.RuntimeMode) == RuntimeModeCampusConnectorBootstrap {
+		return c.validateCampusConnectorBootstrap(parseErrs, errs, productionLike)
+	}
 	errs = append(errs, validateAppPort(c.App.Port)...)
 	errs = append(errs, validateMaxBodySize(c.App.MaxBodySize)...)
 	errs = append(errs, validateHealthCheckTimeout(c.App.HealthCheckTimeout)...)
@@ -382,6 +386,115 @@ func (c *Config) validate(parseErrs []string) error {
 	return nil
 }
 
+func (c *Config) validateCampusConnectorBootstrap(
+	parseErrs []string,
+	errs []string,
+	productionLike bool,
+) error {
+	// This mode intentionally initializes only the mTLS gateway, PostgreSQL,
+	// Redis, roster encryption, and OTLP export. It runs before OpenFGA/Casdoor
+	// bootstrap during a first production rollout, so unrelated online-API
+	// credentials and control-plane IDs must not become fake prerequisites.
+	errs = append(errs, validateAppPort(c.App.Port)...)
+
+	const hmacMinLen = 32
+	switch {
+	case configStringMissing(c.App.HMACSecret):
+		errs = append(errs, "HMAC_SECRET is required for campus connector bootstrap")
+	case productionLike && len(c.App.HMACSecret) < hmacMinLen:
+		errs = append(errs, fmt.Sprintf(
+			"HMAC_SECRET must be at least %d characters in production (got %d)",
+			hmacMinLen,
+			len(c.App.HMACSecret),
+		))
+	}
+
+	if len(c.Security.DocAESKeys) == 0 {
+		errs = append(errs, "DOC_AES_KEYS is required (PII encryption keys must be configured in all environments)")
+	}
+	if c.Security.DocAESActiveKeyID == 0 && len(c.Security.DocAESKeys) > 0 {
+		errs = append(errs, "DOC_AES_ACTIVE_KEY_ID is required")
+	}
+	if len(c.Security.DocAESKeys) > 0 && c.Security.DocAESActiveKeyID > 0 {
+		if _, ok := c.Security.DocAESKeys[c.Security.DocAESActiveKeyID]; !ok {
+			errs = append(errs, fmt.Sprintf(
+				"DOC_AES_ACTIVE_KEY_ID=%d not found in DOC_AES_KEYS",
+				c.Security.DocAESActiveKeyID,
+			))
+		}
+	}
+
+	if configStringMissing(c.Database.URL) {
+		errs = append(errs, "DATABASE_URL is required for campus connector bootstrap")
+	}
+	if c.Database.QueryTimeout < 1 || c.Database.QueryTimeout > 60 {
+		errs = append(errs, fmt.Sprintf(
+			"DB_QUERY_TIMEOUT must be between 1 and 60 seconds (got %d)",
+			c.Database.QueryTimeout,
+		))
+	}
+	if c.Database.MaxConns <= 0 || c.Database.MaxConns > 10000 {
+		errs = append(errs, fmt.Sprintf(
+			"DB_MAX_CONNS must be between 1 and 10000 (got %d)",
+			c.Database.MaxConns,
+		))
+	}
+	if c.Database.MinConns < 0 || c.Database.MinConns > c.Database.MaxConns {
+		errs = append(errs, fmt.Sprintf(
+			"DB_MIN_CONNS must be between 0 and DB_MAX_CONNS (got %d)",
+			c.Database.MinConns,
+		))
+	}
+	if c.Observability.TraceSampleRatio < 0 || c.Observability.TraceSampleRatio > 1 {
+		errs = append(errs, fmt.Sprintf(
+			"OTEL_TRACE_SAMPLE_RATIO must be between 0 and 1 (got %.4f)",
+			c.Observability.TraceSampleRatio,
+		))
+	}
+	if productionLike && !c.Observability.Enabled {
+		errs = append(errs, "OTEL_ENABLED must be true in production")
+	}
+	if c.Observability.Enabled && configStringMissing(c.Observability.ServiceName) {
+		errs = append(errs, "OTEL_SERVICE_NAME is required when OTEL_ENABLED=true")
+	}
+	if c.Observability.Enabled && configStringMissing(c.Observability.OTLPEndpoint) {
+		errs = append(errs, "OTEL_EXPORTER_OTLP_ENDPOINT is required when OTEL_ENABLED=true")
+	}
+
+	if productionLike {
+		plaintextPostgresAllowed := c.App.Env == EnvProdParity &&
+			c.Database.AllowPlaintext && c.Database.SSLMode == "disable"
+		if c.App.Env == EnvProduction && c.Database.AllowPlaintext {
+			errs = append(errs, "EXTERNAL_POSTGRES_ALLOW_PLAINTEXT is only allowed in prod-parity")
+		}
+		if c.Database.SSLMode != "verify-full" && !plaintextPostgresAllowed {
+			errs = append(errs, "DB_SSL_MODE must be 'verify-full' in production")
+		}
+		if c.Database.SSLMode != "disable" && configStringMissing(c.Database.SSLRootCert) {
+			errs = append(errs, "DB_SSL_ROOT_CERT is required in production")
+		}
+		if configStringMissing(c.Redis.Password) {
+			errs = append(errs, "REDIS_PASSWORD is required in production")
+		}
+		if !c.Redis.TLSEnabled {
+			errs = append(errs, "REDIS_TLS_ENABLED must be true in production")
+		}
+		if c.Redis.TLSEnabled && configStringMissing(c.Redis.TLSCAFile) {
+			errs = append(errs, "REDIS_TLS_CA is required in production")
+		}
+	}
+
+	if !c.CampusConnector.Enabled {
+		errs = append(errs, "CAMPUS_CONNECTOR_GATEWAY_ENABLED must be true in campus connector bootstrap mode")
+	}
+	errs = append(errs, validateCampusConnectorGatewayConfig(c.CampusConnector)...)
+	errs = append(errs, parseErrs...)
+	if len(errs) > 0 {
+		return fmt.Errorf("config validation failed: %s", strings.Join(errs, "; "))
+	}
+	return nil
+}
+
 func configStringMissing(value string) bool {
 	return strings.TrimSpace(value) == ""
 }
@@ -397,6 +510,28 @@ func validateAppEnv(env string) []string {
 		return []string{"APP_ENV must be development, production, or prod-parity"}
 	}
 	return nil
+}
+
+func validateAppRuntimeMode(mode string) []string {
+	if mode == "" {
+		return nil
+	}
+	if strings.TrimSpace(mode) != mode {
+		return []string{"APP_RUNTIME_MODE must not include leading or trailing whitespace"}
+	}
+	switch mode {
+	case RuntimeModeApp, RuntimeModeCampusConnectorBootstrap:
+		return nil
+	default:
+		return []string{"APP_RUNTIME_MODE must be app or campus-connector-bootstrap"}
+	}
+}
+
+func effectiveAppRuntimeMode(mode string) string {
+	if mode == "" {
+		return RuntimeModeApp
+	}
+	return mode
 }
 
 func isAllowedAppEnv(env string) bool {
