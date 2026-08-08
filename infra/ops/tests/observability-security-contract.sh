@@ -71,6 +71,7 @@ assert_block_not_contains "${alloy_block}" '/var/lib/docker/containers'
 # exporters and the rest of the telemetry stack.
 assert_block_contains "${prometheus_block}" '- backend'
 assert_block_contains "${prometheus_block}" '- observability'
+assert_block_contains "${prometheus_block}" '"${ALERTMANAGER_CONFIG_GID:-65534}"'
 
 assert_block_contains "${alertmanager_block}" 'webhook-token:/etc/alertmanager/secrets/webhook-token:ro'
 assert_block_contains "${alertmanager_block}" '"${ALERTMANAGER_CONFIG_GID:-65534}"'
