@@ -22,6 +22,12 @@ bash -n "${INSTALLER}"
 
 assert_contains "${INSTALLER}" 'Before=docker\.service bt\.service'
 assert_contains "${INSTALLER}" 'ExecStartPre=\$\{guard_bin\}'
+assert_contains "${INSTALLER}" 'Environment=GENERATED_OBSERVABILITY_CONFIG_OWNER_UID=\$\{generated_observability_owner_uid\}'
+assert_contains "${INSTALLER}" 'Environment=ALERTMANAGER_CONFIG_GID=\$\{generated_observability_group_gid\}'
+assert_contains "${INSTALLER}" 'cmp --silent "\$\{permission_source\}" "\$\{permission_bin\}"'
+assert_contains "${INSTALLER}" 'cmp --silent "\$\{guard_source\}" "\$\{guard_bin\}"'
+assert_contains "${INSTALLER}" '--verify-installed'
+assert_contains "${INSTALLER}" 'installed guard matches the current release and persistent ownership settings'
 assert_contains "${INSTALLER}" 'OnUnitActiveSec=6h'
 assert_contains "${INSTALLER}" 'bt\.service\.d'
 assert_contains "${INSTALLER}" 'docker\.service\.d'

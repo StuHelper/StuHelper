@@ -94,6 +94,17 @@ if [[ -n "${pending_generated_secret_ref}" ]]; then
   export GENERATED_ENV_SECRET_REF="${pending_generated_secret_ref}"
 fi
 
+runtime_permission_unit="${RUNTIME_PERMISSION_UNIT_NAME:-stuhelper-runtime-permissions}.service"
+runtime_permission_bin="/usr/local/sbin/stuhelper-runtime-permissions"
+runtime_permission_guard_bin="/usr/local/sbin/stuhelper-baota-files-set-mode-guard"
+if systemd_unit_file_is_installed "${runtime_permission_unit}" ||
+  [[ -e "${runtime_permission_bin}" || -e "${runtime_permission_guard_bin}" ]]; then
+  BAOTA_SOURCE_DIR="${REPO_ROOT}" \
+  GENERATED_OBSERVABILITY_CONFIG_OWNER_UID="${GENERATED_OBSERVABILITY_CONFIG_OWNER_UID:-$(stat -c '%u' "${REPO_ROOT}")}" \
+  ALERTMANAGER_CONFIG_GID="${ALERTMANAGER_CONFIG_GID:-65534}" \
+    "${SCRIPT_DIR}/install-baota-runtime-permission-guard.sh" --verify-installed
+fi
+
 [[ "${APP_ENV:-}" == "production" ]] || die "APP_ENV must be production for remote preflight"
 docker info >/dev/null
 docker compose version >/dev/null
