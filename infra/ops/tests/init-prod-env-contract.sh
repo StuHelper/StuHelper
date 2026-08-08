@@ -112,6 +112,10 @@ assert_file_contains "${fresh_dir}/stdout.log" 'from \.env\.prod\.example'
 assert_file_contains "${fresh_env}" '^# StuHelper 生产环境配置样板$'
 assert_env_value "${fresh_env}" "APP_ENV" "production"
 assert_env_value "${fresh_env}" "APP_RUNTIME_MODE" "app"
+assert_env_value "${fresh_env}" "BACKEND_RUNTIME_UID" "$(id -u)"
+assert_env_value "${fresh_env}" "BACKEND_RUNTIME_GID" "$(id -g)"
+[[ ! -e "${fresh_dir}/infra/generated/campus-connector-pki" ]] ||
+  fail "init-prod-env must not generate the full Connector PKI hierarchy"
 assert_file_contains "${REPO_ROOT}/.env.prod.example" '^# 生成期占位：不是生产凭据。init-prod-env 只复制该占位符；prod-deploy 前必须从真实 bot service credential 或 secret backend 注入。$'
 assert_file_contains "${REPO_ROOT}/.env.prod.example" '^BOT_SERVICE_TOKEN=REPLACE_WITH_BOT_SERVICE_TOKEN_BOOTSTRAP$'
 assert_file_not_contains "${REPO_ROOT}/.env.prod.example" 'init-prod-env/bootstrap 会创建真实 bot service credential'

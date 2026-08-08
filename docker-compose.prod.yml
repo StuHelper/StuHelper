@@ -22,9 +22,11 @@ services:
     profiles: [prod]
     image: ${BACKEND_IMAGE_REF:?BACKEND_IMAGE_REF is required}
     container_name: ${STACK_NAME:-stuhelper}-campus-connector-bootstrap
+    user: "${BACKEND_RUNTIME_UID:-1000}:${BACKEND_RUNTIME_GID:-1000}"
     environment:
       APP_ENV: production
       APP_RUNTIME_MODE: campus-connector-bootstrap
+      HOME: /app/tmp
       APP_PORT: "8080"
       LOG_LEVEL: ${LOG_LEVEL:-info}
       LOG_FORMAT: json
@@ -100,7 +102,7 @@ services:
     restart: unless-stopped
     read_only: true
     tmpfs:
-    - /app/tmp:rw,nosuid,nodev,noexec,size=64m
+    - /app/tmp:rw,nosuid,nodev,noexec,size=64m,mode=0700,uid=${BACKEND_RUNTIME_UID:-1000},gid=${BACKEND_RUNTIME_GID:-1000}
     cap_drop:
     - ALL
     networks:
@@ -113,6 +115,7 @@ services:
     profiles: [prod]
     image: ${BACKEND_IMAGE_REF:?BACKEND_IMAGE_REF is required}
     container_name: ${STACK_NAME:-stuhelper}-app
+    user: "${BACKEND_RUNTIME_UID:-1000}:${BACKEND_RUNTIME_GID:-1000}"
     env_file:
     - ${ENV_FILE_PATH:-.env}
     - ${SECRETS_ENV_FILE_PATH:-.env.prod.secrets.local}
@@ -121,6 +124,7 @@ services:
     environment:
       APP_ENV: ${APP_ENV:-production}
       APP_RUNTIME_MODE: app
+      HOME: /app/tmp
       LOG_FORMAT: json
       DATABASE_URL: postgresql://stuhelper_app:${STUHELPER_APP_DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-stuhelper}?sslmode=${DB_SSL_MODE:-verify-full}&sslrootcert=/tls/ca.crt
       DB_SSL_ROOT_CERT: /tls/ca.crt
@@ -180,6 +184,8 @@ services:
       retries: 5
       start_period: 10s
     restart: always
+    tmpfs:
+    - /app/tmp:rw,nosuid,nodev,noexec,size=64m,mode=0700,uid=${BACKEND_RUNTIME_UID:-1000},gid=${BACKEND_RUNTIME_GID:-1000}
     deploy:
       resources:
         limits:

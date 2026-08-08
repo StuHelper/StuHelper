@@ -260,13 +260,22 @@ CAMPUS_CONNECTOR_GATEWAY_PUBLIC_HOST=connector.stuhelper.com \
 ./infra/ops/generate-campus-connector-pki.sh \
   --check \
   --gateway-host connector.stuhelper.com
+
+# 在可信 PKI 工作站导出与完整 PKI 分离的五文件中心运行时包
+./infra/ops/prepare-campus-connector-gateway-runtime.sh \
+  --source infra/generated/campus-connector-pki \
+  --output infra/generated/campus-connector-gateway-runtime \
+  --gateway-host connector.stuhelper.com
 ```
 
 生成器创建两条相互独立的 CA、中心网关 TLS 证书、节点 mTLS 证书、节点 Ed25519 业务签名密钥和中心
-X25519 快照接收密钥，并把私钥限制为 `0600`。`make prod-init` 会执行同一幂等流程，并把生成的
-snapshot key ID 写入生产共享 env；它不会把任何私钥或原始密钥打印到终端。完成节点登记后必须把
-`infra/generated/campus-connector-pki/authority/` 中的 CA 私钥迁入离线 secret store，生产 app 只挂载
-`gateway/`，校园节点只安装 `node/`。严禁把整个 PKI 目录复制进 app 容器或提交 Git。
+X25519 快照接收密钥，并把私钥限制为 `0600`。`make prod-init` 不会生成或复制完整 PKI；启用 Gateway
+时，它只校验已经安装的五文件 runtime bundle，并从该包核对 snapshot key ID。完成节点登记后必须把
+`infra/generated/campus-connector-pki/authority/` 中的 CA 私钥和完整 PKI 迁入离线 secret store；生产
+app 只挂载 `campus-connector-gateway-runtime/`，校园节点只安装 `node/`。严禁把整个 PKI、`authority/`
+或节点私钥复制进生产 app/宿主机或提交 Git。五文件 runtime bundle 的目录必须属于生产部署用户并为
+`0700`，两把运行时私钥必须属于同一用户并为 `0600`；共享 env 的 `BACKEND_RUNTIME_UID/GID` 必须精确
+等于该部署用户的数值 UID/GID，app 与 bootstrap 会以同一身份运行。
 
 启用中心网关前必须完成以下非 secret 接线：
 
@@ -275,7 +284,7 @@ snapshot key ID 写入生产共享 env；它不会把任何私钥或原始密钥
   在 StuHelper app 内终止，HTTP 反向代理或 CDN TLS 终止不能代替；
 - 在防火墙只允许批准校园节点来源，并保留连接/证书到期告警；
 - 设 `CAMPUS_CONNECTOR_GATEWAY_ENABLED=true` 后运行生产预检。预检会重新验证证书链、SAN、密钥配对、
-  30 天到期窗口、私钥权限和 snapshot key ID，任何一项不一致都 fail closed。
+  30 天到期窗口、精确五文件边界、目录/私钥所有权和 snapshot key ID，任何一项不一致都 fail closed。
 
 Oracle 连接只能使用用户明确指定的既有账号；StuHelper 及其代理不得创建、申请、更换、授权、回收或
 修改 Oracle 账号。能用 Navicat 或 DBeaver 登录只证明当前账号和网络大概率可用，不证明具备完整快照

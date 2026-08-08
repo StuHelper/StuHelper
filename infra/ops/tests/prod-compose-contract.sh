@@ -122,6 +122,12 @@ fi
 if ! printf '%s\n' "${app_block}" | grep -Eq '^      APP_RUNTIME_MODE: app$'; then
   fail "production app must explicitly pin APP_RUNTIME_MODE=app"
 fi
+if ! printf '%s\n' "${app_block}" | grep -Eq '^    user: "\$\{BACKEND_RUNTIME_UID:-1000\}:\$\{BACKEND_RUNTIME_GID:-1000\}"$'; then
+  fail "production app must run as the host-bound backend runtime UID/GID"
+fi
+if ! printf '%s\n' "${app_block}" | grep -Eq '/app/tmp:rw,nosuid,nodev,noexec,size=64m,mode=0700,uid=\$\{BACKEND_RUNTIME_UID:-1000\},gid=\$\{BACKEND_RUNTIME_GID:-1000\}'; then
+  fail "production app must provide a private tmpfs owned by the backend runtime UID/GID"
+fi
 
 if ! printf '%s\n' "${bootstrap_block}" | grep -Eq '^    image: \$\{BACKEND_IMAGE_REF:\?BACKEND_IMAGE_REF is required\}$'; then
   fail "campus connector bootstrap must use the exact production backend image"
@@ -131,6 +137,12 @@ if ! printf '%s\n' "${bootstrap_block}" | grep -Eq '^      APP_RUNTIME_MODE: cam
 fi
 if ! printf '%s\n' "${bootstrap_block}" | grep -Eq '^      CAMPUS_CONNECTOR_GATEWAY_ENABLED: "true"$'; then
   fail "campus connector bootstrap must always enable its mTLS gateway"
+fi
+if ! printf '%s\n' "${bootstrap_block}" | grep -Eq '^    user: "\$\{BACKEND_RUNTIME_UID:-1000\}:\$\{BACKEND_RUNTIME_GID:-1000\}"$'; then
+  fail "campus connector bootstrap must run as the host-bound backend runtime UID/GID"
+fi
+if ! printf '%s\n' "${bootstrap_block}" | grep -Eq '/app/tmp:rw,nosuid,nodev,noexec,size=64m,mode=0700,uid=\$\{BACKEND_RUNTIME_UID:-1000\},gid=\$\{BACKEND_RUNTIME_GID:-1000\}'; then
+  fail "campus connector bootstrap must provide a private tmpfs owned by the backend runtime UID/GID"
 fi
 if printf '%s\n' "${bootstrap_block}" | grep -Eq 'CAMPUS_CONNECTOR_SNAPSHOT_KEY_ID:\?'; then
   fail "optional bootstrap variables must not break unrelated compose rendering before runtime validation"

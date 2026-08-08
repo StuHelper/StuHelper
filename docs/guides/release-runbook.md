@@ -318,8 +318,10 @@ curl -fsS -o /dev/null -w 'ready=%{http_code}\n' http://127.0.0.1:18080/health/r
   `validation_status=valid` 的学校及已审核方法才能参与学生认证。生产 Web API 不持有 Oracle/LDAP
   地址、账号或密码，也不得建立学校内网连接；独立 Campus Connector 校园节点通过专用 mTLS 出站网关
   执行已登记的固定 LDAP operation 与完整 Oracle 快照。先运行
-  `./infra/ops/generate-campus-connector-pki.sh --check --gateway-host <public-host>` 验证证书、密钥和 SAN，
-  再核对节点注册表、operation revision、健康状态与限流。名册默认每 7 天同步，8 天告警，14 天后停止
+  `./infra/ops/generate-campus-connector-pki.sh --check --gateway-host <public-host>` 在离线 PKI 工作站验证
+  完整身份，再用 `prepare-campus-connector-gateway-runtime.sh` 导出独立的五文件中心运行时包；生产机只用
+  `validate-campus-connector-gateway-runtime.sh` 验证该包，严禁安装 CA 或节点私钥。随后核对节点注册表、
+  operation revision、健康状态与限流。名册默认每 7 天同步，8 天告警，14 天后停止
   新的名册依赖认证；管理员可通过管理后台手动触发完整同步。上线前必须存在经过签名、解密、质量门禁
   且由 `academic.student_roster_active` 原子激活的快照，并实测新快照中删除的行不再可查询。旧
   `admission-student-source-go-live.sh` 与 `external-student-source-smoke.sh` 仍可用于历史版本排障和受控

@@ -524,6 +524,15 @@ grep -qF 'PUBLIC_INGRESS_CONFIG_PREFLIGHT_ENABLED must be true when the Campus C
   fail "production deploy must not allow the Connector ingress preflight to be disabled"
 grep -qF 'NGINX_PUBLIC_INGRESS_PROFILE must be app-all when the Campus Connector Gateway is enabled' "${PROD_DEPLOY_FILE}" ||
   fail "production deploy must audit both the main HTTP ingress and Connector stream ingress"
+grep -qF 'BACKEND_RUNTIME_UID must match the production deploy user' "${PROD_DEPLOY_FILE}" ||
+  fail "production deploy must bind the backend runtime UID to the deploy user"
+grep -qF 'BACKEND_RUNTIME_GID must match the production deploy user' "${PROD_DEPLOY_FILE}" ||
+  fail "production deploy must bind the backend runtime GID to the deploy user"
+grep -qF 'validate-campus-connector-gateway-runtime.sh' "${PROD_DEPLOY_FILE}" ||
+  fail "production deploy must validate the minimal Gateway runtime bundle"
+if grep -qF 'generate-campus-connector-pki.sh' "${PROD_DEPLOY_FILE}"; then
+  fail "production deploy must not require the full offline PKI hierarchy"
+fi
 
 authz_block="$(
   awk '
