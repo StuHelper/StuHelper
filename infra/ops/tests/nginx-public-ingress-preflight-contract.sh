@@ -126,6 +126,21 @@ app_all_effective="${tmpdir}/app-all-effective.conf"
   cat "${connector_good}"
 } >"${app_all_effective}"
 
+snapshot_only_connector="${tmpdir}/root-only/connector.stuhelper.com.conf"
+snapshot_only_effective="${tmpdir}/app-all-root-snapshot.conf"
+{
+  cat "${MAIN_NGINX_FILE}"
+  printf '\n# configuration file %s:\n' "${snapshot_only_connector}"
+  cat "${connector_good}"
+} >"${snapshot_only_effective}"
+
+duplicate_snapshot_effective="${tmpdir}/app-all-duplicate-root-snapshot.conf"
+{
+  cat "${snapshot_only_effective}"
+  printf '\n# configuration file %s:\n' "${snapshot_only_connector}"
+  cat "${connector_good}"
+} >"${duplicate_snapshot_effective}"
+
 connector_missing_deny="${tmpdir}/connector-missing-deny.conf"
 sed '/^[[:space:]]*deny all;$/d' "${connector_good}" >"${connector_missing_deny}"
 
@@ -404,6 +419,8 @@ run_preflight_pass "sso" "${baota_sso_static_well_known_fixed}" "${tmpdir}" "bao
 run_preflight_pass "sso" "${baota_sso_static_well_known_with_extension}" "${tmpdir}" "baota-sso-static-well-known-with-extension"
 run_connector_preflight_pass "connector" "${connector_good}" "${connector_good}" "${tmpdir}" "connector-template"
 run_connector_preflight_pass "app-all" "${app_all_effective}" "${connector_good}" "${tmpdir}" "app-all-effective"
+run_connector_preflight_pass "app-all" "${snapshot_only_effective}" "${snapshot_only_connector}" "${tmpdir}" "app-all-root-snapshot"
+run_connector_preflight_fail "app-all" "${duplicate_snapshot_effective}" "${snapshot_only_connector}" "${tmpdir}" "app-all-duplicate-root-snapshot" 'appears multiple times in the effective nginx -T dump'
 run_connector_preflight_fail "connector" "${connector_missing_deny}" "${connector_missing_deny}" "${tmpdir}" "connector-missing-deny" 'deny all must appear exactly once'
 run_connector_preflight_fail "connector" "${connector_extra_allow}" "${connector_extra_allow}" "${tmpdir}" "connector-extra-allow" 'allow directives must exactly match'
 run_connector_preflight_fail "connector" "${connector_wrong_upstream}" "${connector_wrong_upstream}" "${tmpdir}" "connector-wrong-upstream" 'proxy_pass must be exactly 127\.0\.0\.1:19444'
