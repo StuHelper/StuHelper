@@ -95,6 +95,7 @@ compose_env=(
   BACKEND_IMAGE_REF=example.invalid/stuhelper/backend:test
   FRONTEND_IMAGE_REF=example.invalid/stuhelper/frontend:test
   ADMIN_IMAGE_REF=example.invalid/stuhelper/admin:test
+  BACKEND_RUNTIME_USER=contract-user
 )
 
 env -u POSTGRES_PASSWORD "${compose_env[@]}" \

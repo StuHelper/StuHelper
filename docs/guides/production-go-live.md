@@ -274,8 +274,8 @@ X25519 快照接收密钥，并把私钥限制为 `0600`。`make prod-init` 不�
 `infra/generated/campus-connector-pki/authority/` 中的 CA 私钥和完整 PKI 迁入离线 secret store；生产
 app 只挂载 `campus-connector-gateway-runtime/`，校园节点只安装 `node/`。严禁把整个 PKI、`authority/`
 或节点私钥复制进生产 app/宿主机或提交 Git。五文件 runtime bundle 的目录必须属于生产部署用户并为
-`0700`，两把运行时私钥必须属于同一用户并为 `0600`；共享 env 的 `BACKEND_RUNTIME_UID/GID` 必须精确
-等于该部署用户的数值 UID/GID，app 与 bootstrap 会以同一身份运行。
+`0700`，两把运行时私钥必须属于同一用户并为 `0600`；共享 env 的 `BACKEND_RUNTIME_USER/UID/GID` 必须
+分别精确等于该部署用户的账户名与数值 UID/GID，app 与 bootstrap 会以同一身份运行。
 
 启用中心网关前必须完成以下非 secret 接线：
 

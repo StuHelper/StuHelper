@@ -27,6 +27,7 @@ services:
       APP_ENV: production
       APP_RUNTIME_MODE: campus-connector-bootstrap
       HOME: /app/tmp
+      USER: ${BACKEND_RUNTIME_USER:?BACKEND_RUNTIME_USER is required}
       APP_PORT: "8080"
       LOG_LEVEL: ${LOG_LEVEL:-info}
       LOG_FORMAT: json
@@ -125,6 +126,7 @@ services:
       APP_ENV: ${APP_ENV:-production}
       APP_RUNTIME_MODE: app
       HOME: /app/tmp
+      USER: ${BACKEND_RUNTIME_USER:?BACKEND_RUNTIME_USER is required}
       LOG_FORMAT: json
       DATABASE_URL: postgresql://stuhelper_app:${STUHELPER_APP_DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-stuhelper}?sslmode=${DB_SSL_MODE:-verify-full}&sslrootcert=/tls/ca.crt
       DB_SSL_ROOT_CERT: /tls/ca.crt

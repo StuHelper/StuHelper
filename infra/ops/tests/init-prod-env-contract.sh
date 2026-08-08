@@ -112,6 +112,7 @@ assert_file_contains "${fresh_dir}/stdout.log" 'from \.env\.prod\.example'
 assert_file_contains "${fresh_env}" '^# StuHelper 生产环境配置样板$'
 assert_env_value "${fresh_env}" "APP_ENV" "production"
 assert_env_value "${fresh_env}" "APP_RUNTIME_MODE" "app"
+assert_env_value "${fresh_env}" "BACKEND_RUNTIME_USER" "$(id -un)"
 assert_env_value "${fresh_env}" "BACKEND_RUNTIME_UID" "$(id -u)"
 assert_env_value "${fresh_env}" "BACKEND_RUNTIME_GID" "$(id -g)"
 assert_env_value "${fresh_env}" "CAMPUS_CONNECTOR_GATEWAY_SECRET_DIR" "./infra/generated/campus-connector-gateway-runtime"

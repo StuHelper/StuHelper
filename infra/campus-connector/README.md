@@ -127,7 +127,8 @@ LogMiner、CDC 或数据库日志读取。未来只有在不扩展当前 Oracle 
    转移到离线 secret store。严禁把 `authority/` 或 `node/` 私钥复制到中心生产机。生成器使用标准
    PEM/PKCS#8，并限制私钥为 `0600`；运行时仍兼容早期 Base64 裸密钥，但新部署不应继续生成自定义格式。
    运行时目录必须属于生产部署用户且为 `0700`，两把运行时私钥必须属于同一用户且为 `0600`；
-   `BACKEND_RUNTIME_UID/GID` 绑定到该用户，使 app 与 bootstrap 无需放宽私钥权限即可读取。
+   `BACKEND_RUNTIME_USER/UID/GID` 绑定到该用户，使 app 与 bootstrap 无需放宽私钥权限即可读取，
+   并让 CGO-disabled 运行时解析到一致的进程账户名。
 3. 复制示例文件为节点私有配置，替换 operation、学校代码、固定目标、适用的 TLS 名称、Oracle 对象、
    字段映射和 secret reference。示例保留默认 `oracle_tls`；若使用获批的北航 SSH 隧道，必须把 Oracle
    operation 改为 `upstreamProtocol: oracle_ssh_tunnel`、`targetHost: 127.0.0.1`、固定高端口、空
