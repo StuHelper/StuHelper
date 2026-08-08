@@ -238,7 +238,7 @@ jobs:
             "${DEPLOY_TARGET_USER}@${DEPLOY_TARGET_HOST}" \
             "set -euo pipefail &&
              printf '%s  %s\n' '${bundle_sha256}' '${incoming_path}' | sha256sum -c - &&
-             tar xzf '${incoming_path}' -C '${DEPLOY_TARGET_APP_DIR}' &&
+             tar --extract --gzip --file='${incoming_path}' --directory='${DEPLOY_TARGET_APP_DIR}' --exclude='infra/generated' &&
              rm -f '${incoming_path}' &&
              cd '${DEPLOY_TARGET_APP_DIR}' &&
              TAG='${TARGET_SHA}' \

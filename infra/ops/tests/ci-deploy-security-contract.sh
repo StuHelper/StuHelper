@@ -205,6 +205,39 @@ assert_contains "${ROLLBACK_WORKFLOW}" 'printf .%s\\n. "\$\{GHCR_PULL_TOKEN\}" \
   fail "deploy workflow must pass the short-lived registry token to exactly one SSH process"
 [[ "$(grep -c 'printf .%s\\n. "\${GHCR_PULL_TOKEN}" | ssh' "${ROLLBACK_WORKFLOW}")" -eq 1 ]] ||
   fail "rollback workflow must pass the short-lived registry token to exactly one SSH process"
+generated_exclusion="tar --extract --gzip --file='\${incoming_path}' --directory='\${DEPLOY_TARGET_APP_DIR}' --exclude='infra/generated'"
+[[ "$(grep -Fc "${generated_exclusion}" "${DEPLOY_WORKFLOW}")" -eq 1 ]] ||
+  fail "deploy workflow must preserve the runtime-owned infra/generated tree during extraction"
+[[ "$(grep -Fc "${generated_exclusion}" "${ROLLBACK_WORKFLOW}")" -eq 1 ]] ||
+  fail "rollback workflow must preserve the runtime-owned infra/generated tree during extraction"
+
+archive_root="${tmpdir}/archive-root"
+extraction_root="${tmpdir}/extraction-root"
+mkdir -p \
+  "${archive_root}/infra/generated/observability/prometheus" \
+  "${extraction_root}/infra/generated/observability/prometheus"
+printf 'new tracked source\n' >"${archive_root}/tracked-source"
+printf 'archive placeholder\n' >"${archive_root}/infra/generated/observability/prometheus/.gitkeep"
+printf 'runtime sentinel\n' >"${extraction_root}/infra/generated/observability/prometheus/runtime.yml"
+printf 'existing placeholder\n' >"${extraction_root}/infra/generated/observability/prometheus/.gitkeep"
+tar \
+  --create \
+  --gzip \
+  --file="${tmpdir}/deploy-contract.tar.gz" \
+  --directory="${archive_root}" \
+  tracked-source infra/generated
+tar \
+  --extract \
+  --gzip \
+  --file="${tmpdir}/deploy-contract.tar.gz" \
+  --directory="${extraction_root}" \
+  --exclude='infra/generated'
+grep -qxF 'new tracked source' "${extraction_root}/tracked-source" ||
+  fail "deploy extraction did not update tracked source outside infra/generated"
+grep -qxF 'runtime sentinel' "${extraction_root}/infra/generated/observability/prometheus/runtime.yml" ||
+  fail "deploy extraction replaced runtime state under infra/generated"
+grep -qxF 'existing placeholder' "${extraction_root}/infra/generated/observability/prometheus/.gitkeep" ||
+  fail "deploy extraction overwrote the existing generated placeholder"
 deploy_execution_block="$(sed -n '/# Release identifiers, digest references/,/name: Record deployment result/p' "${DEPLOY_WORKFLOW}")"
 rollback_execution_block="$(sed -n '/# The current controller applies/,/name: Record rollback result/p' "${ROLLBACK_WORKFLOW}")"
 grep -Eq 'printf .%s\\n. "\$\{GHCR_PULL_TOKEN\}" \| ssh' <<<"${deploy_execution_block}" ||
