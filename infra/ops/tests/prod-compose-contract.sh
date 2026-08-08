@@ -122,6 +122,9 @@ fi
 if ! printf '%s\n' "${app_block}" | grep -Eq '^      APP_RUNTIME_MODE: app$'; then
   fail "production app must explicitly pin APP_RUNTIME_MODE=app"
 fi
+if ! printf '%s\n' "${app_block}" | grep -Eq '^      USER: \$\{BACKEND_RUNTIME_USER:\?BACKEND_RUNTIME_USER is required\}$'; then
+  fail "production app must expose the configured runtime account to CGO-disabled runtime libraries"
+fi
 if ! printf '%s\n' "${app_block}" | grep -Eq '^    user: "\$\{BACKEND_RUNTIME_UID:-1000\}:\$\{BACKEND_RUNTIME_GID:-1000\}"$'; then
   fail "production app must run as the host-bound backend runtime UID/GID"
 fi
@@ -134,6 +137,9 @@ if ! printf '%s\n' "${bootstrap_block}" | grep -Eq '^    image: \$\{BACKEND_IMAG
 fi
 if ! printf '%s\n' "${bootstrap_block}" | grep -Eq '^      APP_RUNTIME_MODE: campus-connector-bootstrap$'; then
   fail "campus connector bootstrap must select the isolated runtime mode"
+fi
+if ! printf '%s\n' "${bootstrap_block}" | grep -Eq '^      USER: \$\{BACKEND_RUNTIME_USER:\?BACKEND_RUNTIME_USER is required\}$'; then
+  fail "campus connector bootstrap must expose the configured runtime account to CGO-disabled runtime libraries"
 fi
 if ! printf '%s\n' "${bootstrap_block}" | grep -Eq '^      CAMPUS_CONNECTOR_GATEWAY_ENABLED: "true"$'; then
   fail "campus connector bootstrap must always enable its mTLS gateway"

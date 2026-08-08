@@ -53,7 +53,7 @@ bootstrap_validator_source_line="$(line_number 'source_casdoor_bootstrap_env # l
 postgres_ssl_line="$(line_number 'require_production_postgres_ssl')"
 external_student_source_security_line="$(line_number 'require_production_external_student_source_security')"
 object_storage_gate_line="$(line_number 'require_production_object_storage')"
-backend_runtime_identity_end_line="$(line_number 'BACKEND_RUNTIME_GID must match the production deploy user')"
+backend_runtime_identity_end_line="$(line_number 'BACKEND_RUNTIME_USER must match the production deploy user')"
 connector_gateway_enabled_line="$(line_number 'if [[ "${CAMPUS_CONNECTOR_GATEWAY_ENABLED:-false}" == "true" ]]; then')"
 public_ingress_config_preflight_line="$(line_number 'require_public_ingress_config_preflight')"
 public_ingress_preflight_line="$(line_number 'require_public_identity_ingress_preflight')"
@@ -530,6 +530,8 @@ grep -qF 'BACKEND_RUNTIME_UID must match the production deploy user' "${PROD_DEP
   fail "production deploy must bind the backend runtime UID to the deploy user"
 grep -qF 'BACKEND_RUNTIME_GID must match the production deploy user' "${PROD_DEPLOY_FILE}" ||
   fail "production deploy must bind the backend runtime GID to the deploy user"
+grep -qF 'BACKEND_RUNTIME_USER must match the production deploy user' "${PROD_DEPLOY_FILE}" ||
+  fail "production deploy must bind the backend runtime account name to the deploy user"
 if (( backend_runtime_identity_end_line >= connector_gateway_enabled_line )); then
   fail "production deploy must validate the non-root backend runtime identity even when the Connector Gateway is disabled"
 fi

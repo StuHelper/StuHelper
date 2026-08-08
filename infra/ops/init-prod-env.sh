@@ -105,8 +105,11 @@ ensure_bootstrap_env_value() {
 
 load_env
 
+backend_runtime_user_candidate="${BACKEND_RUNTIME_USER:-$(id -un)}"
 backend_runtime_uid_candidate="${BACKEND_RUNTIME_UID:-$(id -u)}"
 backend_runtime_gid_candidate="${BACKEND_RUNTIME_GID:-$(id -g)}"
+[[ -n "${backend_runtime_user_candidate}" ]] ||
+  die "BACKEND_RUNTIME_USER must identify the non-root deploy user"
 [[ "${backend_runtime_uid_candidate}" =~ ^[1-9][0-9]*$ ]] ||
   die "BACKEND_RUNTIME_UID must be a non-root numeric UID; initialize production as the non-root deploy user or set the approved runtime UID explicitly"
 [[ "${backend_runtime_gid_candidate}" =~ ^[1-9][0-9]*$ ]] ||
@@ -265,6 +268,7 @@ ensure_prod_default "CORS_ORIGINS" "${CORS_ORIGINS:-}" "https://stuhelper.com,ht
 ensure_prod_default "ADMISSION_PUBLIC_BASE_URL" "${ADMISSION_PUBLIC_BASE_URL:-}" "https://join.stuhelper.com" "REPLACE_WITH_ADMISSION_PUBLIC_BASE_URL" "http://localhost:3000" "http://join.localhost:3000" "http://join.stuhelper.com"
 ensure_prod_default "STUDENT_VERIFICATION_PUBLIC_BASE_URL" "${STUDENT_VERIFICATION_PUBLIC_BASE_URL:-}" "https://stuhelper.com" "REPLACE_WITH_STUDENT_VERIFICATION_PUBLIC_BASE_URL" "http://localhost:3000" "http://127.0.0.1:3000"
 ensure_prod_default "CAMPUS_CONNECTOR_GATEWAY_ENABLED" "${CAMPUS_CONNECTOR_GATEWAY_ENABLED:-}" "false"
+ensure_value "BACKEND_RUNTIME_USER" "${BACKEND_RUNTIME_USER:-}" "${backend_runtime_user_candidate}"
 ensure_value "BACKEND_RUNTIME_UID" "${BACKEND_RUNTIME_UID:-}" "${backend_runtime_uid_candidate}"
 ensure_value "BACKEND_RUNTIME_GID" "${BACKEND_RUNTIME_GID:-}" "${backend_runtime_gid_candidate}"
 ensure_value "CAMPUS_CONNECTOR_GATEWAY_LISTEN_ADDRESS" "${CAMPUS_CONNECTOR_GATEWAY_LISTEN_ADDRESS:-}" ":9444"

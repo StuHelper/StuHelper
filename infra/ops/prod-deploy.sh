@@ -467,6 +467,7 @@ require_production_object_storage
 [[ "${TOKEN_COOKIE_SECURE:-false}" == "true" ]] || die "TOKEN_COOKIE_SECURE must be true for production deploy"
 [[ "${ADMISSION_PUBLIC_BASE_URL:-}" == "https://join.stuhelper.com" ]] || die "ADMISSION_PUBLIC_BASE_URL must be exactly https://join.stuhelper.com for production deploy"
 [[ "${STUDENT_VERIFICATION_PUBLIC_BASE_URL:-}" == "https://stuhelper.com" ]] || die "STUDENT_VERIFICATION_PUBLIC_BASE_URL must be exactly https://stuhelper.com for production deploy"
+require_nonempty BACKEND_RUNTIME_USER "${BACKEND_RUNTIME_USER:-}"
 require_nonempty BACKEND_RUNTIME_UID "${BACKEND_RUNTIME_UID:-}"
 require_nonempty BACKEND_RUNTIME_GID "${BACKEND_RUNTIME_GID:-}"
 [[ "${BACKEND_RUNTIME_UID}" =~ ^[1-9][0-9]*$ ]] ||
@@ -477,6 +478,8 @@ require_nonempty BACKEND_RUNTIME_GID "${BACKEND_RUNTIME_GID:-}"
   die "BACKEND_RUNTIME_UID must match the production deploy user's UID"
 [[ "${BACKEND_RUNTIME_GID}" == "$(id -g)" ]] ||
   die "BACKEND_RUNTIME_GID must match the production deploy user's primary GID"
+[[ "${BACKEND_RUNTIME_USER}" == "$(id -un)" ]] ||
+  die "BACKEND_RUNTIME_USER must match the production deploy user's account name"
 if [[ "${CAMPUS_CONNECTOR_GATEWAY_ENABLED:-false}" == "true" ]]; then
   require_nonempty CAMPUS_CONNECTOR_GATEWAY_PUBLIC_HOST "${CAMPUS_CONNECTOR_GATEWAY_PUBLIC_HOST:-}"
   require_nonempty CAMPUS_CONNECTOR_GATEWAY_PUBLIC_PORT "${CAMPUS_CONNECTOR_GATEWAY_PUBLIC_PORT:-}"
