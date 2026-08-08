@@ -65,6 +65,12 @@ grep -Eq '^user stuhelper_app reset on #[0-9a-f]{64} .* -@all ' "${acl_file}" ||
   fail "application user must use a hash and explicit command allowlist"
 grep -Eq '^user stuhelper_metrics reset on #[0-9a-f]{64} resetkeys resetchannels -@all ' "${acl_file}" ||
   fail "metrics user must use a hash, no key patterns, and explicit commands"
+app_rule="$(grep '^user stuhelper_app ' "${acl_file}")"
+for required_rule in '+multi' '+exec'; do
+  if [[ " ${app_rule} " != *" ${required_rule} "* ]]; then
+    fail "application user is missing transaction command rule: ${required_rule}"
+  fi
+done
 grep -Fq '+config|get' "${acl_file}" || fail "metrics user must be able to collect safe config metrics"
 grep -Fq '+info' "${acl_file}" || fail "metrics user must be able to collect INFO metrics"
 metrics_rule="$(grep '^user stuhelper_metrics ' "${acl_file}")"

@@ -406,6 +406,37 @@ redis_ping="$(
 [[ "${redis_ping}" == "PONG" ]] || die "Redis TLS/ACL ping failed"
 record_check "redis TLS ACL ping succeeds"
 
+redis_transaction_key="stuhelper:parity:redis-transaction:$$"
+redis_transaction_status=0
+redis_transaction_output="$(
+  {
+    printf 'MULTI\n'
+    printf 'SET %s 1 EX 30\n' "${redis_transaction_key}"
+    printf 'EXEC\n'
+  } | docker exec -i \
+    -e REDISCLI_AUTH="${REDIS_PASSWORD}" \
+    "${redis_container}" \
+    redis-cli --no-auth-warning --raw --tls --cacert /redis-runtime/ca.crt \
+      --user "${redis_user}" 2>&1
+)" || redis_transaction_status=$?
+docker exec \
+  -e REDISCLI_AUTH="${REDIS_PASSWORD}" \
+  "${redis_container}" \
+  redis-cli --no-auth-warning --tls --cacert /redis-runtime/ca.crt \
+    --user "${redis_user}" DEL "${redis_transaction_key}" >/dev/null 2>&1 || true
+[[ "${redis_transaction_status}" -eq 0 ]] ||
+  die "Redis application ACL transaction command failed: ${redis_transaction_output:-redis-cli failed without output}"
+if grep -Eq 'NOPERM|ERR|[Ee]rror' <<<"${redis_transaction_output}"; then
+  die "Redis application ACL transaction failed: ${redis_transaction_output}"
+fi
+grep -Fxq 'OK' <<<"${redis_transaction_output}" ||
+  die "Redis application ACL transaction did not start"
+grep -Fq 'QUEUED' <<<"${redis_transaction_output}" ||
+  die "Redis application ACL transaction did not queue SET"
+[[ "$(grep -Fxc 'OK' <<<"${redis_transaction_output}")" -ge 2 ]] ||
+  die "Redis application ACL transaction did not execute successfully"
+record_check "redis application ACL permits the required MULTI/EXEC transaction"
+
 redis_app_admin_attempt="$(
   docker exec \
     -e REDISCLI_AUTH="${REDIS_PASSWORD}" \
