@@ -3,7 +3,7 @@ type: reference
 audience: backend-dev, frontend-dev
 status: current
 authoritative-source: server/api/openapi.yaml
-last-verified: 2026-05-23
+last-verified: 2026-08-07
 ---
 
 # API 导航摘要
@@ -27,6 +27,11 @@ last-verified: 2026-05-23
 | 评课后台 | `/api/v1/course/review/admin/*` | [design/authorization-model.md](../design/authorization-model.md) |
 | 用户系统 | `/api/v1/user/*` | [product-specs/user-system.md](../product-specs/user-system.md) |
 | 用户系统后台 | `/api/v1/admin/*` | [product-specs/user-system.md](../product-specs/user-system.md) |
+| 学生认证 | `/api/v1/student-verification/*` | [product-specs/student-verification-and-group-admission.md](../product-specs/student-verification-and-group-admission.md) |
+| 账号手机号 | `/api/v1/account/phone/*` | [product-specs/user-system.md](../product-specs/user-system.md) |
+| 学生认证 Webhook | `/api/v1/webhooks/student-verification/*` | [product-specs/student-verification-and-group-admission.md](../product-specs/student-verification-and-group-admission.md) |
+| 学生资格内部接口 | `/api/v1/internal/student-eligibility/*` | [product-specs/student-verification-and-group-admission.md](../product-specs/student-verification-and-group-admission.md) |
+| 手机号门禁内部接口 | `/api/v1/internal/phone-gates/*` | [product-specs/student-verification-and-group-admission.md](../product-specs/student-verification-and-group-admission.md) |
 | 入群与新生认证 | `/api/v1/admission/*` | [design/koishi-admission-verification.md](../design/koishi-admission-verification.md) |
 | 机器人内部接口 | `/api/v1/bot/*`（`serviceTokenAuth`） | [product-specs/user-system.md](../product-specs/user-system.md) / [guides/koishi-development.md](../guides/koishi-development.md) |
 | 教务展示 | `/api/v1/academics/*` | [product-specs/academics-data-integration.md](../product-specs/academics-data-integration.md) |

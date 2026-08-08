@@ -85,20 +85,6 @@ export function respondAdmissionEvent(input: {
   return true
 }
 
-export function respondFreshmanForwards(
-  req: IncomingMessage,
-  res: ServerResponse,
-  items: unknown[] = [],
-) {
-  const url = new URL(req.url || '/', 'http://127.0.0.1')
-  const path = '/api/v1/bot/admission/freshman/applications/pending-forward'
-  if (req.method !== 'GET' || url.pathname !== path) return false
-  assert.equal(req.headers.authorization, 'Bearer test-token')
-  res.setHeader('content-type', 'application/json')
-  res.end(JSON.stringify({ success: true, data: items }))
-  return true
-}
-
 export function respondAdmissionPolicyTargets(
   req: IncomingMessage,
   res: ServerResponse,
@@ -133,7 +119,7 @@ function admissionSessionData(qqID: string, guildID: string) {
     guildID,
     channelID: guildID,
     qqID,
-    status: 'joined_muted',
+    status: 'awaiting_account_link',
     tokenExpiresAt: new Date(now + 60 * 60 * 1000).toISOString(),
     linkWaitDeadlineAt: new Date(now + 60 * 60 * 1000).toISOString(),
     submissionWaitDeadlineAt: new Date(now + 24 * 60 * 60 * 1000).toISOString(),

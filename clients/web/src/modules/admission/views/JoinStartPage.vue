@@ -99,29 +99,50 @@
             <div class="mb-4">
               <h2 class="m-0 text-lg font-semibold text-slate-950">完成学生认证</h2>
               <p class="m-0 mt-2 text-sm leading-6 text-slate-600">
-                学生认证通过后，继续绑定 QQ。此处提交的是账号级学生认证，不绑定任何入群会话。
+                学生认证中心是独立模块，不绑定任何 QQ 或入群会话。完成后返回此页即可继续。
               </p>
             </div>
-            <StudentVerificationPanel
-              :standalone="false"
-              :load-on-mount="false"
-              :redirect-after-verification="false"
-              @verified="loadAccountReadiness"
-            />
+            <div class="grid gap-3 sm:grid-cols-2">
+              <a
+                class="join-start-primary-button"
+                data-open-student-verification
+                :href="studentVerificationURL"
+              >
+                前往学生认证中心
+              </a>
+              <button
+                class="join-start-secondary-button"
+                type="button"
+                @click="loadAccountReadiness"
+              >
+                我已完成，刷新状态
+              </button>
+            </div>
           </div>
 
           <div v-else-if="pageState === 'needsQQBinding'" data-state="needsQQBinding">
             <div class="mb-4">
               <h2 class="m-0 text-lg font-semibold text-slate-950">绑定 QQ</h2>
               <p class="m-0 mt-2 text-sm leading-6 text-slate-600">
-                绑定后机器人可以识别你的 StuHelper 账号。若之后加入受控群，仍以群内最新认证链接或管理员策略为准。
+                QQ 绑定同样是独立的账号能力。绑定后机器人可以识别你的 StuHelper 账号，但不会自动创建或放行入群申请。
               </p>
             </div>
-            <QQBindingPanel
-              :standalone="false"
-              :load-on-mount="false"
-              @bound="loadAccountReadiness"
-            />
+            <div class="grid gap-3 sm:grid-cols-2">
+              <a
+                class="join-start-primary-button"
+                data-open-qq-binding
+                :href="qqBindingURL"
+              >
+                前往 QQ 绑定
+              </a>
+              <button
+                class="join-start-secondary-button"
+                type="button"
+                @click="loadAccountReadiness"
+              >
+                我已完成，刷新状态
+              </button>
+            </div>
           </div>
 
           <div v-else data-state="ready">
@@ -144,16 +165,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, markRaw, onMounted, ref } from 'vue'
+import { computed, markRaw, onBeforeUnmount, onMounted, ref } from 'vue'
 import type { Component } from 'vue'
 import { Bot, CheckCircle2, GraduationCap, LogIn, RefreshCw, UserRound } from 'lucide-vue-next'
 
 import { useToast } from '@/composables/useToast'
 import { updatePageMeta } from '@/composables/usePageMeta'
+import { accountCenterURLWithRedirect } from '@/utils/redirect'
 import { useAuthStore } from '@/stores/auth'
 import { useVerificationStore } from '@/stores/verification'
-import StudentVerificationPanel from '@/modules/user/views/StudentVerificationPanel.vue'
-import QQBindingPanel from '@/modules/user/views/QQBindingPanel.vue'
 
 type PageState =
   | 'loading'
@@ -181,6 +201,18 @@ const currentReturnURL = computed(() => {
   if (typeof window === 'undefined') return undefined
   return window.location.href
 })
+const joinStartReturnURL = computed(() => {
+  if (typeof window === 'undefined') return '/start'
+  return new URL('/start', window.location.origin).toString()
+})
+const studentVerificationURL = computed(() => accountCenterURLWithRedirect(
+  '/user/student-verification',
+  joinStartReturnURL.value,
+))
+const qqBindingURL = computed(() => accountCenterURLWithRedirect(
+  '/user/qq-binding',
+  joinStartReturnURL.value,
+))
 
 const readinessSteps = computed<ReadinessStep[]>(() => [
   {
@@ -224,7 +256,6 @@ async function loadAccountReadiness() {
   try {
     await verificationStore.fetchStatus()
     if (!verificationStore.studentVerified) {
-      await verificationStore.fetchSchools()
       pageState.value = 'needsStudentVerification'
       return
     }
@@ -247,13 +278,26 @@ function startSignup() {
   void auth.signup(currentReturnURL.value)
 }
 
+function refreshAfterReturn(): void {
+  if (auth.isAuthenticated && document.visibilityState === 'visible') {
+    void loadAccountReadiness()
+  }
+}
+
 updatePageMeta({
   title: '学生认证与 QQ 绑定',
   description: '在 join.stuhelper.com 快捷完成 StuHelper 学生认证和 QQ 绑定。',
 })
 
 onMounted(() => {
+  window.addEventListener('focus', refreshAfterReturn)
+  window.addEventListener('pageshow', refreshAfterReturn)
   void bootstrapJoinStart()
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('focus', refreshAfterReturn)
+  window.removeEventListener('pageshow', refreshAfterReturn)
 })
 </script>
 
@@ -281,6 +325,7 @@ onMounted(() => {
   background: #0f172a;
   border: 1px solid #0f172a;
   color: #ffffff;
+  text-decoration: none;
 }
 
 .join-start-secondary-button {

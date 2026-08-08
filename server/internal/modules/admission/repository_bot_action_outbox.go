@@ -34,11 +34,11 @@ func (r *Repository) QueueBotActionTx(
 	_, err := tx.Exec(ctx, `
 		INSERT INTO admission_bot_action_outbox (
 			action_key, session_id, action, platform, bot_self_id, guild_id, channel_id, qq_id,
-			scheduled_at, status, attempt_count, next_attempt_at, last_error, message_id,
+			scheduled_at, status, attempt_count, next_attempt_at, last_error, message_id, eligibility_revision,
 			created_at, updated_at
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7, $8,
-			$9, 'pending', 0, $10, NULL, NULL,
+			$9, 'pending', 0, $10, NULL, NULL, $11,
 			$10, $10
 		)
 		ON CONFLICT (action_key)
@@ -62,9 +62,14 @@ func (r *Repository) QueueBotActionTx(
 				WHEN admission_bot_action_outbox.status IN ('dispatched', 'succeeded', 'dead_letter') THEN admission_bot_action_outbox.last_error
 				ELSE NULL
 			END,
+			eligibility_revision = CASE
+				WHEN admission_bot_action_outbox.status IN ('succeeded', 'dead_letter') THEN admission_bot_action_outbox.eligibility_revision
+				ELSE EXCLUDED.eligibility_revision
+			END,
 			updated_at = EXCLUDED.updated_at
 	`, key, input.Session.ID, string(input.Action), input.Session.Platform, input.Session.BotSelfID,
-		input.Session.GuildID, input.Session.ChannelID, input.Session.QQID, input.ScheduledAt, now)
+		input.Session.GuildID, input.Session.ChannelID, input.Session.QQID, input.ScheduledAt, now,
+		input.Session.EligibilityRevision)
 	if err != nil {
 		return fmt.Errorf("QueueBotActionTx: %w", err)
 	}
@@ -107,7 +112,25 @@ func (r *Repository) ClaimDueBotActions(
 
 func claimDueBotActionsSQL() string {
 	return `
-		WITH terminal AS (
+		WITH stale_revision AS (
+			UPDATE admission_bot_action_outbox AS action
+			SET status = 'stale',
+			    last_error = NULL,
+			    updated_at = $3
+			FROM group_admission_sessions AS session
+			WHERE action.session_id = session.id
+			  AND action.platform = $1
+			  AND action.bot_self_id = $2
+			  AND action.action = 'release'
+			  AND action.status IN ('pending', 'failed', 'dispatched')
+			  AND (
+			      session.status <> 'action_pending'
+			      OR action.eligibility_revision IS NULL
+			      OR session.eligibility_revision IS DISTINCT FROM action.eligibility_revision
+			  )
+			RETURNING action.id
+		),
+		terminal AS (
 			UPDATE admission_bot_action_outbox
 			SET status = 'dead_letter',
 			    last_error = CASE
@@ -121,17 +144,30 @@ func claimDueBotActionsSQL() string {
 			  AND next_attempt_at <= $3
 			  AND status IN ('pending', 'failed', 'dispatched')
 			  AND attempt_count >= $6
+			  AND id NOT IN (SELECT id FROM stale_revision)
 			RETURNING id
 		),
 		candidates AS (
 			SELECT id
-			FROM admission_bot_action_outbox
+			FROM admission_bot_action_outbox AS action
 			WHERE platform = $1
 			  AND bot_self_id = $2
 			  AND scheduled_at <= $3
 			  AND next_attempt_at <= $3
 			  AND status IN ('pending', 'failed', 'dispatched')
 			  AND attempt_count < $6
+			  AND id NOT IN (SELECT id FROM stale_revision)
+			  AND id NOT IN (SELECT id FROM terminal)
+			  AND (
+			      action.action <> 'release'
+			      OR EXISTS (
+			          SELECT 1
+			          FROM group_admission_sessions AS session
+			          WHERE session.id = action.session_id
+			            AND session.status = 'action_pending'
+			            AND session.eligibility_revision = action.eligibility_revision
+			      )
+			  )
 			ORDER BY scheduled_at ASC, id ASC
 			LIMIT $4
 			FOR UPDATE SKIP LOCKED
@@ -394,7 +430,8 @@ func admissionBotActionColumns(alias string) string {
 	return alias + `.id, ` + alias + `.action_key, ` + alias + `.session_id, ` + alias + `.action,
 		` + alias + `.platform, ` + alias + `.bot_self_id, ` + alias + `.guild_id, ` + alias + `.channel_id, ` + alias + `.qq_id,
 		` + alias + `.scheduled_at, ` + alias + `.status, ` + alias + `.attempt_count, ` + alias + `.next_attempt_at,
-		` + alias + `.last_error, ` + alias + `.message_id, ` + alias + `.created_at, ` + alias + `.updated_at`
+		` + alias + `.last_error, ` + alias + `.message_id, ` + alias + `.eligibility_revision,
+		` + alias + `.created_at, ` + alias + `.updated_at`
 }
 
 func admissionSessionColumnsWithAlias(alias string) string {
@@ -402,7 +439,9 @@ func admissionSessionColumnsWithAlias(alias string) string {
 		` + alias + `.user_id, ` + alias + `.token_hash, ` + alias + `.auth_url, ` + alias + `.token_expires_at,
 		` + alias + `.token_consumed_at, ` + alias + `.status, ` + alias + `.link_wait_deadline_at,
 		` + alias + `.submission_wait_deadline_at, ` + alias + `.manual_review_deadline_at, ` + alias + `.initial_mute_until,
-		` + alias + `.verified_at, ` + alias + `.cancelled_at, ` + alias + `.last_bot_error, ` + alias + `.next_reminder_at`
+		` + alias + `.verified_at, ` + alias + `.cancelled_at, ` + alias + `.last_bot_error,
+		` + alias + `.eligibility_revision, ` + alias + `.eligibility_evaluated_at, ` + alias + `.requirements_status,
+		` + alias + `.next_reminder_at`
 }
 
 func admissionSessionScanColumnsWithAlias(alias string) string {
@@ -410,7 +449,8 @@ func admissionSessionScanColumnsWithAlias(alias string) string {
 		` + alias + `.user_id, ` + alias + `.token_hash, ` + alias + `.auth_url,
 		` + alias + `.token_expires_at, ` + alias + `.token_consumed_at, ` + alias + `.status, ` + alias + `.link_wait_deadline_at,
 		` + alias + `.submission_wait_deadline_at, ` + alias + `.manual_review_deadline_at, ` + alias + `.initial_mute_until,
-		` + alias + `.verified_at, ` + alias + `.cancelled_at, ` + alias + `.last_bot_error`
+		` + alias + `.verified_at, ` + alias + `.cancelled_at, ` + alias + `.last_bot_error,
+		` + alias + `.eligibility_revision, ` + alias + `.eligibility_evaluated_at, ` + alias + `.requirements_status`
 }
 
 func scanBotActionOutboxRows(rows pgx.Rows) ([]AdmissionBotActionOutboxRow, error) {
@@ -434,13 +474,15 @@ func scanBotActionOutboxRow(row pgx.Row) (AdmissionBotActionOutboxRow, error) {
 		&item.ID, &item.ActionKey, &item.SessionID, &item.Action,
 		&item.Platform, &item.BotSelfID, &item.GuildID, &item.ChannelID, &item.QQID,
 		&item.ScheduledAt, &item.Status, &item.AttemptCount, &item.NextAttemptAt,
-		&item.LastError, &item.MessageID, &item.CreatedAt, &item.UpdatedAt,
+		&item.LastError, &item.MessageID, &item.EligibilityRevision, &item.CreatedAt, &item.UpdatedAt,
 		&item.Session.ID, &item.Session.Platform, &item.Session.BotSelfID, &item.Session.GuildID,
 		&item.Session.ChannelID, &item.Session.QQID, &item.Session.UserID, &item.Session.TokenHash,
 		&item.Session.AuthURL, &item.Session.TokenExpiresAt, &item.Session.TokenConsumedAt,
 		&item.Session.Status, &item.Session.LinkWaitDeadlineAt, &item.Session.SubmissionWaitDeadlineAt,
 		&item.Session.ManualReviewDeadlineAt, &item.Session.InitialMuteUntil, &item.Session.VerifiedAt,
-		&item.Session.CancelledAt, &item.Session.LastBotError, &item.Session.nextReminderAt,
+		&item.Session.CancelledAt, &item.Session.LastBotError,
+		&item.Session.EligibilityRevision, &item.Session.EligibilityEvaluatedAt, &item.Session.RequirementsStatus,
+		&item.Session.nextReminderAt,
 	)
 	return item, err
 }

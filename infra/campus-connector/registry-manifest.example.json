@@ -1,0 +1,59 @@
+{
+  "node": {
+    "id": "00000000-0000-4000-8000-000000000001",
+    "displayName": "Approved campus connector node",
+    "protocolVersion": "1",
+    "softwareVersion": "dev",
+    "clientCertificateFile": "/run/secrets/campus-connector/client.crt",
+    "signingKeyID": "replace-with-enrolled-ed25519-key-id",
+    "signingPublicKeyFile": "/run/secrets/campus-connector/signing.pub",
+    "maxConcurrency": 4,
+    "heartbeatIntervalSeconds": 30,
+    "expectedRevision": 0
+  },
+  "operations": [
+    {
+      "schoolCode": "0000000001",
+      "operationKey": "school.school_account.authenticate",
+      "operationType": "school_account_authenticate",
+      "adapterID": "school_ldap_bind",
+      "adapterVersion": "1",
+      "upstreamProtocol": "ldaps",
+      "targetHost": "ldap.internal.example.edu",
+      "targetPort": 636,
+      "targetTLSServerName": "ldap.internal.example.edu",
+      "allowlistedAttributes": ["uid", "accountLocked", "accountDisabled", "eduPersonAffiliation"],
+      "timeoutMilliseconds": 5000,
+      "maxConcurrency": 2,
+      "rateLimitPerMinute": 30,
+      "validationStatus": "pending",
+      "enabled": false,
+      "expectedRevision": 0
+    },
+    {
+      "schoolCode": "0000000001",
+      "operationKey": "school.roster.full",
+      "operationType": "roster_snapshot_upload",
+      "adapterID": "school_oracle_roster",
+      "adapterVersion": "1",
+      "upstreamProtocol": "oracle_tls",
+      "targetHost": "oracle.internal.example.edu",
+      "targetPort": 2484,
+      "targetTLSServerName": "oracle.internal.example.edu",
+      "allowlistedAttributes": [
+        "XH",
+        "XM",
+        "SFZJH",
+        "SJH",
+        "SFZX",
+        "RXNJ"
+      ],
+      "timeoutMilliseconds": 120000,
+      "maxConcurrency": 1,
+      "rateLimitPerMinute": 4,
+      "validationStatus": "pending",
+      "enabled": false,
+      "expectedRevision": 0
+    }
+  ]
+}

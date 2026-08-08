@@ -15,7 +15,6 @@ export interface AdmissionRuntimeSettings {
   adminCommandsEnabled: boolean
   admissionCommandsEnabled: boolean
   moderationEnabled: boolean
-  freshmanForwardEnabled: boolean
   fallbackScanEnabled: boolean
   reminderGroupEnabled: boolean
   reminderDirectEnabled: boolean
@@ -36,7 +35,6 @@ export const DEFAULT_ADMISSION_RUNTIME_SETTINGS: AdmissionRuntimeSettings = {
   adminCommandsEnabled: true,
   admissionCommandsEnabled: true,
   moderationEnabled: false,
-  freshmanForwardEnabled: false,
   fallbackScanEnabled: true,
   reminderGroupEnabled: true,
   reminderDirectEnabled: false,
@@ -51,7 +49,6 @@ export function registerAdmissionRuntimeSettingsModel(ctx: Context) {
     adminCommandsEnabled: 'boolean',
     admissionCommandsEnabled: 'boolean',
     moderationEnabled: 'boolean',
-    freshmanForwardEnabled: 'boolean',
     fallbackScanEnabled: 'boolean',
     reminderGroupEnabled: 'boolean',
     reminderDirectEnabled: 'boolean',
@@ -111,10 +108,6 @@ export class AdmissionRuntimeSettingsStore {
     return (await this.getSettings()).moderationEnabled
   }
 
-  async isFreshmanForwardEnabled() {
-    return (await this.getSettings()).freshmanForwardEnabled
-  }
-
   async isFallbackScanEnabled() {
     return (await this.getSettings()).fallbackScanEnabled
   }
@@ -155,7 +148,6 @@ function normalizeRecord(
     adminCommandsEnabled: booleanOrDefault(record.adminCommandsEnabled, defaults.adminCommandsEnabled),
     admissionCommandsEnabled: booleanOrDefault(record.admissionCommandsEnabled, defaults.admissionCommandsEnabled),
     moderationEnabled: booleanOrDefault(record.moderationEnabled, defaults.moderationEnabled),
-    freshmanForwardEnabled: booleanOrDefault(record.freshmanForwardEnabled, defaults.freshmanForwardEnabled),
     fallbackScanEnabled: booleanOrDefault(record.fallbackScanEnabled, defaults.fallbackScanEnabled),
     reminderGroupEnabled: booleanOrDefault(record.reminderGroupEnabled, defaults.reminderGroupEnabled),
     reminderDirectEnabled: booleanOrDefault(record.reminderDirectEnabled, defaults.reminderDirectEnabled),

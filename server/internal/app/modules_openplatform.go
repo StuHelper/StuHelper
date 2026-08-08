@@ -269,6 +269,7 @@ func cloneExplicitStringSlice(values []string) []string {
 type casdoorUserProfileClient interface {
 	GetPhone(context.Context, string) (string, error)
 	UpdatePhone(context.Context, platformcasdoor.UserPhoneUpdate) error
+	ClearPhone(context.Context, string) error
 	Send(context.Context, string, string) error
 }
 
@@ -295,6 +296,30 @@ func (g *casdoorUserProfileGateway) UpdatePhone(ctx context.Context, subject, ph
 }
 
 func (g *casdoorUserProfileGateway) GetPhone(ctx context.Context, userID int64) (string, error) {
+	subject, err := g.resolvePhoneSubject(ctx, userID)
+	if err != nil {
+		return "", err
+	}
+	return g.client.GetPhone(ctx, subject)
+}
+
+func (g *casdoorUserProfileGateway) SetPhone(ctx context.Context, userID int64, phone string) error {
+	subject, err := g.resolvePhoneSubject(ctx, userID)
+	if err != nil {
+		return err
+	}
+	return g.client.UpdatePhone(ctx, platformcasdoor.UserPhoneUpdate{Subject: subject, Phone: phone})
+}
+
+func (g *casdoorUserProfileGateway) ClearPhone(ctx context.Context, userID int64) error {
+	subject, err := g.resolvePhoneSubject(ctx, userID)
+	if err != nil {
+		return err
+	}
+	return g.client.ClearPhone(ctx, subject)
+}
+
+func (g *casdoorUserProfileGateway) resolvePhoneSubject(ctx context.Context, userID int64) (string, error) {
 	if g == nil || g.client == nil {
 		return "", fmt.Errorf("casdoor user profile reader is not configured")
 	}
@@ -312,7 +337,7 @@ func (g *casdoorUserProfileGateway) GetPhone(ctx context.Context, userID int64) 
 	if subject == "" {
 		return "", fmt.Errorf("resolved Casdoor user subject is empty")
 	}
-	return g.client.GetPhone(ctx, subject)
+	return subject, nil
 }
 
 func (g *casdoorUserProfileGateway) Send(ctx context.Context, phone, content string) error {

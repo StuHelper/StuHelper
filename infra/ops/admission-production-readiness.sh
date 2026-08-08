@@ -27,7 +27,7 @@ source "${SCRIPT_DIR}/lib/common.sh"
 require_cmd docker
 require_cmd python3
 
-load_env
+load_env_preserving APP_ENV ADMISSION_READINESS_REQUIRED_METHODS ADMISSION_READINESS_ALLOW_FIXTURE_ROSTER
 export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-${STACK_NAME:-stuhelper}}"
 
 case "${ADMISSION_PRODUCTION_READINESS_ENABLED:-true}" in
@@ -75,45 +75,27 @@ required_school_ids="${ADMISSION_READINESS_REQUIRED_SCHOOL_IDS:-}"
 required_bot_credential_name="${ADMISSION_READINESS_REQUIRED_BOT_CREDENTIAL_NAME:-koishi-runtime}"
 required_bot_credential_audience="${ADMISSION_READINESS_REQUIRED_BOT_CREDENTIAL_AUDIENCE:-/api/v1/bot/*}"
 required_bot_credential_scopes="${ADMISSION_READINESS_REQUIRED_BOT_CREDENTIAL_SCOPES:-bot.qq_binding.consume,bot.qq_verification.read,bot.admission.session,bot.admission.event,bot.admission.review,bot.admission.forward,bot.member_blacklist.read,bot.member_blacklist.manage}"
-external_student_source_enabled="${EXTERNAL_STUDENT_SOURCE_ENABLED:-false}"
-external_student_source_provider="${EXTERNAL_STUDENT_SOURCE_PROVIDER:-}"
-external_student_source_school_code="${EXTERNAL_STUDENT_SOURCE_SCHOOL_CODE:-}"
-buaa_external_student_source_ready="false"
+required_methods="${ADMISSION_READINESS_REQUIRED_METHODS:-${STUDENT_VERIFICATION_READINESS_REQUIRED_METHODS:-real_name_identity_check,school_sso,manual_material_review}}"
+allow_fixture_roster="${ADMISSION_READINESS_ALLOW_FIXTURE_ROSTER:-false}"
 
-case "${external_student_source_enabled}" in
-  true|TRUE|1|yes|YES)
-    [[ "${external_student_source_provider}" == "oracle" ]] || \
-      die "EXTERNAL_STUDENT_SOURCE_PROVIDER must be oracle when EXTERNAL_STUDENT_SOURCE_ENABLED=true"
-    [[ "${external_student_source_school_code}" =~ ^[0-9]{10}$ ]] || \
-      die "EXTERNAL_STUDENT_SOURCE_SCHOOL_CODE must be a 10-digit school code"
-    required_external_oracle_keys=(
-      EXTERNAL_STUDENT_SOURCE_ORACLE_HOST
-      EXTERNAL_STUDENT_SOURCE_ORACLE_SERVICE_NAME
-      EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME
-      EXTERNAL_STUDENT_SOURCE_ORACLE_READONLY_USERNAME
-      EXTERNAL_STUDENT_SOURCE_ORACLE_PASSWORD
-      EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_HOST_PATH
-      EXTERNAL_STUDENT_SOURCE_ORACLE_SCHEMA
-      EXTERNAL_STUDENT_SOURCE_ORACLE_TABLE
-      EXTERNAL_STUDENT_SOURCE_ORACLE_STUDENT_ID_COLUMN
-      EXTERNAL_STUDENT_SOURCE_ORACLE_STUDENT_NAME_COLUMN
-    )
-    for key in "${required_external_oracle_keys[@]}"; do
-      [[ -n "${!key:-}" && "${!key}" != REPLACE_WITH_* ]] || \
-        die "${key} is required when EXTERNAL_STUDENT_SOURCE_ENABLED=true"
-    done
-    [[ "${EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME^^}" == "${EXTERNAL_STUDENT_SOURCE_ORACLE_READONLY_USERNAME^^}" ]] ||
-      die "EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME must match EXTERNAL_STUDENT_SOURCE_ORACLE_READONLY_USERNAME"
-    [[ "${EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_MODE:-}" == "verify-full" ]] ||
-      die "EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_MODE must be verify-full in production"
-    [[ "${EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_FILE:-}" == "/external-student-source-tls/ca.crt" ]] ||
-      die "EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_FILE must be /external-student-source-tls/ca.crt in production"
-    if [[ "${external_student_source_school_code}" == "4111010006" ]]; then
-      buaa_external_student_source_ready="true"
-    fi
-    ;;
+case "${EXTERNAL_STUDENT_SOURCE_ENABLED:-false}" in
   false|FALSE|0|no|NO|"") ;;
+  true|TRUE|1|yes|YES)
+    die "EXTERNAL_STUDENT_SOURCE_ENABLED must remain false; the online admission path uses the student-verification domain and Campus Connector"
+    ;;
   *) die "EXTERNAL_STUDENT_SOURCE_ENABLED must be true or false" ;;
+esac
+
+case "${allow_fixture_roster}" in
+  true|TRUE|1|yes|YES)
+    [[ "${APP_ENV:-}" == "prod-parity" ]] || \
+      die "ADMISSION_READINESS_ALLOW_FIXTURE_ROSTER is only allowed when APP_ENV=prod-parity"
+    allow_fixture_roster="true"
+    ;;
+  false|FALSE|0|no|NO|"")
+    allow_fixture_roster="false"
+    ;;
+  *) die "ADMISSION_READINESS_ALLOW_FIXTURE_ROSTER must be true or false" ;;
 esac
 
 run_readiness_sql() {
@@ -128,7 +110,8 @@ run_readiness_sql() {
       -v required_guild_ids="${required_guild_ids}" \
       -v required_school_codes="${required_school_codes}" \
       -v required_school_ids="${required_school_ids}" \
-      -v buaa_external_student_source_ready="${buaa_external_student_source_ready}" \
+      -v required_methods="${required_methods}" \
+      -v allow_fixture_roster="${allow_fixture_roster}" \
       -v required_bot_credential_name="${required_bot_credential_name}" \
       -v required_bot_credential_audience="${required_bot_credential_audience}" \
       -v required_bot_credential_scopes="${required_bot_credential_scopes}" \
@@ -145,7 +128,8 @@ input AS (
     :'required_guild_ids'::text AS required_guild_ids,
     :'required_school_codes'::text AS required_school_codes,
     :'required_school_ids'::text AS required_school_ids,
-    :'buaa_external_student_source_ready'::boolean AS buaa_external_student_source_ready,
+    :'required_methods'::text AS required_methods,
+    :'allow_fixture_roster'::boolean AS allow_fixture_roster,
     :'required_bot_credential_name'::text AS required_bot_credential_name,
     :'required_bot_credential_audience'::text AS required_bot_credential_audience,
     :'required_bot_credential_scopes'::text AS required_bot_credential_scopes
@@ -176,70 +160,7 @@ admission_schools AS (
     COALESCE(s.code, sc.school_id::text) AS school_code,
     sc.school_name,
     sc.enabled,
-    COALESCE(NULLIF(trim(sc.academic_db_table), ''), '') AS academic_db_table,
-    COALESCE(NULLIF(split_part(NULLIF(trim(sc.academic_db_table), ''), '.', 1), ''), 'public') AS academic_table_schema,
-    CASE
-      WHEN position('.' in COALESCE(NULLIF(trim(sc.academic_db_table), ''), '')) > 0
-      THEN split_part(NULLIF(trim(sc.academic_db_table), ''), '.', 2)
-      ELSE COALESCE(NULLIF(trim(sc.academic_db_table), ''), '')
-    END AS academic_table_name,
-    CASE
-      WHEN NULLIF(trim(sc.academic_db_table), '') IS NULL THEN false
-      ELSE to_regclass(trim(sc.academic_db_table)) IS NOT NULL
-    END AS academic_table_exists,
-    EXISTS (
-      SELECT 1
-      FROM information_schema.columns c
-      WHERE c.table_schema = COALESCE(NULLIF(split_part(NULLIF(trim(sc.academic_db_table), ''), '.', 1), ''), 'public')
-        AND c.table_name = CASE
-          WHEN position('.' in COALESCE(NULLIF(trim(sc.academic_db_table), ''), '')) > 0
-          THEN split_part(NULLIF(trim(sc.academic_db_table), ''), '.', 2)
-          ELSE COALESCE(NULLIF(trim(sc.academic_db_table), ''), '')
-        END
-        AND c.column_name = 'xh'
-    ) AS academic_table_has_student_id,
-    EXISTS (
-      SELECT 1
-      FROM information_schema.columns c
-      WHERE c.table_schema = COALESCE(NULLIF(split_part(NULLIF(trim(sc.academic_db_table), ''), '.', 1), ''), 'public')
-        AND c.table_name = CASE
-          WHEN position('.' in COALESCE(NULLIF(trim(sc.academic_db_table), ''), '')) > 0
-          THEN split_part(NULLIF(trim(sc.academic_db_table), ''), '.', 2)
-          ELSE COALESCE(NULLIF(trim(sc.academic_db_table), ''), '')
-        END
-        AND c.column_name = 'xm'
-    ) AS academic_table_has_student_name,
-    COALESCE(NULLIF(trim(COALESCE(sc.manual_form_fields, '{}'::jsonb) #>> '{admission,ssoLoginURL}'), ''), '') AS sso_login_url,
-    ARRAY(
-      SELECT DISTINCT lower(trim(domain.value))
-      FROM jsonb_array_elements_text(
-        CASE
-          WHEN jsonb_typeof(COALESCE(sc.manual_form_fields, '{}'::jsonb) #> '{admission,emailDomains}') = 'array'
-          THEN COALESCE(sc.manual_form_fields, '{}'::jsonb) #> '{admission,emailDomains}'
-          ELSE '[]'::jsonb
-        END
-      ) AS domain(value)
-      WHERE trim(domain.value) <> ''
-      ORDER BY lower(trim(domain.value))
-    ) AS email_domains,
-    COALESCE(NULLIF(trim(COALESCE(sc.manual_form_fields, '{}'::jsonb) #>> '{admission,emailIdentityPolicy,type}'), ''), '') AS email_identity_policy_type,
-    COALESCE(NULLIF(trim(COALESCE(sc.manual_form_fields, '{}'::jsonb) #>> '{admission,emailIdentityPolicy,studentIDEmailDomain}'), ''), '') AS student_id_email_domain,
-    CASE
-      WHEN jsonb_typeof(COALESCE(sc.manual_form_fields, '{}'::jsonb) #> '{admission,emailIdentityPolicy,requireStudentName}') = 'boolean'
-      THEN (COALESCE(sc.manual_form_fields, '{}'::jsonb) #>> '{admission,emailIdentityPolicy,requireStudentName}')::boolean
-      ELSE false
-    END AS require_student_name,
-    EXISTS (
-      SELECT 1
-      FROM jsonb_array_elements_text(
-        CASE
-          WHEN jsonb_typeof(COALESCE(sc.manual_form_fields, '{}'::jsonb) #> '{admission,emailDomains}') = 'array'
-          THEN COALESCE(sc.manual_form_fields, '{}'::jsonb) #> '{admission,emailDomains}'
-          ELSE '[]'::jsonb
-        END
-      ) AS domain(value)
-      WHERE trim(domain.value) <> ''
-    ) AS has_email_domain
+    NULLIF(trim(sc.academic_db_table), '') AS academic_db_table
   FROM public.school_configs sc
   LEFT JOIN public.schools s ON s.id = sc.school_id
 ),
@@ -247,9 +168,7 @@ policy_readiness AS (
   SELECT
     p.*,
     s.school_name,
-    s.enabled AS school_enabled,
-    COALESCE(s.sso_login_url, '') AS sso_login_url,
-    COALESCE(s.has_email_domain, false) AS has_email_domain
+    s.enabled AS school_enabled
   FROM public.group_admission_policies p
   LEFT JOIN admission_schools s ON s.school_id = p.school_id
   WHERE p.platform = (SELECT required_platform FROM input)
@@ -259,18 +178,102 @@ bot_credential_readiness AS (
   FROM public.bot_service_credentials c
   WHERE c.name = (SELECT required_bot_credential_name FROM input)
 ),
-buaa_academic_row_stats AS (
+required_verification_methods AS (
+  SELECT DISTINCT trim(value) AS method
+  FROM input, regexp_split_to_table(input.required_methods, ',') AS value
+  WHERE trim(value) <> ''
+),
+target_schools AS (
   SELECT
-    GREATEST(
-      CASE WHEN c.reltuples < 0 THEN 0 ELSE c.reltuples::bigint END,
-      COALESCE(s.n_live_tup, 0)
-    ) AS estimated_rows
-  FROM pg_catalog.pg_class c
-  JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
-  LEFT JOIN pg_catalog.pg_stat_all_tables s ON s.relid = c.oid
-  WHERE n.nspname = 'academic'
-    AND c.relname = 'buaa_students'
-    AND c.relkind IN ('r', 'p')
+    required.school_code,
+    school.id AS school_id,
+    school.name AS school_name,
+    profile.enabled AS profile_enabled,
+    profile.validation_status AS profile_validation_status,
+    profile.snapshot_sync_interval_seconds,
+    profile.snapshot_warning_after_seconds,
+    profile.snapshot_hard_expiry_seconds,
+    profile.config_revision
+  FROM required_school_codes required
+  LEFT JOIN public.schools school ON school.code = required.school_code
+  LEFT JOIN public.school_verification_profiles profile ON profile.school_id = school.id
+),
+available_methods AS (
+  SELECT
+    school.school_code,
+    method.method,
+    method.roster_dependency,
+    method.connector_operation_key,
+    method.privacy_notice_version,
+    method.privacy_notice,
+    method.school_id
+  FROM target_schools school
+  JOIN public.school_verification_methods method ON method.school_id = school.school_id
+  WHERE method.enabled
+    AND method.validation_status = 'valid'
+    AND method.health_status IN ('healthy', 'degraded')
+),
+available_connector_operations AS (
+  SELECT operation.school_id, operation.operation_key, operation.operation_type
+  FROM public.campus_connector_school_operations operation
+  JOIN public.campus_connector_nodes node ON node.id = operation.node_id
+  WHERE operation.enabled
+    AND operation.validation_status = 'valid'
+    AND operation.health_status IN ('healthy', 'degraded')
+    AND node.status IN ('active', 'degraded')
+    AND node.revoked_at IS NULL
+    AND node.certificate_not_after > now() + interval '30 days'
+    AND node.last_heartbeat_at >= now() - make_interval(
+      secs => GREATEST(120, node.heartbeat_interval_seconds * 3)
+    )
+),
+active_rosters AS (
+  SELECT
+    school.school_code,
+    school.school_id,
+    profile.snapshot_hard_expiry_seconds,
+    snapshot.id AS snapshot_id,
+    snapshot.status,
+    snapshot.source_kind,
+    snapshot.import_mode,
+    snapshot.source_cutoff_at,
+    snapshot.row_count,
+    snapshot.eligible_row_count,
+    snapshot.checksum,
+    snapshot.signature_algorithm,
+    snapshot.signature_key_id,
+    snapshot.snapshot_signature,
+    snapshot.connector_node_id,
+    (
+      SELECT count(*)
+      FROM academic.student_roster_records record
+      WHERE record.snapshot_id = snapshot.id
+        AND record.school_id = school.school_id
+    ) AS actual_row_count,
+    (
+      SELECT count(*)
+      FROM academic.student_roster_records record
+      WHERE record.snapshot_id = snapshot.id
+        AND record.school_id = school.school_id
+        AND record.eligibility_status = 'eligible'
+    ) AS actual_eligible_row_count,
+    (
+      SELECT count(*)
+      FROM academic.student_roster_quality_checks quality
+      WHERE quality.snapshot_id = snapshot.id
+    ) AS quality_check_count,
+    (
+      SELECT count(*)
+      FROM academic.student_roster_quality_checks quality
+      WHERE quality.snapshot_id = snapshot.id
+        AND quality.status IN ('pending', 'failed')
+    ) AS blocking_quality_check_count
+  FROM target_schools school
+  LEFT JOIN public.school_verification_profiles profile ON profile.school_id = school.school_id
+  LEFT JOIN academic.student_roster_active active ON active.school_id = school.school_id
+  LEFT JOIN academic.student_roster_snapshots snapshot
+    ON snapshot.id = active.snapshot_id
+   AND snapshot.school_id = school.school_id
 ),
 failures(message) AS (
   SELECT 'ADMISSION_PUBLIC_BASE_URL must be exactly https://join.stuhelper.com'
@@ -305,12 +308,33 @@ failures(message) AS (
   )
 
   UNION ALL
-  SELECT 'no enabled admission school config with school SSO or email OTP'
-  WHERE NOT EXISTS (
-    SELECT 1
-    FROM admission_schools
-    WHERE enabled AND (sso_login_url <> '' OR has_email_domain)
-  )
+  SELECT 'no enabled and healthy student verification method configured'
+  WHERE NOT EXISTS (SELECT 1 FROM available_methods)
+
+  UNION ALL
+  SELECT 'ADMISSION_READINESS_REQUIRED_METHODS must not be empty'
+  WHERE NOT EXISTS (SELECT 1 FROM required_verification_methods)
+
+  UNION ALL
+  SELECT format('required school code %s method %s is missing or unavailable', school.school_code, required.method)
+  FROM target_schools school
+  CROSS JOIN required_verification_methods required
+  WHERE school.school_id IS NOT NULL
+    AND NOT EXISTS (
+      SELECT 1
+      FROM available_methods method
+      WHERE method.school_code = school.school_code
+        AND method.method = required.method
+    )
+
+  UNION ALL
+  SELECT format('required school code %s method %s must include a privacy notice', method.school_code, method.method)
+  FROM available_methods method
+  WHERE method.method IN (SELECT required.method FROM required_verification_methods required)
+    AND (
+      NULLIF(trim(COALESCE(method.privacy_notice_version, '')), '') IS NULL
+      OR method.privacy_notice = '{}'::jsonb
+    )
 
   UNION ALL
   SELECT 'no qq group admission policy configured'
@@ -324,26 +348,21 @@ failures(message) AS (
   )
 
   UNION ALL
-  SELECT format('required school code %s has no enabled admission config with SSO or email OTP', rsc.school_code)
-  FROM required_school_codes rsc
-  WHERE NOT EXISTS (
-    SELECT 1
-    FROM admission_schools s
-    WHERE s.school_code = rsc.school_code
-      AND s.enabled
-      AND (s.sso_login_url <> '' OR s.has_email_domain)
-  )
+  SELECT format('required school code %s is missing from the school directory', school.school_code)
+  FROM target_schools school
+  WHERE school.school_id IS NULL
 
   UNION ALL
-  SELECT format('required school %s has no enabled admission config with SSO or email OTP', rs.school_id)
-  FROM required_schools rs
-  WHERE NOT EXISTS (
-    SELECT 1
-    FROM admission_schools s
-    WHERE s.school_id = rs.school_id
-      AND s.enabled
-      AND (s.sso_login_url <> '' OR s.has_email_domain)
-  )
+  SELECT format('required school code %s has no verification profile', school.school_code)
+  FROM target_schools school
+  WHERE school.school_id IS NOT NULL
+    AND school.profile_validation_status IS NULL
+
+  UNION ALL
+  SELECT format('required school code %s verification profile is not enabled and valid', school.school_code)
+  FROM target_schools school
+  WHERE school.profile_validation_status IS NOT NULL
+    AND (school.profile_enabled IS DISTINCT FROM true OR school.profile_validation_status <> 'valid')
 
   UNION ALL
   SELECT format('enabled school code %s is not in ADMISSION_READINESS_REQUIRED_SCHOOL_CODES', s.school_code)
@@ -366,88 +385,78 @@ failures(message) AS (
     )
 
   UNION ALL
-  SELECT 'BUAA admission config must use academic.buaa_students as academic_db_table'
-  WHERE EXISTS (SELECT 1 FROM required_school_codes WHERE school_code = '4111010006')
-    AND NOT (SELECT buaa_external_student_source_ready FROM input)
-    AND NOT EXISTS (
-      SELECT 1
-      FROM admission_schools
-      WHERE school_code = '4111010006'
-        AND academic_db_table = 'academic.buaa_students'
+  SELECT format('required school code %s school config still references the retired academic table', school.school_code)
+  FROM admission_schools school
+  WHERE school.school_code IN (SELECT required.school_code FROM required_school_codes required)
+    AND school.academic_db_table IS NOT NULL
+
+  UNION ALL
+  SELECT format('required school code %s active roster is missing', roster.school_code)
+  FROM active_rosters roster
+  WHERE roster.snapshot_id IS NULL
+
+  UNION ALL
+  SELECT format('required school code %s active roster pointer references a non-active snapshot', roster.school_code)
+  FROM active_rosters roster
+  WHERE roster.snapshot_id IS NOT NULL AND roster.status <> 'active'
+
+  UNION ALL
+  SELECT format('required school code %s active roster must be a full snapshot', roster.school_code)
+  FROM active_rosters roster
+  WHERE roster.snapshot_id IS NOT NULL
+    AND roster.import_mode NOT IN ('full', 'reconciled_full')
+
+  UNION ALL
+  SELECT format('required school code %s active roster source must be Campus Connector', roster.school_code)
+  FROM active_rosters roster
+  WHERE roster.snapshot_id IS NOT NULL
+    AND (
+      (NOT (SELECT allow_fixture_roster FROM input) AND roster.source_kind <> 'campus_connector')
+      OR (NOT (SELECT allow_fixture_roster FROM input) AND roster.connector_node_id IS NULL)
+      OR (NOT (SELECT allow_fixture_roster FROM input) AND (
+        roster.checksum IS NULL
+        OR roster.signature_algorithm IS NULL
+        OR roster.signature_key_id IS NULL
+        OR roster.snapshot_signature IS NULL
+      ))
+      OR ((SELECT allow_fixture_roster FROM input) AND roster.source_kind NOT IN ('fixture', 'campus_connector'))
     )
 
   UNION ALL
-  SELECT 'BUAA admission emailDomains must be exactly buaa.edu.cn'
-  WHERE EXISTS (SELECT 1 FROM required_school_codes WHERE school_code = '4111010006')
-    AND NOT EXISTS (
-      SELECT 1
-      FROM admission_schools
-      WHERE school_code = '4111010006'
-        AND email_domains = ARRAY['buaa.edu.cn']::text[]
+  SELECT format('required school code %s active roster snapshot is past the hard freshness threshold', roster.school_code)
+  FROM active_rosters roster
+  WHERE roster.snapshot_id IS NOT NULL
+    AND roster.source_cutoff_at + make_interval(secs => roster.snapshot_hard_expiry_seconds) <= now()
+
+  UNION ALL
+  SELECT format('required school code %s active roster snapshot has invalid row counts', roster.school_code)
+  FROM active_rosters roster
+  WHERE roster.snapshot_id IS NOT NULL
+    AND (
+      roster.row_count <= 0
+      OR roster.eligible_row_count <= 0
+      OR roster.eligible_row_count > roster.row_count
+      OR roster.actual_row_count <> roster.row_count
+      OR roster.actual_eligible_row_count <> roster.eligible_row_count
     )
 
   UNION ALL
-  SELECT 'BUAA admission emailIdentityPolicy.type must be academic_student_email'
-  WHERE EXISTS (SELECT 1 FROM required_school_codes WHERE school_code = '4111010006')
-    AND NOT EXISTS (
-      SELECT 1
-      FROM admission_schools
-      WHERE school_code = '4111010006'
-        AND email_identity_policy_type = 'academic_student_email'
-    )
+  SELECT format('required school code %s active roster snapshot has incomplete or failed quality gates', roster.school_code)
+  FROM active_rosters roster
+  WHERE roster.snapshot_id IS NOT NULL
+    AND NOT (SELECT allow_fixture_roster FROM input)
+    AND (roster.quality_check_count = 0 OR roster.blocking_quality_check_count > 0)
 
   UNION ALL
-  SELECT 'BUAA admission studentIDEmailDomain must be buaa.edu.cn'
-  WHERE EXISTS (SELECT 1 FROM required_school_codes WHERE school_code = '4111010006')
+  SELECT format('required school code %s required method has no healthy approved connector operation', method.school_code)
+  FROM available_methods method
+  WHERE method.method IN (SELECT required.method FROM required_verification_methods required)
+    AND method.connector_operation_key IS NOT NULL
     AND NOT EXISTS (
       SELECT 1
-      FROM admission_schools
-      WHERE school_code = '4111010006'
-        AND student_id_email_domain = 'buaa.edu.cn'
-    )
-
-  UNION ALL
-  SELECT 'BUAA admission must require student name before sending school email OTP'
-  WHERE EXISTS (SELECT 1 FROM required_school_codes WHERE school_code = '4111010006')
-    AND NOT EXISTS (
-      SELECT 1
-      FROM admission_schools
-      WHERE school_code = '4111010006'
-        AND require_student_name
-    )
-
-  UNION ALL
-  SELECT 'BUAA academic table academic.buaa_students is missing'
-  WHERE EXISTS (SELECT 1 FROM required_school_codes WHERE school_code = '4111010006')
-    AND NOT (SELECT buaa_external_student_source_ready FROM input)
-    AND NOT EXISTS (
-      SELECT 1
-      FROM admission_schools
-      WHERE school_code = '4111010006'
-        AND academic_table_exists
-    )
-
-  UNION ALL
-  SELECT 'BUAA academic table academic.buaa_students must expose xh and xm columns'
-  WHERE EXISTS (SELECT 1 FROM required_school_codes WHERE school_code = '4111010006')
-    AND NOT (SELECT buaa_external_student_source_ready FROM input)
-    AND NOT EXISTS (
-      SELECT 1
-      FROM admission_schools
-      WHERE school_code = '4111010006'
-        AND academic_table_has_student_id
-        AND academic_table_has_student_name
-    )
-
-  UNION ALL
-  SELECT 'BUAA academic table academic.buaa_students has no rows; import real BUAA student records before admission go-live'
-  WHERE EXISTS (SELECT 1 FROM required_school_codes WHERE school_code = '4111010006')
-    AND NOT (SELECT buaa_external_student_source_ready FROM input)
-    AND EXISTS (SELECT 1 FROM buaa_academic_row_stats)
-    AND NOT EXISTS (
-      SELECT 1
-      FROM buaa_academic_row_stats
-      WHERE estimated_rows > 0
+      FROM available_connector_operations operation
+      WHERE operation.school_id = method.school_id
+        AND operation.operation_key = method.connector_operation_key
     )
 
   UNION ALL
@@ -488,14 +497,25 @@ failures(message) AS (
   WHERE to_regclass('public.freshman_camera_handoffs_active_application_idx') IS NULL
 
   UNION ALL
-  SELECT format('policy %s/%s references missing or disabled admission school %s', platform, guild_id, school_id)
-  FROM policy_readiness
-  WHERE school_enabled IS DISTINCT FROM true
+  SELECT format('policy %s/%s references missing or disabled student-verification school %s', p.platform, p.guild_id, p.school_id)
+  FROM policy_readiness p
+  WHERE NOT EXISTS (
+    SELECT 1
+    FROM target_schools school
+    WHERE school.school_id = p.school_id
+      AND school.profile_enabled = true
+      AND school.profile_validation_status = 'valid'
+  )
 
   UNION ALL
-  SELECT format('policy %s/%s school %s has no admission SSO or email OTP capability', platform, guild_id, school_id)
-  FROM policy_readiness
-  WHERE school_enabled AND sso_login_url = '' AND NOT has_email_domain
+  SELECT format('policy %s/%s school %s has no required healthy student-verification method', p.platform, p.guild_id, p.school_id)
+  FROM policy_readiness p
+  WHERE NOT EXISTS (
+    SELECT 1
+    FROM available_methods method
+    WHERE method.school_id = p.school_id
+      AND method.method IN (SELECT required.method FROM required_verification_methods required)
+  )
 
   UNION ALL
   SELECT format('policy %s/%s must keep auto_approve_verified_join=true and auto_approve_unverified_join=true for admission MVP', platform, guild_id)
@@ -556,32 +576,45 @@ fi
 summary="$(
   run_readiness_sql <<'SQL'
 WITH
-admission_schools AS (
+required_school_codes AS (
+  SELECT DISTINCT trim(value) AS school_code
+  FROM regexp_split_to_table(:'required_school_codes', ',') AS value
+  WHERE trim(value) <> ''
+),
+target_schools AS (
   SELECT
-    sc.school_id,
-    COALESCE(s.code, sc.school_id::text) AS school_code,
-    sc.enabled,
-    COALESCE(NULLIF(trim(COALESCE(sc.manual_form_fields, '{}'::jsonb) #>> '{admission,ssoLoginURL}'), ''), '') AS sso_login_url,
-    EXISTS (
-      SELECT 1
-      FROM jsonb_array_elements_text(
-        CASE
-          WHEN jsonb_typeof(COALESCE(sc.manual_form_fields, '{}'::jsonb) #> '{admission,emailDomains}') = 'array'
-          THEN COALESCE(sc.manual_form_fields, '{}'::jsonb) #> '{admission,emailDomains}'
-          ELSE '[]'::jsonb
-        END
-      ) AS domain(value)
-      WHERE trim(domain.value) <> ''
-    ) AS has_email_domain
-  FROM public.school_configs sc
-  LEFT JOIN public.schools s ON s.id = sc.school_id
+    required.school_code,
+    school.id AS school_id,
+    profile.snapshot_hard_expiry_seconds
+  FROM required_school_codes required
+  LEFT JOIN public.schools school ON school.code = required.school_code
+  LEFT JOIN public.school_verification_profiles profile ON profile.school_id = school.id
+),
+active_rosters AS (
+  SELECT
+    school.school_code,
+    snapshot.source_kind,
+    snapshot.row_count,
+    snapshot.eligible_row_count,
+    snapshot.source_cutoff_at,
+    active.activation_revision
+  FROM target_schools school
+  JOIN academic.student_roster_active active ON active.school_id = school.school_id
+  JOIN academic.student_roster_snapshots snapshot
+    ON snapshot.id = active.snapshot_id
+   AND snapshot.school_id = school.school_id
+),
+available_methods AS (
+  SELECT method.school_id
+  FROM public.school_verification_methods method
+  WHERE method.enabled
+    AND method.validation_status = 'valid'
+    AND method.health_status IN ('healthy', 'degraded')
 )
 SELECT format(
-  'admission production readiness passed: schools=%s policies=%s bot_credential=%s buaa_student_source=%s',
+  'admission production readiness passed: schools=%s policies=%s bot_credential=%s roster_source=%s',
   (
-    SELECT count(*)
-    FROM admission_schools
-    WHERE enabled AND (sso_login_url <> '' OR has_email_domain)
+    SELECT count(*) FROM target_schools
   ),
   (
     SELECT count(*)
@@ -589,7 +622,7 @@ SELECT format(
     WHERE platform = :'required_platform'
   ),
   :'required_bot_credential_name',
-  CASE WHEN :'buaa_external_student_source_ready'::boolean THEN 'external_oracle' ELSE 'local_academic_table' END
+  COALESCE((SELECT string_agg(DISTINCT source_kind, ',') FROM active_rosters), 'none')
 );
 SQL
 )" || die "admission production readiness summary query failed: ${summary//$'\n'/; }"

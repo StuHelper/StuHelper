@@ -79,6 +79,7 @@ touch \
   "${source_dir}/infra/generated/object-storage-client-ca/ca.crt" \
   "${source_dir}/infra/generated/observability/prometheus/prometheus.yml" \
   "${source_dir}/infra/generated/observability/alertmanager/alertmanager.yml" \
+  "${source_dir}/infra/generated/observability/alertmanager/webhook-token" \
   "${source_dir}/infra/postgres/init-extra-dbs.sh" \
   "${source_dir}/infra/postgres/docker-entrypoint-with-tls.sh" \
   "${source_dir}/infra/postgres/pg_hba.prod.conf" \
@@ -180,6 +181,7 @@ assert_mode 750 "${source_dir}/infra/generated/observability/prometheus"
 assert_mode 640 "${source_dir}/infra/generated/observability/prometheus/prometheus.yml"
 assert_mode 750 "${source_dir}/infra/generated/observability/alertmanager"
 assert_mode 640 "${source_dir}/infra/generated/observability/alertmanager/alertmanager.yml"
+assert_mode 640 "${source_dir}/infra/generated/observability/alertmanager/webhook-token"
 
 assert_mode 750 "${casdoor_root}/conf"
 assert_mode 640 "${casdoor_root}/conf/app.conf"

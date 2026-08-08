@@ -42,6 +42,9 @@ bash -n "${BOOTSTRAP_SCRIPT}"
 
 assert_contains "${BOOTSTRAP_SCRIPT}" 'DEPLOY_USER="\$\{DEPLOY_USER:-stuhelper\}"'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'DEPLOY_APP_DIR="\$\{DEPLOY_APP_DIR:-/opt/stuhelper\}"'
+assert_contains "${BOOTSTRAP_SCRIPT}" 'DEPLOY_APP_MODE="\$\{DEPLOY_APP_MODE:-0750\}"'
+assert_contains "${BOOTSTRAP_SCRIPT}" 'validate_deploy_app_mode'
+assert_contains "${BOOTSTRAP_SCRIPT}" 'install -d -o "\$\{DEPLOY_USER\}" -g "\$\{DEPLOY_GROUP\}" -m "\$\{DEPLOY_APP_MODE\}" "\$\{DEPLOY_APP_DIR\}"'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'CONFIGURE_UFW="\$\{CONFIGURE_UFW:-true\}"'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'INSTALL_BACKUP_TIMERS="\$\{INSTALL_BACKUP_TIMERS:-true\}"'
 assert_contains "${BOOTSTRAP_SCRIPT}" 'BACKUP_STAGING_DIR="\$\{BACKUP_STAGING_DIR:-/var/lib/stuhelper/postgres/backup-staging\}"'

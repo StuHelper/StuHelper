@@ -67,7 +67,6 @@ import { useI18n } from "vue-i18n";
 import {
     ArrowRight,
     Bot,
-    FileText,
     GraduationCap,
     KeyRound,
     LockKeyhole,
@@ -75,7 +74,6 @@ import {
     Phone,
     ShieldCheck,
     UserRound,
-    UserRoundCheck,
     type LucideIcon,
 } from "lucide-vue-next";
 
@@ -108,12 +106,6 @@ const portalItems = computed<PortalItem[]>(() => [
         description: t("user.identityHome.authorizedApps.description"),
     },
     {
-        to: "/user/identity-verification",
-        icon: markRaw(UserRoundCheck),
-        title: t("user.identityHome.identityVerification.title"),
-        description: t("user.identityHome.identityVerification.description"),
-    },
-    {
         to: "/user/student-verification",
         icon: markRaw(GraduationCap),
         title: t("user.identityHome.studentVerification.title"),
@@ -130,12 +122,6 @@ const portalItems = computed<PortalItem[]>(() => [
         icon: markRaw(Bot),
         title: t("user.identityHome.qqBinding.title"),
         description: t("user.identityHome.qqBinding.description"),
-    },
-    {
-        to: "/user/academic-info",
-        icon: markRaw(FileText),
-        title: t("user.identityHome.academicInfo.title"),
-        description: t("user.identityHome.academicInfo.description"),
     },
     {
         to: "/connect",

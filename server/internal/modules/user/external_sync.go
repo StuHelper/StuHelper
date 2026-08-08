@@ -117,12 +117,6 @@ func (s *Service) processExternalSyncJob(ctx context.Context, job ExternalSyncJo
 			return fmt.Errorf("decode user profile projection payload: %w", err)
 		}
 		return s.syncUserProfileProjection(ctx, payload.UserID)
-	case externalSyncJobTypeAdmissionVerification:
-		var payload admissionVerificationProjectionPayload
-		if err := json.Unmarshal(job.Payload, &payload); err != nil {
-			return fmt.Errorf("decode admission verification projection payload: %w", err)
-		}
-		return s.syncAdmissionVerificationProjection(ctx, payload.UserID)
 	default:
 		return fmt.Errorf("unsupported external sync job type: %s", job.JobType)
 	}
@@ -139,14 +133,6 @@ func truncateExternalSyncError(err error) string {
 	return msg[:1000]
 }
 
-func (s *Service) currentProfileApproved(ctx context.Context, userID int64) (bool, error) {
-	profile, err := s.repo.GetProfileByUserID(ctx, userID)
-	if err != nil {
-		return false, fmt.Errorf("get profile: %w", err)
-	}
-	return profile != nil && profile.VerificationStatus == StatusVerified, nil
-}
-
 func (s *Service) syncUserProfileProjection(ctx context.Context, userID int64) error {
 	if s.profileFGA == nil {
 		return errors.New("profile FGA dependency is not configured")
@@ -155,12 +141,12 @@ func (s *Service) syncUserProfileProjection(ctx context.Context, userID int64) e
 	projectionCtx, cancel := context.WithTimeout(ctx, fga.DefaultWriteTimeout)
 	defer cancel()
 
-	profile, err := s.repo.GetProfileByUserID(projectionCtx, userID)
-	if err != nil {
-		return fmt.Errorf("get profile: %w", err)
+	if s.verificationStatus == nil {
+		return errors.New("student verification status dependency is not configured")
 	}
-	if profile == nil {
-		return nil
+	student, err := s.verificationStatus.GetCurrentStudentStatus(projectionCtx, userID)
+	if err != nil {
+		return fmt.Errorf("get current student status: %w", err)
 	}
 
 	profileObj := "user_profile:" + strconv.FormatInt(userID, 10)
@@ -171,15 +157,15 @@ func (s *Service) syncUserProfileProjection(ctx context.Context, userID int64) e
 	}
 	desiredOwnerTuples := []fga.Tuple{ownerTuple}
 	desiredSchoolTuples := make([]fga.Tuple, 0, 1)
-	if profile.VerificationStatus == StatusVerified {
-		if profile.SchoolID == nil {
-			return fmt.Errorf("verified profile %d has no school ID", userID)
+	if student.Eligible {
+		if student.SchoolID == nil {
+			return fmt.Errorf("eligible student %d has no school ID", userID)
 		}
-		if err := validateSchoolID(*profile.SchoolID); err != nil {
-			return fmt.Errorf("verified profile %d has invalid school ID: %w", userID, err)
+		if err := validateSchoolID(*student.SchoolID); err != nil {
+			return fmt.Errorf("eligible student %d has invalid school ID: %w", userID, err)
 		}
 		desiredSchoolTuples = append(desiredSchoolTuples, fga.Tuple{
-			User:     "school:" + strconv.FormatInt(*profile.SchoolID, 10),
+			User:     "school:" + strconv.FormatInt(*student.SchoolID, 10),
 			Relation: "school",
 			Object:   profileObj,
 		})
@@ -215,49 +201,4 @@ func (s *Service) syncUserProfileProjection(ctx context.Context, userID int64) e
 
 func staleFGATuples(existing, desired []fga.Tuple) []fga.Tuple {
 	return fga.MissingTuples(desired, existing)
-}
-
-var errAdmissionProjectionProfileNotVerified = errors.New("verified profile is not available for admission projection")
-
-func (s *Service) syncAdmissionVerificationProjection(ctx context.Context, userID int64) error {
-	approved, err := s.currentProfileApproved(ctx, userID)
-	if err != nil {
-		return err
-	}
-	if !approved {
-		return nil
-	}
-	if s.admissionProjection == nil {
-		return errors.New("admission verification projection dependency is not configured")
-	}
-	schoolID, err := s.ensureVerifiedProfileCredential(ctx, userID)
-	if errors.Is(err, errAdmissionProjectionProfileNotVerified) {
-		return nil
-	}
-	if err != nil {
-		return fmt.Errorf("ensure admission verification credential: %w", err)
-	}
-	if err := s.admissionProjection.ProjectStudentVerification(ctx, userID, schoolID, true); err != nil {
-		return fmt.Errorf("project admission student verification: %w", err)
-	}
-	return nil
-}
-
-func (s *Service) ensureVerifiedProfileCredential(ctx context.Context, userID int64) (int64, error) {
-	var schoolID int64
-	err := s.repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		profile, err := s.repo.GetProfileByUserIDForUpdateTx(ctx, tx, userID)
-		if err != nil {
-			return fmt.Errorf("get profile tx: %w", err)
-		}
-		if profile == nil || profile.VerificationStatus != StatusVerified {
-			return errAdmissionProjectionProfileNotVerified
-		}
-		if profile.SchoolID == nil || *profile.SchoolID <= 0 {
-			return fmt.Errorf("verified profile %d has no school ID for admission projection", userID)
-		}
-		schoolID = *profile.SchoolID
-		return s.ensureProfileVerificationCredentialTx(ctx, tx, profile)
-	})
-	return schoolID, err
 }

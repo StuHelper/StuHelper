@@ -2,6 +2,8 @@ import type { Page } from './fixtures';
 
 import { expect, test } from './fixtures';
 
+const oidcDestinationURL = 'about:blank';
+
 async function mockAnonymousSession(page: Page) {
   await page.route('**/api/v1/auth/me', async (route) => {
     await route.fulfill({
@@ -16,10 +18,6 @@ async function mockAnonymousSession(page: Page) {
   });
 
   await page.route('**/api/v1/auth/login**', async (route) => {
-    const loginUrl = new URL(
-      '/admin/auth/login',
-      page.url() || 'http://127.0.0.1:4174',
-    );
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -27,7 +25,7 @@ async function mockAnonymousSession(page: Page) {
         success: true,
         data: {
           state: 'e2e-state',
-          url: loginUrl.toString(),
+          url: oidcDestinationURL,
         },
       }),
     });
@@ -96,7 +94,7 @@ test('admin login route initiates OIDC login', async ({ page }) => {
   await loginResponse;
   const requestURL = new URL(request.url());
 
-  await expect(page).toHaveTitle(/StuHelper Admin/i);
+  await expect(page).toHaveURL(oidcDestinationURL);
   expect(requestURL.searchParams.get('app')).toBe('admin');
   expect(requestURL.searchParams.get('redirect')).toContain('/analytics');
 });
@@ -112,6 +110,7 @@ test('root route initiates OIDC login when unauthenticated', async ({
   await loginResponse;
   const requestURL = new URL(request.url());
 
+  await expect(page).toHaveURL(oidcDestinationURL);
   await expect
     .poll(() => requestURL.searchParams.get('redirect'))
     .toContain('/analytics');

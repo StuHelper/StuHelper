@@ -9,8 +9,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/StuHelper/StuHelper/server/internal/pkg/phoneutil"
 )
 
 func TestNewService_NilRepo(t *testing.T) {
@@ -38,119 +36,12 @@ func TestNewService_ValidConstruction(t *testing.T) {
 	assert.NotNil(t, svc.docCipher)
 }
 
-func TestBindPhone_WritesCasdoorAndUserPhoneProjection(t *testing.T) {
-	var (
-		syncedSubject string
-		syncedPhone   string
-		phoneEnc      []byte
-		phoneHash     string
-	)
-	hmacKey := []byte("test-hmac-key-at-least-32-chars!")
-	expectedHash, err := phoneutil.HashLookupWithKey("13800138000", hmacKey)
-	require.NoError(t, err)
-
-	repo := &mockRepo{
-		onGetProfileByUserID: func(_ context.Context, userID int64) (*Profile, error) {
-			t.Fatalf("BindPhone must not require student profile, got userID %d", userID)
-			return nil, nil
-		},
-		onGetCasdoorSubject: func(_ context.Context, userID int64) (string, error) {
-			assert.Equal(t, int64(42), userID)
-			return "casdoor-subject-42", nil
-		},
-		onUpdateProfile: func(_ context.Context, profile *Profile) error {
-			t.Fatal("BindPhone must not update user_profiles; phone projection is stored on users")
-			return nil
-		},
-		onSetUserPhone: func(_ context.Context, userID int64, gotPhoneEnc []byte, gotPhoneHash string) error {
-			assert.Equal(t, int64(42), userID)
-			phoneEnc = append([]byte(nil), gotPhoneEnc...)
-			phoneHash = gotPhoneHash
-			return nil
-		},
-	}
-	gateway := profileIdentitySyncFunc(func(_ context.Context, subject, phone string) error {
-		syncedSubject = subject
-		syncedPhone = phone
-		return nil
-	})
-
-	svc, err := NewService(
-		repo,
-		hmacKey,
-		&fakeEncryptor{},
-		WithProfileIdentitySyncGateway(gateway),
-	)
-	require.NoError(t, err)
-
-	err = svc.BindPhone(context.Background(), 42, "13800138000")
-	require.NoError(t, err)
-	assert.Equal(t, "casdoor-subject-42", syncedSubject)
-	assert.Equal(t, "+8613800138000", syncedPhone)
-	assert.Equal(t, []byte("encrypted:138****8000"), phoneEnc)
-	assert.Equal(t, expectedHash, phoneHash)
-}
-
-func TestBindPhone_DuplicateProjectionDoesNotUpdateCasdoor(t *testing.T) {
-	hmacKey := []byte("test-hmac-key-at-least-32-chars!")
-	expectedHash, err := phoneutil.HashLookupWithKey("13800138000", hmacKey)
-	require.NoError(t, err)
-	casdoorCalls := 0
-
-	repo := &mockRepo{
-		onGetProfileByUserID: func(_ context.Context, userID int64) (*Profile, error) {
-			t.Fatalf("BindPhone must reject duplicate projection before loading profile, got userID %d", userID)
-			return nil, nil
-		},
-		onEnsureUserPhoneAvailable: func(_ context.Context, userID int64, phoneHash string) error {
-			assert.Equal(t, int64(42), userID)
-			assert.Equal(t, expectedHash, phoneHash)
-			return ErrPhoneAlreadyBound
-		},
-		onGetCasdoorSubject: func(context.Context, int64) (string, error) {
-			t.Fatal("duplicate phone must be rejected before loading Casdoor subject")
-			return "", nil
-		},
-		onSetUserPhone: func(context.Context, int64, []byte, string) error {
-			t.Fatal("duplicate phone must not update local projection")
-			return nil
-		},
-		onUpdateProfile: func(context.Context, *Profile) error {
-			t.Fatal("duplicate phone must not update profile projection")
-			return nil
-		},
-	}
-	gateway := profileIdentitySyncFunc(func(context.Context, string, string) error {
-		casdoorCalls++
-		return nil
-	})
-
-	svc, err := NewService(
-		repo,
-		hmacKey,
-		&fakeEncryptor{},
-		WithProfileIdentitySyncGateway(gateway),
-	)
-	require.NoError(t, err)
-
-	err = svc.BindPhone(context.Background(), 42, "13800138000")
-	require.ErrorIs(t, err, ErrPhoneAlreadyBound)
-	assert.Zero(t, casdoorCalls)
-}
-
-func TestBindPhone_RequiresIdentitySyncGateway(t *testing.T) {
-	repo := &mockRepo{
-		onGetProfileByUserID: func(_ context.Context, userID int64) (*Profile, error) {
-			t.Fatalf("BindPhone must reject missing identity sync gateway before loading profile, got userID %d", userID)
-			return nil, nil
-		},
-	}
-
-	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
+func TestBindPhoneLegacyServicePathIsFailClosed(t *testing.T) {
+	svc, err := NewService(&mockRepo{}, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
 	err = svc.BindPhone(context.Background(), 7, "13800138000")
-	require.ErrorIs(t, err, ErrProfileIdentitySyncMissing)
+	require.ErrorIs(t, err, ErrLegacyPhoneBindingRemoved)
 }
 
 type profileIdentitySyncFunc func(ctx context.Context, subject, phone string) error

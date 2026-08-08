@@ -14,10 +14,6 @@ import type {
   AdmissionSessionOperatorRequest,
   AdmissionSessionSubjectRequest,
   ConsumeQQBindingRequest,
-  FreshmanApplication,
-  FreshmanCommandContext,
-  FreshmanForwardItem,
-  FreshmanReviewRequest,
   MemberBlacklistAccessDecision,
   MemberBlacklistAccessRequest,
   MemberBlacklistCreateRequest,
@@ -31,7 +27,6 @@ import type {
   StuhelperPlatformConfig,
   QQBinding,
 } from '../types/index'
-import { createFreshmanClient } from './freshman-client'
 
 const HEALTH_PATH = '/health/live'
 const QQ_BINDING_CONSUME_PATH = '/api/v1/bot/qq-binding/consume'
@@ -116,10 +111,6 @@ export interface PlatformClient {
   recordAdmissionEvent(sessionID: string, input: AdmissionBotEventRequest): Promise<void>
   streamAdmissionActions(input: AdmissionPendingActionsRequest, handlers: AdmissionActionStreamHandlers): AdmissionActionStreamHandle
   recordAdmissionActionEvent(actionID: string, input: AdmissionBotActionEventRequest): Promise<void>
-  listPendingFreshmanForwards(): Promise<readonly FreshmanForwardItem[]>
-  markFreshmanForwarded(applicationID: string): Promise<void>
-  viewFreshmanApplication(applicationID: string, input: FreshmanCommandContext): Promise<FreshmanApplication>
-  reviewFreshmanApplication(applicationID: string, input: FreshmanReviewRequest): Promise<FreshmanApplication>
 }
 
 export function createPlatformClient(config: StuhelperPlatformConfig): PlatformClient {
@@ -132,7 +123,6 @@ export function createPlatformClient(config: StuhelperPlatformConfig): PlatformC
     ...createBindingClient(request),
     ...createAdmissionClient(request, resolvedConfig),
     ...createMemberBlacklistClient(request),
-    ...createFreshmanClient(request),
   }
 }
 
@@ -230,16 +220,18 @@ function createAdmissionClient(
 
     async listPendingAdmissionActions(input) {
       assertPendingAdmissionActionsRequest(input)
-      return request<readonly AdmissionPendingAction[]>(withQuery(ADMISSION_PENDING_ACTIONS_PATH, input), {
+      const actions = await request<unknown>(withQuery(ADMISSION_PENDING_ACTIONS_PATH, input), {
         method: 'GET',
       })
+      return parseAdmissionPendingActions(actions)
     },
 
     async claimQueuedAdmissionActions(input) {
       assertPendingAdmissionActionsRequest(input)
-      return request<readonly AdmissionPendingAction[]>(withQuery(ADMISSION_ACTION_CLAIM_PATH, input), {
+      const actions = await request<unknown>(withQuery(ADMISSION_ACTION_CLAIM_PATH, input), {
         method: 'POST',
       })
+      return parseAdmissionPendingActions(actions)
     },
 
     async recordAdmissionEvent(sessionID, input) {
@@ -379,7 +371,49 @@ async function dispatchAdmissionActionStreamEvent(
   if (event !== 'action' || data.length === 0) {
     return
   }
-  await handlers.onAction(JSON.parse(data.join('\n')) as AdmissionPendingAction)
+  const value: unknown = JSON.parse(data.join('\n'))
+  await handlers.onAction(parseAdmissionPendingAction(value))
+}
+
+function parseAdmissionPendingActions(value: unknown): readonly AdmissionPendingAction[] {
+  if (!Array.isArray(value)) {
+    throw new Error('platform admission actions response must be an array')
+  }
+  return value.map(parseAdmissionPendingAction)
+}
+
+function parseAdmissionPendingAction(value: unknown): AdmissionPendingAction {
+  if (!isRecord(value)) {
+    throw new Error('platform admission action must be an object')
+  }
+  const sessionID = stringField(value, 'sessionID')
+  const action = stringField(value, 'action')
+  if (!['remind', 'release', 'kick', 'blacklist'].includes(action)) {
+    throw new Error('platform admission action has an unsupported action')
+  }
+  if (typeof value.actionID !== 'undefined') {
+    stringField(value, 'actionID')
+    if (!Number.isInteger(value.dispatchAttempt) || Number(value.dispatchAttempt) <= 0) {
+      throw new Error('platform admission action has an invalid dispatch attempt')
+    }
+  }
+  if (typeof value.eligibilityRevision !== 'undefined' &&
+    (!Number.isSafeInteger(value.eligibilityRevision) || Number(value.eligibilityRevision) <= 0)) {
+    throw new Error('platform admission action has an invalid eligibility revision')
+  }
+  return { ...value, sessionID, action } as AdmissionPendingAction
+}
+
+function stringField(value: Record<string, unknown>, field: string): string {
+  const candidate = value[field]
+  if (typeof candidate !== 'string' || candidate.trim() === '') {
+    throw new Error(`platform admission action is missing ${field}`)
+  }
+  return candidate
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function appendQueryValue(values: URLSearchParams, key: string, value: unknown) {

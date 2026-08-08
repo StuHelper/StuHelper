@@ -63,6 +63,7 @@ var (
 	ErrQQBindingUserConflict                    = errors.New("user already bound to another qq account")
 	ErrQQIDRequired                             = errors.New("qq id is required")
 	ErrProfileIdentitySyncMissing               = errors.New("profile identity sync gateway is not configured")
+	ErrLegacyPhoneBindingRemoved                = errors.New("legacy phone binding path removed")
 	ErrStudentEmailDomainNotAllowed             = errors.New("student email domain not allowed")
 	ErrStudentEmailSenderUnavailable            = errors.New("student email sender unavailable")
 	ErrStudentEmailRedisUnavailable             = errors.New("student email redis unavailable")
@@ -108,7 +109,6 @@ const (
 // VerifyMethod 认证方式常量
 const (
 	VerifyMethodAcademicDB     = "academic_db_match"
-	VerifyMethodTencent        = "tencent_cloud"
 	VerifyMethodManual         = "manual"
 	VerifyMethodLDAP           = "ldap"
 	VerifyMethodSchoolEmailOTP = "school_email_otp"
@@ -256,6 +256,23 @@ type studentDirectoryLookup interface {
 	LookupStudent(ctx context.Context, schoolCode string, studentID string) (*ExternalStudentRecord, bool, error)
 }
 
+type CurrentStudentStatus struct {
+	Eligible bool
+	SchoolID *int64
+}
+
+type CurrentPhoneStatus struct {
+	MaskedPhone                    *string
+	PublishingRequirementSatisfied bool
+}
+
+// verificationStatusGateway is the only account-domain boundary to the new
+// student-verification and phone-credential authorities.
+type verificationStatusGateway interface {
+	GetCurrentStudentStatus(ctx context.Context, userID int64) (CurrentStudentStatus, error)
+	GetCurrentPhoneStatus(ctx context.Context, userID int64) (CurrentPhoneStatus, error)
+}
+
 // Service 用户服务层
 type Service struct {
 	repo                Repo
@@ -270,6 +287,7 @@ type Service struct {
 	profileIdentitySync profileIdentitySyncGateway
 	admissionProjection admissionVerificationProjectionGateway
 	studentDirectory    studentDirectoryLookup
+	verificationStatus  verificationStatusGateway
 }
 
 type ServiceOption func(*Service)
@@ -317,6 +335,10 @@ func (s *Service) SetProfileIdentitySyncGateway(gateway profileIdentitySyncGatew
 
 func (s *Service) SetAdmissionVerificationProjectionGateway(gateway admissionVerificationProjectionGateway) {
 	s.admissionProjection = gateway
+}
+
+func (s *Service) SetVerificationStatusGateway(gateway verificationStatusGateway) {
+	s.verificationStatus = gateway
 }
 
 func WithLDAPClientFactory(factory LDAPClientFactory) ServiceOption {

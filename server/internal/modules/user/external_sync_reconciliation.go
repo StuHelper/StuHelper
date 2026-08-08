@@ -112,12 +112,6 @@ func (s *Service) requeueUserProfileProjectionStates(ctx context.Context, states
 				return err
 			}
 			requeued++
-			if state.Approved {
-				if err := s.enqueueAdmissionVerificationProjectionTx(ctx, tx, state.UserID, true); err != nil {
-					return err
-				}
-				requeued++
-			}
 		}
 		return nil
 	})

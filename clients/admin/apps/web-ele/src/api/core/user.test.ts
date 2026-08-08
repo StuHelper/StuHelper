@@ -21,10 +21,12 @@ const { getAccessCodesApi } = await import('./user');
 describe('getAccessCodesApi', () => {
   it('returns full capabilities instead of globalCapabilities fallback', async () => {
     mocks.getMeApi.mockResolvedValue({
-      capabilities: ['user:school:read'],
+      capabilities: ['student:verification_config:read'],
       globalCapabilities: [],
     });
 
-    await expect(getAccessCodesApi()).resolves.toEqual(['user:school:read']);
+    await expect(getAccessCodesApi()).resolves.toEqual([
+      'student:verification_config:read',
+    ]);
   });
 });

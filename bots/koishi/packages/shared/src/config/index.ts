@@ -3,6 +3,7 @@ import { Schema } from 'koishi'
 import type {
   StuhelperAdminPluginConfig,
   StuhelperAdmissionActionStreamConfig,
+  StuhelperAlertmanagerWebhookConfig,
   StuhelperBindingPluginConfig,
   StuhelperCoreConfig,
   StuhelperGroupGuardPluginConfig,
@@ -33,6 +34,14 @@ export function createAdmissionActionStreamConfigSchema(): Schema<StuhelperAdmis
   })
 }
 
+export function createAlertmanagerWebhookConfigSchema(): Schema<StuhelperAlertmanagerWebhookConfig> {
+  return Schema.object({
+    enabled: Schema.boolean().default(false).description('是否启用固定的 Alertmanager 管理群通知入口。'),
+    bearerToken: Schema.string().default('').role('secret').description('Alertmanager 请求使用的 Bearer token；启用时至少 32 字节。'),
+    botSelfID: Schema.string().default('').description('固定用于发送管理群通知的 QQ bot self ID；留空时要求运行时只有一个 QQ bot。'),
+  })
+}
+
 export function createCoreConfigSchema(): Schema<StuhelperCoreConfig> {
   return Schema.object({
     platform: createPlatformConfigSchema(),
@@ -50,6 +59,7 @@ export function createGroupGuardPluginConfigSchema(): Schema<StuhelperGroupGuard
     platform: createPlatformConfigSchema(),
     scheduler: createSchedulerConfigSchema(),
     actionStream: createAdmissionActionStreamConfigSchema(),
+    alerting: createAlertmanagerWebhookConfigSchema(),
   })
 }
 

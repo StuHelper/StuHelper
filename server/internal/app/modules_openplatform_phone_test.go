@@ -31,6 +31,10 @@ func (*recordingCasdoorUserProfileClient) UpdatePhone(
 	return nil
 }
 
+func (*recordingCasdoorUserProfileClient) ClearPhone(context.Context, string) error {
+	return nil
+}
+
 func (*recordingCasdoorUserProfileClient) Send(context.Context, string, string) error {
 	return nil
 }

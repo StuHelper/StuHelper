@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 
 import { flushPromises, mount } from '@vue/test-utils'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const configuredWebOrigin = 'https://web.example.test'
 
 const mockUpdatePageMeta = vi.fn()
 const mockToastError = vi.fn()
@@ -49,29 +51,12 @@ vi.mock('@/modules/admission/api', () => ({
   admissionApi: mockAdmissionApi,
 }))
 
-vi.mock('@/modules/user/views/StudentVerificationPanel.vue', () => ({
-  default: {
-    name: 'StudentVerificationPanel',
-    props: ['standalone', 'loadOnMount', 'redirectAfterVerification'],
-    emits: ['verified'],
-    template: '<div data-student-panel-stub />',
-  },
-}))
-
-vi.mock('@/modules/user/views/QQBindingPanel.vue', () => ({
-  default: {
-    name: 'QQBindingPanel',
-    props: ['standalone', 'loadOnMount'],
-    emits: ['bound'],
-    template: '<div data-qq-panel-stub />',
-  },
-}))
-
 const { default: JoinStartPage } = await import('../views/JoinStartPage.vue')
 
 describe('JoinStartPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.stubEnv('VITE_WEB_URL', configuredWebOrigin)
     mockAuth.bootstrapSession.mockResolvedValue(false)
     mockAuth.isAuthenticated = false
     mockAuth.loading = false
@@ -79,6 +64,10 @@ describe('JoinStartPage', () => {
     mockVerificationStore.fetchSchools.mockResolvedValue(undefined)
     mockVerificationStore.qqBound = false
     mockVerificationStore.studentVerified = false
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
   })
 
   it('shows login actions when no StuHelper session is available', async () => {
@@ -105,9 +94,11 @@ describe('JoinStartPage', () => {
     await flushPromises()
 
     expect(wrapper.find('[data-state="needsStudentVerification"]').exists()).toBe(true)
-    expect(wrapper.find('[data-student-panel-stub]').exists()).toBe(true)
+    expect(wrapper.get('[data-open-student-verification]').attributes('href')).toBe(
+      `${configuredWebOrigin}/user/student-verification?redirect=http%3A%2F%2Flocalhost%3A3000%2Fstart`,
+    )
     expect(mockVerificationStore.fetchStatus).toHaveBeenCalledTimes(1)
-    expect(mockVerificationStore.fetchSchools).toHaveBeenCalledTimes(1)
+    expect(mockVerificationStore.fetchSchools).not.toHaveBeenCalled()
     expect(mockAdmissionApi.getAdmissionSession).not.toHaveBeenCalled()
     expect(mockAdmissionApi.getAdmissionMe).not.toHaveBeenCalled()
     expect(mockAdmissionApi.linkAdmissionSession).not.toHaveBeenCalled()
@@ -123,7 +114,9 @@ describe('JoinStartPage', () => {
     await flushPromises()
 
     expect(wrapper.find('[data-state="needsQQBinding"]').exists()).toBe(true)
-    expect(wrapper.find('[data-qq-panel-stub]').exists()).toBe(true)
+    expect(wrapper.get('[data-open-qq-binding]').attributes('href')).toBe(
+      `${configuredWebOrigin}/user/qq-binding?redirect=http%3A%2F%2Flocalhost%3A3000%2Fstart`,
+    )
     expect(mockVerificationStore.fetchStatus).toHaveBeenCalledTimes(1)
     expect(mockVerificationStore.fetchSchools).not.toHaveBeenCalled()
   })
@@ -141,7 +134,7 @@ describe('JoinStartPage', () => {
     expect(wrapper.text()).toContain('账号已准备好')
   })
 
-  it('can refresh readiness after embedded panel events', async () => {
+  it('can refresh readiness after returning from an independent module', async () => {
     mockAuth.bootstrapSession.mockResolvedValue(true)
     mockAuth.isAuthenticated = true
     mockVerificationStore.studentVerified = false
@@ -152,7 +145,7 @@ describe('JoinStartPage', () => {
     expect(wrapper.find('[data-state="needsStudentVerification"]').exists()).toBe(true)
 
     mockVerificationStore.studentVerified = true
-    wrapper.findComponent({ name: 'StudentVerificationPanel' }).vm.$emit('verified')
+    await wrapper.find('button.join-start-secondary-button').trigger('click')
     await flushPromises()
 
     expect(wrapper.find('[data-state="needsQQBinding"]').exists()).toBe(true)

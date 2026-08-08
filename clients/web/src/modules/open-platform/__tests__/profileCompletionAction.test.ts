@@ -27,7 +27,7 @@ describe('profile completion action URLs', () => {
 
   it.each([
     ['profile.phone', '/user/phone-binding'],
-    ['profile.identity', '/user/identity-verification'],
+    ['profile.identity', '/user/student-verification?method=real_name_identity_check'],
     ['profile.student', '/user/student-verification'],
     ['profile.school', '/user/student-verification'],
   ])('keeps StuHelper-owned field %s on its local writable flow', (key, actionURL) => {

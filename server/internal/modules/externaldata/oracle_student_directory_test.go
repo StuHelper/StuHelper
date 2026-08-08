@@ -74,7 +74,7 @@ func TestNormalizeOracleStudentDirectoryConfigRejectsUnexpectedRuntimeAccount(t 
 	})
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "must match the configured readonly username")
+	assert.Contains(t, err.Error(), "must match the configured existing account")
 }
 
 func TestNormalizeOracleStudentDirectoryConfigRejectsAdministrativeAccounts(t *testing.T) {
@@ -95,18 +95,19 @@ func TestNormalizeOracleStudentDirectoryConfigRejectsAdministrativeAccounts(t *t
 			})
 
 			require.Error(t, err)
-			assert.Contains(t, err.Error(), "dedicated non-administrative account")
+			assert.Contains(t, err.Error(), "must not be a built-in administrative account")
 		})
 	}
 }
 
-func TestNormalizeOracleStudentDirectoryConfigRejectsSourceSchemaOwner(t *testing.T) {
-	_, err := normalizeOracleStudentDirectoryConfig(OracleStudentDirectoryConfig{
+func TestNormalizeOracleStudentDirectoryConfigAllowsExplicitExistingSchemaOwner(t *testing.T) {
+	cfg, err := normalizeOracleStudentDirectoryConfig(OracleStudentDirectoryConfig{
 		SchoolCode:        "4111010006",
 		Host:              "oracle.example.test",
 		Port:              2484,
 		ServiceName:       "ORCLPDB1",
 		Username:          "usr_jwbiz",
+		ExpectedUsername:  "usr_jwbiz",
 		Password:          "secret",
 		TLSMode:           "disable",
 		Schema:            "USR_JWBIZ",
@@ -115,8 +116,8 @@ func TestNormalizeOracleStudentDirectoryConfigRejectsSourceSchemaOwner(t *testin
 		StudentNameColumn: "XM",
 	})
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "must not own the source schema")
+	require.NoError(t, err)
+	assert.Equal(t, "USR_JWBIZ", cfg.ExpectedUsername)
 }
 
 func TestNormalizeOracleStudentDirectoryConfigRejectsUnsafeIdentifiers(t *testing.T) {
@@ -218,7 +219,7 @@ func TestOracleStudentDirectoryProbeRuntimeSecurity(t *testing.T) {
 	assert.Equal(t, 0, probe.ColumnGrantCount)
 }
 
-func TestOracleStudentDirectoryProbeRuntimeSecurityRejectsPrivilegeExpansion(t *testing.T) {
+func TestOracleStudentDirectoryProbeRuntimeSecurityReportsPrivilegeExpansion(t *testing.T) {
 	connector := &scriptedOracleConnector{
 		query: func(context.Context, string, []driver.NamedValue) (driver.Rows, error) {
 			return &scriptedOracleRows{
@@ -235,8 +236,7 @@ func TestOracleStudentDirectoryProbeRuntimeSecurityRejectsPrivilegeExpansion(t *
 	directory := newScriptedOracleTestDirectory(t, connector, time.Second, 1, time.Hour)
 
 	probe, err := directory.ProbeRuntimeSecurity(context.Background())
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "grants exceed")
+	require.NoError(t, err)
 	assert.True(t, probe.IdentityMatched)
 	assert.False(t, probe.LeastPrivilegeVerified)
 }

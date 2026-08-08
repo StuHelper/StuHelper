@@ -29,7 +29,12 @@ const ssoBaseURL = normalizeBaseURL(
     process.env.CASDOOR_PUBLIC_AUTH_BASE_URL ||
     'https://sso.stuhelper.com',
 );
-const probeToken = process.env.PUBLIC_WEB_AUTH_BROWSER_SMOKE_PROBE_TOKEN || '__stuhelper_browser_smoke__';
+// The manual-camera preview endpoint validates tokens before looking them up.
+// Keep the default probe at the API's minimum length so the browser smoke
+// exercises the intended not-found page rather than a request-validation error.
+const probeToken =
+  process.env.PUBLIC_WEB_AUTH_BROWSER_SMOKE_PROBE_TOKEN ||
+  '__stuhelper_browser_smoke_manual_probe__';
 const evidenceFile =
   process.env.PUBLIC_WEB_AUTH_BROWSER_SMOKE_EVIDENCE_FILE ||
   resolve(repoRoot, 'infra/generated/public-web-auth-browser-smoke-evidence.json');
@@ -227,7 +232,7 @@ async function checkJoinVerifyRoute(browserInstance) {
     expectedResponseHeaders: [
       {
         name: 'permissions-policy',
-        includes: 'camera=(self)',
+        includes: 'camera=()',
       },
     ],
   });
@@ -254,9 +259,9 @@ async function checkJoinMainRouteDenied(browserInstance) {
 async function checkJoinMobileCameraRoute(browserInstance) {
   await runCheck(browserInstance, {
     name: 'join-mobile-camera-route-allows-camera',
-    url: joinURL(joinBaseURL, '/admission/freshman/camera/__stuhelper_browser_smoke__'),
-    expectedURL: (url) => isURLAtBasePath(url, joinBaseURL, '/admission/freshman/camera/__stuhelper_browser_smoke__'),
-    expectedText: /StuHelper|新生材料拍照|无法打开拍照链接|camera/i,
+    url: joinURL(joinBaseURL, `/student-verification/manual-camera/${encodeURIComponent(probeToken)}`),
+    expectedURL: (url) => isURLAtBasePath(url, joinBaseURL, `/student-verification/manual-camera/${probeToken}`),
+    expectedText: /StuHelper|手机拍摄认证材料|无法打开拍摄链接|camera/i,
     expectedResponseHeaders: [
       {
         name: 'permissions-policy',
@@ -668,7 +673,7 @@ function isUnexpectedAPIResponse(response) {
     return false;
   }
   if (
-    /^\/api\/v1\/admission\/freshman\/mobile-camera-handoffs\/[^/]+$/.test(url.pathname) &&
+    /^\/api\/v1\/student-verification\/manual-camera-handoffs\/[^/]+$/.test(url.pathname) &&
     response.status() === 404
   ) {
     return false;

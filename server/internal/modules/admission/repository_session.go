@@ -13,7 +13,8 @@ const admissionSessionColumns = `
 	id, platform, bot_self_id, guild_id, channel_id, qq_id, user_id, token_hash, auth_url,
 	token_expires_at, token_consumed_at, status, link_wait_deadline_at,
 	submission_wait_deadline_at, manual_review_deadline_at, initial_mute_until,
-	verified_at, cancelled_at, last_bot_error
+	verified_at, cancelled_at, last_bot_error,
+	eligibility_revision, eligibility_evaluated_at, requirements_status
 `
 
 func (r *Repository) CreateSession(ctx context.Context, session *AdmissionSession) error {
@@ -23,13 +24,15 @@ func (r *Repository) CreateSession(ctx context.Context, session *AdmissionSessio
 			id, platform, bot_self_id, guild_id, channel_id, qq_id, user_id, token_hash, auth_url,
 			token_expires_at, token_consumed_at, status, link_wait_deadline_at,
 			submission_wait_deadline_at, manual_review_deadline_at, initial_mute_until,
-			verified_at, cancelled_at, last_bot_error, next_reminder_at
+			verified_at, cancelled_at, last_bot_error, next_reminder_at,
+			eligibility_revision, eligibility_evaluated_at, requirements_status
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
 	`, session.ID, session.Platform, session.BotSelfID, session.GuildID, session.ChannelID, session.QQID,
 		session.UserID, session.TokenHash, session.AuthURL, session.TokenExpiresAt, session.TokenConsumedAt, session.Status,
 		session.LinkWaitDeadlineAt, session.SubmissionWaitDeadlineAt, session.ManualReviewDeadlineAt,
-		session.InitialMuteUntil, session.VerifiedAt, session.CancelledAt, session.LastBotError, session.nextReminderAt)
+		session.InitialMuteUntil, session.VerifiedAt, session.CancelledAt, session.LastBotError, session.nextReminderAt,
+		session.EligibilityRevision, session.EligibilityEvaluatedAt, session.RequirementsStatus)
 	if err != nil {
 		return fmt.Errorf("CreateSession: %w", err)
 	}
@@ -42,13 +45,15 @@ func (r *Repository) CreateSessionTx(ctx context.Context, tx pgx.Tx, session *Ad
 			id, platform, bot_self_id, guild_id, channel_id, qq_id, user_id, token_hash, auth_url,
 			token_expires_at, token_consumed_at, status, link_wait_deadline_at,
 			submission_wait_deadline_at, manual_review_deadline_at, initial_mute_until,
-			verified_at, cancelled_at, last_bot_error, next_reminder_at
+			verified_at, cancelled_at, last_bot_error, next_reminder_at,
+			eligibility_revision, eligibility_evaluated_at, requirements_status
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
 	`, session.ID, session.Platform, session.BotSelfID, session.GuildID, session.ChannelID, session.QQID,
 		session.UserID, session.TokenHash, session.AuthURL, session.TokenExpiresAt, session.TokenConsumedAt, session.Status,
 		session.LinkWaitDeadlineAt, session.SubmissionWaitDeadlineAt, session.ManualReviewDeadlineAt,
-		session.InitialMuteUntil, session.VerifiedAt, session.CancelledAt, session.LastBotError, session.nextReminderAt)
+		session.InitialMuteUntil, session.VerifiedAt, session.CancelledAt, session.LastBotError, session.nextReminderAt,
+		session.EligibilityRevision, session.EligibilityEvaluatedAt, session.RequirementsStatus)
 	if err != nil {
 		return fmt.Errorf("CreateSessionTx: %w", err)
 	}
@@ -290,16 +295,45 @@ func (r *Repository) MarkVerifiedTx(
 	sessionID string,
 	now time.Time,
 ) (*AdmissionSession, error) {
+	return r.markVerifiedWithRevisionTx(ctx, tx, sessionID, 1, now)
+}
+
+func (r *Repository) MarkVerifiedWithRevisionTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	sessionID string,
+	revision int64,
+	now time.Time,
+) (*AdmissionSession, error) {
+	if revision <= 0 {
+		return nil, ErrAdmissionProjectionUnavailable
+	}
+	return r.markVerifiedWithRevisionTx(ctx, tx, sessionID, revision, now)
+}
+
+func (r *Repository) markVerifiedWithRevisionTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	sessionID string,
+	revision int64,
+	now time.Time,
+) (*AdmissionSession, error) {
 	query := `
 		UPDATE group_admission_sessions
-		SET status = $2, verified_at = $3, next_reminder_at = NULL, updated_at = NOW()
+		SET status = $2,
+		    verified_at = $3,
+		    next_reminder_at = NULL,
+		    requirements_status = status,
+		    eligibility_revision = $6,
+		    eligibility_evaluated_at = $3,
+		    updated_at = NOW()
 		WHERE id = $1 AND status IN ($4, $5)
 		RETURNING ` + admissionSessionColumns
 	var row pgx.Row
 	if tx != nil {
-		row = tx.QueryRow(ctx, query, sessionID, StatusVerified, now, StatusLinked, StatusMaterialSubmitted)
+		row = tx.QueryRow(ctx, query, sessionID, StatusVerified, now, StatusLinked, StatusMaterialSubmitted, revision)
 	} else {
-		row = r.db.QueryRow(ctx, query, sessionID, StatusVerified, now, StatusLinked, StatusMaterialSubmitted)
+		row = r.db.QueryRow(ctx, query, sessionID, StatusVerified, now, StatusLinked, StatusMaterialSubmitted, revision)
 	}
 	session, err := scanAdmissionSession(row)
 	if err != nil {
@@ -327,6 +361,7 @@ func scanAdmissionSession(row pgx.Row) (*AdmissionSession, error) {
 		&session.TokenConsumedAt, &session.Status, &session.LinkWaitDeadlineAt,
 		&session.SubmissionWaitDeadlineAt, &session.ManualReviewDeadlineAt, &session.InitialMuteUntil,
 		&session.VerifiedAt, &session.CancelledAt, &session.LastBotError,
+		&session.EligibilityRevision, &session.EligibilityEvaluatedAt, &session.RequirementsStatus,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

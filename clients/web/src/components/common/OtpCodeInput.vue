@@ -6,8 +6,11 @@
       :value="displayValue(index - 1)"
       class="aspect-square w-full rounded-lg border bg-bg-card text-center font-mono text-lg font-semibold text-text-primary outline-none transition-colors duration-fast focus:border-primary focus:ring-1 focus:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-50"
       :class="cellClass(index - 1)"
+      :name="`${name}_${index}`"
       :type="inputType"
       inputmode="numeric"
+      autocapitalize="none"
+      spellcheck="false"
       :autocomplete="index === 1 ? 'one-time-code' : 'off'"
       maxlength="1"
       :disabled="disabled"
@@ -28,11 +31,13 @@ const props = withDefaults(defineProps<{
   length?: number
   disabled?: boolean
   ariaLabel?: string
+  name?: string
   inputType?: 'text' | 'tel'
 }>(), {
   length: 6,
   disabled: false,
   ariaLabel: 'verification code',
+  name: 'verification_code',
   inputType: 'tel',
 })
 

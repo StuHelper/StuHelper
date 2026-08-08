@@ -41,6 +41,7 @@ import {
   type AdmissionSessionCreateResult,
   type EffectiveGuardPolicy,
 } from './member-records'
+import { opaqueLogReference } from './log-reference'
 
 export const POST_JOIN_GUARD_STRATEGY: AdmissionJoinHandlingStrategy = 'post_join_guard'
 const POSITIVE_MUTE_DURATION_REQUIRED = 'admission session initialMuteUntil must be in the future'
@@ -98,7 +99,7 @@ export async function applyPostJoinGuardStrategy(input: PostJoinGuardStrategyInp
   if (!admission) {
     return
   }
-  if (admission.session.status === 'verified') {
+  if (isCompletedAdmissionStatus(admission.session.status)) {
     await reportAlreadyVerifiedJoin(input, admission, policy)
     return
   }
@@ -189,8 +190,8 @@ async function isPostJoinAdmissionActive(
       isInProgressAdmissionStatus(current.status)
   } catch (error) {
     input.logger.warn('group guard post-join admission status check failed', {
-      guardRecordID: record.id,
-      admissionSessionID: admission.session.id,
+      guardRecordRef: opaqueLogReference('guard', record.id),
+      sessionRef: opaqueLogReference('session', admission.session.id),
       error: formatAdmissionActionError(error),
     })
     return true
@@ -253,7 +254,16 @@ async function isLocalGuardRecordActive(guardStore: GuardMemberStore, recordID: 
 }
 
 function isInProgressAdmissionStatus(status: string) {
-  return status === 'joined_muted' || status === 'linked' || status === 'material_submitted'
+  return status === 'created' ||
+    status === 'awaiting_account_link' ||
+    status === 'awaiting_requirements' ||
+    status === 'pending_manual_review' ||
+    status === 'eligible' ||
+    status === 'action_pending'
+}
+
+function isCompletedAdmissionStatus(status: string) {
+  return status === 'admitted' || status === 'released'
 }
 
 async function createAdmissionSessionForJoin(
@@ -363,7 +373,7 @@ async function reportBackendUnavailableJoin(
     },
   })
   input.logger.warn('group guard admission backend unavailable; member muted locally', {
-    guardRecordID: record.id,
+    guardRecordRef: opaqueLogReference('guard', record.id),
     error: errorMessage,
   })
 }
@@ -381,7 +391,7 @@ async function recordAdmissionReminderSent(
     })
   } catch (error) {
     input.logger.warn('group guard admission reminder state sync failed', {
-      sessionID,
+      sessionRef: opaqueLogReference('session', sessionID),
       error: formatAdmissionActionError(error),
     })
   }

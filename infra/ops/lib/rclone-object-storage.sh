@@ -5,7 +5,7 @@ run_backup_object_storage_rclone() {
   local mount_spec="$2"
   shift 2
 
-  local image_ref="${RCLONE_IMAGE_REF:-rclone/rclone:beta@sha256:f52965eba611ba8984117638b2a0539dcce170731937f93fbace66897d102698}"
+  local image_ref="${RCLONE_IMAGE_REF:-rclone/rclone:1.75.0@sha256:b06aed988cf5967de7c25be5925240983981c757f4ed1ac9d2fa659d51d60548}"
   local endpoint="${BACKUP_OBJECT_STORAGE_ENDPOINT:-}"
   local region="${BACKUP_OBJECT_STORAGE_REGION:-${OBJECT_STORAGE_REGION:-us-east-1}}"
   local force_path_style="${BACKUP_OBJECT_STORAGE_FORCE_PATH_STYLE:-${OBJECT_STORAGE_FORCE_PATH_STYLE:-true}}"

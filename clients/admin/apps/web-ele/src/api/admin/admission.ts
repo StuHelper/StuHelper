@@ -3,10 +3,7 @@ import type {
   AdmissionPolicyCreateRequest,
   AdmissionSession,
   CreatedAdmissionSession,
-  FreshmanApplication,
-  FreshmanReviewRequest,
   ListAdmissionSessionsParams,
-  ListFreshmanVerificationsParams,
   ListMemberBlacklistParams,
   MemberBlacklistCreateRequest,
   MemberBlacklistEntry,
@@ -26,8 +23,6 @@ export type {
   AdmissionPolicyCreateRequest,
   AdmissionSession,
   CreatedAdmissionSession,
-  FreshmanApplication,
-  FreshmanReviewRequest,
   ListAdmissionSessionsParams,
   ListMemberBlacklistParams,
   MemberBlacklistCreateRequest,
@@ -35,29 +30,6 @@ export type {
   MemberBlacklistReleaseBySubjectRequest,
   MemberBlacklistReleaseRequest,
 };
-
-export async function listFreshmanVerifications(
-  params?: ListFreshmanVerificationsParams,
-) {
-  return unwrapListData<FreshmanApplication>(
-    await admissionApi.listFreshmanVerifications(params),
-  );
-}
-
-export async function getFreshmanVerification(id: string) {
-  return unwrapData<FreshmanApplication>(
-    await admissionApi.getFreshmanVerification(id),
-  );
-}
-
-export async function reviewFreshmanVerification(
-  id: string,
-  data: FreshmanReviewRequest,
-) {
-  return unwrapData<FreshmanApplication>(
-    await admissionApi.reviewFreshmanVerification(id, data),
-  );
-}
 
 export async function listAdmissionPolicies() {
   return unwrapData<AdmissionPolicy[]>(

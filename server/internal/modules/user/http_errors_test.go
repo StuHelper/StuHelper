@@ -11,37 +11,6 @@ import (
 	"github.com/StuHelper/StuHelper/server/internal/pkg/errs"
 )
 
-func TestRespondVerifyStudentError(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	tests := []struct {
-		name     string
-		err      error
-		status   int
-		code     errs.ErrorCode
-		contains string
-	}{
-		{name: "school missing", err: ErrSchoolNotFound, status: http.StatusNotFound, code: errs.ErrProfileSchoolNotFound, contains: "school not found"},
-		{name: "ldap failed", err: ErrLDAPFailed, status: http.StatusBadRequest, code: errs.ErrProfileLDAPFailed, contains: "LDAP verification failed"},
-		{name: "student id invalid", err: ErrStudentIDInvalid, status: http.StatusBadRequest, code: errs.ErrBadRequest, contains: "student ID is invalid"},
-		{name: "redis unavailable", err: ErrStudentEmailRedisUnavailable, status: http.StatusServiceUnavailable, code: errs.ErrServiceUnavailable, contains: "student email verification is unavailable"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			w := httptest.NewRecorder()
-			c, _ := gin.CreateTestContext(w)
-
-			ok := respondVerifyStudentError(c, tt.err)
-
-			assert.True(t, ok)
-			assert.Equal(t, tt.status, w.Code)
-			assert.Contains(t, w.Body.String(), string(tt.code))
-			assert.Contains(t, w.Body.String(), tt.contains)
-		})
-	}
-}
-
 func TestRespondAdminUpdateSystemConfigError(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -53,18 +22,4 @@ func TestRespondAdminUpdateSystemConfigError(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, http.StatusNotFound, w.Code)
 	assert.Contains(t, w.Body.String(), string(errs.ErrSystemConfigNotFound))
-}
-
-func TestRespondAdminUpdateSchoolConfigErrorInvalidValue(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-
-	ok := respondAdminUpdateSchoolConfigError(c, ErrInvalidSchoolConfigValue)
-
-	assert.True(t, ok)
-	assert.Equal(t, http.StatusBadRequest, w.Code)
-	assert.Contains(t, w.Body.String(), string(errs.ErrInvalidParam))
-	assert.Contains(t, w.Body.String(), "invalid school config value")
 }

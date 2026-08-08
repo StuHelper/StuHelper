@@ -116,22 +116,6 @@ test('platform admission client sends expected paths and payloads', async (t) =>
     dispatchAttempt: 1,
     messageID: 'message-2',
   })
-  await client.listPendingFreshmanForwards()
-  await client.markFreshmanForwarded('app-1')
-  await client.viewFreshmanApplication('app-1', {
-    operatorQQID: '90001',
-    guildID: 'mgmt-1',
-    channelID: 'channel-1',
-    rawCommand: '新生审核查看 app-1',
-  })
-  await client.reviewFreshmanApplication('app-1', {
-    action: 'approve',
-    operatorQQID: '90001',
-    guildID: 'mgmt-1',
-    channelID: 'channel-1',
-    rawCommand: '新生审核通过 app-1 +30d',
-    expiresInDays: 30,
-  })
   assert.deepEqual(calls.map((call) => [call.method, call.path]), [
     ['POST', '/api/v1/bot/admission/sessions'],
     ['GET', '/api/v1/bot/admission/sessions/member?platform=qq&guildID=guild-1&qqID=10001'],
@@ -151,10 +135,6 @@ test('platform admission client sends expected paths and payloads', async (t) =>
     ['POST', '/api/v1/bot/member-blacklist/release-by-subject'],
     ['POST', '/api/v1/bot/admission/sessions/session-1/events'],
     ['POST', '/api/v1/bot/admission/actions/42/events'],
-    ['GET', '/api/v1/bot/admission/freshman/applications/pending-forward'],
-    ['POST', '/api/v1/bot/admission/freshman/applications/app-1/forwarded'],
-    ['POST', '/api/v1/bot/admission/freshman/applications/app-1/view'],
-    ['POST', '/api/v1/bot/admission/freshman/applications/app-1/review'],
   ])
   assert.ok(calls.every((call) => call.authorization === 'Bearer service-token'))
   assert.equal('qqNickname' in calls[0].body, false)
@@ -169,8 +149,6 @@ test('platform admission client sends expected paths and payloads', async (t) =>
   assert.equal(calls[15].body.releaseReasonCode, 'manual_pardon')
   assert.equal(calls[16].body.messageID, 'message-1')
   assert.equal(calls[17].body.messageID, 'message-2')
-  assert.equal(calls[20].body.operatorQQID, '90001')
-  assert.equal(calls[21].body.expiresInDays, 30)
 })
 
 test('platform client accepts empty success responses for void requests', async (t) => {
@@ -212,7 +190,7 @@ test('platform admission action stream parses action events', async (t) => {
           'event: keepalive\n' +
           'data: 2026-06-04T00:00:00Z\n\n' +
           'event: action\n' +
-          'data: {"actionID":"42","sessionID":"session-1","action":"release"}\n\n',
+          'data: {"actionID":"42","dispatchAttempt":2,"eligibilityRevision":7,"sessionID":"session-1","action":"release"}\n\n',
         ))
         controller.close()
       },
@@ -240,7 +218,13 @@ test('platform admission action stream parses action events', async (t) => {
 
   assert.equal(capturedPath, '/api/v1/bot/admission/actions/stream?platform=qq&botSelfID=514&limit=50')
   assert.equal(capturedAuthorization, 'Bearer service-token')
-  assert.deepEqual(actions, [{ actionID: '42', sessionID: 'session-1', action: 'release' }])
+  assert.deepEqual(actions, [{
+    actionID: '42',
+    dispatchAttempt: 2,
+    eligibilityRevision: 7,
+    sessionID: 'session-1',
+    action: 'release',
+  }])
 })
 
 test('platform admission action stream reports normal close as reconnectable error', async (t) => {
@@ -421,6 +405,8 @@ function responseDataForPath(path: string) {
       platform: 'qq',
       guildID: 'guild-1',
       joinHandlingStrategy: 'post_join_guard',
+      guardEnabled: true,
+      managementGuildIDs: ['123456789'],
     }]
   }
   if (path.endsWith('/sessions')) {
@@ -434,13 +420,12 @@ function responseDataForPath(path: string) {
     return [{ sessionID: 'session-1', action: 'release' }]
   }
   if (path.endsWith('/actions/claim')) {
-    return [{ actionID: 'action-1', sessionID: 'session-1', action: 'release' }]
-  }
-  if (path.endsWith('/pending-forward')) {
     return [{
-      application: freshmanApplication('app-1'),
-      materialURL: 'https://cdn.example.test/material.png',
-      managementGuildIDs: ['mgmt-1'],
+      actionID: 'action-1',
+      dispatchAttempt: 1,
+      eligibilityRevision: 1,
+      sessionID: 'session-1',
+      action: 'release',
     }]
   }
   if (path.endsWith('/member-blacklist/access')) {
@@ -451,9 +436,6 @@ function responseDataForPath(path: string) {
   }
   if (path.includes('/member-blacklist/')) {
     return memberBlacklistEntry('entry-1')
-  }
-  if (path.endsWith('/view') || path.endsWith('/review')) {
-    return freshmanApplication('app-1')
   }
   return { message: 'ok' }
 }
@@ -482,24 +464,12 @@ function admissionSession(id: string) {
     guildID: 'guild-1',
     channelID: 'channel-1',
     qqID: '10001',
-    status: 'joined_muted',
+    status: 'awaiting_account_link',
     tokenExpiresAt: '2026-05-03T13:00:00Z',
     linkWaitDeadlineAt: '2026-05-03T13:00:00Z',
     submissionWaitDeadlineAt: '2026-05-04T12:00:00Z',
     initialMuteUntil: '2026-06-02T12:00:00Z',
     projectionPending: false,
-  }
-}
-
-function freshmanApplication(id: string) {
-  return {
-    id,
-    userID: 42,
-    schoolID: 4111010006,
-    status: 'pending',
-    applicantNameMasked: 'A***',
-    materialType: 'admission_notice',
-    createdAt: '2026-05-03T12:00:00Z',
   }
 }
 

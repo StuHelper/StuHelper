@@ -22,16 +22,6 @@ actions:
     update:
       type: number
       nullable: true
-  - target: "$.components.schemas.*.properties[?(@.type && length(@.type) == 2 && ((@.type[0] == 'array' && @.type[1] == 'null') || (@.type[0] == 'null' && @.type[1] == 'array')))]"
-    description: Convert nullable array unions back to OpenAPI 3.0 nullable arrays for Go codegen.
-    update:
-      type: array
-      nullable: true
-  - target: "$.components.schemas.*.properties[?(@.type && length(@.type) == 2 && ((@.type[0] == 'object' && @.type[1] == 'null') || (@.type[0] == 'null' && @.type[1] == 'object')))]"
-    description: Convert nullable object unions back to OpenAPI 3.0 nullable objects for Go codegen.
-    update:
-      type: object
-      nullable: true
   - target: "$.components.schemas.MemberBlacklistEntry.properties.releasedByType"
     description: |
       Collapse the OAS 3.1 `oneOf: [$ref, type: null]` form into the
@@ -52,13 +42,6 @@ actions:
       allOf:
         - $ref: '#/components/schemas/MemberBlacklistReleaseReasonCode'
       nullable: true
-  - target: "$.paths['/api/v1/user/identity'].get.responses['200'].content['application/json'].schema.allOf[1].properties.data"
-    description: Collapse nullable identity status response data for oapi-codegen.
-    update:
-      oneOf: null
-      allOf:
-        - $ref: '#/components/schemas/UserIdentity'
-      nullable: true
   - target: "$.paths['/api/v1/user/qq-binding'].get.responses['200'].content['application/json'].schema.allOf[1].properties.data"
     description: Collapse nullable QQ binding response data for oapi-codegen.
     update:
@@ -66,17 +49,52 @@ actions:
       allOf:
         - $ref: '#/components/schemas/QQBinding'
       nullable: true
-  - target: "$.paths['/api/v1/user/profile'].get.responses['200'].content['application/json'].schema.allOf[1].properties.data"
-    description: Collapse nullable student profile response data for oapi-codegen.
-    update:
-      oneOf: null
-      allOf:
-        - $ref: '#/components/schemas/UserProfile'
-      nullable: true
   - target: "$.paths['/api/v1/course/review/drafts'].get.responses['200'].content['application/json'].schema.allOf[1].properties.data"
     description: Collapse nullable review draft response data for oapi-codegen.
     update:
       oneOf: null
       allOf:
         - $ref: '#/components/schemas/ReviewDraft'
+      nullable: true
+  - target: "$.components.schemas.VerificationMethodCapability.properties.privacyNotice"
+    description: Collapse the nullable privacy-notice reference for the OpenAPI 3.0 runtime parser.
+    update:
+      oneOf: null
+      allOf:
+        - $ref: '#/components/schemas/VerificationPrivacyNotice'
+      nullable: true
+  - target: "$.components.schemas.VerificationApplication.properties.currentMethod"
+    description: Collapse the nullable verification-method reference for the OpenAPI 3.0 runtime parser.
+    update:
+      oneOf: null
+      allOf:
+        - $ref: '#/components/schemas/VerificationMethod'
+      nullable: true
+  - target: "$.components.schemas.VerificationApplication.properties.credential"
+    description: Collapse the nullable verification-credential reference for the OpenAPI 3.0 runtime parser.
+    update:
+      oneOf: null
+      allOf:
+        - $ref: '#/components/schemas/StudentVerificationCredential'
+      nullable: true
+  - target: "$.components.schemas.PhoneStatus.properties.method"
+    description: Collapse the nullable phone-method reference for the OpenAPI 3.0 runtime parser.
+    update:
+      oneOf: null
+      allOf:
+        - $ref: '#/components/schemas/PhoneVerificationMethod'
+      nullable: true
+  - target: "$.components.schemas.PhoneGateEligibility.properties.method"
+    description: Collapse the nullable phone-gate method reference for the OpenAPI 3.0 runtime parser.
+    update:
+      oneOf: null
+      allOf:
+        - $ref: '#/components/schemas/PhoneVerificationMethod'
+      nullable: true
+  - target: "$.components.schemas.ManualCameraHandoff.properties.material"
+    description: Collapse the nullable manual-review material reference for the OpenAPI 3.0 runtime parser.
+    update:
+      oneOf: null
+      allOf:
+        - $ref: '#/components/schemas/ManualReviewMaterial'
       nullable: true

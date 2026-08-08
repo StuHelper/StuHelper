@@ -4,7 +4,13 @@
  *
  * Simulates a verified student interacting with course reviews.
  */
-import { test, expect, mockNotificationStream, type Page } from './fixtures'
+import {
+  test,
+  expect,
+  mockCurrentAccountProjections,
+  mockNotificationStream,
+  type Page,
+} from './fixtures'
 
 const verifiedStudent = {
   id: 'u2',
@@ -50,38 +56,12 @@ async function mockAuth(page: Page) {
       body: JSON.stringify({ success: true, data: { expiresIn: 3600 } }),
     }),
   )
-  await page.route('**/api/v1/user/identity', (route) =>
-    route.fulfill({
-      contentType: 'application/json',
-      body: JSON.stringify({
-        success: true,
-        data: { verified: true, status: 'verified' },
-      }),
-    }),
-  )
-  await page.route('**/api/v1/user/profile', (route) =>
-    route.fulfill({
-      contentType: 'application/json',
-      body: JSON.stringify({
-        success: true,
-        data: {
-          verificationStatus: 'verified',
-          schoolName: '测试大学',
-          schoolID: 4111010006,
-        },
-      }),
-    }),
-  )
-  await page.route('**/api/v1/user/qq-binding', (route) =>
-    route.fulfill({
-      status: 404,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        success: false,
-        error: { code: 'A0040404', message: 'not bound' },
-      }),
-    }),
-  )
+  await mockCurrentAccountProjections(page, {
+    displayName: verifiedStudent.displayName,
+    studentVerified: true,
+    phoneBound: true,
+    capabilities: verifiedStudent.capabilities,
+  })
   await page.route(
     '**/api/v1/course/review/user/notifications/unread-count*',
     (route) =>

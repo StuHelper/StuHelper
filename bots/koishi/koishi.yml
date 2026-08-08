@@ -39,6 +39,10 @@ plugins:
         scanIntervalSeconds: 300
       actionStream:
         reconnectDelaySeconds: 5
+      alerting:
+        enabled: ${{ env.STUHELPER_ALERTMANAGER_WEBHOOK_ENABLED === 'true' }}
+        bearerToken: ${{ env.ALERTMANAGER_WEBHOOK_TOKEN }}
+        botSelfID: ${{ env.STUHELPER_ALERTMANAGER_BOT_SELF_ID }}
     stuhelper-admin:admin:
       platform:
         baseUrl: ${{ env.STUHELPER_PLATFORM_BASE_URL }}

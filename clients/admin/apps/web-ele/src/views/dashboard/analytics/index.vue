@@ -48,16 +48,16 @@ const allQuickActions: DashboardShortcut[] = [
     path: '/content/teachers',
   },
   {
-    authority: ['user:identity:review'],
-    icon: 'lucide:id-card',
-    label: $t('admin.dashboard.quickActions.identity'),
-    path: '/users/identity-review',
-  },
-  {
-    authority: ['user:student:review'],
+    authority: ['student:manual_review:read', 'student:manual_review:decide'],
     icon: 'lucide:badge-check',
     label: $t('admin.dashboard.quickActions.students'),
     path: '/users/student-verification',
+  },
+  {
+    authority: ['student:credential:read', 'student:subject_conflict:read'],
+    icon: 'lucide:shield-alert',
+    label: $t('admin.routes.userSystem.studentCredentials'),
+    path: '/users/student-credentials',
   },
 ];
 

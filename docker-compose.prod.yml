@@ -18,6 +18,97 @@ services:
     environment:
       DATA_SOURCE_URI: postgres:5432/postgres?sslmode=${POSTGRES_INTERNAL_SSL_MODE:-verify-full}&sslrootcert=/tls/ca.crt
 
+  campus-connector-bootstrap:
+    profiles: [prod]
+    image: ${BACKEND_IMAGE_REF:?BACKEND_IMAGE_REF is required}
+    container_name: ${STACK_NAME:-stuhelper}-campus-connector-bootstrap
+    environment:
+      APP_ENV: production
+      APP_RUNTIME_MODE: campus-connector-bootstrap
+      APP_PORT: "8080"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_FORMAT: json
+      LOG_OUTPUT: stdout
+      # Keep optional-service interpolation side-effect free for unrelated
+      # compose commands; prod-deploy and bootstrap config validation fail
+      # closed before this service can start with any missing value.
+      HMAC_SECRET: ${HMAC_SECRET:-}
+      DOC_AES_ACTIVE_KEY_ID: ${DOC_AES_ACTIVE_KEY_ID:-}
+      DOC_AES_KEYS: ${DOC_AES_KEYS:-}
+      DATABASE_URL: postgresql://stuhelper_app:${STUHELPER_APP_DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-stuhelper}?sslmode=${DB_SSL_MODE:-verify-full}&sslrootcert=/tls/ca.crt
+      DB_SSL_MODE: ${DB_SSL_MODE:-verify-full}
+      DB_SSL_ROOT_CERT: /tls/ca.crt
+      DB_SSL_CERT: ${DB_SSL_CERT:-}
+      DB_SSL_KEY: ${DB_SSL_KEY:-}
+      DB_QUERY_TIMEOUT: ${DB_QUERY_TIMEOUT:-5}
+      DB_MAX_CONNS: ${CAMPUS_CONNECTOR_BOOTSTRAP_DB_MAX_CONNS:-5}
+      DB_MIN_CONNS: ${CAMPUS_CONNECTOR_BOOTSTRAP_DB_MIN_CONNS:-1}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_DB: ${REDIS_DB:-0}
+      REDIS_USERNAME: ${REDIS_USERNAME:-stuhelper_app}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      REDIS_TLS_ENABLED: ${REDIS_TLS_ENABLED:-true}
+      REDIS_TLS_CA: /redis-tls/ca.crt
+      REDIS_TLS_CERT: ${REDIS_TLS_CERT:-}
+      REDIS_TLS_KEY: ${REDIS_TLS_KEY:-}
+      OTEL_ENABLED: "true"
+      OTEL_SERVICE_NAME: stuhelper-campus-connector-bootstrap
+      OTEL_SERVICE_NAMESPACE: stuhelper
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4318
+      OTEL_EXPORTER_OTLP_INSECURE: "true"
+      OTEL_TRACE_SAMPLE_RATIO: ${OTEL_TRACE_SAMPLE_RATIO:-0.2}
+      CAMPUS_CONNECTOR_GATEWAY_ENABLED: "true"
+      CAMPUS_CONNECTOR_GATEWAY_LISTEN_ADDRESS: ":9444"
+      CAMPUS_CONNECTOR_GATEWAY_TLS_CERT_FILE: /run/secrets/campus-connector/gateway.crt
+      CAMPUS_CONNECTOR_GATEWAY_TLS_KEY_FILE: /run/secrets/campus-connector/gateway.key
+      CAMPUS_CONNECTOR_GATEWAY_CLIENT_CA_FILE: /run/secrets/campus-connector/client-ca.crt
+      CAMPUS_CONNECTOR_SNAPSHOT_PRIVATE_KEY_FILE: /run/secrets/campus-connector/snapshot-x25519.key
+      CAMPUS_CONNECTOR_SNAPSHOT_KEY_ID: ${CAMPUS_CONNECTOR_SNAPSHOT_KEY_ID:-}
+      CAMPUS_CONNECTOR_PROTOCOL_VERSION: ${CAMPUS_CONNECTOR_PROTOCOL_VERSION:-1}
+      CAMPUS_CONNECTOR_POLL_WAIT_SECONDS: ${CAMPUS_CONNECTOR_POLL_WAIT_SECONDS:-25}
+      CAMPUS_CONNECTOR_SIGNATURE_MAX_SKEW_SECONDS: ${CAMPUS_CONNECTOR_SIGNATURE_MAX_SKEW_SECONDS:-120}
+      CAMPUS_CONNECTOR_REPLAY_TTL_SECONDS: ${CAMPUS_CONNECTOR_REPLAY_TTL_SECONDS:-360}
+      CAMPUS_CONNECTOR_MAX_SNAPSHOT_PLAINTEXT_BYTES: ${CAMPUS_CONNECTOR_MAX_SNAPSHOT_PLAINTEXT_BYTES:-134217728}
+      CAMPUS_CONNECTOR_MAX_SNAPSHOT_REQUEST_BYTES: ${CAMPUS_CONNECTOR_MAX_SNAPSHOT_REQUEST_BYTES:-201326592}
+      CAMPUS_CONNECTOR_MAX_PASSWORD_BYTES: ${CAMPUS_CONNECTOR_MAX_PASSWORD_BYTES:-256}
+      # Oracle access belongs exclusively to the approved campus-side node.
+      # The bootstrap gateway receives only signed/encrypted connector traffic.
+      EXTERNAL_STUDENT_SOURCE_ENABLED: "false"
+      EXTERNAL_STUDENT_SOURCE_ORACLE_HOST: ""
+      EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME: ""
+      EXTERNAL_STUDENT_SOURCE_ORACLE_PASSWORD: ""
+    volumes:
+    - ./infra/generated/postgres-client-ca:/tls:ro
+    - ./infra/generated/redis-client-ca:/redis-tls:ro
+    - ${CAMPUS_CONNECTOR_GATEWAY_SECRET_DIR:-./infra/generated/campus-connector-pki/gateway}:/run/secrets/campus-connector:ro
+    ports:
+    - "127.0.0.1:${CAMPUS_CONNECTOR_GATEWAY_EXTERNAL_PORT:-19444}:9444"
+    depends_on:
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      alloy:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "grep -Eq '[[:space:]][0-9A-F]+:24E4[[:space:]]+[0-9A-F]+:[0-9A-F]+[[:space:]]+0A[[:space:]]' /proc/net/tcp /proc/net/tcp6"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+    - /app/tmp:rw,nosuid,nodev,noexec,size=64m
+    cap_drop:
+    - ALL
+    networks:
+    - backend
+    - observability
+    security_opt:
+    - no-new-privileges:true
+
   app:
     profiles: [prod]
     image: ${BACKEND_IMAGE_REF:?BACKEND_IMAGE_REF is required}
@@ -29,6 +120,7 @@ services:
     - ${GENERATED_SECRET_ENV_FILE_PATH:-.env.prod.generated.secrets}
     environment:
       APP_ENV: ${APP_ENV:-production}
+      APP_RUNTIME_MODE: app
       LOG_FORMAT: json
       DATABASE_URL: postgresql://stuhelper_app:${STUHELPER_APP_DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-stuhelper}?sslmode=${DB_SSL_MODE:-verify-full}&sslrootcert=/tls/ca.crt
       DB_SSL_ROOT_CERT: /tls/ca.crt
@@ -50,11 +142,18 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4318
       OTEL_EXPORTER_OTLP_INSECURE: "true"
       OTEL_TRACE_SAMPLE_RATIO: ${OTEL_TRACE_SAMPLE_RATIO:-0.2}
+      # Oracle belongs to the isolated campus connector/one-shot smoke process.
+      # Never expose its network endpoint or credentials to the online API.
+      EXTERNAL_STUDENT_SOURCE_ENABLED: "false"
+      EXTERNAL_STUDENT_SOURCE_ORACLE_HOST: ""
+      EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME: ""
+      EXTERNAL_STUDENT_SOURCE_ORACLE_PASSWORD: ""
     volumes:
     - ./infra/generated/postgres-client-ca:/tls:ro
     - ./infra/generated/redis-client-ca:/redis-tls:ro
     - ./infra/generated/external-student-source-client-ca:/external-student-source-tls:ro
     - ${OBJECT_STORAGE_CLIENT_CA_DIR:-./infra/generated/object-storage-client-ca}:/object-storage-tls:ro
+    - ${CAMPUS_CONNECTOR_GATEWAY_SECRET_DIR:-./infra/generated/campus-connector-pki/gateway}:/run/secrets/campus-connector:ro
     extra_hosts:
     - "stuhelper.com:host-gateway"
     - "join.stuhelper.com:host-gateway"
@@ -62,6 +161,9 @@ services:
     - "host.docker.internal:host-gateway"
     ports:
     - "127.0.0.1:${BACKEND_EXTERNAL_PORT:-18080}:8080"
+    # Expose only to an approved TCP passthrough/firewall edge. TLS must
+    # terminate inside StuHelper so the gateway can verify the node certificate.
+    - "127.0.0.1:${CAMPUS_CONNECTOR_GATEWAY_EXTERNAL_PORT:-19444}:9444"
     depends_on:
       redis:
         condition: service_healthy

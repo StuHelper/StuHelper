@@ -915,53 +915,6 @@ func TestLinkedAdmissionSessionTimesOutInsteadOfReleaseWithoutStudentVerificatio
 	assert.Equal(t, created.Session.ID, actions[0].SessionID)
 }
 
-func TestPendingFreshmanForwardsAllowEmptyQueueWithoutMaterialStore(t *testing.T) {
-	fixture := postgresfixture.Start(t)
-	svc := newSessionTestService(t, fixture)
-
-	items, err := svc.ListPendingFreshmanForwards(context.Background())
-
-	require.NoError(t, err)
-	assert.Empty(t, items)
-}
-
-func TestPendingFreshmanForwardsRequireMaterialStoreWhenQueueHasItems(t *testing.T) {
-	fixture := postgresfixture.Start(t)
-	svc := newSessionTestService(t, fixture)
-	insertAdmissionSchoolConfig(t, fixture)
-	insertAdmissionPolicy(t, fixture)
-	created := createLinkableSession(t, svc)
-	userID := seedAdmissionUser(t, fixture, "freshman-forward-requires-store")
-	appID := "freshman-forward-requires-store"
-	_, err := fixture.Pool.Exec(context.Background(), `
-		INSERT INTO freshman_verification_applications (
-			id, user_id, school_id, admission_session_id, status, applicant_name,
-			applicant_name_masked, material_type, created_at, updated_at
-		)
-		VALUES ($1, $2, 4111010006, $3, 'pending', 'Alice Applicant', 'A***',
-			'admission_notice', NOW(), NOW())
-	`, appID, userID, created.Session.ID)
-	require.NoError(t, err)
-	_, err = fixture.Pool.Exec(context.Background(), `
-		INSERT INTO freshman_verification_materials (
-			id, application_id, object_key, content_type, size_bytes, sha256, created_at
-		)
-		VALUES ('material-forward-requires-store', $1, 'admission/material.png',
-			'image/png', 12, repeat('a', 64), NOW())
-	`, appID)
-	require.NoError(t, err)
-	_, err = fixture.Pool.Exec(context.Background(), `
-		UPDATE group_admission_policies
-		SET forward_raw_material_to_qq = TRUE
-		WHERE platform = 'qq' AND guild_id = 'guild-1'
-	`)
-	require.NoError(t, err)
-
-	_, err = svc.ListPendingFreshmanForwards(context.Background())
-
-	require.ErrorIs(t, err, ErrAdmissionMaterialStoreUnavailable)
-}
-
 func TestPendingAdmissionKickActionRequiresPolicy(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	svc := newSessionTestService(t, fixture)
@@ -1129,11 +1082,11 @@ func insertQueuedBotActionForTest(
 		INSERT INTO group_admission_sessions (
 			id, platform, bot_self_id, guild_id, channel_id, qq_id, token_hash,
 			token_expires_at, status, link_wait_deadline_at,
-			submission_wait_deadline_at, initial_mute_until
+			submission_wait_deadline_at, initial_mute_until, eligibility_revision
 		)
 		VALUES (
 			$1, 'qq', $2, $3, 'channel-1', $4, $5,
-			$6, $7, $8, $9, $10
+			$6, $7, $8, $9, $10, CASE WHEN $7 = 'action_pending' THEN 1 END
 		)
 	`, seed.SessionID, seed.BotSelfID, seed.GuildID, seed.QQID,
 		"token-hash-"+seed.SessionID, fixedAdmissionNow().Add(24*time.Hour),
@@ -1146,12 +1099,12 @@ func insertQueuedBotActionForTest(
 		INSERT INTO admission_bot_action_outbox (
 			action_key, session_id, action, platform, bot_self_id, guild_id,
 			channel_id, qq_id, scheduled_at, status, attempt_count,
-			next_attempt_at, created_at, updated_at
+			next_attempt_at, eligibility_revision, created_at, updated_at
 		)
 		VALUES (
 			$1, $2, $3, 'qq', $4, $5,
 			'channel-1', $6, $7, 'pending', 0,
-			$8, $8, $8
+			$8, CASE WHEN $3 = 'release' THEN 1 END, $8, $8
 		)
 		RETURNING id
 	`, "test:"+seed.SessionID+":"+string(seed.Action), seed.SessionID, seed.Action,

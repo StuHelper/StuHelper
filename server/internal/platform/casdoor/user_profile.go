@@ -73,6 +73,25 @@ func (c *UserProfileClient) UpdatePhone(ctx context.Context, input UserPhoneUpda
 	})
 }
 
+// ClearPhone removes the authoritative account phone. It is deliberately a
+// distinct operation so an accidentally empty bind/change request cannot turn
+// into an account mutation.
+func (c *UserProfileClient) ClearPhone(ctx context.Context, subject string) error {
+	subject = strings.TrimSpace(subject)
+	if subject == "" {
+		return errors.New("casdoor: user subject is required")
+	}
+	user, err := c.lookupUser(ctx, subject)
+	if err != nil {
+		return err
+	}
+	user.Phone = ""
+	user.CountryCode = ""
+	return callWithCredential(ctx, c.credential, "clear user phone "+subject, func() (bool, error) {
+		return c.users.UpdateUserForColumns(user, []string{"phone", "countryCode"})
+	})
+}
+
 func (c *UserProfileClient) Send(ctx context.Context, phone, content string) error {
 	phone = strings.TrimSpace(phone)
 	content = strings.TrimSpace(content)

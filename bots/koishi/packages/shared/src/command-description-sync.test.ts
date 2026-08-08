@@ -11,15 +11,15 @@ import {
 test('syncAdminCommandDescriptions updates Koishi command description i18n entries', () => {
   const ctx = new Context()
   ctx.command('群审状态 [guildId:text]', '旧群审状态说明')
-  ctx.command('新生审核通过 <payload:text>', '旧新生审核通过说明')
+  ctx.command('群审拉黑申请 <memberId> <reason:text>', '旧群审拉黑说明')
 
   syncAdminCommandDescriptions(ctx, {
     guardStatusCommandDescription: '自定义群审状态说明',
-    freshmanApproveCommandDescription: '自定义新生审核通过说明',
+    guardBlockReviewCommandDescription: '自定义群审拉黑说明',
   })
 
   assert.equal(commandDescription(ctx, '群审状态'), '自定义群审状态说明')
-  assert.equal(commandDescription(ctx, '新生审核通过'), '自定义新生审核通过说明')
+  assert.equal(commandDescription(ctx, '群审拉黑申请'), '自定义群审拉黑说明')
 })
 
 test('syncGroupGuardCommandDescriptions updates public and admission command descriptions', () => {

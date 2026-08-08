@@ -4,7 +4,7 @@
 
 ## 边界
 
-- `server/` 仍然是 StuHelper 的业务权威系统，负责 QQ 绑定关系、绑定码、学生认证状态、新生材料审核和 admission policy。
+- `server/` 仍然是 StuHelper 的业务权威系统，负责 QQ 绑定关系、绑定码、独立学生认证凭据和 admission policy。
 - `bots/koishi/` 负责 QQ 机器人运行时、群管执行逻辑与管理员命令；入群认证状态和动作以服务端下发为准。
 - NapCat 作为外部部署的 OneBot 适配层，不在本目录内实现。
 
@@ -16,8 +16,8 @@
 - `packages/moderation-core`：群管领域模型、SQLite 表、规则引擎与动作服务。
 - `plugins/stuhelper-core`：当前入口插件，承载完整群管中心页面、控制台 API 与 WebSocket 交互；WebUI 包含“入群认证”页面，用于查看 group-guard 实际运行态、目标群策略、受限成员队列和学生认证联动状态。
 - `plugins/stuhelper-binding`：处理私聊绑定命令，消费平台绑定码并建立 QQ 绑定；命令字和绑定流程提示从 WebUI runtime settings 读取。
-- `plugins/stuhelper-group-guard`：处理入群 admission session 创建、禁言、认证链接提醒、后端 pending action 执行、材料转发、关键词命中、撤回留痕、举报流和娱乐命令。
-- `plugins/stuhelper-admin`：提供文本管理员命令，用于查看待认证成员、查询警告、查看复核队列、批量禁言、提交踢人/拉黑复核申请，以及 QQ 管理群新生材料审核。
+- `plugins/stuhelper-group-guard`：处理入群 admission session 创建、禁言、认证链接提醒、后端 pending action 执行、关键词命中、撤回留痕、举报流和娱乐命令。
+- `plugins/stuhelper-admin`：提供文本管理员命令，用于查看待认证成员、查询警告、查看复核队列、批量禁言和提交踢人/拉黑复核申请。学生材料审核只在 StuHelper Admin 的独立学生认证模块中处理。
 
 Koishi 群管中心 WebUI 只由 `koishi-plugin-stuhelper-core` 注册到 Koishi Console；`stuhelper-group-guard` 不提供单独前端入口，但会注册 `stuhelperGroupGuard/page/admission-runtime` Console API 供 core WebUI 消费。历史上讨论过的 `stuhelper-console` / `stuhelper-platform` 已按 ADR-0006 从运行路径移除，所以“注册 WebUI”对应的是 `stuhelper-core` 的 Console 入口，而不是 admission 插件本身。
 
@@ -35,18 +35,24 @@ corepack yarn test     # packages/plugins 单元测试 + 真实启动烟雾验�
 corepack yarn workspaces list
 ```
 
+### Alertmanager 管理群通知
+
+`stuhelper-group-guard` 在告警启用时只注册固定的 `POST /stuhelper/internal/alertmanager` 路由。它不公开 Koishi Console，也不接受告警请求中的群号、频道号或任意消息文本。每次请求都从后端 bot policy target 读取启用的 QQ policy，并要求 `managementGuildIDs` 解析为唯一 QQ 管理群；0 个、多个或格式异常时 fail closed。请求必须使用至少 32 字节 Bearer token、标准 Alertmanager v4 JSON，body 上限为 64 KiB；firing 与 resolved 都会转成转义后的纯文本，QQ 发送失败返回 503 以触发 Alertmanager 重试，短期重复请求只在上一次 QQ 发送成功后去重。
+
+生产只把这个精确路由通过内网、精确反代或受控 overlay 暴露给 Alertmanager，禁止把 Koishi `5140` Console 端口直接暴露到公网。固定 token 不放在 URL；Alertmanager 通过 `credentials_file` 只读挂载生成的 token 文件，Koishi 节点以同一个逻辑 token 配置。`STUHELPER_ALERTMANAGER_BOT_SELF_ID` 留空时，运行时必须恰好只有一个 QQ 兼容 bot（NapCat 常见 platform 为 `onebot`），否则通知返回 503。
+
 启动前要求：
 
 - `STUHELPER_CONSOLE_ADMIN_PASSWORD` 必须为非空值；`koishi.yml` 会把它作为 Koishi Console 管理员密码。
 - `STUHELPER_PLATFORM_BASE_URL` 指向 StuHelper 后端地址；`STUHELPER_PLATFORM_SERVICE_TOKEN` 是 Koishi 调用后端机器人接口时发送的 Bearer token，应与后端 `BOT_SERVICE_TOKEN` 保持一致。
-- `STUHELPER_PLATFORM_SERVICE_TOKEN` 对应的 Koishi runtime service account 必须至少具备 `bot.qq_binding.consume`、`bot.qq_verification.read`、`bot.admission.session`、`bot.admission.event`、`bot.admission.review`、`bot.admission.forward` scopes。
+- `STUHELPER_PLATFORM_SERVICE_TOKEN` 对应的 Koishi runtime service account 必须至少具备 `bot.qq_binding.consume`、`bot.qq_verification.read`、`bot.admission.session` 和 `bot.admission.event` scopes。
+- 生产告警入口使用固定环境变量 `STUHELPER_ALERTMANAGER_WEBHOOK_ENABLED=true`、`ALERTMANAGER_WEBHOOK_TOKEN` 和可选的 `STUHELPER_ALERTMANAGER_BOT_SELF_ID`。该 token 必须与 Alertmanager 主机使用的 `ALERTMANAGER_WEBHOOK_TOKEN` 完全相同；真实值只放在受控 secrets/env 文件，不写入 `koishi.yml`、日志或部署包。
 - `STUHELPER_GROUP_CENTER_DATA_DIR` 可选覆盖群管中心 JSON 数据目录；留空时使用 Koishi baseDir 下的 `data/stuhelperGroupCenter`。UI smoke 会自动指向临时目录，避免污染本地开发数据。
-- `STUHELPER_FRESHMAN_MATERIAL_HOSTS` 是新生材料图片 URL 允许转发的 HTTPS host 白名单；当前 MVP 生产默认不启用材料原图转发扫描。
 - 本地可直接 `export STUHELPER_CONSOLE_ADMIN_PASSWORD=dev-console-admin-password`，或把同名变量写入仓库根目录 `.env` / 生产环境变量文件。
 
 ## Admission 策略边界
 
-新生入群认证目标群、准入与会话策略由后端 admission policy 决定，并由 `stuhelper-group-guard` 同步为 Koishi 本地 guard policy 执行态缓存。Koishi WebUI 的“同步绑定”只读展示该缓存；目标认证群的增删、启停、入群处理策略和入群后等待时长请在 StuHelper Admin 的入群认证策略页面修改。`koishi.yml` 不再保留本地 `guard` 业务字段，也不再提供静态目标群兜底。后端负责 `auto_approve_verified_join`、`auto_approve_unverified_join`、初始禁言时长、link/submission/manual-review 等待时间、提醒间隔、失败次数拉黑、黑名单期限、新生通道关闭时间、原始材料转发开关和 `management_guild_ids`。Admin 的 `linkWaitSeconds` 会随 bot policy target 下发；Koishi 同步时写入目标群 binding 的 `kickAfterMinutesOverride`，仅覆盖该群的超时期限，不覆盖模板提醒文案和豁免名单。
+学生入群认证目标群、准入与会话策略由后端 admission policy 决定，并由 `stuhelper-group-guard` 同步为 Koishi 本地 guard policy 执行态缓存。Koishi WebUI 的“同步绑定”只读展示该缓存；目标认证群的增删、启停、入群处理策略和入群后等待时长请在 StuHelper Admin 的入群认证策略页面修改。`koishi.yml` 不再保留本地 `guard` 业务字段，也不再提供静态目标群兜底。后端负责 `auto_approve_verified_join`、`auto_approve_unverified_join`、初始禁言时长、link/submission/manual-review 等待时间、提醒间隔、失败次数拉黑和黑名单期限。Admin 的 `linkWaitSeconds` 会随 bot policy target 下发；Koishi 同步时写入目标群 binding 的 `kickAfterMinutesOverride`，仅覆盖该群的超时期限，不覆盖模板提醒文案和豁免名单。
 
 Koishi 在 admission 流程中只做执行器：入群后创建后端 session，发送后端返回的 `join.stuhelper.com/verify/<code>` 认证链接，通过后端 admission action SSE 下行流接收提醒、解禁、踢出和拉黑动作，执行后按 action ID 回写 ACK。`/sessions/pending` 拉取保留为低频 fallback，不再作为生产主路径。`koishi.yml` 的插件加载保持不变，不新增短链域名配置。
 
@@ -65,13 +71,13 @@ actionStream:
   reconnectDelaySeconds: 5
 ```
 
-入群认证运行开关由 Koishi Console 的 StuHelper 群管中心“入群认证”页面保存到 `stuhelper_admission_runtime_settings`，并在运行时生效。默认值在 `@stuhelper/koishi-shared` 的 `DEFAULT_ADMISSION_RUNTIME_SETTINGS` 中维护：Action Stream、准入管理员命令、兜底扫描、群内认证提醒和入群验证码提醒默认开启；公开命令、消息风控、新生材料转发和私聊/临时会话认证提醒默认关闭。公开命令和 admission 管理命令启动时始终注册，实际是否执行由 WebUI runtime setting 控制。入群认证管理员命令的执行权限由 Koishi Console“配置治理 / 命令策略”里的 CommandPolicy `admission-admin` 控制；如果还没有保存该策略，运行时会按默认 authority 4 兜底，避免误放开给普通成员。学生认证链接提醒的“群内提醒”和“私聊/临时会话提醒”是独立 runtime 开关，允许两个渠道同时关闭；两个都关闭时不会发送学生认证链接提醒，但不影响 action 处理、兜底扫描，也不影响 `post_join_time_code` 的本地验证码校验和超时踢出。`post_join_time_code` 的入群验证码提醒使用独立“验证码提醒”开关，关闭后不影响验证码校验和超时踢出。
+入群认证运行开关由 Koishi Console 的 StuHelper 群管中心“入群认证”页面保存到 `stuhelper_admission_runtime_settings`，并在运行时生效。默认值在 `@stuhelper/koishi-shared` 的 `DEFAULT_ADMISSION_RUNTIME_SETTINGS` 中维护：Action Stream、准入管理员命令、兜底扫描、群内认证提醒和入群验证码提醒默认开启；公开命令、消息风控和私聊/临时会话认证提醒默认关闭。公开命令和 admission 管理命令启动时始终注册，实际是否执行由 WebUI runtime setting 控制。入群认证管理员命令的执行权限由 Koishi Console“配置治理 / 命令策略”里的 CommandPolicy `admission-admin` 控制；如果还没有保存该策略，运行时会按默认 authority 4 兜底，避免误放开给普通成员。学生认证链接提醒的“群内提醒”和“私聊/临时会话提醒”是独立 runtime 开关，允许两个渠道同时关闭；两个都关闭时不会发送学生认证链接提醒，但不影响 action 处理、兜底扫描，也不影响 `post_join_time_code` 的本地验证码校验和超时踢出。`post_join_time_code` 的入群验证码提醒使用独立“验证码提醒”开关，关闭后不影响验证码校验和超时踢出。
 
 入群认证处置依赖机器人拥有目标群管理员权限。OneBot/NapCat 在缺少禁言权限时会对 `set_group_ban` 返回 `retcode 1200`，Koishi 控制台会将其提示为“机器人缺少群管理员权限，无法修改成员禁言状态”，而不是暴露底层 retcode。控制台入群认证运行时面板的 404 也按动作区分：认证会话缺失提示刷新或重新生成，解除拉黑时没有活动拉黑记录则提示“没有活动入群拉黑记录”。
 
 QQ 绑定命令字和绑定流程提示由 Koishi Console 的 StuHelper 群管中心“全局设置 / QQ 绑定”页面保存到 `stuhelper_binding_runtime_settings`，默认值在 `@stuhelper/koishi-shared` 的 `DEFAULT_BINDING_RUNTIME_SETTINGS` 中维护。`stuhelper-binding` 原生插件配置只保留 `platform.baseUrl` 和 `platform.serviceToken`，不再包含 `binding.command`、绑定码 TTL 或提示文案。
 
-管理员文本命令和新生审核命令的用户可见提示文案由 Koishi Console 的 StuHelper 群管中心“全局设置 / 管理员命令”页面保存到 `stuhelper_admin_runtime_settings`，默认值在 `@stuhelper/koishi-shared` 的 `DEFAULT_ADMIN_RUNTIME_SETTINGS` 中维护。`stuhelper-admin` 原生插件配置只保留 `platform.baseUrl` 和 `platform.serviceToken`，不再包含命令提示文案；命令执行开关仍由 `stuhelper_admission_runtime_settings.adminCommandsEnabled` 控制，命令权限由 CommandPolicy 控制。
+管理员文本命令的用户可见提示文案由 Koishi Console 的 StuHelper 群管中心“全局设置 / 管理员命令”页面保存到 `stuhelper_admin_runtime_settings`，默认值在 `@stuhelper/koishi-shared` 的 `DEFAULT_ADMIN_RUNTIME_SETTINGS` 中维护。`stuhelper-admin` 原生插件配置只保留 `platform.baseUrl` 和 `platform.serviceToken`，不再包含命令提示文案；命令执行开关仍由 `stuhelper_admission_runtime_settings.adminCommandsEnabled` 控制，命令权限由 CommandPolicy 控制。
 
 骰子默认面数和抽禁言基础秒数、上限、保底阈值、保底秒数由 Koishi Console 的 StuHelper 群管中心“全局设置”页面保存到 `stuhelper_group_guard_behavior_settings`，默认值在 `@stuhelper/koishi-shared` 的 `DEFAULT_GROUP_GUARD_BEHAVIOR_SETTINGS` 中维护。`stuhelper-group-guard` 原生插件配置不再包含 `fun` 字段，公开命令每次执行时读取该 runtime settings，因此 WebUI 修改后不需要重启 Koishi。
 
@@ -88,7 +94,7 @@ QQ 绑定命令字和绑定流程提示由 Koishi Console 的 StuHelper 群管�
 - 单元测试基于 Koishi 官方 `@koishijs/plugin-mock`，不需要连接真实 OneBot/NapCat。
 - `test:unit` 会覆盖 `packages/` 与 `plugins/` 下的 Koishi 测试文件。
 - 绑定插件测试会验证私聊绑定命令和群聊误用提示。
-- 群管插件测试会验证 admission session 创建、入群禁言、认证链接、后端提醒/解禁/踢出/拉黑 action、材料转发、关键词处理、模板与同步绑定策略解析以及撤回留痕。
-- 管理员命令测试会验证 QQ 管理群新生审核命令、操作者 QQ 上报、后端 capability 错误映射和黑名单解除。
+- 群管插件测试会验证 admission session 创建、入群禁言、认证链接、后端提醒/解禁/踢出/拉黑 action、关键词处理、模板与同步绑定策略解析以及撤回留痕。
+- 管理员命令测试会验证群审命令权限、复核请求和运行时开关。
 - 控制台测试会验证高风险批量操作改走人工复核、复核执行、举报报表聚合，以及模板保存、同步绑定只读展示和命令策略写入 SQLite。
 - 启动烟雾验证会真实拉起一次 Koishi，确认四个 StuHelper 插件、群管中心、Console API 与群守卫能力可启动，并固定监听 `5140`。

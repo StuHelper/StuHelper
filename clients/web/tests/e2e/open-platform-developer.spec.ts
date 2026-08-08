@@ -1,4 +1,10 @@
-import { expect, mockNotificationStream, test, type Page } from './fixtures';
+import {
+    expect,
+    mockCurrentAccountProjections,
+    mockNotificationStream,
+    test,
+    type Page,
+} from './fixtures';
 
 const user = {
     id: "u2",
@@ -124,38 +130,12 @@ async function mockAuth(page: Page) {
             }),
     );
     await mockNotificationStream(page);
-    await page.route("**/api/v1/user/identity", (route) =>
-        route.fulfill({
-            contentType: "application/json",
-            body: JSON.stringify({
-                success: true,
-                data: { verified: true, status: "verified" },
-            }),
-        }),
-    );
-    await page.route("**/api/v1/user/profile", (route) =>
-        route.fulfill({
-            contentType: "application/json",
-            body: JSON.stringify({
-                success: true,
-                data: {
-                    verificationStatus: "verified",
-                    schoolName: "测试大学",
-                    schoolID: 4111010006,
-                },
-            }),
-        }),
-    );
-    await page.route("**/api/v1/user/qq-binding", (route) =>
-        route.fulfill({
-            status: 404,
-            contentType: "application/json",
-            body: JSON.stringify({
-                success: false,
-                error: { code: "A0040404", message: "not bound" },
-            }),
-        }),
-    );
+    await mockCurrentAccountProjections(page, {
+        displayName: user.displayName,
+        studentVerified: true,
+        phoneBound: true,
+        capabilities: user.capabilities,
+    });
 }
 
 test.describe("Open Platform developer portal", () => {

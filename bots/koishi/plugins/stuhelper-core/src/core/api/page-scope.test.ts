@@ -260,7 +260,6 @@ function createProfile(qqID: string, verificationState: 'verified' | 'bound_unve
     userID: Number(qqID),
     boundAt: '2026-04-23T07:00:00.000Z',
     verificationState,
-    profileVerificationStatus: verificationState === 'verified' ? 'verified' : 'pending',
     studentVerified: verificationState === 'verified',
   }
 }

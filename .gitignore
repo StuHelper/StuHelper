@@ -25,6 +25,7 @@ Thumbs.db
 !.env.prod.example
 .deploy/
 .secrets/
+infra/campus-connector/secrets/
 credentials.json
 secrets.yaml
 config.local.*

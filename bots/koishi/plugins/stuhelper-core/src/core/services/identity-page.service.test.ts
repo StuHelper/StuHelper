@@ -27,7 +27,6 @@ test('buildIdentityPageData groups records, summaries and releases', () => {
         userID: 1,
         boundAt: '2026-04-20T10:00:00.000Z',
         verificationState: 'bound_unverified',
-        profileVerificationStatus: 'pending',
         studentVerified: false,
       },
       {
@@ -35,7 +34,6 @@ test('buildIdentityPageData groups records, summaries and releases', () => {
         userID: 2,
         boundAt: '2026-04-20T09:00:00.000Z',
         verificationState: 'verified',
-        profileVerificationStatus: 'verified',
         studentVerified: true,
       },
     ],

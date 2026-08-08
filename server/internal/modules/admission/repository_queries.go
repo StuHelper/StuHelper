@@ -21,7 +21,8 @@ func (r *Repository) ListPolicies(ctx context.Context) ([]AdmissionPolicy, error
 		       link_wait_seconds, submission_wait_seconds, manual_review_timeout_seconds,
 		       reminder_interval_seconds, failed_join_limit, blacklist_duration_seconds,
 		       freshman_channel_enabled, freshman_channel_closes_at, freshman_default_expires_at,
-		       forward_raw_material_to_qq, management_guild_ids, max_material_bytes, max_extension_days
+		       forward_raw_material_to_qq, management_guild_ids, max_material_bytes, max_extension_days,
+		       allow_temporary_freshman
 		FROM group_admission_policies
 		ORDER BY platform ASC, guild_id ASC
 	`)
@@ -35,7 +36,8 @@ func (r *Repository) ListPolicies(ctx context.Context) ([]AdmissionPolicy, error
 func (r *Repository) ListPolicyTargets(ctx context.Context) ([]AdmissionPolicyTarget, error) {
 	ctx = withDBTable(ctx, "group_admission_policies")
 	rows, err := r.db.Query(ctx, `
-		SELECT id, platform, guild_id, guard_enabled, join_handling_strategy, link_wait_seconds
+		SELECT id, platform, guild_id, guard_enabled, join_handling_strategy, link_wait_seconds,
+		       management_guild_ids
 		FROM group_admission_policies
 		ORDER BY platform ASC, guild_id ASC
 	`)
@@ -54,6 +56,7 @@ func (r *Repository) ListPolicyTargets(ctx context.Context) ([]AdmissionPolicyTa
 			&item.GuardEnabled,
 			&item.JoinHandlingStrategy,
 			&item.LinkWaitSeconds,
+			&item.ManagementGuildIDs,
 		); err != nil {
 			return nil, fmt.Errorf("scan admission policy target: %w", err)
 		}
@@ -80,7 +83,8 @@ func (r *Repository) CreatePolicyFromSource(ctx context.Context, input Admission
 			link_wait_seconds, submission_wait_seconds, manual_review_timeout_seconds,
 			reminder_interval_seconds, failed_join_limit, blacklist_duration_seconds,
 			freshman_channel_enabled, freshman_channel_closes_at, freshman_default_expires_at,
-			forward_raw_material_to_qq, management_guild_ids, max_material_bytes, max_extension_days
+			forward_raw_material_to_qq, management_guild_ids, max_material_bytes, max_extension_days,
+			allow_temporary_freshman
 		)
 		SELECT $1, $2, $3, TRUE, school_id, auto_approve_join,
 		       join_handling_strategy, auto_approve_verified_join, auto_approve_unverified_join,
@@ -88,7 +92,8 @@ func (r *Repository) CreatePolicyFromSource(ctx context.Context, input Admission
 		       link_wait_seconds, submission_wait_seconds, manual_review_timeout_seconds,
 		       reminder_interval_seconds, failed_join_limit, blacklist_duration_seconds,
 		       freshman_channel_enabled, freshman_channel_closes_at, freshman_default_expires_at,
-		       forward_raw_material_to_qq, '{}'::text[], max_material_bytes, max_extension_days
+		       forward_raw_material_to_qq, '{}'::text[], max_material_bytes, max_extension_days,
+		       allow_temporary_freshman
 		FROM group_admission_policies
 		WHERE id = $4
 		ON CONFLICT (platform, guild_id) DO NOTHING
@@ -99,7 +104,7 @@ func (r *Repository) CreatePolicyFromSource(ctx context.Context, input Admission
 		          manual_review_timeout_seconds, reminder_interval_seconds, failed_join_limit,
 		          blacklist_duration_seconds, freshman_channel_enabled, freshman_channel_closes_at,
 		          freshman_default_expires_at, forward_raw_material_to_qq, management_guild_ids,
-		          max_material_bytes, max_extension_days
+		          max_material_bytes, max_extension_days, allow_temporary_freshman
 	`, policyID, input.Platform, input.GuildID, input.SourcePolicyID))
 	if err != nil {
 		return nil, fmt.Errorf("CreatePolicyFromSource: %w", err)
@@ -259,7 +264,7 @@ func updateAdmissionPolicySQL() string {
 		    freshman_channel_enabled = $15, freshman_channel_closes_at = $16,
 		    freshman_default_expires_at = $17, forward_raw_material_to_qq = $18,
 		    management_guild_ids = $19, max_material_bytes = $20,
-		    max_extension_days = $21, updated_at = NOW()
+		    max_extension_days = $21, allow_temporary_freshman = $22, updated_at = NOW()
 		WHERE id = $1
 		RETURNING id, platform, guild_id, guard_enabled, school_id, auto_approve_join,
 		          join_handling_strategy, auto_approve_verified_join, auto_approve_unverified_join,
@@ -268,7 +273,7 @@ func updateAdmissionPolicySQL() string {
 		          manual_review_timeout_seconds, reminder_interval_seconds, failed_join_limit,
 		          blacklist_duration_seconds, freshman_channel_enabled, freshman_channel_closes_at,
 		          freshman_default_expires_at, forward_raw_material_to_qq, management_guild_ids,
-		          max_material_bytes, max_extension_days`
+		          max_material_bytes, max_extension_days, allow_temporary_freshman`
 }
 
 func updateAdmissionPolicyArgs(policy AdmissionPolicy) []any {
@@ -280,7 +285,7 @@ func updateAdmissionPolicyArgs(policy AdmissionPolicy) []any {
 		policy.ReminderIntervalSeconds, policy.FailedJoinLimit, policy.BlacklistDurationSeconds,
 		policy.FreshmanChannelEnabled, policy.FreshmanChannelClosesAt, policy.FreshmanDefaultExpiresAt,
 		policy.ForwardRawMaterialToQQ, policy.ManagementGuildIDs, policy.MaxMaterialBytes,
-		policy.MaxExtensionDays,
+		policy.MaxExtensionDays, policy.AllowTemporaryFreshman,
 	}
 }
 

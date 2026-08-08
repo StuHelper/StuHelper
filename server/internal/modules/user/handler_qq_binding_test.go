@@ -25,7 +25,7 @@ func setupQQBindingUserRouter(t *testing.T, repo Repo) *gin.Engine {
 	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
 
-	h := NewHandler(svc, nil, nil, nil)
+	h := NewHandler(svc)
 	r := gin.New()
 	api := r.Group("/api/v1")
 	authMW := func(c *gin.Context) {
@@ -56,11 +56,15 @@ func TestNewBotHandlerRequiresService(t *testing.T) {
 	})
 }
 
-func setupQQBindingBotRouter(t *testing.T, repo Repo, verifier BotCredentialVerifier) *gin.Engine {
+func setupQQBindingBotRouter(t *testing.T, repo Repo, verifier BotCredentialVerifier, studentEligible ...bool) *gin.Engine {
 	t.Helper()
 
 	svc, err := NewService(repo, []byte("test-hmac-key-at-least-32-chars!"), &fakeEncryptor{})
 	require.NoError(t, err)
+	eligible := len(studentEligible) > 0 && studentEligible[0]
+	svc.SetVerificationStatusGateway(fakeVerificationStatusGateway{
+		student: CurrentStudentStatus{Eligible: eligible},
+	})
 
 	h := NewBotHandler(svc, verifier)
 	r := gin.New()
@@ -242,11 +246,7 @@ func TestBotConsumeQQBinding_ReturnsBindingResult(t *testing.T) {
 	repo.onGetQQBindingByQQID = func(_ context.Context, qqID string) (*QQBinding, error) {
 		return &QQBinding{UserID: 42, QQID: qqID}, nil
 	}
-	repo.onGetProfileByUserID = func(_ context.Context, _ int64) (*Profile, error) {
-		return &Profile{UserID: 42, VerificationStatus: StatusVerified}, nil
-	}
-
-	r := setupQQBindingBotRouter(t, repo, &fakeBotCredentialVerifier{})
+	r := setupQQBindingBotRouter(t, repo, &fakeBotCredentialVerifier{}, true)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/bot/qq-binding/consume", strings.NewReader(`{"code":"ABCD1234","qqID":"123456789"}`))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer expected-token")
@@ -264,10 +264,6 @@ func TestBotGetQQVerification_ReturnsVerificationState(t *testing.T) {
 	repo.onGetQQBindingByQQID = func(_ context.Context, qqID string) (*QQBinding, error) {
 		return &QQBinding{UserID: 42, QQID: qqID}, nil
 	}
-	repo.onGetProfileByUserID = func(_ context.Context, _ int64) (*Profile, error) {
-		return &Profile{UserID: 42, VerificationStatus: StatusPending}, nil
-	}
-
 	verifier := &fakeBotCredentialVerifier{}
 	r := setupQQBindingBotRouter(t, repo, verifier)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/bot/qq-users/123456789/verification", nil)

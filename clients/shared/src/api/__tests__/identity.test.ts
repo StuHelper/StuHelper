@@ -14,25 +14,21 @@ function createMockClient(): ApiClient {
 }
 
 describe('createIdentityApi', () => {
-  it('posts academic match requests to the user profile endpoint', () => {
+  it('exposes only the current account surface and QQ binding endpoints', () => {
     const client = createMockClient()
     const api = createIdentityApi(client)
 
-    api.matchStudentEmailAcademicStudent({
-      schoolCode: '4111010006',
-      studentID: '20250001',
-      studentName: '张三',
-    })
+    api.getUserSurface()
+    api.getQQBinding()
+    api.createQQBindingCode()
 
-    expect(client.POST).toHaveBeenCalledWith(
-      '/api/v1/user/profile/school-email/academic-match',
-      {
-        body: {
-          schoolCode: '4111010006',
-          studentID: '20250001',
-          studentName: '张三',
-        },
-      },
-    )
+    expect(client.GET).toHaveBeenNthCalledWith(1, '/api/v1/user/me')
+    expect(client.GET).toHaveBeenNthCalledWith(2, '/api/v1/user/qq-binding')
+    expect(client.POST).toHaveBeenCalledWith('/api/v1/user/qq-binding/code')
+    expect(Object.keys(api).sort()).toEqual([
+      'createQQBindingCode',
+      'getQQBinding',
+      'getUserSurface',
+    ])
   })
 })

@@ -83,27 +83,25 @@ func TestExternalSyncOutbox_UpsertConflictResetsCompletedJob(t *testing.T) {
 	assert.JSONEq(t, `{"userID":7,"approved":true}`, string(reclaimed[0].Payload))
 }
 
-func TestExternalSyncOutbox_ClaimSplitsAcrossIAMStreams(t *testing.T) {
+func TestExternalSyncOutbox_ClaimsOnlyTargetProfileProjectionJobs(t *testing.T) {
 	fixture := postgresfixture.Start(t)
 	repo := NewRepository(fixture.DB, []byte("test-hmac-key"))
 	ctx := context.Background()
 
 	for userID := int64(1); userID <= 4; userID++ {
 		upsertExternalSyncJob(t, repo, ctx, externalSyncJobTypeUserProfileProjection, userProfileProjectionKey(userID))
-		upsertExternalSyncJob(t, repo, ctx, externalSyncJobTypeAdmissionVerification, admissionVerificationProjectionKey(userID))
 	}
 	upsertForeignOpenFGAJob(t, fixture, ctx)
 
 	jobs, err := repo.ClaimExternalSyncJobs(ctx, 6, time.Minute)
 	require.NoError(t, err)
-	require.Len(t, jobs, 6)
+	require.Len(t, jobs, 4)
 
 	counts := map[string]int{}
 	for _, job := range jobs {
 		counts[job.JobType]++
 	}
-	assert.Equal(t, 3, counts[externalSyncJobTypeUserProfileProjection])
-	assert.Equal(t, 3, counts[externalSyncJobTypeAdmissionVerification])
+	assert.Equal(t, 4, counts[externalSyncJobTypeUserProfileProjection])
 	assertExternalSyncJobStatus(t, fixture, "review-relations:foreign", "pending")
 }
 
@@ -114,8 +112,9 @@ func TestListStudentRoleProjectionStates(t *testing.T) {
 
 	verifiedID := insertExternalSyncUser(t, fixture, "verified")
 	rejectedID := insertExternalSyncUser(t, fixture, "rejected")
-	insertExternalSyncProfile(t, fixture, verifiedID, StatusVerified)
-	insertExternalSyncProfile(t, fixture, rejectedID, StatusRejected)
+	insertExternalSyncEligibilityRevision(t, fixture, verifiedID)
+	insertExternalSyncEligibilityRevision(t, fixture, rejectedID)
+	insertExternalSyncTargetCredential(t, fixture, verifiedID)
 
 	states, err := repo.ListStudentRoleProjectionStates(ctx, 10)
 	require.NoError(t, err)
@@ -180,11 +179,38 @@ func insertExternalSyncUser(t *testing.T, fixture *postgresfixture.Fixture, suff
 	return userID
 }
 
-func insertExternalSyncProfile(t *testing.T, fixture *postgresfixture.Fixture, userID int64, status string) {
+func insertExternalSyncEligibilityRevision(t *testing.T, fixture *postgresfixture.Fixture, userID int64) {
 	t.Helper()
 	_, err := fixture.Pool.Exec(context.Background(), `
-		INSERT INTO user_profiles (user_id, verification_status)
-		VALUES ($1, $2)
-	`, userID, status)
+		INSERT INTO student_eligibility_revisions (user_id, school_id, revision, reason_code)
+		VALUES ($1, 4111010006, 1, 'test_projection_candidate')
+	`, userID)
+	require.NoError(t, err)
+}
+
+func insertExternalSyncTargetCredential(t *testing.T, fixture *postgresfixture.Fixture, userID int64) {
+	t.Helper()
+	applicationID := "00000000-0000-4000-8000-000000000001"
+	_, err := fixture.Pool.Exec(context.Background(), `
+		INSERT INTO student_verification_applications (
+		    id, user_id, school_id, status, current_method,
+		    privacy_notice_version, consented_at, expires_at, completed_at
+		)
+		VALUES ($1, $2, 4111010006, 'approved', 'school_sso',
+		    'privacy-v1', NOW(), NOW() + INTERVAL '1 hour', NOW())
+	`, applicationID, userID)
+	require.NoError(t, err)
+	_, err = fixture.Pool.Exec(context.Background(), `
+		INSERT INTO user_verification_credentials (
+		    id, user_id, school_id, kind, subject_hash, subject_display,
+		    verification_application_id, status, credential_class, roster_dependency, assurance,
+		    verified_at, activated_at
+		)
+		VALUES (
+		    '00000000-0000-4000-8000-000000000001', $1, 4111010006,
+		    'school_sso', repeat('a', 64), '20****01',
+		    $2, 'active', 'formal_student', 'independent', 'standard', NOW(), NOW()
+		)
+	`, userID, applicationID)
 	require.NoError(t, err)
 }

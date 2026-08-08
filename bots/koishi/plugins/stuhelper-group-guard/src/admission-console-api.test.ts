@@ -328,7 +328,7 @@ test('admission runtime resend does not record backend event after losing the ac
   assert.equal(eventRecorded, false)
 })
 
-test('admission runtime regenerate does not record verified release after losing the active record', async () => {
+test('admission runtime regenerate does not record admitted release after losing the active record', async () => {
   const sentMessages: Array<{ channelId: string; message: string }> = []
   const muteActions: Array<{ guildId: string; memberId: string; duration: number }> = []
   let eventRecorded = false
@@ -339,7 +339,7 @@ test('admission runtime regenerate does not record verified release after losing
       platform: fakePlatform({
         async regenerateAdmissionSessionLink() {
           return {
-            session: createAdmissionSession({ status: 'verified' }),
+            session: createAdmissionSession({ status: 'admitted' }),
             token: 'abc',
             authURL: 'https://join.stuhelper.com/verify/abc',
           }
@@ -367,7 +367,7 @@ test('admission runtime regenerate does not record verified release after losing
 
   assert.equal(data, '入群认证记录已被其他任务处理，请刷新页面后确认当前状态。')
   assert.equal(sentMessages.length, 0)
-  assert.deepEqual(muteActions, [{ guildId: '178037297', memberId: '2001', duration: 0 }])
+  assert.deepEqual(muteActions, [])
   assert.equal(eventRecorded, false)
 })
 
@@ -556,7 +556,6 @@ test('admission runtime settings action persists WebUI switch changes', async ()
           adminCommandsEnabled: true,
           admissionCommandsEnabled: true,
           moderationEnabled: true,
-          freshmanForwardEnabled: false,
           fallbackScanEnabled: false,
           reminderGroupEnabled: true,
           reminderDirectEnabled: false,
@@ -592,7 +591,6 @@ test('admission runtime settings action persists WebUI switch changes', async ()
     adminCommandsEnabled: undefined,
     admissionCommandsEnabled: undefined,
     moderationEnabled: true,
-    freshmanForwardEnabled: undefined,
     fallbackScanEnabled: false,
     reminderGroupEnabled: undefined,
     reminderDirectEnabled: undefined,
@@ -729,7 +727,7 @@ test('admission runtime console actions use configured message templates', async
       config: createConfig(),
       platform: fakePlatform({
         async getAdmissionSessionByMember() {
-          return createAdmissionSession({ status: 'linked', userID: 42 })
+          return createAdmissionSession({ status: 'awaiting_requirements', userID: 42 })
         },
       }),
       runtimeSettings: fakeRuntimeSettings(),
@@ -815,7 +813,6 @@ function fakeRuntimeSettings(overrides: Partial<AdmissionRuntimeSettingsStore> =
       adminCommandsEnabled: true,
       admissionCommandsEnabled: true,
       moderationEnabled: false,
-      freshmanForwardEnabled: false,
       fallbackScanEnabled: true,
       reminderGroupEnabled: true,
       reminderDirectEnabled: false,
@@ -830,7 +827,6 @@ function fakeRuntimeSettings(overrides: Partial<AdmissionRuntimeSettingsStore> =
       adminCommandsEnabled: true,
       admissionCommandsEnabled: true,
       moderationEnabled: false,
-      freshmanForwardEnabled: false,
       fallbackScanEnabled: true,
       reminderGroupEnabled: true,
       reminderDirectEnabled: false,
@@ -907,7 +903,7 @@ function fakePlatform(overrides: Partial<PlatformClient> = {}) {
       token: 'abc',
       authURL: 'https://join.stuhelper.com/verify/abc',
     }),
-    skipAdmissionSessionForMember: async () => createAdmissionSession({ status: 'verified' }),
+    skipAdmissionSessionForMember: async () => createAdmissionSession({ status: 'cancelled' }),
     resetAdmissionFailureCount: async () => ({
       platform: 'qq',
       guildID: '178037297',
@@ -999,7 +995,7 @@ function createAdmissionSession(overrides: Partial<AdmissionSession> = {}): Admi
     channelID: '178037297',
     qqID: '2001',
     userID: null,
-    status: 'joined_muted',
+    status: 'awaiting_account_link',
     tokenExpiresAt: '2026-06-04T09:00:00.000Z',
     linkWaitDeadlineAt: '2026-06-04T09:00:00.000Z',
     submissionWaitDeadlineAt: '2026-06-04T10:00:00.000Z',
@@ -1007,7 +1003,6 @@ function createAdmissionSession(overrides: Partial<AdmissionSession> = {}): Admi
     initialMuteUntil: '2026-06-04T09:00:00.000Z',
     projectionPending: false,
     authURL: 'https://join.stuhelper.com/verify/abc',
-    maxMaterialBytes: 10_000_000,
     lastBotError: null,
     failureCount: 1,
     remainingRetryCount: 1,

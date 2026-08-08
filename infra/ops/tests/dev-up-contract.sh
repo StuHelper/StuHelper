@@ -6,6 +6,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 DEV_UP="${REPO_ROOT}/infra/ops/dev-up.sh"
 DEV_BACKEND_RUN="${REPO_ROOT}/infra/ops/dev-backend-run.sh"
 DEV_LOCAL="${REPO_ROOT}/infra/ops/lib/dev-local.sh"
+DEV_SEED="${REPO_ROOT}/server/scripts/seed.sql"
 
 fail() {
   echo "[dev-up-contract][error] $*" >&2
@@ -31,6 +32,7 @@ assert_not_contains() {
 [[ -f "${DEV_UP}" ]] || fail "missing file: ${DEV_UP}"
 [[ -x "${DEV_BACKEND_RUN}" ]] || fail "missing executable file: ${DEV_BACKEND_RUN}"
 [[ -f "${DEV_LOCAL}" ]] || fail "missing file: ${DEV_LOCAL}"
+[[ -f "${DEV_SEED}" ]] || fail "missing file: ${DEV_SEED}"
 
 bash -n "${DEV_UP}"
 bash -n "${DEV_BACKEND_RUN}"
@@ -97,6 +99,8 @@ assert_contains "${DEV_UP}" 'OBJECT_STORAGE_ENDPOINT'
 assert_contains "${DEV_UP}" 'http://localhost:\$\{DEV_OBJECT_STORAGE_EXTERNAL_PORT_SELECTED\}'
 assert_contains "${DEV_UP}" 'object-storage'
 assert_contains "${DEV_UP}" 'resource-seed-dev'
+assert_contains "${DEV_SEED}" '旧 academic\.buaa_students 写路径已由单向切换 migration 永久关闭'
+assert_not_contains "${DEV_SEED}" 'INSERT[[:space:]]+INTO[[:space:]]+academic\.buaa_students'
 assert_not_contains "${DEV_UP}" '^  proxy$'
 assert_not_contains "${DEV_UP}" 'traefik'
 

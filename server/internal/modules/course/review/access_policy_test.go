@@ -29,6 +29,10 @@ func (f fakeReviewAccessReader) GetReviewAccessSubject(context.Context, string) 
 	return f.subject, nil
 }
 
+func (f fakeReviewAccessReader) PhonePublishingRequirementSatisfied(context.Context, int64) (bool, error) {
+	return f.subject != nil && f.subject.IdentityVerified, nil
+}
+
 func TestBuildReviewAccessPolicy_UsesConfiguredValues(t *testing.T) {
 	policy, err := buildReviewAccessPolicy(
 		[]reviewaccess.SchoolConfig{
@@ -141,15 +145,17 @@ func TestStripReviewsForResponse_HidesAnonymousContentAndTitle(t *testing.T) {
 }
 
 func TestResolveAccessFacts_RequiresCapabilityAndVerificationFacts(t *testing.T) {
-	service := &Service{
-		accessReader: fakeReviewAccessReader{
-			subject: &reviewaccess.Subject{
-				InternalUserID:   42,
-				IdentityVerified: true,
-				StudentVerified:  true,
-				SchoolID:         int64Ptr(4111010006),
-			},
+	reader := fakeReviewAccessReader{
+		subject: &reviewaccess.Subject{
+			InternalUserID:   42,
+			IdentityVerified: true,
+			StudentVerified:  true,
+			SchoolID:         int64Ptr(4111010006),
 		},
+	}
+	service := &Service{
+		accessReader: reader,
+		phoneGate:    reader,
 	}
 
 	facts, err := service.ResolveAccessFacts(context.Background(), "user-1", []string{

@@ -13,7 +13,7 @@ import (
 func TestExpandRoles_SuperAdminHasAllCapabilities(t *testing.T) {
 	caps := ExpandRoles([]string{"super_admin"})
 	assert.Contains(t, caps, AdminDashboardView)
-	assert.Contains(t, caps, UserIdentityRead)
+	assert.Contains(t, caps, StudentCredentialRead)
 	assert.Contains(t, caps, UserSystemUpdate)
 	assert.Contains(t, caps, AdminReviewsEditContent)
 }
@@ -113,7 +113,7 @@ func TestExpandRoleGrants_SchoolAdminUsesScopedSchoolIDs(t *testing.T) {
 	assert.Contains(t, snapshot.Capabilities, AdminReviewsManage)
 	assert.Contains(t, snapshot.Capabilities, AdminReportsManage)
 	assert.Contains(t, snapshot.Capabilities, AdminReviewsEditContent)
-	assert.Contains(t, snapshot.Capabilities, UserStudentRead)
+	assert.Contains(t, snapshot.Capabilities, StudentManualReviewRead)
 	assert.Contains(t, snapshot.Capabilities, UserSchoolUpdate)
 	for _, grant := range snapshot.CapabilityGrants {
 		assert.False(t, grant.Global)
@@ -158,14 +158,14 @@ func TestExpandRoleGrants_SectionAdminDoesNotManageTeachers(t *testing.T) {
 
 func TestHasGrantInSchool(t *testing.T) {
 	grants := []Grant{
-		{Name: UserStudentRead, ScopeSchoolIDs: []string{"4111010001"}},
+		{Name: StudentManualReviewRead, ScopeSchoolIDs: []string{"4111010001"}},
 		{Name: UserSystemRead, Global: true},
 	}
-	assert.True(t, HasGrantInSchool(grants, UserStudentRead, "4111010001"))
-	assert.False(t, HasGrantInSchool(grants, UserStudentRead, "4111010002"))
+	assert.True(t, HasGrantInSchool(grants, StudentManualReviewRead, "4111010001"))
+	assert.False(t, HasGrantInSchool(grants, StudentManualReviewRead, "4111010002"))
 	assert.True(t, HasGrantInSchool(grants, UserSystemRead, "4111099999"))
 	assert.True(t, HasGlobalGrant(grants, UserSystemRead))
-	assert.False(t, HasGlobalGrant(grants, UserStudentRead))
+	assert.False(t, HasGlobalGrant(grants, StudentManualReviewRead))
 }
 
 func TestNormalize_DeduplicatesAndSorts(t *testing.T) {

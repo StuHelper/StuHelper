@@ -10,13 +10,14 @@
     },
     "userSystem": {
       "title": "用户系统",
-      "identityReview": "实名审核",
-      "studentVerification": "学生认证审核",
+      "identityReview": "已退役实名审核",
+      "studentVerification": "人工学生认证审核",
+      "studentCredentials": "学生凭据与主体冲突",
       "admissionSessions": "入群认证会话",
-      "freshmanVerification": "新生材料审核",
+      "freshmanVerification": "已退役新生审核",
       "admissionPolicy": "入群认证策略",
       "memberBlacklist": "成员黑名单",
-      "schoolConfig": "学校配置",
+      "schoolConfig": "学校认证配置",
       "systemConfig": "系统配置"
     },
     "authorization": {
@@ -469,8 +470,7 @@
       },
       "verifyMethod": {
         "academic_db_match": "学籍匹配",
-        "manual": "人工审核",
-        "tencent_cloud": "腾讯云核验"
+        "manual": "人工审核"
       }
     },
     "studentVerification": {

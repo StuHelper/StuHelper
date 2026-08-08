@@ -11,14 +11,22 @@ const capabilities = [
   'admin:teachers:manage',
   'admin:sensitive_words:manage',
   'admin:logs:view',
-  'user:identity:read',
-  'user:identity:review',
-  'user:student:review',
-  'user:school:read',
-  'user:school:update',
+  'student:manual_review:read',
+  'student:manual_review:decide',
+  'student:manual_material:access',
+  'student:verification_config:read',
+  'student:verification_config:update',
+  'student:roster:read',
+  'student:roster:activate',
+  'student:credential:read',
+  'student:credential:revoke',
+  'student:subject_conflict:read',
+  'student:subject_conflict:resolve',
+  'campus_connector:health:read',
   'user:system:read',
   'user:system:update',
-  'admission:freshman:review',
+  'admission:session:read',
+  'admission:session:manage',
   'admission:policy:update',
   'member_blacklist:read',
   'member_blacklist:manage',
@@ -166,63 +174,6 @@ const operationLog = {
   createdAt: now,
 };
 
-const identityReview = {
-  userID: 12,
-  realName: '张三',
-  docType: 'MAINLAND_ID',
-  verifyMethod: 'manual',
-  verified: false,
-  verifiedAt: null,
-  reviewedAt: null,
-  createdAt: now,
-  updatedAt: now,
-};
-
-const studentVerification = {
-  userID: 13,
-  schoolID: 4_111_010_006,
-  activeStudentID: '20260001',
-  verificationStatus: 'pending',
-  verificationMethod: 'manual',
-  createdAt: now,
-  updatedAt: now,
-};
-
-const schoolConfig = {
-  approvalPolicy: 'auto',
-  schoolID: 4_111_010_006,
-  schoolCode: '4111010006',
-  schoolName: '测试大学',
-  verificationMethod: 'ldap',
-  enabled: true,
-  schoolSsoEnabled: true,
-  schoolEmailOtpEnabled: true,
-  schoolEmailIdentityPolicy: {
-    type: 'academic_student_email',
-    studentIDEmailDomain: 'buaa.edu.cn',
-    requireStudentName: true,
-  },
-  academicDbTable: 'academic_students',
-  consentText: '仅用于学生身份认证',
-  ldapConfig: {
-    url: 'ldap://ldap.example.com',
-    baseDN: 'dc=example,dc=com',
-    systemBindDN: 'cn=reader,dc=example,dc=com',
-    useTLS: true,
-  },
-};
-
-const freshmanApplication = {
-  id: 'freshman-1',
-  status: 'pending',
-  schoolID: 4_111_010_006,
-  qqID: '10001',
-  applicantNameMasked: '赵*',
-  materialURL: 'https://example.com/material.jpg',
-  failureCount: 1,
-  createdAt: now,
-};
-
 const admissionPolicy = {
   id: 'policy-qq-1',
   platform: 'qq',
@@ -233,9 +184,7 @@ const admissionPolicy = {
   autoApproveVerifiedJoin: true,
   autoApproveUnverifiedJoin: true,
   unverifiedJoinRejectReason: '请先完成 StuHelper 学生认证后再申请入群。',
-  freshmanChannelEnabled: true,
-  freshmanChannelClosesAt: '2026-09-01T00:00:00Z',
-  freshmanDefaultExpiresAt: '2026-10-01T00:00:00Z',
+  allowTemporaryFreshman: true,
   initialMuteDurationSeconds: 60,
   linkWaitSeconds: 300,
   submissionWaitSeconds: 600,
@@ -243,10 +192,6 @@ const admissionPolicy = {
   reminderIntervalSeconds: 120,
   failedJoinLimit: 3,
   blacklistDurationSeconds: 86_400,
-  maxMaterialBytes: 5_242_880,
-  maxExtensionDays: 30,
-  managementGuildIDs: ['guild-admin'],
-  forwardRawMaterialToQQ: false,
 };
 
 const blacklistEntry = {
@@ -487,48 +432,6 @@ async function mockAdminApi(page: Page) {
       return;
     }
 
-    if (path === '/api/v1/admin/identities') {
-      await route.fulfill(list([identityReview]));
-      return;
-    }
-    if (path.startsWith('/api/v1/admin/identities/')) {
-      if (method === 'GET') {
-        await route.fulfill(
-          ok({
-            ...identityReview,
-            docPhotoFrontURL:
-              'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=',
-            docPhotoBackURL: null,
-            docPhotoSelfieURL:
-              'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=',
-          }),
-        );
-        return;
-      }
-      await route.fulfill(ok({ ...identityReview, verified: true }));
-      return;
-    }
-
-    if (path === '/api/v1/admin/student-verifications') {
-      await route.fulfill(list([studentVerification]));
-      return;
-    }
-    if (path.startsWith('/api/v1/admin/student-verifications/')) {
-      await route.fulfill(
-        ok({ ...studentVerification, verificationStatus: 'verified' }),
-      );
-      return;
-    }
-
-    if (path === '/api/v1/admin/school-configs') {
-      await route.fulfill(ok([schoolConfig]));
-      return;
-    }
-    if (path.startsWith('/api/v1/admin/school-configs/')) {
-      await route.fulfill(ok(schoolConfig));
-      return;
-    }
-
     if (path === '/api/v1/admin/system-configs') {
       await route.fulfill(
         ok([
@@ -544,15 +447,6 @@ async function mockAdminApi(page: Page) {
     }
     if (path.startsWith('/api/v1/admin/system-configs/')) {
       await route.fulfill(ok({ key: 'review.retention_days', value: '180' }));
-      return;
-    }
-
-    if (path === '/api/v1/admin/freshman-verifications') {
-      await route.fulfill(list([freshmanApplication]));
-      return;
-    }
-    if (path.startsWith('/api/v1/admin/freshman-verifications/')) {
-      await route.fulfill(ok({ ...freshmanApplication, status: 'approved' }));
       return;
     }
 
@@ -756,9 +650,11 @@ test.describe('Admin management surfaces', () => {
     await expect(page.getByText('疑似广告内容')).toBeVisible();
 
     await page.goto('/workspace');
-    await page.getByRole('button', { name: '实名审核' }).click();
-    await expect(page).toHaveURL(/\/users\/identity-review$/);
-    await expect(page.getByText('张三')).toBeVisible();
+    await page.getByRole('button', { name: '学生材料审核' }).click();
+    await expect(page).toHaveURL(/\/users\/student-verification$/);
+    await expect(
+      page.getByRole('heading', { name: '学生认证审核' }),
+    ).toBeVisible();
   });
 
   test('content management pages render review operations data', async ({
@@ -1044,32 +940,9 @@ test.describe('Admin management surfaces', () => {
     );
   });
 
-  test('user system pages render identity, admission, and blacklist data', async ({
+  test('user system pages render admission, blacklist, and system data', async ({
     page,
   }) => {
-    await page.goto('/users/identity-review');
-    await expect(page.getByText('张三')).toBeVisible();
-    await page.waitForLoadState('networkidle');
-
-    await page.goto('/users/student-verification');
-    await expect(page.getByText('20260001')).toBeVisible();
-    await page.waitForLoadState('networkidle');
-
-    await page.goto('/users/school-config');
-    await expect(page.getByText('测试大学')).toBeVisible();
-    await expect(page.getByText('自动通过')).toBeVisible();
-    await expect(page.getByText('学校 SSO')).toBeVisible();
-    await expect(page.getByText('学校邮箱 OTP')).toBeVisible();
-    await expect(page.getByText('学号邮箱 @buaa.edu.cn')).toBeVisible();
-    await expect(page.getByText('需姓名匹配')).toBeVisible();
-    await expect(page.getByText('ldap://ldap.example.com')).toBeVisible();
-    await page.waitForLoadState('networkidle');
-
-    await page.goto('/users/freshman-verification');
-    await expect(page.getByText('赵*')).toBeVisible();
-    await expect(page.getByText('10001').first()).toBeVisible();
-    await page.waitForLoadState('networkidle');
-
     await page.goto('/users/admission-policy');
     await expect(
       page.getByRole('heading', { name: '入群认证策略' }),
@@ -1089,53 +962,7 @@ test.describe('Admin management surfaces', () => {
     await expect(page.getByText('评课保留天数')).toBeVisible();
   });
 
-  test('user system filters pass review and blacklist query params', async ({
-    page,
-  }) => {
-    await page.goto('/users/identity-review');
-    await waitForAdminGetRequest(
-      page,
-      '/api/v1/admin/identities',
-      (url) =>
-        url.searchParams.get('status') === 'verified' &&
-        url.searchParams.get('page') === '1' &&
-        url.searchParams.get('pageSize') === '20',
-      async () => {
-        await page.getByRole('main').locator('.el-select').click();
-        await page.getByRole('option', { name: '已认证' }).click();
-      },
-    );
-
-    await page.goto('/users/student-verification');
-    await page.getByPlaceholder('按学校ID筛选...').fill('4111010006');
-    await waitForAdminGetRequest(
-      page,
-      '/api/v1/admin/student-verifications',
-      (url) =>
-        url.searchParams.get('status') === 'verified' &&
-        url.searchParams.get('schoolID') === '4111010006' &&
-        url.searchParams.get('page') === '1' &&
-        url.searchParams.get('pageSize') === '20',
-      async () => {
-        await page.getByRole('main').locator('.el-select').click();
-        await page.getByRole('option', { name: '已认证' }).click();
-      },
-    );
-
-    await page.goto('/users/freshman-verification');
-    await waitForAdminGetRequest(
-      page,
-      '/api/v1/admin/freshman-verifications',
-      (url) =>
-        url.searchParams.get('status') === 'rejected' &&
-        url.searchParams.get('page') === '1' &&
-        url.searchParams.get('pageSize') === '20',
-      async () => {
-        await page.getByRole('main').locator('.el-select').click();
-        await page.getByRole('option', { name: '已驳回' }).click();
-      },
-    );
-
+  test('user system filters pass blacklist query params', async ({ page }) => {
     await page.goto('/users/member-blacklist');
     await page.getByPlaceholder('QQ / 主体 ID').fill('10001');
     await page.getByPlaceholder('群号').fill('guild-filter');

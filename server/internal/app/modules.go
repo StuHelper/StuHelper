@@ -15,8 +15,10 @@ import (
 	"github.com/StuHelper/StuHelper/server/internal/modules/auth"
 	authorizationmodule "github.com/StuHelper/StuHelper/server/internal/modules/authorization"
 	"github.com/StuHelper/StuHelper/server/internal/modules/notification"
+	"github.com/StuHelper/StuHelper/server/internal/modules/rbac"
 	"github.com/StuHelper/StuHelper/server/internal/modules/resource"
 	"github.com/StuHelper/StuHelper/server/internal/modules/storage"
+	"github.com/StuHelper/StuHelper/server/internal/modules/studentverification"
 	"github.com/StuHelper/StuHelper/server/internal/modules/user"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/botcredential"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/config"
@@ -121,19 +123,8 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 		return fmt.Errorf("failed to initialize school email sender: %w", err)
 	}
 	var studentEmailSender user.StudentEmailSender
-	var admissionEmailSender admission.SchoolEmailSender
 	if schoolEmailSender != nil {
 		studentEmailSender = schoolEmailSender
-		admissionEmailSender = schoolEmailSender
-	}
-
-	externalStudentDirectory, err := rt.initExternalStudentDirectory()
-	if err != nil {
-		return err
-	}
-	var externalStudentDirectoryOpt user.ServiceOption
-	if externalStudentDirectory != nil {
-		externalStudentDirectoryOpt = user.WithExternalStudentDirectory(newExternalStudentDirectoryAdapter(externalStudentDirectory))
 	}
 
 	userService, err := rt.initUserService(
@@ -143,7 +134,6 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 		fgaClient,
 		storageService,
 		studentEmailSender,
-		externalStudentDirectoryOpt,
 	)
 	if err != nil {
 		return err
@@ -194,9 +184,6 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 	}
 	userHandler := user.NewHandler(
 		userService,
-		rt.redisClient.GetClient(),
-		bindPhoneOTP,
-		bindPhoneSMS,
 		user.WithAdminAuthorizers(userAdminAuthorizers()),
 	)
 	openPlatformHandler, _, err := rt.initOpenPlatformModule(
@@ -212,31 +199,122 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 	if err != nil {
 		return err
 	}
+	campusConnectorService, err := rt.initCampusConnectorGateway()
+	if err != nil {
+		return err
+	}
+	studentVerificationOptions := []studentverification.ServiceOption{
+		studentverification.WithRedisClient(rt.redisClient.GetClient()),
+		studentverification.WithStudentEmailSender(studentEmailSender),
+		studentverification.WithPhoneAuthority(userProfileGateway),
+		studentverification.WithPhoneOTPService(
+			newStudentVerificationPhoneOTPAdapter(bindPhoneOTP, bindPhoneSMS),
+		),
+		studentverification.WithPhoneProjectionCipher(
+			piiCipher,
+			int(rt.cfg.Security.DocAESActiveKeyID),
+		),
+		studentverification.WithRosterCipher(
+			piiCipher,
+			int(rt.cfg.Security.DocAESActiveKeyID),
+		),
+		studentverification.WithInboundEmailTargetResolver(
+			newInboundEmailTargetResolver(
+				rt.cfg.Email.InboundEnabled,
+				rt.cfg.Email.InboundTargetAddress,
+			),
+		),
+		studentverification.WithManualReviewPublicBaseURL(
+			rt.cfg.StudentVerification.PublicBaseURL,
+		),
+		studentverification.WithManualReviewMaterialAccessTTL(
+			time.Duration(rt.cfg.ObjectStorage.PresignTTL) * time.Second,
+		),
+	}
+	if campusConnectorService != nil {
+		studentVerificationOptions = append(
+			studentVerificationOptions,
+			studentverification.WithSchoolAccountAuthenticator(
+				"buaa_ldap_bind",
+				campusConnectorSchoolAuthenticator{service: campusConnectorService},
+			),
+		)
+	}
+	if objectStorageConfigured(rt.cfg.ObjectStorage) {
+		studentVerificationOptions = append(
+			studentVerificationOptions,
+			studentverification.WithManualReviewMaterialStore(
+				newStudentVerificationMaterialStorageAdapter(
+					storageService,
+					storage.DefaultMountKey,
+				),
+			),
+		)
+	}
+	studentVerificationService, err := studentverification.NewService(
+		studentverification.NewRepository(rt.database),
+		crypto.GetHMACKey(),
+		studentVerificationOptions...,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to initialize student verification service: %w", err)
+	}
+	if campusConnectorService != nil {
+		campusConnectorService.SetSnapshotImporter(
+			campusConnectorSnapshotImporter{service: studentVerificationService},
+		)
+	}
+	userService.SetVerificationStatusGateway(
+		newUserVerificationStatusAdapter(studentVerificationService),
+	)
+	courseModule.reviewService.SetPhoneGateReader(
+		reviewPhoneGateAdapter{service: studentVerificationService},
+	)
+	var inboundWebhookVerifier studentverification.InboundEmailWebhookVerifier
+	if rt.cfg.Email.InboundEnabled {
+		inboundWebhookVerifier, err = studentverification.NewHMACInboundEmailWebhookVerifier(
+			[]byte(rt.cfg.Email.InboundWebhookSecret),
+			time.Duration(rt.cfg.Email.InboundWebhookMaxSkewSeconds)*time.Second,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to initialize inbound email webhook verifier: %w", err)
+		}
+	}
+	studentVerificationHandler := studentverification.NewHandler(
+		studentVerificationService,
+		userRepo.GetInternalUserID,
+		botCredentialVerifier,
+		rt.redisClient.GetClient(),
+		studentverification.WithAdminAuthorizers(studentVerificationAdminAuthorizers()),
+		studentverification.WithInboundEmailWebhookVerifier(inboundWebhookVerifier),
+		studentverification.WithAdminRosterSyncCoordinator(
+			campusConnectorRosterSyncCoordinator{service: campusConnectorService},
+		),
+	)
+	studentVerificationHandler.RegisterRoutes(api, authMW, rbac.RequireStepUpMFA())
+	studentVerificationService.StartPhoneBackgroundJobs(bgCtx, startBackgroundTask)
+	studentVerificationService.StartManualReviewBackgroundJobs(bgCtx, startBackgroundTask)
 	admissionUserGateway := newAdmissionUserGateway(userService)
 	admissionService, err := admission.NewService(
 		admission.NewRepository(rt.database),
 		admissionUserGateway,
 		crypto.GetHMACKey(),
-		admission.WithAdmissionRedisClient(rt.redisClient.GetClient()),
-		admission.WithSchoolEmailSender(admissionEmailSender),
-		admission.WithAcademicStudentLookupGateway(admissionUserGateway),
-		admission.WithAdmissionMaterialStore(
-			newAdmissionMaterialStorageAdapter(storageService, storage.DefaultMountKey),
-		),
 		admission.WithOperatorAccessGateway(rt.initAdmissionOperatorAccess(authorizationIdentity)),
-		admission.WithSchoolSSOExchanger(admission.NewOIDCSchoolSSOExchanger(rt.oidcClient)),
 		admission.WithAdmissionPublicBaseURL(rt.cfg.Admission.PublicBaseURL),
+		admission.WithStudentEligibilityGateway(
+			newAdmissionStudentEligibilityAdapter(studentVerificationService),
+		),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to initialize admission service: %w", err)
 	}
-	userService.SetAdmissionVerificationProjectionGateway(admissionService)
+	studentVerificationService.SetEligibilityEventConsumer(admissionService)
+	studentVerificationService.StartEligibilityEventBackgroundJob(bgCtx, startBackgroundTask)
 	admissionHandler := admission.NewHandler(
 		admissionService,
 		userRepo.GetInternalUserID,
 		botCredentialVerifier,
 		admission.WithAdminAuthorizers(admissionAdminAuthorizers()),
-		admission.WithSchoolEmailRateLimiter(rt.redisClient.GetClient()),
 		admission.WithStreamShutdown(bgCtx),
 	)
 	admissionHandler.RegisterRoutes(api, authMW)
@@ -253,6 +331,7 @@ func (rt *Runtime) registerAPIRoutes(r *gin.Engine, bgCtx context.Context) error
 		userHandler,
 		authHandler,
 		authorizationHandler,
+		studentVerificationHandler,
 		admissionHandler,
 		openPlatformHandler,
 		authMW,
@@ -341,7 +420,6 @@ func (rt *Runtime) initUserService(
 	options := []user.ServiceOption{
 		user.WithProfileFGAClient(fgaClient),
 		user.WithStudentEmailOTP(rt.redisClient.GetClient(), schoolEmailSender),
-		user.WithLDAPClientFactory(newLDAPAuthClient),
 		photoStore,
 	}
 	options = append(options, extraOptions...)

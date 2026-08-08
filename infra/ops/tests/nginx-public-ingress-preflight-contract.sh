@@ -7,6 +7,8 @@ PREFLIGHT_SCRIPT="${REPO_ROOT}/infra/ops/nginx-public-ingress-preflight.sh"
 MAIN_NGINX_FILE="${REPO_ROOT}/infra/nginx/baota-stuhelper.conf"
 SSO_NGINX_FILE="${REPO_ROOT}/infra/nginx/baota-casdoor-sso.conf"
 SSO_WELL_KNOWN_EXTENSION_FILE="${REPO_ROOT}/infra/nginx/baota-casdoor-sso-well-known-extension.conf"
+CONNECTOR_NGINX_TEMPLATE="${REPO_ROOT}/infra/nginx/baota-campus-connector-stream.conf.template"
+CONNECTOR_RENDERER="${REPO_ROOT}/infra/ops/render-campus-connector-nginx-stream.py"
 
 fail() {
   echo "[nginx-public-ingress-preflight-contract][error] $*" >&2
@@ -52,15 +54,111 @@ run_preflight_fail() {
   assert_file_contains "${tmpdir}/${label}.stderr" "${expected_error}"
 }
 
+run_connector_preflight_pass() {
+  local profile="$1"
+  local config_file="$2"
+  local connector_config_file="$3"
+  local tmpdir="$4"
+  local label="$5"
+
+  if ! NGINX_PUBLIC_INGRESS_PROFILE="${profile}" \
+    NGINX_PUBLIC_INGRESS_CONFIG_FILE="${config_file}" \
+    NGINX_PUBLIC_INGRESS_CONNECTOR_CONFIG_FILE="${connector_config_file}" \
+    CAMPUS_CONNECTOR_GATEWAY_PUBLIC_PORT="9444" \
+    CAMPUS_CONNECTOR_GATEWAY_EXTERNAL_PORT="19444" \
+    CAMPUS_CONNECTOR_ALLOWED_SOURCE_CIDRS="192.0.2.10/32,10.0.0.0/8" \
+    bash "${PREFLIGHT_SCRIPT}" >"${tmpdir}/${label}.stdout" 2>"${tmpdir}/${label}.stderr"; then
+    cat "${tmpdir}/${label}.stdout" >&2 || true
+    cat "${tmpdir}/${label}.stderr" >&2 || true
+    fail "expected Connector Nginx ingress preflight to pass for ${label}"
+  fi
+  assert_file_contains "${tmpdir}/${label}.stdout" 'public Nginx ingress config preflight passed'
+}
+
+run_connector_preflight_fail() {
+  local profile="$1"
+  local config_file="$2"
+  local connector_config_file="$3"
+  local tmpdir="$4"
+  local label="$5"
+  local expected_error="$6"
+  local allowed_cidrs="${7-192.0.2.10/32,10.0.0.0/8}"
+  local public_port="${8-9444}"
+  local upstream_port="${9-19444}"
+
+  if NGINX_PUBLIC_INGRESS_PROFILE="${profile}" \
+    NGINX_PUBLIC_INGRESS_CONFIG_FILE="${config_file}" \
+    NGINX_PUBLIC_INGRESS_CONNECTOR_CONFIG_FILE="${connector_config_file}" \
+    CAMPUS_CONNECTOR_GATEWAY_PUBLIC_PORT="${public_port}" \
+    CAMPUS_CONNECTOR_GATEWAY_EXTERNAL_PORT="${upstream_port}" \
+    CAMPUS_CONNECTOR_ALLOWED_SOURCE_CIDRS="${allowed_cidrs}" \
+    bash "${PREFLIGHT_SCRIPT}" >"${tmpdir}/${label}.stdout" 2>"${tmpdir}/${label}.stderr"; then
+    fail "expected Connector Nginx ingress preflight to fail for ${label}"
+  fi
+  assert_file_contains "${tmpdir}/${label}.stderr" "${expected_error}"
+}
+
 assert_file_contains "${PREFLIGHT_SCRIPT}" 'join\.stuhelper\.com'
+assert_file_contains "${PREFLIGHT_SCRIPT}" 'connector\.stuhelper\.com'
 assert_file_contains "${SSO_WELL_KNOWN_EXTENSION_FILE}" 'location = /.well-known/openid-configuration'
 assert_file_contains "${SSO_WELL_KNOWN_EXTENSION_FILE}" 'location = /.well-known/jwks'
+[[ -f "${CONNECTOR_NGINX_TEMPLATE}" ]] || fail "missing Connector Nginx stream template"
+[[ -f "${CONNECTOR_RENDERER}" ]] || fail "missing Connector Nginx stream renderer"
 
 tmpdir="$(mktemp -d)"
 cleanup() {
   rm -rf "${tmpdir}"
 }
 trap cleanup EXIT
+
+connector_good="${tmpdir}/connector.stuhelper.com.conf"
+python3 "${CONNECTOR_RENDERER}" \
+  --template "${CONNECTOR_NGINX_TEMPLATE}" \
+  --output "${connector_good}" \
+  --public-port 9444 \
+  --upstream-port 19444 \
+  --allowed-cidrs "192.0.2.10/32,10.0.0.0/8"
+
+app_all_effective="${tmpdir}/app-all-effective.conf"
+{
+  cat "${MAIN_NGINX_FILE}"
+  printf '\n# configuration file %s:\n' "${connector_good}"
+  cat "${connector_good}"
+} >"${app_all_effective}"
+
+connector_missing_deny="${tmpdir}/connector-missing-deny.conf"
+sed '/^[[:space:]]*deny all;$/d' "${connector_good}" >"${connector_missing_deny}"
+
+connector_extra_allow="${tmpdir}/connector-extra-allow.conf"
+sed '/^[[:space:]]*deny all;$/i\    allow 198.51.100.0/24;' "${connector_good}" >"${connector_extra_allow}"
+
+connector_wrong_upstream="${tmpdir}/connector-wrong-upstream.conf"
+sed 's/127[.]0[.]0[.]1:19444/127.0.0.1:29444/' "${connector_good}" >"${connector_wrong_upstream}"
+
+connector_ssl_listen="${tmpdir}/connector-ssl-listen.conf"
+sed 's/listen 9444;/listen 9444 ssl;/' "${connector_good}" >"${connector_ssl_listen}"
+
+connector_ssl_certificate="${tmpdir}/connector-ssl-certificate.conf"
+sed '/^server {$/a\    ssl_certificate /tmp/forbidden.crt;' "${connector_good}" >"${connector_ssl_certificate}"
+
+connector_allow_after_deny="${tmpdir}/connector-allow-after-deny.conf"
+python3 - "${connector_good}" "${connector_allow_after_deny}" <<'PY'
+from pathlib import Path
+import sys
+
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+source = source.replace(
+    "    allow 192.0.2.10/32;\n    allow 10.0.0.0/8;\n    deny all;",
+    "    deny all;\n    allow 192.0.2.10/32;\n    allow 10.0.0.0/8;",
+)
+Path(sys.argv[2]).write_text(source, encoding="utf-8")
+PY
+
+connector_not_effective="${tmpdir}/connector-not-effective.conf"
+{
+  cat "${MAIN_NGINX_FILE}"
+  cat "${connector_good}"
+} >"${connector_not_effective}"
 
 combined_good="${tmpdir}/combined-good.conf"
 cat "${MAIN_NGINX_FILE}" "${SSO_NGINX_FILE}" >"${combined_good}"
@@ -98,6 +196,13 @@ awk '
   skip && /^    }$/ { skip=0; next }
   !skip { print }
 ' "${MAIN_NGINX_FILE}" >"${missing_main_start_reject}"
+
+missing_main_grafana_proxy="${tmpdir}/missing-main-grafana-proxy.conf"
+awk '
+  /^    location \^~ \/admin\/observability\/ \{$/ { skip=1; next }
+  skip && /^    }$/ { skip=0; next }
+  !skip { print }
+' "${MAIN_NGINX_FILE}" >"${missing_main_grafana_proxy}"
 
 missing_join_verify_proxy="${tmpdir}/missing-join-verify-proxy.conf"
 awk '
@@ -297,8 +402,21 @@ run_preflight_pass "all" "${combined_good}" "${tmpdir}" "combined-template"
 run_preflight_pass "all" "${baota_dump_with_json_logs}" "${tmpdir}" "baota-json-log-dump"
 run_preflight_pass "sso" "${baota_sso_static_well_known_fixed}" "${tmpdir}" "baota-sso-static-well-known-fixed"
 run_preflight_pass "sso" "${baota_sso_static_well_known_with_extension}" "${tmpdir}" "baota-sso-static-well-known-with-extension"
+run_connector_preflight_pass "connector" "${connector_good}" "${connector_good}" "${tmpdir}" "connector-template"
+run_connector_preflight_pass "app-all" "${app_all_effective}" "${connector_good}" "${tmpdir}" "app-all-effective"
+run_connector_preflight_fail "connector" "${connector_missing_deny}" "${connector_missing_deny}" "${tmpdir}" "connector-missing-deny" 'deny all must appear exactly once'
+run_connector_preflight_fail "connector" "${connector_extra_allow}" "${connector_extra_allow}" "${tmpdir}" "connector-extra-allow" 'allow directives must exactly match'
+run_connector_preflight_fail "connector" "${connector_wrong_upstream}" "${connector_wrong_upstream}" "${tmpdir}" "connector-wrong-upstream" 'proxy_pass must be exactly 127\.0\.0\.1:19444'
+run_connector_preflight_fail "connector" "${connector_ssl_listen}" "${connector_ssl_listen}" "${tmpdir}" "connector-ssl-listen" 'listen must be exactly 9444 without ssl/proxy_protocol'
+run_connector_preflight_fail "connector" "${connector_ssl_certificate}" "${connector_ssl_certificate}" "${tmpdir}" "connector-ssl-certificate" 'forbidden Nginx TLS directives'
+run_connector_preflight_fail "connector" "${connector_allow_after_deny}" "${connector_allow_after_deny}" "${tmpdir}" "connector-allow-after-deny" 'every allow directive must precede deny all'
+run_connector_preflight_fail "connector" "${connector_not_effective}" "${connector_good}" "${tmpdir}" "connector-not-effective" 'not present in the effective nginx -T dump'
+run_connector_preflight_fail "connector" "${connector_good}" "${connector_good}" "${tmpdir}" "connector-empty-allowlist" 'must contain one or more explicit IPv4 CIDRs' ""
+run_connector_preflight_fail "connector" "${connector_good}" "${connector_good}" "${tmpdir}" "connector-world-allowlist" 'must not contain 0\.0\.0\.0/0' "0.0.0.0/0"
+run_connector_preflight_fail "connector" "${connector_good}" "${connector_good}" "${tmpdir}" "connector-proxy-loop" 'public and loopback upstream ports must differ' "192.0.2.10/32,10.0.0.0/8" "9444" "9444"
 run_preflight_fail "stuhelper" "${missing_main_verify_reject}" "${tmpdir}" "missing-main-verify-reject" 'stuhelper\.com: no HTTPS server block satisfies the ingress contract: stuhelper\.com: missing location = /verify'
 run_preflight_fail "stuhelper" "${missing_main_start_reject}" "${tmpdir}" "missing-main-start-reject" 'stuhelper\.com: no HTTPS server block satisfies the ingress contract: stuhelper\.com: missing location = /start'
+run_preflight_fail "stuhelper" "${missing_main_grafana_proxy}" "${tmpdir}" "missing-main-grafana-proxy" 'stuhelper\.com: no HTTPS server block satisfies the ingress contract: stuhelper\.com: missing location \^~ /admin/observability/'
 run_preflight_fail "stuhelper" "${missing_join_verify_proxy}" "${tmpdir}" "missing-join-verify-proxy" 'join\.stuhelper\.com: no HTTPS server block satisfies the ingress contract: join\.stuhelper\.com: missing location \^~ /verify/'
 run_preflight_fail "stuhelper" "${missing_join_start_proxy}" "${tmpdir}" "missing-join-start-proxy" 'join\.stuhelper\.com: no HTTPS server block satisfies the ingress contract: join\.stuhelper\.com: missing location = /start'
 run_preflight_fail "stuhelper" "${join_root_proxies_web}" "${tmpdir}" "join-root-proxies-web" 'join\.stuhelper\.com: no HTTPS server block satisfies the ingress contract: join\.stuhelper\.com: location / must return 404'

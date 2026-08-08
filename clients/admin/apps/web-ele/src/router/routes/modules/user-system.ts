@@ -9,14 +9,20 @@ const routes: RouteRecordRaw[] = [
       order: 2,
       title: $t('admin.routes.userSystem.title'),
       authority: [
-        'user:identity:read',
-        'user:identity:review',
-        'user:student:review',
-        'user:school:read',
+        'student:manual_review:read',
+        'student:manual_review:decide',
+        'student:verification_config:read',
+        'student:verification_config:update',
+        'student:credential:read',
+        'student:credential:revoke',
+        'student:subject_conflict:read',
+        'student:subject_conflict:resolve',
+        'student:roster:read',
+        'student:roster:activate',
+        'campus_connector:health:read',
         'user:system:read',
         'admission:session:read',
         'admission:session:manage',
-        'admission:freshman:review',
         'admission:policy:update',
         'member_blacklist:read',
         'member_blacklist:manage',
@@ -26,23 +32,16 @@ const routes: RouteRecordRaw[] = [
     path: '/users',
     children: [
       {
-        name: 'IdentityReview',
-        path: '/users/identity-review',
-        component: () => import('#/views/users/identity-review/index.vue'),
-        meta: {
-          icon: 'lucide:id-card',
-          title: $t('admin.routes.userSystem.identityReview'),
-          authority: ['user:identity:review'],
-        },
-      },
-      {
         name: 'StudentVerification',
         path: '/users/student-verification',
         component: () => import('#/views/users/student-verification/index.vue'),
         meta: {
           icon: 'lucide:badge-check',
           title: $t('admin.routes.userSystem.studentVerification'),
-          authority: ['user:student:review'],
+          authority: [
+            'student:manual_review:read',
+            'student:manual_review:decide',
+          ],
         },
       },
       {
@@ -52,7 +51,29 @@ const routes: RouteRecordRaw[] = [
         meta: {
           icon: 'lucide:school',
           title: $t('admin.routes.userSystem.schoolConfig'),
-          authority: ['user:school:read'],
+          authority: [
+            'student:verification_config:read',
+            'student:verification_config:update',
+            'student:roster:read',
+            'student:roster:activate',
+            'campus_connector:health:read',
+          ],
+        },
+      },
+      {
+        name: 'StudentCredentialGovernance',
+        path: '/users/student-credentials',
+        component: () =>
+          import('#/views/users/credential-governance/index.vue'),
+        meta: {
+          icon: 'lucide:shield-alert',
+          title: $t('admin.routes.userSystem.studentCredentials'),
+          authority: [
+            'student:credential:read',
+            'student:credential:revoke',
+            'student:subject_conflict:read',
+            'student:subject_conflict:resolve',
+          ],
         },
       },
       {
@@ -63,17 +84,6 @@ const routes: RouteRecordRaw[] = [
           icon: 'lucide:list-checks',
           title: $t('admin.routes.userSystem.admissionSessions'),
           authority: ['admission:session:read'],
-        },
-      },
-      {
-        name: 'FreshmanVerification',
-        path: '/users/freshman-verification',
-        component: () =>
-          import('#/views/users/freshman-verification/index.vue'),
-        meta: {
-          icon: 'lucide:file-check-2',
-          title: $t('admin.routes.userSystem.freshmanVerification'),
-          authority: ['admission:freshman:review'],
         },
       },
       {

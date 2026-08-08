@@ -21,6 +21,7 @@ import (
 	"github.com/StuHelper/StuHelper/server/internal/modules/openplatform"
 	"github.com/StuHelper/StuHelper/server/internal/modules/resource"
 	"github.com/StuHelper/StuHelper/server/internal/modules/storage"
+	"github.com/StuHelper/StuHelper/server/internal/modules/studentverification"
 	"github.com/StuHelper/StuHelper/server/internal/modules/user"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/cache"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/health"
@@ -65,6 +66,8 @@ func TestOpenAPIRoutes_AreFullyRegistered(t *testing.T) {
 	admissionHandler := &admission.Handler{}
 	admissionHandler.RegisterRoutes(api, noOp)
 	admissionHandler.RegisterBotRoutes(api)
+	studentVerificationHandler := &studentverification.Handler{}
+	studentVerificationHandler.RegisterRoutes(api, noOp, noOp)
 	openPlatformHandler := openplatform.NewHandler(&openplatform.Service{})
 	openPlatformHandler.RegisterRoutes(api, noOp)
 	adminGroup := api.Group("/admin")
@@ -72,6 +75,7 @@ func TestOpenAPIRoutes_AreFullyRegistered(t *testing.T) {
 	authHandler.RegisterAdminRoutes(adminGroup)
 	(&authorizationmodule.Handler{}).RegisterAdminRoutes(adminGroup)
 	userHandler.RegisterAdminRoutes(adminGroup)
+	studentVerificationHandler.RegisterAdminRoutes(adminGroup)
 	admissionHandler.RegisterAdminRoutes(adminGroup)
 	openPlatformHandler.RegisterAdminRoutes(adminGroup)
 

@@ -105,8 +105,16 @@ export function registerAdmissionAdminCommands(ctx: Context, deps: AdmissionAdmi
           qqID: command.qqID,
           botSelfID: command.botSelfID,
         })
-        if (created.session.status === 'verified') {
-          return releaseVerifiedAdmissionForCommand(command, deps, created)
+        if (created.session.status === 'admitted' || created.session.status === 'released') {
+          return finalizeAlreadyAdmittedForCommand(command, deps, created)
+        }
+        if (created.session.status === 'eligible' || created.session.status === 'action_pending') {
+          const currentMessages = await getGroupGuardMessages(deps.messageProvider)
+          const synced = await updateLocalAdmissionRecord(command, deps.guardStore, created)
+          if (synced === false) {
+            return groupGuardMessage(currentMessages, 'admissionCommandStaleRecord')
+          }
+          return formatAdmissionSessionSummary(created.session, currentMessages)
         }
         const currentMessages = await getGroupGuardMessages(deps.messageProvider)
         await resetMemberMute(command.session, created.session, currentMessages)
@@ -497,13 +505,12 @@ async function releaseMemberMuteForCommand(command: AdmissionCommandContext) {
   await command.session.bot.muteGuildMember(command.guildID, command.qqID, 0)
 }
 
-async function releaseVerifiedAdmissionForCommand(
+async function finalizeAlreadyAdmittedForCommand(
   command: AdmissionCommandContext,
   deps: AdmissionAdminCommandDeps,
   created: AdmissionSessionCreateResult,
 ) {
   const messages = await getGroupGuardMessages(deps.messageProvider)
-  await command.session.bot.muteGuildMember(created.session.guildID, created.session.qqID, 0)
   const record = await deps.guardStore.findActiveBySubject({
     platform: command.platform,
     botSelfId: command.botSelfID,
@@ -520,10 +527,6 @@ async function releaseVerifiedAdmissionForCommand(
       return groupGuardMessage(messages, 'admissionCommandStaleRecord')
     }
   }
-  await deps.platform.recordAdmissionEvent(created.session.id, {
-    action: 'release',
-    success: true,
-  })
   return groupGuardMessage(messages, 'admissionAlreadyVerifiedRegenerate', {
     at: h.at(command.qqID),
     qqID: command.qqID,
@@ -587,9 +590,9 @@ async function markLocalReminderSent(
 
 function reminderDeadline(session: AdmissionSession) {
   switch (session.status) {
-    case 'linked':
+    case 'awaiting_requirements':
       return new Date(session.submissionWaitDeadlineAt)
-    case 'material_submitted':
+    case 'pending_manual_review':
       return new Date(session.manualReviewDeadlineAt || session.submissionWaitDeadlineAt)
     default:
       return new Date(session.linkWaitDeadlineAt)
@@ -601,11 +604,12 @@ function describeDeadline(
   messages: GroupGuardMessages,
 ) {
   switch (session.status) {
-    case 'joined_muted':
+    case 'created':
+    case 'awaiting_account_link':
       return groupGuardMessage(messages, 'admissionQueryDeadlineLink', { deadlineAt: session.linkWaitDeadlineAt })
-    case 'linked':
+    case 'awaiting_requirements':
       return groupGuardMessage(messages, 'admissionQueryDeadlineSubmission', { deadlineAt: session.submissionWaitDeadlineAt })
-    case 'material_submitted':
+    case 'pending_manual_review':
       return groupGuardMessage(messages, 'admissionQueryDeadlineManualReview', {
         deadlineAt: session.manualReviewDeadlineAt || groupGuardMessage(messages, 'admissionQueryDeadlineUnset'),
       })
@@ -616,9 +620,11 @@ function describeDeadline(
 
 function isQQLinked(session: AdmissionSession) {
   return hasLinkedUser(session) ||
-    session.status === 'linked' ||
-    session.status === 'material_submitted' ||
-    session.status === 'verified'
+    session.status === 'awaiting_requirements' ||
+    session.status === 'pending_manual_review' ||
+    session.status === 'eligible' ||
+    session.status === 'action_pending' ||
+    session.status === 'admitted'
 }
 
 function hasLinkedUser(session: AdmissionSession) {
@@ -630,10 +636,12 @@ function studentVerificationLabel(
   messages: GroupGuardMessages,
 ) {
   switch (session.status) {
-    case 'verified':
+    case 'eligible':
+    case 'action_pending':
+    case 'admitted':
       return groupGuardMessage(messages, 'admissionQueryStudentVerified')
-    case 'material_submitted':
-      return groupGuardMessage(messages, 'admissionQueryStudentFreshmanPending')
+    case 'pending_manual_review':
+      return groupGuardMessage(messages, 'admissionQueryStudentManualReviewPending')
     default:
       return groupGuardMessage(messages, 'admissionQueryStudentUnverified')
   }
@@ -644,20 +652,28 @@ function nextAdmissionStep(
   messages: GroupGuardMessages,
 ) {
   switch (session.status) {
-    case 'joined_muted':
+    case 'created':
+    case 'awaiting_account_link':
       return groupGuardMessage(messages, 'admissionNextStepJoinedMuted')
-    case 'linked':
+    case 'awaiting_requirements':
       return groupGuardMessage(messages, 'admissionNextStepLinked')
-    case 'material_submitted':
+    case 'pending_manual_review':
       return groupGuardMessage(messages, 'admissionNextStepMaterialSubmitted')
-    case 'verified':
+    case 'eligible':
+    case 'action_pending':
       return session.lastBotError
         ? groupGuardMessage(messages, 'admissionNextStepVerifiedWithBotError')
         : groupGuardMessage(messages, 'admissionNextStepVerified')
-    case 'expired_kicked':
+    case 'admitted':
+    case 'released':
+      return session.lastBotError
+        ? groupGuardMessage(messages, 'admissionNextStepVerifiedWithBotError')
+        : groupGuardMessage(messages, 'admissionNextStepVerified')
+    case 'expired':
       return hasLinkedUser(session)
         ? groupGuardMessage(messages, 'admissionNextStepExpiredKickedLinked')
         : groupGuardMessage(messages, 'admissionNextStepExpiredKicked')
+    case 'rejected':
     case 'cancelled':
       return groupGuardMessage(messages, 'admissionNextStepCancelled')
     default:
@@ -670,16 +686,21 @@ function statusLabel(
   messages: GroupGuardMessages,
 ) {
   switch (status) {
-    case 'joined_muted':
+    case 'created':
+    case 'awaiting_account_link':
       return groupGuardMessage(messages, 'admissionStatusJoinedMuted')
-    case 'linked':
+    case 'awaiting_requirements':
       return groupGuardMessage(messages, 'admissionStatusLinked')
-    case 'material_submitted':
+    case 'pending_manual_review':
       return groupGuardMessage(messages, 'admissionStatusMaterialSubmitted')
-    case 'verified':
+    case 'eligible':
+    case 'action_pending':
+    case 'admitted':
+    case 'released':
       return groupGuardMessage(messages, 'admissionStatusVerified')
-    case 'expired_kicked':
+    case 'expired':
       return groupGuardMessage(messages, 'admissionStatusExpiredKicked')
+    case 'rejected':
     case 'cancelled':
       return groupGuardMessage(messages, 'admissionStatusCancelled')
     default:

@@ -1,0 +1,1935 @@
+/api/v1/student-verification/schools:
+  get:
+    tags: [StudentVerification]
+    operationId: listVerificationSchools
+    summary: 列出当前可创建学生认证申请的学校与方法
+    responses:
+      '200':
+        description: 已验证配置且至少有一个可用方法的学校
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/student-verification.yaml#/VerificationSchool'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/student-verification/applications:
+  post:
+    tags: [StudentVerification]
+    operationId: createVerificationApplication
+    summary: 创建与 QQ 和群聊会话无关的学生认证申请
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/student-verification.yaml#/CreateVerificationApplicationRequest'
+    responses:
+      '201':
+        description: 申请已创建
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/student-verification.yaml#/VerificationApplication'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '503':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/student-verification/applications/{applicationID}:
+  get:
+    tags: [StudentVerification]
+    operationId: getVerificationApplication
+    summary: 获取当前用户的一次学生认证申请
+    parameters:
+      - $ref: '#/components/parameters/ApplicationID'
+    responses:
+      '200':
+        description: 申请当前状态
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/student-verification.yaml#/VerificationApplication'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '410':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+  delete:
+    tags: [StudentVerification]
+    operationId: cancelVerificationApplication
+    summary: 取消当前用户尚未完成的学生认证申请
+    description: 已结束的申请不可取消；重复取消返回当前已取消状态，便于客户端安全重试。
+    parameters:
+      - $ref: '#/components/parameters/ApplicationID'
+    responses:
+      '200':
+        $ref: '#/components/responses/ApplicationResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/student-verification/applications/{applicationID}/real-name/verify:
+  post:
+    tags: [StudentVerification]
+    operationId: verifyApplicationRealName
+    summary: 提交一次实名信息校验
+    parameters:
+      - $ref: '#/components/parameters/ApplicationID'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/student-verification.yaml#/VerifyRealNameRequest'
+    responses:
+      '200':
+        $ref: '#/components/responses/ApplicationResponse'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '429':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '503':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/student-verification/applications/{applicationID}/school-sso/verify:
+  post:
+    tags: [StudentVerification]
+    operationId: verifyApplicationSchoolSSO
+    summary: 使用学校统一身份认证账号完成一次性校验
+    description: 学校密码只用于本次实时请求，不进入数据库、缓存、队列、日志或重试载荷。
+    parameters:
+      - $ref: '#/components/parameters/ApplicationID'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/student-verification.yaml#/VerifySchoolSSORequest'
+    responses:
+      '200':
+        $ref: '#/components/responses/ApplicationResponse'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '429':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '503':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/student-verification/applications/{applicationID}/email/outbound/otp:
+  post:
+    tags: [StudentVerification]
+    operationId: requestApplicationEmailOTP
+    summary: 向服务端派生的规范学校邮箱发送验证码
+    parameters:
+      - $ref: '#/components/parameters/ApplicationID'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/student-verification.yaml#/StudentEmailIdentityRequest'
+    responses:
+      '200':
+        description: 验证码挑战已创建或按幂等规则复用
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/student-verification.yaml#/StudentEmailOTPChallenge'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '429':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '503':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/student-verification/applications/{applicationID}/email/outbound/verify:
+  post:
+    tags: [StudentVerification]
+    operationId: verifyApplicationEmailOTP
+    summary: 回填并一次性消费学校邮箱验证码
+    parameters:
+      - $ref: '#/components/parameters/ApplicationID'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/student-verification.yaml#/VerifyStudentEmailOTPRequest'
+    responses:
+      '200':
+        $ref: '#/components/responses/ApplicationResponse'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '429':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '503':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/student-verification/applications/{applicationID}/email/inbound/challenge:
+  post:
+    tags: [StudentVerification]
+    operationId: createApplicationInboundEmailChallenge
+    summary: 创建从规范学校邮箱发送邮件的一次性挑战
+    parameters:
+      - $ref: '#/components/parameters/ApplicationID'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/student-verification.yaml#/StudentEmailIdentityRequest'
+    responses:
+      '201':
+        description: 入站邮件挑战已创建
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/student-verification.yaml#/InboundEmailChallenge'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '429':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '503':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+  get:
+    tags: [StudentVerification]
+    operationId: getApplicationInboundEmailChallenge
+    summary: 获取入站邮件挑战状态
+    parameters:
+      - $ref: '#/components/parameters/ApplicationID'
+    responses:
+      '200':
+        description: 入站邮件挑战状态
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/student-verification.yaml#/InboundEmailChallenge'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/student-verification/credentials:
+  get:
+    tags: [StudentVerification]
+    operationId: listStudentVerificationCredentials
+    summary: 列出当前用户的学生认证凭据
+    responses:
+      '200':
+        description: 当前及历史凭据；不返回身份原文或材料
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/student-verification.yaml#/StudentVerificationCredential'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/student-verification/credentials/{credentialID}:
+  delete:
+    tags: [StudentVerification]
+    operationId: revokeStudentVerificationCredential
+    summary: 撤销当前用户的一条学生认证凭据
+    parameters:
+      - $ref: '#/components/parameters/CredentialID'
+    responses:
+      '200':
+        description: 已撤销的凭据
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/student-verification.yaml#/StudentVerificationCredential'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/student-verification/eligibility:
+  get:
+    tags: [StudentVerification]
+    operationId: getStudentVerificationEligibility
+    summary: 获取当前用户在指定学校的实时学生资格
+    parameters:
+      - name: schoolCode
+        in: query
+        required: true
+        schema:
+          type: string
+          pattern: '^[0-9]{10}$'
+    responses:
+      '200':
+        description: 实时派生的最小资格结果
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/student-verification.yaml#/StudentEligibility'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/webhooks/student-verification/inbound-email:
+  post:
+    tags: [StudentVerificationWebhook]
+    operationId: receiveStudentVerificationInboundEmail
+    summary: 接收可信邮件入口转发的最小入站邮件事件
+    description: 请求必须由已配置的邮件入口使用时间戳、事件 ID 和 HMAC 签名；原始邮件头和正文不会持久化。
+    parameters:
+      - name: X-StuHelper-Webhook-Timestamp
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: '^[0-9]{10,13}$'
+      - name: X-StuHelper-Webhook-ID
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 8
+          maxLength: 500
+      - name: X-StuHelper-Webhook-Signature
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: '^v1=[0-9a-f]{64}$'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/student-verification.yaml#/InboundEmailWebhookRequest'
+    responses:
+      '202':
+        description: 事件已幂等接收；不向调用方泄露挑战匹配结果
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: object
+                      additionalProperties: false
+                      required: [status]
+                      properties:
+                        status:
+                          type: string
+                          enum: [accepted]
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '429':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '503':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/student-verification/schools:
+  get:
+    tags: [StudentVerificationAdmin]
+    operationId: listAdminVerificationSchools
+    summary: 列出学校认证白名单、适配器版本和方法状态
+    responses:
+      '200':
+        description: 学校认证配置；不包含 secret 值、内网地址或学生数据
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/student-verification.yaml#/AdminVerificationSchoolConfig'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+  post:
+    tags: [StudentVerificationAdmin]
+    operationId: createAdminVerificationSchool
+    summary: 将已有学校目录项创建为停用、待校验的认证配置
+    description: 学校目录不等于认证白名单；只有后续方法与学校配置均校验并显式启用后才对用户可见。
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/student-verification.yaml#/CreateAdminVerificationSchoolConfigRequest'
+    responses:
+      '201':
+        description: 已创建停用、待校验的学校认证配置
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/student-verification.yaml#/AdminVerificationSchoolConfig'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/student-verification/schools/{schoolCode}:
+  get:
+    tags: [StudentVerificationAdmin]
+    operationId: getAdminVerificationSchool
+    summary: 获取一个学校的认证配置和方法健康状态
+    parameters:
+      - $ref: '#/components/parameters/SchoolCode'
+    responses:
+      '200':
+        description: 学校认证配置
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/student-verification.yaml#/AdminVerificationSchoolConfig'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+  put:
+    tags: [StudentVerificationAdmin]
+    operationId: updateAdminVerificationSchool
+    summary: 更新学校认证草稿并强制回到待校验、停用状态
+    description: 配置更新采用乐观 revision；更新后必须显式校验才能重新启用。
+    parameters:
+      - $ref: '#/components/parameters/SchoolCode'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/student-verification.yaml#/UpdateAdminVerificationSchoolConfigRequest'
+    responses:
+      '200':
+        description: 已更新且待校验的学校配置
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/student-verification.yaml#/AdminVerificationSchoolConfig'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/student-verification/schools/{schoolCode}/validate:
+  post:
+    tags: [StudentVerificationAdmin]
+    operationId: validateAdminVerificationSchool
+    summary: 校验学校级配置，并按请求决定是否启用认证白名单
+    parameters:
+      - $ref: '#/components/parameters/SchoolCode'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/student-verification.yaml#/ValidateAdminVerificationConfigRequest'
+    responses:
+      '200':
+        description: 校验后的学校配置
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/student-verification.yaml#/AdminVerificationSchoolConfig'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/student-verification/schools/{schoolCode}/methods/{method}:
+  put:
+    tags: [StudentVerificationAdmin]
+    operationId: updateAdminVerificationMethod
+    summary: 更新一个学校认证方法草稿并强制回到待校验、停用状态
+    parameters:
+      - $ref: '#/components/parameters/SchoolCode'
+      - name: method
+        in: path
+        required: true
+        schema:
+          $ref: '../components/schemas/student-verification.yaml#/VerificationMethod'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/student-verification.yaml#/UpdateAdminVerificationMethodConfigRequest'
+    responses:
+      '200':
+        description: 已更新且待校验的方法配置
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/student-verification.yaml#/AdminVerificationMethodConfig'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/student-verification/schools/{schoolCode}/methods/{method}/validate:
+  post:
+    tags: [StudentVerificationAdmin]
+    operationId: validateAdminVerificationMethod
+    summary: 校验方法配置和实时依赖，并按请求决定是否启用
+    parameters:
+      - $ref: '#/components/parameters/SchoolCode'
+      - name: method
+        in: path
+        required: true
+        schema:
+          $ref: '../components/schemas/student-verification.yaml#/VerificationMethod'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/student-verification.yaml#/ValidateAdminVerificationConfigRequest'
+    responses:
+      '200':
+        description: 校验后的方法配置和健康状态
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/student-verification.yaml#/AdminVerificationMethodConfig'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/student-verification/credentials:
+  get:
+    tags: [StudentVerificationAdmin]
+    operationId: listAdminStudentCredentials
+    summary: 按学校范围列出最小化学生凭据，不返回原始证明
+    parameters:
+      - name: schoolCode
+        in: query
+        required: true
+        schema:
+          type: string
+          pattern: '^[0-9]{10}$'
+      - name: status
+        in: query
+        schema:
+          $ref: '../components/schemas/student-verification.yaml#/VerificationCredentialStatus'
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 50
+      - name: offset
+        in: query
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+    responses:
+      '200':
+        description: 学校范围凭据列表
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/student-verification.yaml#/AdminStudentCredential'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/student-verification/credentials/{credentialID}/revoke:
+  post:
+    tags: [StudentVerificationAdmin]
+    operationId: revokeAdminStudentCredential
+    summary: 在学校范围授权和近期 MFA step-up 后撤销学生凭据
+    parameters:
+      - name: credentialID
+        in: path
+        required: true
+        schema:
+          type: string
+          maxLength: 64
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/student-verification.yaml#/AdminCredentialRevokeRequest'
+    responses:
+      '200':
+        description: 已撤销凭据
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/student-verification.yaml#/AdminStudentCredential'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/student-verification/subject-conflicts:
+  get:
+    tags: [StudentVerificationAdmin]
+    operationId: listAdminStudentSubjectConflicts
+    summary: 按学校范围列出学籍主体冲突，不返回主体哈希或个人证明
+    parameters:
+      - name: schoolCode
+        in: query
+        required: true
+        schema:
+          type: string
+          pattern: '^[0-9]{10}$'
+      - name: status
+        in: query
+        schema:
+          type: string
+          enum: [open, under_review, resolved, dismissed]
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 50
+      - name: offset
+        in: query
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+    responses:
+      '200':
+        description: 学校范围主体冲突列表
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/student-verification.yaml#/AdminStudentSubjectConflict'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/student-verification/subject-conflicts/{conflictID}/decision:
+  post:
+    tags: [StudentVerificationAdmin]
+    operationId: decideAdminStudentSubjectConflict
+    summary: 标记复核、驳回冲突申请，或释放主体要求双方重新认证
+    parameters:
+      - name: conflictID
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/student-verification.yaml#/AdminSubjectConflictDecisionRequest'
+    responses:
+      '200':
+        description: 更新后的冲突
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/student-verification.yaml#/AdminStudentSubjectConflict'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/student-verification/connectors:
+  get:
+    tags: [StudentVerificationAdmin]
+    operationId: listAdminCampusConnectorHealth
+    summary: 查看已批准校园连接器的脱敏健康状态和允许操作
+    parameters:
+      - name: schoolCode
+        in: query
+        schema:
+          type: string
+          pattern: '^[0-9]{10}$'
+    responses:
+      '200':
+        description: 不含证书指纹、公钥、目标主机、端口和 secret reference 的健康投影
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/student-verification.yaml#/AdminCampusConnectorHealth'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/student-verification/schools/{schoolCode}/roster-snapshots:
+  get:
+    tags: [StudentVerificationAdmin]
+    operationId: listAdminRosterSnapshots
+    summary: 列出学校的版本化学籍快照与聚合质量门禁
+    parameters:
+      - $ref: '#/components/parameters/SchoolCode'
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 50
+      - name: offset
+        in: query
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+    responses:
+      '200':
+        description: 快照版本列表；不包含任何学生行级数据
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/student-verification.yaml#/RosterSnapshot'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/student-verification/schools/{schoolCode}/roster-sync-requests:
+  get:
+    tags: [StudentVerificationAdmin]
+    operationId: listAdminRosterSyncRequests
+    summary: 查看学校最近的受审计手动完整学籍同步任务
+    description: 仅返回任务元数据和稳定结果分类，不返回 Oracle 地址、SQL、账号、口令或连接器 secret reference。
+    parameters:
+      - $ref: '#/components/parameters/SchoolCode'
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 20
+    responses:
+      '200':
+        description: 最近任务，按创建时间倒序
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/student-verification.yaml#/AdminRosterSyncRequest'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '503':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+  post:
+    tags: [StudentVerificationAdmin]
+    operationId: createAdminRosterSyncRequest
+    summary: 通过已批准校园连接器手动触发一次完整学籍同步
+    description: 需要校园连接器管理能力和近期 MFA step-up。任务持久化、去重并带有限领取重试；请求不能携带 SQL、目标地址或凭据。
+    parameters:
+      - $ref: '#/components/parameters/SchoolCode'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/student-verification.yaml#/AdminRosterSyncCreateRequest'
+    responses:
+      '202':
+        description: 手动同步任务已持久化并等待连接器领取
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/student-verification.yaml#/AdminRosterSyncRequest'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '503':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/student-verification/schools/{schoolCode}/roster-snapshots/{snapshotID}:
+  get:
+    tags: [StudentVerificationAdmin]
+    operationId: getAdminRosterSnapshot
+    summary: 获取一个快照的聚合状态与质量门禁
+    parameters:
+      - $ref: '#/components/parameters/SchoolCode'
+      - $ref: '#/components/parameters/SnapshotID'
+    responses:
+      '200':
+        $ref: '#/components/responses/RosterSnapshotResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/student-verification/schools/{schoolCode}/roster-snapshots/{snapshotID}/activate:
+  post:
+    tags: [StudentVerificationAdmin]
+    operationId: activateAdminRosterSnapshot
+    summary: 原子激活已通过质量门禁的快照
+    description: 需要学校范围的独立激活能力和近期 MFA step-up；源时间倒退必须显式授权并审计。
+    parameters:
+      - $ref: '#/components/parameters/SchoolCode'
+      - $ref: '#/components/parameters/SnapshotID'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/student-verification.yaml#/RosterSnapshotSwitchRequest'
+    responses:
+      '200':
+        $ref: '#/components/responses/RosterSnapshotResponse'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '412':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/student-verification/schools/{schoolCode}/roster-snapshots/{snapshotID}/rollback:
+  post:
+    tags: [StudentVerificationAdmin]
+    operationId: rollbackAdminRosterSnapshot
+    summary: 原子回滚到一个历史成功快照
+    description: 需要学校范围的独立激活能力和近期 MFA step-up，且必须填写审计理由。
+    parameters:
+      - $ref: '#/components/parameters/SchoolCode'
+      - $ref: '#/components/parameters/SnapshotID'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/student-verification.yaml#/RosterSnapshotSwitchRequest'
+    responses:
+      '200':
+        $ref: '#/components/responses/RosterSnapshotResponse'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '412':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/account/phone:
+  get:
+    tags: [AccountSecurity]
+    operationId: getAccountPhoneStatus
+    summary: 获取当前账号手机号投影与验证凭据状态
+    responses:
+      '200':
+        description: 手机号状态；只返回脱敏号码
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/student-verification.yaml#/PhoneStatus'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '500':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+  delete:
+    tags: [AccountSecurity]
+    operationId: unbindAccountPhone
+    summary: 在 step-up MFA 后创建手机号解绑操作
+    responses:
+      '202':
+        description: 解绑操作已创建
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/student-verification.yaml#/PhoneBindingOperation'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/account/phone/operations:
+  post:
+    tags: [AccountSecurity]
+    operationId: createAccountPhoneOperation
+    summary: 使用用户当次手工输入的手机号创建首次绑定操作
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/student-verification.yaml#/CreatePhoneOperationRequest'
+    responses:
+      '201':
+        description: 操作已创建；是否需要短信由服务端静默决定
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/student-verification.yaml#/PhoneBindingOperation'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '429':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '503':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/account/phone/change-operations:
+  post:
+    tags: [AccountSecurity]
+    operationId: createAccountPhoneChangeOperation
+    summary: 在 step-up MFA 后使用用户当次手工输入的手机号创建换号操作
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/student-verification.yaml#/CreatePhoneOperationRequest'
+    responses:
+      '201':
+        description: 换号操作已创建；旧号码在 Casdoor 变更前保持有效，验证路径由服务端决定
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/student-verification.yaml#/PhoneBindingOperation'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '429':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '503':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/account/phone/operations/{operationID}:
+  get:
+    tags: [AccountSecurity]
+    operationId: getAccountPhoneOperation
+    summary: 获取当前用户的一次手机号操作状态
+    parameters:
+      - $ref: '#/components/parameters/PhoneOperationID'
+    responses:
+      '200':
+        description: 手机号操作状态
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/student-verification.yaml#/PhoneBindingOperation'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/account/phone/operations/{operationID}/sms:
+  post:
+    tags: [AccountSecurity]
+    operationId: sendAccountPhoneSMS
+    summary: 为已有手机号操作发送或重发短信验证码
+    parameters:
+      - $ref: '#/components/parameters/PhoneOperationID'
+    responses:
+      '200':
+        description: 验证码已发送；发送成功不代表已验证
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/student-verification.yaml#/PhoneBindingOperation'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '429':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '503':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/account/phone/operations/{operationID}/sms/verify:
+  post:
+    tags: [AccountSecurity]
+    operationId: verifyAccountPhoneSMS
+    summary: 校验短信验证码并推进 Casdoor 更新
+    parameters:
+      - $ref: '#/components/parameters/PhoneOperationID'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/student-verification.yaml#/VerifyPhoneSMSRequest'
+    responses:
+      '200':
+        description: 验证通过并进入绑定或同步阶段
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/student-verification.yaml#/PhoneBindingOperation'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '429':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '503':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/internal/student-eligibility/users/{userID}/schools/{schoolCode}:
+  get:
+    tags: [StudentVerification]
+    operationId: getInternalStudentEligibility
+    summary: 消费方读取用户在指定学校的最小学生资格
+    security:
+      - serviceTokenAuth: []
+    parameters:
+      - name: userID
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+      - name: schoolCode
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: '^[0-9]{10}$'
+    responses:
+      '200':
+        description: 最小学生资格，不含姓名、身份信息、邮箱、手机号或材料
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/student-verification.yaml#/StudentEligibility'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/student-verification/applications/{applicationID}/manual-review:
+  put:
+    tags: [StudentVerification]
+    operationId: upsertManualStudentReview
+    summary: 按学校受控 schema 创建或更新人工材料审核草稿
+    parameters:
+      - $ref: '#/components/parameters/ApplicationID'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/student-verification.yaml#/UpsertManualReviewRequest'
+    responses:
+      '200':
+        $ref: '#/components/responses/ManualReviewResponse'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '429':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '503':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+  get:
+    tags: [StudentVerification]
+    operationId: getManualStudentReview
+    summary: 获取当前用户人工材料审核的脱敏状态
+    parameters:
+      - $ref: '#/components/parameters/ApplicationID'
+    responses:
+      '200':
+        $ref: '#/components/responses/ManualReviewResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/student-verification/applications/{applicationID}/manual-review/camera-captures:
+  post:
+    tags: [StudentVerification]
+    operationId: uploadManualReviewCameraCapture
+    summary: 从当前浏览器的受控实时摄像头界面上传一帧材料
+    description: 服务端验证实际图像类型、解码、大小和像素边界；captureSource 不构成设备证明。
+    parameters:
+      - $ref: '#/components/parameters/ApplicationID'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/student-verification.yaml#/ManualCameraCaptureRequest'
+    responses:
+      '201':
+        $ref: '#/components/responses/ManualReviewResponse'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '413':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '429':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '503':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/student-verification/applications/{applicationID}/manual-review/camera-handoffs:
+  post:
+    tags: [StudentVerification]
+    operationId: createManualReviewCameraHandoff
+    summary: 创建绑定当前人工审核申请的一次性手机拍摄交接
+    parameters:
+      - $ref: '#/components/parameters/ApplicationID'
+    responses:
+      '201':
+        $ref: '#/components/responses/ManualHandoffResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '429':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '503':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/student-verification/applications/{applicationID}/manual-review/camera-handoffs/{handoffID}:
+  get:
+    tags: [StudentVerification]
+    operationId: getManualReviewCameraHandoff
+    summary: 获取当前用户的一次拍摄交接状态
+    parameters:
+      - $ref: '#/components/parameters/ApplicationID'
+      - $ref: '#/components/parameters/HandoffID'
+    responses:
+      '200':
+        $ref: '#/components/responses/ManualHandoffResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/student-verification/applications/{applicationID}/manual-review/submit:
+  post:
+    tags: [StudentVerification]
+    operationId: submitManualStudentReview
+    summary: 确认用途和保留期限后提交人工审核
+    parameters:
+      - $ref: '#/components/parameters/ApplicationID'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/student-verification.yaml#/SubmitManualReviewRequest'
+    responses:
+      '200':
+        $ref: '#/components/responses/ManualReviewResponse'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '429':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '503':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/student-verification/applications/{applicationID}/manual-review/email/otp:
+  post:
+    tags: [StudentVerification]
+    operationId: requestManualReviewEmailOTP
+    summary: 向人工审核草稿中的学校或联系邮箱发送辅助验证码
+    description: 邮箱验证只形成审核辅助证据，不会自动授予学生身份。
+    parameters:
+      - $ref: '#/components/parameters/ApplicationID'
+    responses:
+      '200':
+        description: 验证码已发送
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/student-verification.yaml#/ManualEmailOTPChallenge'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '429':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '503':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/student-verification/applications/{applicationID}/manual-review/email/verify:
+  post:
+    tags: [StudentVerification]
+    operationId: verifyManualReviewEmailOTP
+    summary: 校验人工审核联系邮箱验证码并仅记录辅助证据
+    parameters:
+      - $ref: '#/components/parameters/ApplicationID'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/student-verification.yaml#/VerifyStudentEmailOTPRequest'
+    responses:
+      '200':
+        $ref: '#/components/responses/ManualReviewResponse'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '429':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '503':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/student-verification/school-suggestions:
+  post:
+    tags: [StudentVerification]
+    operationId: createStudentVerificationSchoolSuggestion
+    summary: 找不到学校时提交目录建议；不会即时创建可认证学校
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/student-verification.yaml#/SchoolVerificationSuggestionRequest'
+    responses:
+      '201':
+        description: 建议已记录
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/student-verification.yaml#/SchoolVerificationSuggestion'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '429':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/student-verification/manual-camera-handoffs/{token}:
+  get:
+    tags: [StudentVerification]
+    operationId: previewManualReviewCameraHandoff
+    summary: 手机端使用一次性 token 查看拍摄交接的最小安全摘要
+    security: []
+    parameters:
+      - $ref: '#/components/parameters/HandoffToken'
+    responses:
+      '200':
+        $ref: '#/components/responses/ManualHandoffResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '410':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '429':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/student-verification/manual-camera-handoffs/{token}/camera-capture:
+  post:
+    tags: [StudentVerification]
+    operationId: uploadManualReviewHandoffCameraCapture
+    summary: 手机端通过一次性交接 token 上传实时摄像头拍摄材料
+    security: []
+    parameters:
+      - $ref: '#/components/parameters/HandoffToken'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/student-verification.yaml#/ManualCameraCaptureRequest'
+    responses:
+      '201':
+        $ref: '#/components/responses/ManualHandoffResponse'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '410':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '413':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '429':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '503':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/student-verification/manual-camera-handoffs/{token}/continue:
+  post:
+    tags: [StudentVerification]
+    operationId: chooseManualReviewCameraContinuation
+    summary: 手机上传完成后原子选择在手机或桌面继续
+    security: []
+    parameters:
+      - $ref: '#/components/parameters/HandoffToken'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/student-verification.yaml#/ManualCameraContinuationRequest'
+    responses:
+      '200':
+        $ref: '#/components/responses/ManualHandoffResponse'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '410':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '429':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/student-verification/manual-camera-handoffs/{token}/resume:
+  post:
+    tags: [StudentVerification]
+    operationId: resumeManualReviewCameraHandoff
+    summary: 登录后在已选择的手机端恢复本人学生认证申请
+    description: 只有一次性交接所属用户且已原子选择 mobile 时可恢复；不向其他账号暴露申请是否存在。
+    parameters:
+      - $ref: '#/components/parameters/HandoffToken'
+    responses:
+      '200':
+        $ref: '#/components/responses/ApplicationResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '410':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/student-verification/manual-reviews:
+  get:
+    tags: [StudentVerificationAdmin]
+    operationId: listAdminManualStudentReviews
+    summary: 按学校范围列出脱敏人工审核队列，不加载原图
+    parameters:
+      - name: schoolCode
+        in: query
+        required: true
+        schema:
+          type: string
+          pattern: '^[0-9]{10}$'
+      - name: status
+        in: query
+        schema:
+          type: string
+          enum: [pending, supplement_required, approved, rejected]
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 50
+      - name: offset
+        in: query
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+    responses:
+      '200':
+        description: 稳定排序的脱敏队列
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/student-verification.yaml#/AdminManualReviewSummary'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/student-verification/manual-reviews/{caseID}:
+  get:
+    tags: [StudentVerificationAdmin]
+    operationId: getAdminManualStudentReview
+    summary: 在学校范围授权和近期 MFA step-up 后查看必要表单详情
+    parameters:
+      - $ref: '#/components/parameters/CaseID'
+    responses:
+      '200':
+        description: 审核详情；材料只含元数据，不含对象 key 或 URL
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/student-verification.yaml#/AdminManualReviewDetail'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '412':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/student-verification/manual-reviews/{caseID}/materials/{materialID}/access:
+  post:
+    tags: [StudentVerificationAdmin]
+    operationId: accessAdminManualStudentReviewMaterial
+    summary: 为一个已授权材料生成短期、只读签名 URL 并写安全审计
+    parameters:
+      - $ref: '#/components/parameters/CaseID'
+      - $ref: '#/components/parameters/MaterialID'
+    responses:
+      '200':
+        description: 单对象短期访问地址
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/student-verification.yaml#/AdminManualMaterialAccess'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '412':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '503':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/admin/student-verification/manual-reviews/{caseID}/decision:
+  post:
+    tags: [StudentVerificationAdmin]
+    operationId: decideAdminManualStudentReview
+    summary: 请求补充、批准或驳回人工审核；审核员不能处理自己的申请
+    parameters:
+      - $ref: '#/components/parameters/CaseID'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/student-verification.yaml#/AdminManualReviewDecisionRequest'
+    responses:
+      '200':
+        $ref: '#/components/responses/ManualReviewResponse'
+      '400':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '404':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '409':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '412':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+/api/v1/internal/phone-gates/users/{userID}:
+  get:
+    tags: [AccountSecurity]
+    operationId: getInternalPhoneGateEligibility
+    summary: 消费方读取用户是否满足账号级手机号门槛
+    security:
+      - serviceTokenAuth: []
+    parameters:
+      - name: userID
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+    responses:
+      '200':
+        description: 最小手机号门槛结果，不含完整号码
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+                - type: object
+                  required: [data]
+                  properties:
+                    data:
+                      $ref: '../components/schemas/student-verification.yaml#/PhoneGateEligibility'
+      '401':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+      '403':
+        $ref: '../components/responses/common.yaml#/ErrorResponse'
+
+components:
+  parameters:
+    ApplicationID:
+      name: applicationID
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    CredentialID:
+      name: credentialID
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    SchoolCode:
+      name: schoolCode
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: '^[0-9]{10}$'
+    SnapshotID:
+      name: snapshotID
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    PhoneOperationID:
+      name: operationID
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    CaseID:
+      name: caseID
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    HandoffID:
+      name: handoffID
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    MaterialID:
+      name: materialID
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    HandoffToken:
+      name: token
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 32
+        maxLength: 256
+        pattern: '^[A-Za-z0-9_-]+$'
+  responses:
+    ApplicationResponse:
+      description: 学生认证申请的最新状态
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+              - type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '../components/schemas/student-verification.yaml#/VerificationApplication'
+    RosterSnapshotResponse:
+      description: 快照状态与聚合质量门禁
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+              - type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '../components/schemas/student-verification.yaml#/RosterSnapshot'
+    ManualReviewResponse:
+      description: 人工审核脱敏状态
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+              - type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '../components/schemas/student-verification.yaml#/ManualReviewCase'
+    ManualHandoffResponse:
+      description: 拍摄交接状态
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '../components/schemas/common.yaml#/SuccessResponse'
+              - type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '../components/schemas/student-verification.yaml#/ManualCameraHandoff'

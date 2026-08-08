@@ -3,7 +3,6 @@ import { h } from 'koishi'
 import {
   renderMessageTemplate,
   resolveGroupGuardMessages,
-  type FreshmanForwardItem,
   type StuhelperGroupGuardMessageConfig,
 } from '@stuhelper/koishi-shared'
 
@@ -54,32 +53,4 @@ function normalizedCount(value: number | undefined) {
 
 function minutesUntil(deadlineAt: Date, now: Date) {
   return Math.max(1, Math.ceil((deadlineAt.getTime() - now.getTime()) / MINUTE_MS))
-}
-
-export function formatFreshmanForwardSummary(
-  item: FreshmanForwardItem,
-  messages?: Partial<StuhelperGroupGuardMessageConfig>,
-) {
-  const application = item.application
-  const resolvedMessages = resolveGroupGuardMessages(messages)
-  const unknownField = renderMessageTemplate(resolvedMessages.freshmanForwardUnknownField)
-  return renderMessageTemplate(resolvedMessages.freshmanForwardSummary, {
-    applicationId: application.id,
-    applicantName: application.applicantNameMasked,
-    schoolName: item.schoolName || application.schoolID,
-    departmentOrMajor: application.departmentOrMajor || unknownField,
-    qqID: item.qqID || unknownField,
-    materialType: freshmanMaterialTypeLabel(application.materialType, resolvedMessages),
-    provisionalExpiresAt: application.provisionalExpiresAt || unknownField,
-  })
-}
-
-function freshmanMaterialTypeLabel(
-  materialType: FreshmanForwardItem['application']['materialType'],
-  messages: ReturnType<typeof resolveGroupGuardMessages>,
-) {
-  if (materialType === 'admission_notice') {
-    return renderMessageTemplate(messages.freshmanMaterialTypeAdmissionNotice)
-  }
-  return renderMessageTemplate(messages.freshmanMaterialTypeAdmissionCertificate)
 }

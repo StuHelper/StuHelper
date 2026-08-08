@@ -46,6 +46,7 @@ const mockToast = vi.hoisted(() => ({
 const mockHasStoredSessionHint = vi.hoisted(() => vi.fn())
 const mockWaitForAdmissionProjection = vi.hoisted(() => vi.fn())
 const mountedWrappers: Array<{ unmount(): void }> = []
+const configuredWebOrigin = 'https://web.example.test'
 
 const mockRoute = vi.hoisted(() => ({
   fullPath: '/verify/ABCD',
@@ -84,6 +85,7 @@ vi.mock('vue-router', () => ({
 describe('AdmissionPage edge states', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.stubEnv('VITE_WEB_URL', configuredWebOrigin)
     mockAuth.isAuthenticated = true
     mockAuth.loading = false
     mockAuth.user = {
@@ -115,6 +117,7 @@ describe('AdmissionPage edge states', () => {
     }
     document.body.innerHTML = ''
     vi.useRealTimers()
+    vi.unstubAllEnvs()
   })
 
   it('renders a single element root compatible with route transitions', async () => {
@@ -149,7 +152,7 @@ describe('AdmissionPage edge states', () => {
 
   it('shows expired state without submission controls', async () => {
     mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce(
-      sessionWithStatus('expired_kicked'),
+      sessionWithStatus('expired'),
     )
 
     const wrapper = await mountAdmissionPage()
@@ -178,7 +181,7 @@ describe('AdmissionPage edge states', () => {
 
   it('shows admission progress and the link deadline before account binding', async () => {
     mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce(
-      sessionWithStatus('joined_muted'),
+      sessionWithStatus('awaiting_account_link'),
     )
 
     const wrapper = await mountAdmissionPage()
@@ -194,7 +197,7 @@ describe('AdmissionPage edge states', () => {
 
   it('shows QQ mismatch before link confirmation when the signed-in account is already bound to another QQ', async () => {
     mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce({
-      ...sessionWithStatus('joined_muted'),
+      ...sessionWithStatus('awaiting_account_link'),
       qqID: '990060607888',
     })
     mockVerificationStore.fetchQQBinding.mockResolvedValueOnce({
@@ -213,12 +216,12 @@ describe('AdmissionPage edge states', () => {
 
   it('shows admission progress and the submission deadline after account binding', async () => {
     mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce(
-      sessionWithStatus('linked'),
+      sessionWithStatus('awaiting_requirements'),
     )
     mockAdmissionApi.getAdmissionMe.mockResolvedValueOnce({
       projectionPending: false,
-      session: sessionWithStatus('linked'),
-      status: 'linked',
+      session: sessionWithStatus('awaiting_requirements'),
+      status: 'awaiting_requirements',
     })
 
     const wrapper = await mountAdmissionPage()
@@ -230,7 +233,7 @@ describe('AdmissionPage edge states', () => {
 
   it('shows the manual review deadline while waiting for freshman review', async () => {
     mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce({
-      ...sessionWithStatus('material_submitted'),
+      ...sessionWithStatus('pending_manual_review'),
       manualReviewDeadlineAt: '2026-05-06T00:00:00Z',
     })
 
@@ -273,9 +276,9 @@ describe('AdmissionPage edge states', () => {
     expect(mockToast.success).toHaveBeenCalledWith('重新生成指令已复制')
   })
 
-  it('maps material_submitted session status to pendingReview', async () => {
+  it('maps pending_manual_review session status to pendingReview', async () => {
     mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce(
-      sessionWithStatus('material_submitted'),
+      sessionWithStatus('pending_manual_review'),
     )
 
     const wrapper = await mountAdmissionPage()
@@ -288,15 +291,15 @@ describe('AdmissionPage edge states', () => {
   it('polls pending review state and advances when a freshman review is approved', async () => {
     vi.useFakeTimers()
     mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce(
-      sessionWithStatus('material_submitted'),
+      sessionWithStatus('pending_manual_review'),
     )
     mockAdmissionApi.getAdmissionMe.mockResolvedValueOnce({
       projectionPending: true,
       session: {
-        ...sessionWithStatus('verified'),
+        ...sessionWithStatus('eligible'),
         projectionPending: true,
       },
-      status: 'verified',
+      status: 'eligible',
     })
 
     const wrapper = await mountAdmissionPage()
@@ -313,7 +316,7 @@ describe('AdmissionPage edge states', () => {
     await nextTick()
 
     expect(mockAdmissionApi.getAdmissionMe).toHaveBeenCalledTimes(1)
-    expect(mockAdmissionApi.getAdmissionMe).toHaveBeenCalledWith('session-material_submitted')
+    expect(mockAdmissionApi.getAdmissionMe).toHaveBeenCalledWith('session-pending_manual_review')
     expect(wrapper.find('[data-state="projectionPending"]').exists()).toBe(true)
     expect(mockWaitForAdmissionProjection).toHaveBeenCalledWith({
       refreshAuth: mockAuth.fetchUser,
@@ -326,35 +329,36 @@ describe('AdmissionPage edge states', () => {
       new ApiError({ code: 'admission.token_consumed', message: 'consumed' }),
     )
     mockAdmissionApi.linkAdmissionSession.mockResolvedValueOnce(
-      sessionWithStatus('linked'),
+      sessionWithStatus('awaiting_requirements'),
     )
     mockAdmissionApi.getAdmissionMe.mockResolvedValueOnce({
       projectionPending: false,
-      session: sessionWithStatus('linked'),
-      status: 'linked',
+      session: sessionWithStatus('awaiting_requirements'),
+      status: 'awaiting_requirements',
     })
 
     const wrapper = await mountAdmissionPage()
     await settleAdmissionPage(wrapper)
 
     expect(wrapper.find('[data-state="linked"]').exists()).toBe(true)
-    expect(wrapper.text()).toContain('选择认证方式')
+    expect(wrapper.text()).toContain('完成账号级学生认证')
     expect(mockAdmissionApi.linkAdmissionSession).toHaveBeenCalledWith('ABCD')
     expect(mockAdmissionApi.getAdmissionMe).toHaveBeenCalledTimes(1)
-    expect(mockAdmissionApi.getAdmissionMe).toHaveBeenCalledWith('session-linked')
-    expect(mockVerificationStore.fetchSchools).toHaveBeenCalledTimes(1)
-    expect(wrapper.find('#admission-old-student-tab').exists()).toBe(false)
-    expect(wrapper.get('#admission-freshman-tab').attributes('aria-selected')).toBe(
-      'true',
+    expect(mockAdmissionApi.getAdmissionMe).toHaveBeenCalledWith('session-awaiting_requirements')
+    expect(mockVerificationStore.fetchSchools).not.toHaveBeenCalled()
+    expect(wrapper.get('[data-admission-open-student-verification]').attributes('href')).toBe(
+      `${configuredWebOrigin}/user/student-verification?redirect=http%3A%2F%2Flocalhost%3A3000%2Fverify%2FABCD`,
     )
+    expect(wrapper.find('[data-admission-old-student-flow]').exists()).toBe(false)
+    expect(wrapper.find('[data-admission-freshman-flow]').exists()).toBe(false)
   })
 
   it('uses the remembered linked session before reloading a consumed admission token', async () => {
     rememberLinkedAdmissionSession('ABCD', 'session-linked')
     mockAdmissionApi.getAdmissionMe.mockResolvedValueOnce({
       projectionPending: false,
-      session: sessionWithStatus('material_submitted'),
-      status: 'material_submitted',
+      session: sessionWithStatus('pending_manual_review'),
+      status: 'pending_manual_review',
     })
 
     const wrapper = await mountAdmissionPage()
@@ -369,7 +373,7 @@ describe('AdmissionPage edge states', () => {
     expect(wrapper.text()).toContain('等待管理员审核')
   })
 
-  it('defaults linked users to old-student verification when a school supports it', async () => {
+  it('does not load or embed school-specific verification flows in admission', async () => {
     mockVerificationStore.schools = [{
       schoolID: 4111010006,
       schoolCode: '4111010006',
@@ -384,53 +388,26 @@ describe('AdmissionPage edge states', () => {
       },
     }]
     mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce(
-      sessionWithStatus('linked'),
+      sessionWithStatus('awaiting_requirements'),
     )
     mockAdmissionApi.getAdmissionMe.mockResolvedValueOnce({
       projectionPending: false,
-      session: sessionWithStatus('linked'),
-      status: 'linked',
+      session: sessionWithStatus('awaiting_requirements'),
+      status: 'awaiting_requirements',
     })
 
     const wrapper = await mountAdmissionPage()
     await settleAdmissionPage(wrapper)
 
-    expect(wrapper.find('[data-admission-old-student-flow]').exists()).toBe(true)
-    expect(wrapper.find('[data-school-email-otp-form]').exists()).toBe(true)
+    expect(mockVerificationStore.fetchSchools).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-admission-old-student-flow]').exists()).toBe(false)
+    expect(wrapper.find('[data-school-email-otp-form]').exists()).toBe(false)
     expect(wrapper.find('[data-admission-freshman-flow]').exists()).toBe(false)
-
-    const tabList = wrapper.get('[role="tablist"]')
-    const oldStudentTab = wrapper.get('#admission-old-student-tab')
-    const freshmanTab = wrapper.get('#admission-freshman-tab')
-    expect(tabList.attributes('aria-label')).toBe('学生认证方式')
-    expect(oldStudentTab.attributes('aria-selected')).toBe('true')
-    expect(oldStudentTab.attributes('tabindex')).toBe('0')
-    expect(freshmanTab.attributes('aria-selected')).toBe('false')
-    expect(freshmanTab.attributes('tabindex')).toBe('-1')
-    expect(wrapper.get('#admission-old-student-panel').attributes('role')).toBe(
-      'tabpanel',
-    )
-
-    oldStudentTab.element.focus()
-    await oldStudentTab.trigger('keydown', { key: 'ArrowRight' })
-    await settleAdmissionPage(wrapper)
-
-    expect(freshmanTab.attributes('aria-selected')).toBe('true')
-    expect(freshmanTab.attributes('tabindex')).toBe('0')
-    expect(document.activeElement).toBe(freshmanTab.element)
-    expect(wrapper.get('#admission-freshman-panel').attributes('role')).toBe(
-      'tabpanel',
-    )
-    expect(wrapper.find('[data-admission-freshman-flow]').exists()).toBe(true)
-
-    await freshmanTab.trigger('keydown', { key: 'Home' })
-    await settleAdmissionPage(wrapper)
-
-    expect(oldStudentTab.attributes('aria-selected')).toBe('true')
-    expect(document.activeElement).toBe(oldStudentTab.element)
+    expect(wrapper.find('[role="tablist"]').exists()).toBe(false)
+    expect(wrapper.find('[data-admission-open-student-verification]').exists()).toBe(true)
   })
 
-  it('does not offer freshman material submission after a formal credential exists', async () => {
+  it('does not branch admission UI from credential-kind hints', async () => {
     mockVerificationStore.schools = [{
       schoolID: 4111010006,
       schoolCode: '4111010006',
@@ -440,23 +417,21 @@ describe('AdmissionPage edge states', () => {
       schoolEmailOtpEnabled: true,
     }]
     mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce(
-      sessionWithStatus('linked'),
+      sessionWithStatus('awaiting_requirements'),
     )
     mockAdmissionApi.getAdmissionMe.mockResolvedValueOnce({
-      credentialKind: 'school_email_otp',
       projectionPending: false,
-      session: sessionWithStatus('linked'),
-      status: 'linked',
+      session: sessionWithStatus('awaiting_requirements'),
+      status: 'awaiting_requirements',
     })
 
     const wrapper = await mountAdmissionPage()
     await settleAdmissionPage(wrapper)
 
     expect(wrapper.find('#admission-freshman-tab').exists()).toBe(false)
-    expect(wrapper.get('#admission-old-student-tab').attributes('aria-selected')).toBe(
-      'true',
-    )
-    expect(wrapper.find('[data-admission-old-student-flow]').exists()).toBe(true)
+    expect(wrapper.find('#admission-old-student-tab').exists()).toBe(false)
+    expect(wrapper.find('[data-admission-old-student-flow]').exists()).toBe(false)
+    expect(wrapper.find('[data-admission-open-student-verification]').exists()).toBe(true)
   })
 
   it('asks for login without offering signup when a consumed token is reopened logged out', async () => {
@@ -495,7 +470,7 @@ describe('AdmissionPage edge states', () => {
 
   it('starts bounded auth refresh when approval waits for role projection', async () => {
     mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce({
-      ...sessionWithStatus('verified'),
+      ...sessionWithStatus('eligible'),
       projectionPending: true,
     })
 
@@ -512,7 +487,7 @@ describe('AdmissionPage edge states', () => {
 
   it('lets users retry role projection checks after the bounded wait times out', async () => {
     mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce({
-      ...sessionWithStatus('verified'),
+      ...sessionWithStatus('eligible'),
       projectionPending: true,
     })
     mockWaitForAdmissionProjection
@@ -537,7 +512,7 @@ describe('AdmissionPage edge states', () => {
 
   it('keeps projection refresh recoverable after a transient polling failure', async () => {
     mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce({
-      ...sessionWithStatus('verified'),
+      ...sessionWithStatus('eligible'),
       projectionPending: true,
     })
     mockWaitForAdmissionProjection.mockRejectedValueOnce(
@@ -559,7 +534,7 @@ describe('AdmissionPage edge states', () => {
 
   it('asks the user to log in when projection refresh gets an explicit 401', async () => {
     mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce({
-      ...sessionWithStatus('verified'),
+      ...sessionWithStatus('eligible'),
       projectionPending: true,
     })
     mockWaitForAdmissionProjection.mockRejectedValueOnce(
@@ -579,15 +554,15 @@ describe('AdmissionPage edge states', () => {
 
   it('uses admission me projection state after refreshing linked resources', async () => {
     mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce(
-      sessionWithStatus('linked'),
+      sessionWithStatus('awaiting_requirements'),
     )
     mockAdmissionApi.getAdmissionMe.mockResolvedValueOnce({
       projectionPending: true,
       session: {
-        ...sessionWithStatus('linked'),
+        ...sessionWithStatus('awaiting_requirements'),
         projectionPending: true,
       },
-      status: 'linked',
+      status: 'awaiting_requirements',
     })
 
     const wrapper = await mountAdmissionPage()
@@ -595,7 +570,7 @@ describe('AdmissionPage edge states', () => {
 
     expect(wrapper.find('[data-state="projectionPending"]').exists()).toBe(true)
     expect(wrapper.find('[data-projection-timeout]').exists()).toBe(true)
-    expect(mockVerificationStore.fetchSchools).toHaveBeenCalledTimes(1)
+    expect(mockVerificationStore.fetchSchools).not.toHaveBeenCalled()
     expect(mockWaitForAdmissionProjection).toHaveBeenCalledWith({
       refreshAuth: mockAuth.fetchUser,
       signal: expect.any(AbortSignal),
@@ -606,7 +581,7 @@ describe('AdmissionPage edge states', () => {
     mockAuth.isAuthenticated = false
     mockAuth.bootstrapSession.mockResolvedValueOnce(true)
     mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce(
-      sessionWithStatus('joined_muted'),
+      sessionWithStatus('awaiting_account_link'),
     )
 
     const wrapper = await mountAdmissionPage()
@@ -621,7 +596,7 @@ describe('AdmissionPage edge states', () => {
     mockAuth.isAuthenticated = false
     mockHasStoredSessionHint.mockReturnValue(false)
     mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce(
-      sessionWithStatus('joined_muted'),
+      sessionWithStatus('awaiting_account_link'),
     )
 
     const wrapper = await mountAdmissionPage()
@@ -636,7 +611,7 @@ describe('AdmissionPage edge states', () => {
     mockAuth.isAuthenticated = false
     mockHasStoredSessionHint.mockReturnValue(false)
     mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce(
-      sessionWithStatus('joined_muted'),
+      sessionWithStatus('awaiting_account_link'),
     )
     const login = createDeferred<void>()
     mockAuth.login.mockReturnValueOnce(login.promise)
@@ -663,7 +638,7 @@ describe('AdmissionPage edge states', () => {
     mockAuth.bootstrapSession.mockResolvedValueOnce(true)
     rememberAdmissionAuthReturn('/verify/ABCD')
     mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce(
-      sessionWithStatus('joined_muted'),
+      sessionWithStatus('awaiting_account_link'),
     )
 
     const wrapper = await mountAdmissionPage()
@@ -680,7 +655,7 @@ describe('AdmissionPage edge states', () => {
       .mockResolvedValueOnce(false)
       .mockResolvedValueOnce(true)
     mockAdmissionApi.getAdmissionSession.mockResolvedValue(
-      sessionWithStatus('joined_muted'),
+      sessionWithStatus('awaiting_account_link'),
     )
 
     const wrapper = await mountAdmissionPage()
@@ -698,15 +673,15 @@ describe('AdmissionPage edge states', () => {
 
   it('requires manually typing the current qq before binding the StuHelper account', async () => {
     mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce(
-      sessionWithStatus('joined_muted'),
+      sessionWithStatus('awaiting_account_link'),
     )
     mockAdmissionApi.linkAdmissionSession.mockResolvedValueOnce(
-      sessionWithStatus('linked'),
+      sessionWithStatus('awaiting_requirements'),
     )
     mockAdmissionApi.getAdmissionMe.mockResolvedValueOnce({
       projectionPending: false,
-      session: sessionWithStatus('linked'),
-      status: 'linked',
+      session: sessionWithStatus('awaiting_requirements'),
+      status: 'awaiting_requirements',
     })
 
     const wrapper = await mountAdmissionPage()
@@ -745,15 +720,15 @@ describe('AdmissionPage edge states', () => {
 
   it('accepts copied qq confirmation input with surrounding whitespace', async () => {
     mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce(
-      sessionWithStatus('joined_muted'),
+      sessionWithStatus('awaiting_account_link'),
     )
     mockAdmissionApi.linkAdmissionSession.mockResolvedValueOnce(
-      sessionWithStatus('linked'),
+      sessionWithStatus('awaiting_requirements'),
     )
     mockAdmissionApi.getAdmissionMe.mockResolvedValueOnce({
       projectionPending: false,
-      session: sessionWithStatus('linked'),
-      status: 'linked',
+      session: sessionWithStatus('awaiting_requirements'),
+      status: 'awaiting_requirements',
     })
 
     const wrapper = await mountAdmissionPage()
@@ -771,7 +746,7 @@ describe('AdmissionPage edge states', () => {
       .mockResolvedValueOnce(false)
       .mockResolvedValueOnce(true)
     mockAdmissionApi.getAdmissionSession.mockResolvedValue(
-      sessionWithStatus('joined_muted'),
+      sessionWithStatus('awaiting_account_link'),
     )
 
     const wrapper = await mountAdmissionPage()
@@ -791,7 +766,7 @@ describe('AdmissionPage edge states', () => {
     const firstLoad = createDeferred<AdmissionSession>()
     mockAdmissionApi.getAdmissionSession
       .mockReturnValueOnce(firstLoad.promise)
-      .mockResolvedValueOnce(sessionWithStatus('joined_muted'))
+      .mockResolvedValueOnce(sessionWithStatus('awaiting_account_link'))
 
     const wrapper = await mountAdmissionPage()
     await flushPromises()
@@ -802,7 +777,7 @@ describe('AdmissionPage edge states', () => {
     window.dispatchEvent(new Event('focus'))
     await flushPromises()
 
-    firstLoad.resolve(sessionWithStatus('linked'))
+    firstLoad.resolve(sessionWithStatus('awaiting_requirements'))
     await settleAdmissionPage(wrapper)
 
     expect(mockAdmissionApi.getAdmissionSession).toHaveBeenCalledTimes(2)
@@ -815,10 +790,10 @@ describe('AdmissionPage edge states', () => {
 
   it('keeps the linked admission page open when post-link resources fail to refresh', async () => {
     mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce(
-      sessionWithStatus('joined_muted'),
+      sessionWithStatus('awaiting_account_link'),
     )
     mockAdmissionApi.linkAdmissionSession.mockResolvedValueOnce(
-      sessionWithStatus('linked'),
+      sessionWithStatus('awaiting_requirements'),
     )
     mockAdmissionApi.getAdmissionMe.mockRejectedValueOnce(new Error('admission me unavailable'))
 
@@ -836,10 +811,10 @@ describe('AdmissionPage edge states', () => {
 
   it('moves to expired when linked resources report a cancelled admission session', async () => {
     mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce(
-      sessionWithStatus('joined_muted'),
+      sessionWithStatus('awaiting_account_link'),
     )
     mockAdmissionApi.linkAdmissionSession.mockResolvedValueOnce(
-      sessionWithStatus('linked'),
+      sessionWithStatus('awaiting_requirements'),
     )
     mockAdmissionApi.getAdmissionMe.mockResolvedValueOnce({
       projectionPending: false,
@@ -859,7 +834,7 @@ describe('AdmissionPage edge states', () => {
 
   it('shows account mismatch when the token is consumed during explicit linking', async () => {
     mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce(
-      sessionWithStatus('joined_muted'),
+      sessionWithStatus('awaiting_account_link'),
     )
     mockAdmissionApi.linkAdmissionSession.mockRejectedValueOnce(
       new ApiError({ code: 'admission.token_consumed', message: 'consumed' }),
@@ -878,7 +853,7 @@ describe('AdmissionPage edge states', () => {
 
   it('shows qq mismatch when explicit linking finds another qq already bound', async () => {
     mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce(
-      sessionWithStatus('joined_muted'),
+      sessionWithStatus('awaiting_account_link'),
     )
     mockAdmissionApi.linkAdmissionSession.mockRejectedValueOnce(
       new ApiError({ code: 'admission.qq_mismatch', message: 'admission qq mismatch' }),
@@ -901,10 +876,10 @@ describe('AdmissionPage edge states', () => {
 
   it('moves to expired when linked resources report an expired admission session', async () => {
     mockAdmissionApi.getAdmissionSession.mockResolvedValueOnce(
-      sessionWithStatus('joined_muted'),
+      sessionWithStatus('awaiting_account_link'),
     )
     mockAdmissionApi.linkAdmissionSession.mockResolvedValueOnce(
-      sessionWithStatus('linked'),
+      sessionWithStatus('awaiting_requirements'),
     )
     mockAdmissionApi.getAdmissionMe.mockRejectedValueOnce(
       new ApiError({ code: 'admission.token_expired', message: 'expired' }),

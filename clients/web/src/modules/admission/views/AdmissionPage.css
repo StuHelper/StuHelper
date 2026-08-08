@@ -21,6 +21,7 @@
 .primary-button {
   background: #0f172a;
   color: #ffffff;
+  text-decoration: none;
 }
 
 .primary-button:hover:not(:disabled) {
@@ -43,8 +44,7 @@
 }
 
 .primary-button:focus-visible,
-.secondary-button:focus-visible,
-.flow-tab:focus-visible {
+.secondary-button:focus-visible {
   outline: 3px solid rgb(15 118 110 / 0.28);
   outline-offset: 2px;
 }
@@ -97,36 +97,24 @@
   width: 22px;
 }
 
-.admission-flow__tabs {
-  display: grid;
-  gap: 8px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.flow-tab {
-  border: 1px solid #cbd5e1;
+.admission-flow__notice {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
   border-radius: 8px;
-  color: #334155;
-  cursor: pointer;
+  color: #475569;
   font-size: 14px;
-  font-weight: 600;
-  line-height: 20px;
-  min-height: 44px;
-  padding: 10px 12px;
-  transition:
-    background-color 160ms ease,
-    border-color 160ms ease,
-    color 160ms ease;
+  line-height: 22px;
+  padding: 14px;
 }
 
-.flow-tab--active {
-  background: #0f172a;
-  border-color: #0f172a;
-  color: #ffffff;
+.admission-flow__notice p {
+  margin: 0;
 }
 
-.flow-tab:hover:not(.flow-tab--active) {
-  background: #f1f5f9;
+.admission-flow__actions {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .linked-resource-error {
@@ -146,7 +134,7 @@
     grid-template-columns: 1fr;
   }
 
-  .admission-flow__tabs {
+  .admission-flow__actions {
     grid-template-columns: 1fr;
   }
 }

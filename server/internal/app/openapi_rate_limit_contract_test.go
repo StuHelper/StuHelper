@@ -19,12 +19,17 @@ func TestOpenAPIRateLimitedOperationsDeclareLimiterResponses(t *testing.T) {
 	}{
 		{http.MethodPost, "/api/v1/auth/exchange-native"},
 		{http.MethodPost, "/api/v1/auth/refresh"},
-		{http.MethodPost, "/api/v1/user/identity/uploads"},
-		{http.MethodPost, "/api/v1/user/profile/verify"},
-		{http.MethodPost, "/api/v1/user/profile/school-email/academic-match"},
-		{http.MethodPost, "/api/v1/user/profile/school-email/request-otp"},
-		{http.MethodPost, "/api/v1/user/profile/school-email/verify-otp"},
-		{http.MethodPost, "/api/v1/user/profile/bind-phone/otp"},
+		{http.MethodPost, "/api/v1/student-verification/applications/{applicationID}/real-name/verify"},
+		{http.MethodPost, "/api/v1/student-verification/applications/{applicationID}/school-sso/verify"},
+		{http.MethodPost, "/api/v1/student-verification/applications/{applicationID}/email/outbound/otp"},
+		{http.MethodPost, "/api/v1/student-verification/applications/{applicationID}/email/outbound/verify"},
+		{http.MethodPost, "/api/v1/student-verification/applications/{applicationID}/email/inbound/challenge"},
+		{http.MethodPost, "/api/v1/student-verification/applications/{applicationID}/manual-review/submit"},
+		{http.MethodPost, "/api/v1/account/phone/operations"},
+		{http.MethodPost, "/api/v1/account/phone/change-operations"},
+		{http.MethodPost, "/api/v1/account/phone/operations/{operationID}/sms"},
+		{http.MethodPost, "/api/v1/account/phone/operations/{operationID}/sms/verify"},
+		{http.MethodPost, "/api/v1/webhooks/student-verification/inbound-email"},
 		{http.MethodGet, "/api/v1/course/review/reviews/search"},
 		{http.MethodGet, "/api/v1/course/review/reviews/batch"},
 		{http.MethodPost, "/api/v1/course/review/reviews"},
@@ -34,8 +39,6 @@ func TestOpenAPIRateLimitedOperationsDeclareLimiterResponses(t *testing.T) {
 		{http.MethodPost, "/api/v1/course/review/reviews/{reviewID}/reports"},
 		{http.MethodPost, "/api/v1/course/review/reviews/{reviewID}/replies"},
 		{http.MethodDelete, "/api/v1/course/review/replies/{replyID}"},
-		{http.MethodPost, "/api/v1/admission/school-email/academic-match"},
-		{http.MethodPost, "/api/v1/admission/school-email/request-otp"},
 	} {
 		t.Run(route.method+" "+route.path, func(t *testing.T) {
 			path := spec.Paths.Value(route.path)

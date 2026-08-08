@@ -44,18 +44,22 @@ import {
 import { syncGuardPolicyFromAdmissionTargets } from './guard-policy-bootstrap'
 import { createGroupGuardAISettingsProvider } from './group-guard-ai-provider'
 import { createGroupGuardMessageProvider } from './group-guard-message-provider'
+import { registerAlertmanagerWebhook } from './alertmanager-webhook'
 
 export const name = 'stuhelper-group-guard'
 export const inject = {
   required: ['database'],
-  optional: ['console', 'stuhelperGroupCenter'],
+  optional: ['console', 'server', 'stuhelperGroupCenter'],
 }
 
 export type Config = StuhelperGroupGuardPluginConfig
 
 export const Config: Schema<Config> = createGroupGuardPluginConfigSchema()
 
-export function apply(ctx: Context, config: Config) {
+export function apply(ctx: Context, config: Config | null | undefined) {
+  if (!config) {
+    throw new Error('stuhelper_group_guard_configuration_invalid')
+  }
   registerGroupGuardRuntimeModels(ctx)
   startGroupGuardRuntime(ctx, config)
 }
@@ -91,7 +95,6 @@ export function startGroupGuardRuntime(ctx: Context, config: Config) {
     policyStore,
     moderationStore,
     logger,
-    isFreshmanForwardEnabled: () => runtimeSettings.isFreshmanForwardEnabled(),
     isTimeCodeReminderEnabled: () => runtimeSettings.isTimeCodeReminderEnabled(),
     admissionSubjectCoordinator,
     reminderDeduper: admissionReminderDeduper,
@@ -113,6 +116,13 @@ export function startGroupGuardRuntime(ctx: Context, config: Config) {
     behaviorSettings,
     messageProvider,
   })
+
+  if (config.alerting?.enabled) {
+    registerAlertmanagerWebhook(ctx, config.alerting, {
+      platform,
+      getBots: () => ctx.bots,
+    }, logger)
+  }
 
   registerGroupGuardEvents(ctx, {
     memberGuard,

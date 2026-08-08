@@ -1,4 +1,10 @@
-import { expect, mockNotificationStream, test, type Page } from './fixtures';
+import {
+    expect,
+    mockCurrentAccountProjections,
+    mockNotificationStream,
+    test,
+    type Page,
+} from './fixtures';
 
 const storedUser = {
     id: "user_1",
@@ -44,49 +50,12 @@ async function mockAuth(page: Page) {
             body: JSON.stringify({ success: true, data: { expiresIn: 3600 } }),
         }),
     );
-    await page.route("**/api/v1/user/me", (route) =>
-        route.fulfill({
-            contentType: "application/json",
-            body: JSON.stringify({
-                success: true,
-                data: {
-                    displayName: storedUser.displayName,
-                    identityStatus: "approved",
-                    verificationStatus: "approved",
-                    phoneBound: true,
-                    capabilities: storedUser.capabilities,
-                },
-            }),
-        }),
-    );
-    await page.route("**/api/v1/user/identity", (route) =>
-        route.fulfill({
-            contentType: "application/json",
-            body: JSON.stringify({
-                success: true,
-                data: { verified: true, status: "verified" },
-            }),
-        }),
-    );
-    await page.route("**/api/v1/user/profile", (route) =>
-        route.fulfill({
-            contentType: "application/json",
-            body: JSON.stringify({
-                success: true,
-                data: { verificationStatus: "verified", schoolID: 4111010006 },
-            }),
-        }),
-    );
-    await page.route("**/api/v1/user/qq-binding", (route) =>
-        route.fulfill({
-            status: 404,
-            contentType: "application/json",
-            body: JSON.stringify({
-                success: false,
-                error: { code: "A0040404", message: "not bound" },
-            }),
-        }),
-    );
+    await mockCurrentAccountProjections(page, {
+        displayName: storedUser.displayName,
+        studentVerified: true,
+        phoneBound: true,
+        capabilities: storedUser.capabilities,
+    });
     await page.route(
         "**/api/v1/course/review/user/notifications/unread-count*",
         (route) =>

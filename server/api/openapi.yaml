@@ -43,13 +43,17 @@ tags:
   - name: User
     description: 用户中心
   - name: Admission
-    description: QQ 入群认证与新生身份审核
+    description: 只消费学生资格结果的群聊准入与 QQ 平台动作编排
   - name: Bot
     description: 机器人内部接口
   - name: Identity
     description: 实名认证
   - name: Profile
     description: 学生认证
+  - name: StudentVerification
+    description: 与 QQ 和群聊准入解耦的学生认证、凭据与资格
+  - name: AccountSecurity
+    description: 账号级手机号等附加安全凭据
   - name: OpenPlatform
     description: 开放平台 OAuth 授权、scope consent 与用户信息披露
   - name: Admin
@@ -330,35 +334,117 @@ paths:
   /api/v1/course/review/admin/sensitive-words/{sensitiveWordID}:
     $ref: "paths/review-admin.yaml#/~1api~1v1~1course~1review~1admin~1sensitive-words~1{sensitiveWordID}"
 
-  # ── User Identity & Profile ──
-  /api/v1/user/identity:
-    $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1identity"
-  /api/v1/user/identity/uploads:
-    $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1identity~1uploads"
+  # ── User Account & QQ Binding ──
   /api/v1/user/qq-binding:
     $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1qq-binding"
   /api/v1/user/qq-binding/code:
     $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1qq-binding~1code"
-  /api/v1/user/profile:
-    $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1profile"
-  /api/v1/user/profile/verify:
-    $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1profile~1verify"
-  /api/v1/user/profile/school-email/academic-match:
-    $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1profile~1school-email~1academic-match"
-  /api/v1/user/profile/school-email/request-otp:
-    $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1profile~1school-email~1request-otp"
-  /api/v1/user/profile/school-email/verify-otp:
-    $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1profile~1school-email~1verify-otp"
-  /api/v1/user/profile/bind-phone/otp:
-    $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1profile~1bind-phone~1otp"
-  /api/v1/user/profile/bind-phone:
-    $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1profile~1bind-phone"
-  /api/v1/user/profile/academic-info:
-    $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1profile~1academic-info"
-  /api/v1/user/schools:
-    $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1schools"
   /api/v1/user/me:
     $ref: "paths/user-identity.yaml#/~1api~1v1~1user~1me"
+
+  # ── Independent Student Verification & Account Phone ──
+  /api/v1/student-verification/schools:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1student-verification~1schools"
+  /api/v1/student-verification/applications:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1student-verification~1applications"
+  /api/v1/student-verification/applications/{applicationID}:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1student-verification~1applications~1{applicationID}"
+  /api/v1/student-verification/applications/{applicationID}/real-name/verify:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1student-verification~1applications~1{applicationID}~1real-name~1verify"
+  /api/v1/student-verification/applications/{applicationID}/school-sso/verify:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1student-verification~1applications~1{applicationID}~1school-sso~1verify"
+  /api/v1/student-verification/applications/{applicationID}/email/outbound/otp:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1student-verification~1applications~1{applicationID}~1email~1outbound~1otp"
+  /api/v1/student-verification/applications/{applicationID}/email/outbound/verify:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1student-verification~1applications~1{applicationID}~1email~1outbound~1verify"
+  /api/v1/student-verification/applications/{applicationID}/email/inbound/challenge:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1student-verification~1applications~1{applicationID}~1email~1inbound~1challenge"
+  /api/v1/student-verification/applications/{applicationID}/manual-review:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1student-verification~1applications~1{applicationID}~1manual-review"
+  /api/v1/student-verification/applications/{applicationID}/manual-review/camera-captures:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1student-verification~1applications~1{applicationID}~1manual-review~1camera-captures"
+  /api/v1/student-verification/applications/{applicationID}/manual-review/camera-handoffs:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1student-verification~1applications~1{applicationID}~1manual-review~1camera-handoffs"
+  /api/v1/student-verification/applications/{applicationID}/manual-review/camera-handoffs/{handoffID}:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1student-verification~1applications~1{applicationID}~1manual-review~1camera-handoffs~1{handoffID}"
+  /api/v1/student-verification/applications/{applicationID}/manual-review/submit:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1student-verification~1applications~1{applicationID}~1manual-review~1submit"
+  /api/v1/student-verification/applications/{applicationID}/manual-review/email/otp:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1student-verification~1applications~1{applicationID}~1manual-review~1email~1otp"
+  /api/v1/student-verification/applications/{applicationID}/manual-review/email/verify:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1student-verification~1applications~1{applicationID}~1manual-review~1email~1verify"
+  /api/v1/student-verification/school-suggestions:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1student-verification~1school-suggestions"
+  /api/v1/student-verification/manual-camera-handoffs/{token}:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1student-verification~1manual-camera-handoffs~1{token}"
+  /api/v1/student-verification/manual-camera-handoffs/{token}/camera-capture:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1student-verification~1manual-camera-handoffs~1{token}~1camera-capture"
+  /api/v1/student-verification/manual-camera-handoffs/{token}/continue:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1student-verification~1manual-camera-handoffs~1{token}~1continue"
+  /api/v1/student-verification/manual-camera-handoffs/{token}/resume:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1student-verification~1manual-camera-handoffs~1{token}~1resume"
+  /api/v1/student-verification/credentials:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1student-verification~1credentials"
+  /api/v1/student-verification/credentials/{credentialID}:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1student-verification~1credentials~1{credentialID}"
+  /api/v1/student-verification/eligibility:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1student-verification~1eligibility"
+  /api/v1/webhooks/student-verification/inbound-email:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1webhooks~1student-verification~1inbound-email"
+  /api/v1/admin/student-verification/schools:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1admin~1student-verification~1schools"
+  /api/v1/admin/student-verification/schools/{schoolCode}:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1admin~1student-verification~1schools~1{schoolCode}"
+  /api/v1/admin/student-verification/schools/{schoolCode}/validate:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1admin~1student-verification~1schools~1{schoolCode}~1validate"
+  /api/v1/admin/student-verification/schools/{schoolCode}/methods/{method}:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1admin~1student-verification~1schools~1{schoolCode}~1methods~1{method}"
+  /api/v1/admin/student-verification/schools/{schoolCode}/methods/{method}/validate:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1admin~1student-verification~1schools~1{schoolCode}~1methods~1{method}~1validate"
+  /api/v1/admin/student-verification/credentials:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1admin~1student-verification~1credentials"
+  /api/v1/admin/student-verification/credentials/{credentialID}/revoke:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1admin~1student-verification~1credentials~1{credentialID}~1revoke"
+  /api/v1/admin/student-verification/subject-conflicts:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1admin~1student-verification~1subject-conflicts"
+  /api/v1/admin/student-verification/subject-conflicts/{conflictID}/decision:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1admin~1student-verification~1subject-conflicts~1{conflictID}~1decision"
+  /api/v1/admin/student-verification/connectors:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1admin~1student-verification~1connectors"
+  /api/v1/admin/student-verification/schools/{schoolCode}/roster-snapshots:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1admin~1student-verification~1schools~1{schoolCode}~1roster-snapshots"
+  /api/v1/admin/student-verification/schools/{schoolCode}/roster-sync-requests:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1admin~1student-verification~1schools~1{schoolCode}~1roster-sync-requests"
+  /api/v1/admin/student-verification/schools/{schoolCode}/roster-snapshots/{snapshotID}:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1admin~1student-verification~1schools~1{schoolCode}~1roster-snapshots~1{snapshotID}"
+  /api/v1/admin/student-verification/schools/{schoolCode}/roster-snapshots/{snapshotID}/activate:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1admin~1student-verification~1schools~1{schoolCode}~1roster-snapshots~1{snapshotID}~1activate"
+  /api/v1/admin/student-verification/schools/{schoolCode}/roster-snapshots/{snapshotID}/rollback:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1admin~1student-verification~1schools~1{schoolCode}~1roster-snapshots~1{snapshotID}~1rollback"
+  /api/v1/admin/student-verification/manual-reviews:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1admin~1student-verification~1manual-reviews"
+  /api/v1/admin/student-verification/manual-reviews/{caseID}:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1admin~1student-verification~1manual-reviews~1{caseID}"
+  /api/v1/admin/student-verification/manual-reviews/{caseID}/materials/{materialID}/access:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1admin~1student-verification~1manual-reviews~1{caseID}~1materials~1{materialID}~1access"
+  /api/v1/admin/student-verification/manual-reviews/{caseID}/decision:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1admin~1student-verification~1manual-reviews~1{caseID}~1decision"
+  /api/v1/account/phone:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1account~1phone"
+  /api/v1/account/phone/operations:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1account~1phone~1operations"
+  /api/v1/account/phone/change-operations:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1account~1phone~1change-operations"
+  /api/v1/account/phone/operations/{operationID}:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1account~1phone~1operations~1{operationID}"
+  /api/v1/account/phone/operations/{operationID}/sms:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1account~1phone~1operations~1{operationID}~1sms"
+  /api/v1/account/phone/operations/{operationID}/sms/verify:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1account~1phone~1operations~1{operationID}~1sms~1verify"
+  /api/v1/internal/student-eligibility/users/{userID}/schools/{schoolCode}:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1internal~1student-eligibility~1users~1{userID}~1schools~1{schoolCode}"
+  /api/v1/internal/phone-gates/users/{userID}:
+    $ref: "paths/student-verification.yaml#/~1api~1v1~1internal~1phone-gates~1users~1{userID}"
 
   # ── Admission ──
   /api/v1/admission/sessions/{token}:
@@ -367,32 +453,6 @@ paths:
     $ref: "paths/admission.yaml#/~1api~1v1~1admission~1sessions~1{token}~1link"
   /api/v1/admission/me:
     $ref: "paths/admission.yaml#/~1api~1v1~1admission~1me"
-  /api/v1/admission/freshman/applications:
-    $ref: "paths/admission.yaml#/~1api~1v1~1admission~1freshman~1applications"
-  /api/v1/admission/freshman/applications/{id}/camera-captures:
-    $ref: "paths/admission.yaml#/~1api~1v1~1admission~1freshman~1applications~1{id}~1camera-captures"
-  /api/v1/admission/freshman/applications/{id}/camera-handoffs:
-    $ref: "paths/admission.yaml#/~1api~1v1~1admission~1freshman~1applications~1{id}~1camera-handoffs"
-  /api/v1/admission/freshman/camera-handoffs/{id}:
-    $ref: "paths/admission.yaml#/~1api~1v1~1admission~1freshman~1camera-handoffs~1{id}"
-  /api/v1/admission/freshman/camera-handoffs/{id}/events:
-    $ref: "paths/admission.yaml#/~1api~1v1~1admission~1freshman~1camera-handoffs~1{id}~1events"
-  /api/v1/admission/freshman/mobile-camera-handoffs/{token}:
-    $ref: "paths/admission.yaml#/~1api~1v1~1admission~1freshman~1mobile-camera-handoffs~1{token}"
-  /api/v1/admission/freshman/mobile-camera-handoffs/{token}/camera-capture:
-    $ref: "paths/admission.yaml#/~1api~1v1~1admission~1freshman~1mobile-camera-handoffs~1{token}~1camera-capture"
-  /api/v1/admission/freshman/mobile-camera-handoffs/{token}/continue:
-    $ref: "paths/admission.yaml#/~1api~1v1~1admission~1freshman~1mobile-camera-handoffs~1{token}~1continue"
-  /api/v1/admission/school-email/academic-match:
-    $ref: "paths/admission.yaml#/~1api~1v1~1admission~1school-email~1academic-match"
-  /api/v1/admission/school-email/request-otp:
-    $ref: "paths/admission.yaml#/~1api~1v1~1admission~1school-email~1request-otp"
-  /api/v1/admission/school-email/verify-otp:
-    $ref: "paths/admission.yaml#/~1api~1v1~1admission~1school-email~1verify-otp"
-  /api/v1/admission/school-sso/{schoolCode}/login:
-    $ref: "paths/admission.yaml#/~1api~1v1~1admission~1school-sso~1{schoolCode}~1login"
-  /api/v1/admission/school-sso/{schoolCode}/callback:
-    $ref: "paths/admission.yaml#/~1api~1v1~1admission~1school-sso~1{schoolCode}~1callback"
 
   # ── Bot: User Binding ──
   /api/v1/bot/qq-binding/consume:
@@ -437,28 +497,7 @@ paths:
     $ref: "paths/bot-admission.yaml#/~1api~1v1~1bot~1admission~1actions~1{id}~1events"
   /api/v1/bot/admission/sessions/{id}/events:
     $ref: "paths/bot-admission.yaml#/~1api~1v1~1bot~1admission~1sessions~1{id}~1events"
-  /api/v1/bot/admission/freshman/applications/pending-forward:
-    $ref: "paths/bot-admission.yaml#/~1api~1v1~1bot~1admission~1freshman~1applications~1pending-forward"
-  /api/v1/bot/admission/freshman/applications/{id}/forwarded:
-    $ref: "paths/bot-admission.yaml#/~1api~1v1~1bot~1admission~1freshman~1applications~1{id}~1forwarded"
-  /api/v1/bot/admission/freshman/applications/{id}/view:
-    $ref: "paths/bot-admission.yaml#/~1api~1v1~1bot~1admission~1freshman~1applications~1{id}~1view"
-  /api/v1/bot/admission/freshman/applications/{id}/review:
-    $ref: "paths/bot-admission.yaml#/~1api~1v1~1bot~1admission~1freshman~1applications~1{id}~1review"
-
   # ── Admin: User System ──
-  /api/v1/admin/identities:
-    $ref: "paths/admin-user-system.yaml#/~1api~1v1~1admin~1identities"
-  /api/v1/admin/identities/{userID}:
-    $ref: "paths/admin-user-system.yaml#/~1api~1v1~1admin~1identities~1{userID}"
-  /api/v1/admin/student-verifications:
-    $ref: "paths/admin-user-system.yaml#/~1api~1v1~1admin~1student-verifications"
-  /api/v1/admin/student-verifications/{userID}:
-    $ref: "paths/admin-user-system.yaml#/~1api~1v1~1admin~1student-verifications~1{userID}"
-  /api/v1/admin/school-configs:
-    $ref: "paths/admin-user-system.yaml#/~1api~1v1~1admin~1school-configs"
-  /api/v1/admin/school-configs/{schoolID}:
-    $ref: "paths/admin-user-system.yaml#/~1api~1v1~1admin~1school-configs~1{schoolID}"
   /api/v1/admin/system-configs:
     $ref: "paths/admin-user-system.yaml#/~1api~1v1~1admin~1system-configs"
   /api/v1/admin/system-configs/{key}:
@@ -489,10 +528,6 @@ paths:
     $ref: "paths/admin-admission.yaml#/~1api~1v1~1admin~1admission~1sessions~1{id}~1regenerate"
   /api/v1/admin/admission/sessions/{id}/cancel:
     $ref: "paths/admin-admission.yaml#/~1api~1v1~1admin~1admission~1sessions~1{id}~1cancel"
-  /api/v1/admin/freshman-verifications:
-    $ref: "paths/admin-admission.yaml#/~1api~1v1~1admin~1freshman-verifications"
-  /api/v1/admin/freshman-verifications/{id}:
-    $ref: "paths/admin-admission.yaml#/~1api~1v1~1admin~1freshman-verifications~1{id}"
   /api/v1/admin/member-blacklist:
     $ref: "paths/admin-member-blacklist.yaml#/~1api~1v1~1admin~1member-blacklist"
   /api/v1/admin/member-blacklist/{id}/release:
@@ -696,44 +731,10 @@ components:
       $ref: "components/schemas/admin.yaml#/UpdateSensitiveWordRequest"
 
     # User System
-    UserIdentity:
-      $ref: "components/schemas/user-system.yaml#/UserIdentity"
-    AdminIdentityReviewItem:
-      $ref: "components/schemas/user-system.yaml#/AdminIdentityReviewItem"
-    AdminIdentityReviewDetail:
-      $ref: "components/schemas/user-system.yaml#/AdminIdentityReviewDetail"
-    SubmitIdentityRequest:
-      $ref: "components/schemas/user-system.yaml#/SubmitIdentityRequest"
-    UserProfile:
-      $ref: "components/schemas/user-system.yaml#/UserProfile"
-    SubmitStudentVerificationRequest:
-      $ref: "components/schemas/user-system.yaml#/SubmitStudentVerificationRequest"
-    StudentEmailOTPRequest:
-      $ref: "components/schemas/user-system.yaml#/StudentEmailOTPRequest"
-    StudentEmailOTPVerifyRequest:
-      $ref: "components/schemas/user-system.yaml#/StudentEmailOTPVerifyRequest"
-    StudentEmailOTPResponse:
-      $ref: "components/schemas/user-system.yaml#/StudentEmailOTPResponse"
-    BindPhoneRequest:
-      $ref: "components/schemas/user-system.yaml#/BindPhoneRequest"
-    SchoolConfig:
-      $ref: "components/schemas/user-system.yaml#/SchoolConfig"
-    SchoolEmailIdentityPolicy:
-      $ref: "components/schemas/user-system.yaml#/SchoolEmailIdentityPolicy"
-    AcademicStudentInfo:
-      $ref: "components/schemas/user-system.yaml#/AcademicStudentInfo"
-    ReviewIdentityRequest:
-      $ref: "components/schemas/user-system.yaml#/ReviewIdentityRequest"
-    ReviewStudentVerificationRequest:
-      $ref: "components/schemas/user-system.yaml#/ReviewStudentVerificationRequest"
     SystemConfigSchema:
       $ref: "components/schemas/user-system.yaml#/SystemConfig"
     UpdateSystemConfigRequest:
       $ref: "components/schemas/user-system.yaml#/UpdateSystemConfigRequest"
-    AdminSchoolConfig:
-      $ref: "components/schemas/user-system.yaml#/AdminSchoolConfig"
-    UpdateSchoolConfigRequest:
-      $ref: "components/schemas/user-system.yaml#/UpdateSchoolConfigRequest"
     UserSurface:
       $ref: "components/schemas/user-system.yaml#/UserSurface"
     QQBinding:
@@ -818,34 +819,12 @@ components:
       $ref: "components/schemas/admission.yaml#/AdmissionPolicyCreateRequest"
     BotAdmissionPolicyTarget:
       $ref: "components/schemas/admission.yaml#/BotAdmissionPolicyTarget"
-    FreshmanApplication:
-      $ref: "components/schemas/admission.yaml#/FreshmanApplication"
-    FreshmanReviewRequest:
-      $ref: "components/schemas/admission.yaml#/FreshmanReviewRequest"
     BotAdmissionSessionCreateRequest:
       $ref: "components/schemas/admission.yaml#/BotAdmissionSessionCreateRequest"
     BotAdmissionEventRequest:
       $ref: "components/schemas/admission.yaml#/BotAdmissionEventRequest"
     BotAdmissionJoinRequestEvent:
       $ref: "components/schemas/admission.yaml#/BotAdmissionJoinRequestEvent"
-    BotFreshmanReviewRequest:
-      $ref: "components/schemas/admission.yaml#/BotFreshmanReviewRequest"
-    CameraCaptureRequest:
-      $ref: "components/schemas/admission.yaml#/CameraCaptureRequest"
-    FreshmanCameraHandoff:
-      $ref: "components/schemas/admission.yaml#/FreshmanCameraHandoff"
-    FreshmanCameraHandoffContinuationRequest:
-      $ref: "components/schemas/admission.yaml#/FreshmanCameraHandoffContinuationRequest"
-    SchoolEmailAcademicMatchRequest:
-      $ref: "components/schemas/admission.yaml#/SchoolEmailAcademicMatchRequest"
-    SchoolEmailAcademicMatchResponse:
-      $ref: "components/schemas/admission.yaml#/SchoolEmailAcademicMatchResponse"
-    SchoolEmailOTPRequest:
-      $ref: "components/schemas/admission.yaml#/SchoolEmailOTPRequest"
-    SchoolEmailOTPVerifyRequest:
-      $ref: "components/schemas/admission.yaml#/SchoolEmailOTPVerifyRequest"
-    SchoolEmailOTPResponse:
-      $ref: "components/schemas/admission.yaml#/SchoolEmailOTPResponse"
     MemberBlacklistEntry:
       $ref: "components/schemas/member-blacklist.yaml#/MemberBlacklistEntry"
     MemberBlacklistCreateRequest:

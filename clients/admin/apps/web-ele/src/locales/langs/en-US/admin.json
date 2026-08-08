@@ -10,13 +10,14 @@
     },
     "userSystem": {
       "title": "User System",
-      "identityReview": "Identity Review",
-      "studentVerification": "Student Verification",
+      "identityReview": "Retired Identity Review",
+      "studentVerification": "Manual Student Review",
+      "studentCredentials": "Credentials & Subject Conflicts",
       "admissionSessions": "Admission Sessions",
-      "freshmanVerification": "Freshman Verification",
+      "freshmanVerification": "Retired Freshman Review",
       "admissionPolicy": "Admission Policy",
       "memberBlacklist": "Member Blacklist",
-      "schoolConfig": "School Config",
+      "schoolConfig": "Verification School Config",
       "systemConfig": "System Config"
     },
     "authorization": {
@@ -469,8 +470,7 @@
       },
       "verifyMethod": {
         "academic_db_match": "Academic DB Match",
-        "manual": "Manual Review",
-        "tencent_cloud": "Tencent Cloud Verification"
+        "manual": "Manual Review"
       }
     },
     "studentVerification": {

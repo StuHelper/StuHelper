@@ -8,7 +8,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
 
-	"github.com/StuHelper/StuHelper/server/internal/pkg/audit"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/logger"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/outbox"
 )
@@ -17,21 +16,7 @@ func (s *Service) StartBackgroundJobs(ctx context.Context, start func(string, fu
 	if start == nil {
 		panic("admission.Service.StartBackgroundJobs: starter is required")
 	}
-	start("admission freshman expiry worker", s.runFreshmanExpiryWorker)
 	start("admission member blacklist expiry worker", s.runMemberBlacklistExpiryWorker)
-}
-
-func (s *Service) runFreshmanExpiryWorker(ctx context.Context) {
-	ticker := time.NewTicker(outbox.IAMWorkerPollInterval)
-	defer ticker.Stop()
-	for {
-		s.runFreshmanExpiryBatch(ctx)
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-		}
-	}
 }
 
 func (s *Service) runMemberBlacklistExpiryWorker(ctx context.Context) {
@@ -47,17 +32,6 @@ func (s *Service) runMemberBlacklistExpiryWorker(ctx context.Context) {
 	}
 }
 
-func (s *Service) runFreshmanExpiryBatch(ctx context.Context) {
-	processed, err := s.ProcessExpiredFreshmanCredentials(ctx)
-	if err != nil && ctx.Err() == nil {
-		logger.L().Warn("admission freshman expiry batch failed", zap.Error(err))
-		return
-	}
-	if processed > 0 {
-		logger.L().Info("admission freshman expiry batch completed", zap.Int("processed_count", processed))
-	}
-}
-
 func (s *Service) runMemberBlacklistExpiryBatch(ctx context.Context) {
 	processed, err := s.ProcessExpiredMemberBlacklists(ctx)
 	if err != nil && ctx.Err() == nil {
@@ -67,24 +41,6 @@ func (s *Service) runMemberBlacklistExpiryBatch(ctx context.Context) {
 	if processed > 0 {
 		logger.L().Info("admission member blacklist expiry batch completed", zap.Int("processed_count", processed))
 	}
-}
-
-func (s *Service) ProcessExpiredFreshmanCredentials(ctx context.Context) (int, error) {
-	items, err := s.repo.ListExpiredFreshmanCredentials(ctx, s.now(), outbox.IAMWorkerBatchSize)
-	if err != nil {
-		return 0, err
-	}
-	processed := 0
-	for _, item := range items {
-		updated, err := s.processExpiredFreshmanCredential(ctx, item)
-		if err != nil {
-			return processed, err
-		}
-		if updated {
-			processed++
-		}
-	}
-	return processed, nil
 }
 
 func (s *Service) ProcessExpiredMemberBlacklists(ctx context.Context) (int, error) {
@@ -103,25 +59,6 @@ func (s *Service) ProcessExpiredMemberBlacklists(ctx context.Context) (int, erro
 		}
 	}
 	return processed, nil
-}
-
-func (s *Service) processExpiredFreshmanCredential(
-	ctx context.Context,
-	item ExpiredFreshmanCredential,
-) (bool, error) {
-	updated := false
-	err := s.repo.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
-		won, err := s.repo.MarkFreshmanCredentialExpiryProcessedTx(ctx, tx, item.ID, s.now())
-		if err != nil {
-			return err
-		}
-		if !won {
-			return nil
-		}
-		updated = true
-		return s.repo.InsertAuditEventTx(ctx, tx, freshmanExpiryAuditEvent(ctx, item))
-	})
-	return updated, err
 }
 
 func (s *Service) processExpiredMemberBlacklist(ctx context.Context, item MemberBlacklistEntry) (bool, error) {
@@ -144,17 +81,4 @@ func (s *Service) processExpiredMemberBlacklist(ctx context.Context, item Member
 		return s.afterMemberBlacklistReleaseTx(ctx, tx, entry, input.ReleaseReasonCode)
 	})
 	return updated, err
-}
-
-func freshmanExpiryAuditEvent(ctx context.Context, item ExpiredFreshmanCredential) audit.Event {
-	return audit.EventFromContext(ctx, audit.Event{
-		Type:         audit.EventType("admission.freshman.expire"),
-		Category:     "domain_event",
-		ActorType:    "system",
-		ResourceType: "admission.freshman_credential",
-		ResourceID:   item.ID,
-		Action:       "expire",
-		Result:       "success",
-		Details:      map[string]any{"user_id": item.UserID, "expires_at": item.ExpiresAt},
-	})
 }

@@ -1,0 +1,11 @@
+title = "StuHelper gitleaks policy"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "generic-api-key"
+
+  [[rules.allowlists]]
+  description = "oapi-codegen compressed OpenAPI blob; authoritative OpenAPI sources remain scanned"
+  paths = ['''^server/internal/api/gen/server\.gen\.go$''']

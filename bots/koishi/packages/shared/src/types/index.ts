@@ -11,21 +11,17 @@ export type GuardMemberActionState =
   | 'expired_pending_kick'
 
 export type AdmissionSessionStatus =
-  | 'joined_muted'
-  | 'linked'
-  | 'material_submitted'
-  | 'verified'
-  | 'expired_kicked'
-  | 'cancelled'
-
-export type FreshmanApplicationStatus =
-  | 'pending'
-  | 'approved'
+  | 'created'
+  | 'awaiting_account_link'
+  | 'awaiting_requirements'
+  | 'pending_manual_review'
+  | 'eligible'
+  | 'action_pending'
+  | 'admitted'
+  | 'released'
+  | 'expired'
   | 'rejected'
-
-export type FreshmanMaterialType =
-  | 'admission_notice'
-  | 'admission_certificate'
+  | 'cancelled'
 
 export type AdmissionBotAction =
   | 'mute'
@@ -33,14 +29,11 @@ export type AdmissionBotAction =
   | 'release'
   | 'kick'
   | 'blacklist'
-  | 'forward'
 
 export type AdmissionJoinHandlingStrategy =
   | 'post_join_guard'
   | 'join_request_review'
   | 'post_join_time_code'
-
-export type FreshmanReviewAction = 'approve' | 'reject'
 
 export const GUARD_MEMBER_TABLE = 'stuhelper_guard_member'
 
@@ -68,10 +61,6 @@ export interface StuhelperAdminMessageConfig {
   guardBatchMuteCommandDescription: string
   guardKickReviewCommandDescription: string
   guardBlockReviewCommandDescription: string
-  freshmanViewCommandDescription: string
-  freshmanApproveCommandDescription: string
-  freshmanRejectCommandDescription: string
-  freshmanBlacklistReleaseCommandDescription: string
   commandAccessDenied: string
   adminCommandsDisabled: string
   guardGuildContextRequired: string
@@ -96,26 +85,6 @@ export interface StuhelperAdminMessageConfig {
   guardPendingReviewsEmpty: string
   guardPendingReviewsHeader: string
   guardPendingReviewLine: string
-  freshmanManagementGroupOnly: string
-  freshmanMissingApplicationID: string
-  freshmanApproveInvalidFormat: string
-  freshmanApproveInvalidExtension: string
-  freshmanRejectInvalidFormat: string
-  freshmanBlacklistReleaseInvalidFormat: string
-  freshmanApproveSuccess: string
-  freshmanApproveSuccessWithExtension: string
-  freshmanRejectSuccess: string
-  freshmanBlacklistScopeGlobal: string
-  freshmanBlacklistScopeGuild: string
-  freshmanBlacklistReleaseSuccess: string
-  freshmanApplicationSummary: string
-  freshmanApplicationDepartmentFallback: string
-  freshmanApplicationExpiryFallback: string
-  freshmanCommandFailed: string
-  freshmanOperatorQQUnbound: string
-  freshmanOperatorForbidden: string
-  freshmanManagementGuildForbidden: string
-  freshmanBackendForbidden: string
 }
 
 export interface StuhelperSchedulerConfig {
@@ -157,10 +126,6 @@ export interface StuhelperGroupGuardMessageConfig {
   moderationMuteNotice: string
   moderationUnmuteNotice: string
   moderationKickNotice: string
-  freshmanForwardSummary: string
-  freshmanForwardUnknownField: string
-  freshmanMaterialTypeAdmissionNotice: string
-  freshmanMaterialTypeAdmissionCertificate: string
   publicReportMissingArgs: string
   publicCommandsDisabled: string
   muteLotteryGroupOnly: string
@@ -207,7 +172,7 @@ export interface StuhelperGroupGuardMessageConfig {
   admissionQueryQQLinked: string
   admissionQueryQQUnlinked: string
   admissionQueryStudentVerified: string
-  admissionQueryStudentFreshmanPending: string
+  admissionQueryStudentManualReviewPending: string
   admissionQueryStudentUnverified: string
   admissionStatusJoinedMuted: string
   admissionStatusLinked: string
@@ -264,7 +229,6 @@ export interface StuhelperGroupGuardMessageConfig {
   admissionJoinMutedEventSummary: string
   admissionJoinAlreadyVerifiedEventSummary: string
   admissionJoinBackendUnavailableEventSummary: string
-  admissionJoinBackendVerifiedEventSummary: string
   admissionTimeCodeJoinGuardedEventSummary: string
   admissionTimeCodeVerifiedEventSummary: string
   admissionTimeCodeExpiredEventSummary: string
@@ -283,6 +247,13 @@ export interface StuhelperGroupGuardPluginConfig {
   platform: StuhelperPlatformConfig
   scheduler: StuhelperSchedulerConfig
   actionStream?: StuhelperAdmissionActionStreamConfig
+  alerting?: StuhelperAlertmanagerWebhookConfig
+}
+
+export interface StuhelperAlertmanagerWebhookConfig {
+  enabled: boolean
+  bearerToken: string
+  botSelfID: string
 }
 
 export interface StuhelperAdminPluginConfig {
@@ -312,7 +283,6 @@ export interface QQVerificationStatus {
   userID: number | null
   boundAt: string | null
   verificationState: PlatformVerificationState
-  profileVerificationStatus: 'unverified' | 'pending' | 'verified' | 'rejected'
   studentVerified: boolean
 }
 
@@ -331,7 +301,6 @@ export interface AdmissionSession {
   readonly initialMuteUntil: string
   readonly projectionPending: boolean
   readonly authURL?: string
-  readonly maxMaterialBytes?: number
   readonly lastBotError?: string | null
   readonly failureCount?: number
   readonly remainingRetryCount?: number
@@ -369,6 +338,7 @@ export interface AdmissionPolicyTarget {
   readonly guardEnabled?: boolean
   readonly joinHandlingStrategy?: AdmissionJoinHandlingStrategy
   readonly linkWaitSeconds?: number
+  readonly managementGuildIDs: readonly string[]
 }
 
 export interface AdmissionFailureResetResult {
@@ -421,6 +391,7 @@ export interface AdmissionPendingActionsRequest {
 export interface AdmissionPendingAction {
   readonly actionID?: string
   readonly dispatchAttempt?: number
+  readonly eligibilityRevision?: number
   readonly sessionID: string
   readonly action: Extract<AdmissionBotAction, 'remind' | 'release' | 'kick' | 'blacklist'>
   readonly platform?: string
@@ -445,42 +416,4 @@ export interface AdmissionBotEventRequest {
 
 export interface AdmissionBotActionEventRequest extends AdmissionBotEventRequest {
   readonly dispatchAttempt: number
-}
-
-export interface FreshmanApplication {
-  readonly id: string
-  readonly userID: number | string
-  readonly schoolID: number
-  readonly admissionSessionID?: string
-  readonly applicantName?: string
-  readonly applicantNameMasked: string
-  readonly departmentOrMajor?: string | null
-  readonly materialType: FreshmanMaterialType
-  readonly status: FreshmanApplicationStatus
-  readonly provisionalExpiresAt?: string | null
-  readonly reviewedAt?: string | null
-  readonly createdAt: string
-}
-
-export interface FreshmanForwardItem {
-  readonly application: FreshmanApplication
-  readonly materialURL: string
-  readonly managementGuildIDs: readonly string[]
-  readonly platform?: string
-  readonly botSelfID?: string
-  readonly schoolName?: string
-  readonly qqID?: string
-}
-
-export interface FreshmanCommandContext {
-  readonly operatorQQID: string
-  readonly guildID: string
-  readonly channelID?: string
-  readonly rawCommand: string
-}
-
-export interface FreshmanReviewRequest extends FreshmanCommandContext {
-  readonly action: FreshmanReviewAction
-  readonly reason?: string
-  readonly expiresInDays?: number
 }

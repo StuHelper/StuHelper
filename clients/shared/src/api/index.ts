@@ -13,6 +13,7 @@ export * from "./user-admin";
 export * from "./admission";
 export * from "./open-platform";
 export * from "./resource";
+export * from "./student-verification";
 export * from "./error-codes";
 export * from "./errors";
 

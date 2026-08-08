@@ -475,15 +475,11 @@ SELECT gen_random_uuid()::varchar, teacher_id, term_id, dimension_key, avg_ratin
 FROM dist_overall;
 
 -- ============================================
--- 10. 开发环境：测试用学籍数据
+-- 10. 开发环境：学籍数据由版本化快照导入
 -- ============================================
-INSERT INTO academic.buaa_students (xh, xm, sfzjlxdm, sfzjh_enc, sfzjh_hash, yxdm, zydm, bjdm, xznj, rxnj, pyccdm, xslbdm, sjh, dzxx, xjztdm, sfzx, sfzj) VALUES
-    ('20211001', '张三', '1', NULL, NULL, '001', '0812', '210101', '4', '2021', '01', '01', '13800138001', 'zhangsan@buaa.edu.cn', '01', '1', '1'),
-    ('20211002', '李四', '1', NULL, NULL, '001', '0812', '210101', '4', '2021', '01', '01', '13800138002', 'lisi@buaa.edu.cn', '01', '1', '1'),
-    ('20211003', '王五', '1', NULL, NULL, '003', '0502', '210301', '4', '2021', '01', '01', '13800138003', 'wangwu@buaa.edu.cn', '01', '1', '1'),
-    ('20241001', '张三', '1', NULL, NULL, '001', '0812', '241001', '1', '2024', '02', '02', '13800138001', 'zhangsan@buaa.edu.cn', '01', '1', '1'),
-    ('20211004', 'John Smith', 'A', NULL, NULL, '001', '0812', '210102', '4', '2021', '01', '01', NULL, 'john@buaa.edu.cn', '01', '1', '1')
-ON CONFLICT (xh) DO NOTHING;
+-- 旧 academic.buaa_students 写路径已由单向切换 migration 永久关闭。
+-- 通用 seed 不制造任何伪造学生身份；学籍测试数据必须经过与生产相同的
+-- 加密、带密钥 HMAC、质量门禁和原子激活流程导入 fixture 快照。
 
 -- ============================================
 -- 11. 开发环境：入群认证最小策略数据

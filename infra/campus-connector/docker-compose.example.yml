@@ -1,0 +1,20 @@
+services:
+  campus-connector:
+    build:
+      context: ../../server
+      dockerfile: Dockerfile.campus-connector
+    image: stuhelper-campus-connector:local
+    restart: unless-stopped
+    environment:
+      CAMPUS_CONNECTOR_NODE_CONFIG_FILE: /etc/stuhelper-connector/node.json
+    volumes:
+      - ./node-config.json:/etc/stuhelper-connector/node.json:ro
+      - ./secrets:/run/secrets:ro
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=16m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128

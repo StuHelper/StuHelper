@@ -46,6 +46,8 @@ export SMOKE_CHECK_CURL_INSECURE=true
 
 "${SCRIPT_DIR}/prod-parity-datastore-smoke.sh"
 "${SCRIPT_DIR}/prod-parity-smoke-data.sh"
+ADMISSION_READINESS_REQUIRED_METHODS=student_email_outbound_otp \
+ADMISSION_READINESS_ALLOW_FIXTURE_ROSTER=true \
 "${SCRIPT_DIR}/admission-production-readiness.sh"
 
 "${SCRIPT_DIR}/smoke-check.sh"

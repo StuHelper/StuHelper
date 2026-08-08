@@ -21,6 +21,7 @@ func TestAdmissionPolicyJSONMatchesOpenAPIShape(t *testing.T) {
 		ManualReviewTimeoutSeconds: 40,
 		ReminderIntervalSeconds:    50,
 		FailedJoinLimit:            3,
+		AllowTemporaryFreshman:     true,
 		FreshmanChannelEnabled:     true,
 		FreshmanChannelClosesAt:    time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC),
 		FreshmanDefaultExpiresAt:   time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC),
@@ -38,7 +39,18 @@ func TestAdmissionPolicyJSONMatchesOpenAPIShape(t *testing.T) {
 	require.Equal(t, "qq", decoded["platform"])
 	require.Equal(t, "guild-1", decoded["guildID"])
 	require.Equal(t, true, decoded["guardEnabled"])
-	require.Equal(t, []any{}, decoded["managementGuildIDs"])
+	require.Equal(t, true, decoded["allowTemporaryFreshman"])
+	for _, legacyField := range []string{
+		"freshmanChannelEnabled",
+		"freshmanChannelClosesAt",
+		"freshmanDefaultExpiresAt",
+		"forwardRawMaterialToQQ",
+		"managementGuildIDs",
+		"maxMaterialBytes",
+		"maxExtensionDays",
+	} {
+		require.NotContains(t, decoded, legacyField)
+	}
 	require.NotContains(t, decoded, "ID")
 	require.NotContains(t, decoded, "ManagementGuildIDs")
 	require.NotContains(t, decoded, "schoolID")
@@ -52,6 +64,7 @@ func TestAdmissionPolicyTargetJSONIncludesPostJoinWaitSeconds(t *testing.T) {
 		GuardEnabled:         true,
 		JoinHandlingStrategy: AdmissionJoinHandlingPostJoinTimeCode,
 		LinkWaitSeconds:      600,
+		ManagementGuildIDs:   []string{"management-1"},
 	}
 
 	payload, err := json.Marshal(target)
@@ -65,6 +78,7 @@ func TestAdmissionPolicyTargetJSONIncludesPostJoinWaitSeconds(t *testing.T) {
 	require.Equal(t, true, decoded["guardEnabled"])
 	require.Equal(t, string(AdmissionJoinHandlingPostJoinTimeCode), decoded["joinHandlingStrategy"])
 	require.Equal(t, float64(600), decoded["linkWaitSeconds"])
+	require.Equal(t, []any{"management-1"}, decoded["managementGuildIDs"])
 }
 
 func TestAdmissionSessionJSONMatchesOpenAPIShape(t *testing.T) {

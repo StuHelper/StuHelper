@@ -21,11 +21,18 @@ const (
 type AdmissionSessionStatus string
 
 const (
-	StatusJoinedMuted       AdmissionSessionStatus = "joined_muted"
-	StatusLinked            AdmissionSessionStatus = "linked"
-	StatusMaterialSubmitted AdmissionSessionStatus = "material_submitted"
-	StatusVerified          AdmissionSessionStatus = "verified"
-	StatusExpiredKicked     AdmissionSessionStatus = "expired_kicked"
+	// The wire/database values express admission workflow progress only; student
+	// eligibility remains authoritative in the student-verification domain.
+	StatusCreated           AdmissionSessionStatus = "created"
+	StatusJoinedMuted       AdmissionSessionStatus = "awaiting_account_link"
+	StatusLinked            AdmissionSessionStatus = "awaiting_requirements"
+	StatusMaterialSubmitted AdmissionSessionStatus = "pending_manual_review"
+	StatusEligible          AdmissionSessionStatus = "eligible"
+	StatusVerified          AdmissionSessionStatus = "action_pending"
+	StatusAdmitted          AdmissionSessionStatus = "admitted"
+	StatusReleased          AdmissionSessionStatus = "released"
+	StatusRejected          AdmissionSessionStatus = "rejected"
+	StatusExpiredKicked     AdmissionSessionStatus = "expired"
 	StatusCancelled         AdmissionSessionStatus = "cancelled"
 )
 
@@ -43,22 +50,6 @@ const (
 	AdmissionJoinHandlingPostJoinGuard     AdmissionJoinHandlingStrategy = "post_join_guard"
 	AdmissionJoinHandlingJoinRequestReview AdmissionJoinHandlingStrategy = "join_request_review"
 	AdmissionJoinHandlingPostJoinTimeCode  AdmissionJoinHandlingStrategy = "post_join_time_code"
-)
-
-type FreshmanCameraHandoffStatus string
-
-const (
-	FreshmanCameraHandoffPending  FreshmanCameraHandoffStatus = "pending"
-	FreshmanCameraHandoffUploaded FreshmanCameraHandoffStatus = "uploaded"
-	FreshmanCameraHandoffLocked   FreshmanCameraHandoffStatus = "locked"
-	FreshmanCameraHandoffExpired  FreshmanCameraHandoffStatus = "expired"
-)
-
-type FreshmanCameraContinuation string
-
-const (
-	FreshmanCameraContinueDesktop FreshmanCameraContinuation = "desktop"
-	FreshmanCameraContinueMobile  FreshmanCameraContinuation = "mobile"
 )
 
 type VerificationCredentialKind string
@@ -83,29 +74,32 @@ const (
 const defaultAdmissionPublicBaseURL = "https://join.stuhelper.com"
 
 type AdmissionSession struct {
-	ID                       string                 `json:"id"`
-	Platform                 string                 `json:"platform"`
-	BotSelfID                string                 `json:"botSelfID,omitempty"`
-	GuildID                  string                 `json:"guildID"`
-	ChannelID                string                 `json:"channelID"`
-	QQID                     string                 `json:"qqID"`
-	UserID                   *int64                 `json:"userID,omitempty"`
-	TokenHash                string                 `json:"-"`
-	AuthURL                  string                 `json:"authURL,omitempty"`
-	TokenExpiresAt           time.Time              `json:"tokenExpiresAt"`
-	TokenConsumedAt          *time.Time             `json:"tokenConsumedAt,omitempty"`
-	Status                   AdmissionSessionStatus `json:"status"`
-	LinkWaitDeadlineAt       time.Time              `json:"linkWaitDeadlineAt"`
-	SubmissionWaitDeadlineAt time.Time              `json:"submissionWaitDeadlineAt"`
-	ManualReviewDeadlineAt   *time.Time             `json:"manualReviewDeadlineAt,omitempty"`
-	InitialMuteUntil         time.Time              `json:"initialMuteUntil"`
-	VerifiedAt               *time.Time             `json:"verifiedAt,omitempty"`
-	CancelledAt              *time.Time             `json:"cancelledAt,omitempty"`
-	LastBotError             *string                `json:"lastBotError,omitempty"`
-	ProjectionPending        bool                   `json:"projectionPending"`
-	FailureCount             int                    `json:"failureCount,omitempty"`
-	RemainingRetryCount      int                    `json:"remainingRetryCount,omitempty"`
-	WillBlacklistOnTimeout   bool                   `json:"willBlacklistOnTimeout,omitempty"`
+	ID                       string                  `json:"id"`
+	Platform                 string                  `json:"platform"`
+	BotSelfID                string                  `json:"botSelfID,omitempty"`
+	GuildID                  string                  `json:"guildID"`
+	ChannelID                string                  `json:"channelID"`
+	QQID                     string                  `json:"qqID"`
+	UserID                   *int64                  `json:"userID,omitempty"`
+	TokenHash                string                  `json:"-"`
+	AuthURL                  string                  `json:"authURL,omitempty"`
+	TokenExpiresAt           time.Time               `json:"tokenExpiresAt"`
+	TokenConsumedAt          *time.Time              `json:"tokenConsumedAt,omitempty"`
+	Status                   AdmissionSessionStatus  `json:"status"`
+	LinkWaitDeadlineAt       time.Time               `json:"linkWaitDeadlineAt"`
+	SubmissionWaitDeadlineAt time.Time               `json:"submissionWaitDeadlineAt"`
+	ManualReviewDeadlineAt   *time.Time              `json:"manualReviewDeadlineAt,omitempty"`
+	InitialMuteUntil         time.Time               `json:"initialMuteUntil"`
+	VerifiedAt               *time.Time              `json:"verifiedAt,omitempty"`
+	CancelledAt              *time.Time              `json:"cancelledAt,omitempty"`
+	LastBotError             *string                 `json:"lastBotError,omitempty"`
+	EligibilityRevision      *int64                  `json:"eligibilityRevision,omitempty"`
+	EligibilityEvaluatedAt   *time.Time              `json:"eligibilityEvaluatedAt,omitempty"`
+	RequirementsStatus       *AdmissionSessionStatus `json:"-"`
+	ProjectionPending        bool                    `json:"projectionPending"`
+	FailureCount             int                     `json:"failureCount,omitempty"`
+	RemainingRetryCount      int                     `json:"remainingRetryCount,omitempty"`
+	WillBlacklistOnTimeout   bool                    `json:"willBlacklistOnTimeout,omitempty"`
 	nextReminderAt           *time.Time
 }
 
@@ -126,11 +120,9 @@ func (s AdmissionSession) MarshalJSON() ([]byte, error) {
 }
 
 type AdmissionMe struct {
-	Status               AdmissionSessionStatus      `json:"status"`
-	ProjectionPending    bool                        `json:"projectionPending"`
-	Session              *AdmissionSession           `json:"session,omitempty"`
-	CredentialKind       *VerificationCredentialKind `json:"credentialKind,omitempty"`
-	ProvisionalExpiresAt *time.Time                  `json:"provisionalExpiresAt,omitempty"`
+	Status            AdmissionSessionStatus `json:"status"`
+	ProjectionPending bool                   `json:"projectionPending"`
+	Session           *AdmissionSession      `json:"session,omitempty"`
 }
 
 type CreatedAdmissionSession struct {
@@ -244,54 +236,6 @@ type AdminFreshmanReviewInput struct {
 	Reason         *string
 	ExpiresInDays  *int
 	OperatorUserID int64
-}
-
-type CameraCaptureInput struct {
-	UserID        int64
-	ApplicationID string
-	ContentType   string
-	ImageBase64   string
-}
-
-type FreshmanCameraHandoff struct {
-	ID               string                      `json:"id"`
-	ApplicationID    string                      `json:"applicationID"`
-	UserID           int64                       `json:"userID"`
-	Status           FreshmanCameraHandoffStatus `json:"status"`
-	ContinueOn       *FreshmanCameraContinuation `json:"continueOn,omitempty"`
-	MobileURL        string                      `json:"mobileURL,omitempty"`
-	ExpiresAt        time.Time                   `json:"expiresAt"`
-	UploadedAt       *time.Time                  `json:"uploadedAt,omitempty"`
-	ChosenAt         *time.Time                  `json:"chosenAt,omitempty"`
-	CreatedAt        time.Time                   `json:"createdAt"`
-	MaxMaterialBytes int64                       `json:"maxMaterialBytes"`
-}
-
-func (h FreshmanCameraHandoff) MarshalJSON() ([]byte, error) {
-	type alias FreshmanCameraHandoff
-	return json.Marshal(struct {
-		alias
-		UserID string `json:"userID"`
-	}{
-		alias:  alias(h),
-		UserID: strconv.FormatInt(h.UserID, 10),
-	})
-}
-
-type FreshmanCameraHandoffCreateInput struct {
-	UserID        int64
-	ApplicationID string
-}
-
-type FreshmanCameraHandoffCaptureInput struct {
-	Token       string
-	ContentType string
-	ImageBase64 string
-}
-
-type FreshmanCameraHandoffContinuationInput struct {
-	Token      string
-	ContinueOn FreshmanCameraContinuation
 }
 
 type SchoolEmailOTPInput struct {
@@ -409,13 +353,16 @@ type AdmissionPolicy struct {
 	ReminderIntervalSeconds    int                           `json:"reminderIntervalSeconds"`
 	FailedJoinLimit            int                           `json:"failedJoinLimit"`
 	BlacklistDurationSeconds   *int                          `json:"blacklistDurationSeconds,omitempty"`
-	FreshmanChannelEnabled     bool                          `json:"freshmanChannelEnabled"`
-	FreshmanChannelClosesAt    time.Time                     `json:"freshmanChannelClosesAt"`
-	FreshmanDefaultExpiresAt   time.Time                     `json:"freshmanDefaultExpiresAt"`
-	ForwardRawMaterialToQQ     bool                          `json:"forwardRawMaterialToQQ"`
-	ManagementGuildIDs         []string                      `json:"managementGuildIDs"`
-	MaxMaterialBytes           int64                         `json:"maxMaterialBytes"`
-	MaxExtensionDays           int                           `json:"maxExtensionDays"`
+	AllowTemporaryFreshman     bool                          `json:"allowTemporaryFreshman"`
+	// Legacy freshman/material fields remain internal only until the dead
+	// repository code is removed. They must never re-enter the target API.
+	FreshmanChannelEnabled   bool      `json:"-"`
+	FreshmanChannelClosesAt  time.Time `json:"-"`
+	FreshmanDefaultExpiresAt time.Time `json:"-"`
+	ForwardRawMaterialToQQ   bool      `json:"-"`
+	ManagementGuildIDs       []string  `json:"-"`
+	MaxMaterialBytes         int64     `json:"-"`
+	MaxExtensionDays         int       `json:"-"`
 }
 
 type AdmissionPolicyCreateRequest struct {
@@ -431,4 +378,5 @@ type AdmissionPolicyTarget struct {
 	GuardEnabled         bool                          `json:"guardEnabled"`
 	JoinHandlingStrategy AdmissionJoinHandlingStrategy `json:"joinHandlingStrategy"`
 	LinkWaitSeconds      int                           `json:"linkWaitSeconds"`
+	ManagementGuildIDs   []string                      `json:"managementGuildIDs"`
 }

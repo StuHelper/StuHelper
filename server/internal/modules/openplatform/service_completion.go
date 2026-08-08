@@ -28,7 +28,7 @@ var completionFieldCatalog = map[string]ProfileCompletionField{
 	ProfileFieldEmail:    {Key: ProfileFieldEmail, DisplayName: "邮箱", ActionURL: "/account/profile"},
 	ProfileFieldAvatar:   {Key: ProfileFieldAvatar, DisplayName: "头像", ActionURL: "/account/profile"},
 	ProfileFieldPhone:    {Key: ProfileFieldPhone, DisplayName: "手机号", ActionURL: "/user/phone-binding"},
-	ProfileFieldIdentity: {Key: ProfileFieldIdentity, DisplayName: "实名认证", ActionURL: "/user/identity-verification"},
+	ProfileFieldIdentity: {Key: ProfileFieldIdentity, DisplayName: "实名信息校验", ActionURL: "/user/student-verification?method=real_name_identity_check"},
 	ProfileFieldStudent:  {Key: ProfileFieldStudent, DisplayName: "学生认证", ActionURL: "/user/student-verification"},
 	ProfileFieldSchool:   {Key: ProfileFieldSchool, DisplayName: "学校信息", ActionURL: "/user/student-verification"},
 }

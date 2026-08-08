@@ -7,6 +7,7 @@ import type { PlatformClient } from '@stuhelper/koishi-shared'
 import {
   admissionActionReconnectDelayMs,
   registerAdmissionActionStreams,
+  shouldLogReconnectAttempt,
 } from './admission-action-stream'
 import type { MemberGuardService } from './member-guard'
 
@@ -158,6 +159,15 @@ test('admission action stream reconnect delay is bounded exponential backoff wit
   assert.equal(admissionActionReconnectDelayMs(5, 1, () => 0), 8_000)
   assert.equal(admissionActionReconnectDelayMs(5, 1, () => 0.5), 10_000)
   assert.equal(admissionActionReconnectDelayMs(5, 100, () => 1), 300_000)
+})
+
+test('admission action stream samples reconnect warnings without resetting on an action', () => {
+  assert.equal(shouldLogReconnectAttempt(1), true)
+  assert.equal(shouldLogReconnectAttempt(2), true)
+  assert.equal(shouldLogReconnectAttempt(3), false)
+  assert.equal(shouldLogReconnectAttempt(4), true)
+  assert.equal(shouldLogReconnectAttempt(15), false)
+  assert.equal(shouldLogReconnectAttempt(16), true)
 })
 
 function fakeContext() {

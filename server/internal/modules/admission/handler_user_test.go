@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -80,95 +79,6 @@ func TestAdmissionPreviewHandlerReturnsDomainCodeForMissingToken(t *testing.T) {
 	assert.Equal(t, "admission.token_not_found", body.Error.Code)
 }
 
-func TestFreshmanApplicationHandlerReusesPendingApplicationOnDuplicatePost(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	fixture := postgresfixture.Start(t)
-	svc := newSessionTestService(t, fixture)
-	insertAdmissionPolicy(t, fixture)
-	enableBUAAAdmissionSchool(t, fixture)
-	created := createLinkableSession(t, svc)
-	userID := seedAdmissionUser(t, fixture, "handler-freshman-reuse")
-	_, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
-		Token:  created.Token,
-		UserID: userID,
-	})
-	require.NoError(t, err)
-	router := newAdmissionHandlerTestRouter(t, svc, userID)
-	body := `{"schoolCode":"4111010006","applicantName":"张三","materialType":"admission_notice"}`
-
-	first := performAdmissionHandlerJSONRequest(
-		router,
-		http.MethodPost,
-		"/api/v1/admission/freshman/applications",
-		body,
-	)
-	require.Equal(t, http.StatusCreated, first.Code, first.Body.String())
-	firstBody := decodeFreshmanApplicationResponse(t, first)
-	assert.True(t, firstBody.Success)
-	assert.NotEmpty(t, firstBody.Data.ID)
-	assert.Equal(t, "pending", firstBody.Data.Status)
-
-	second := performAdmissionHandlerJSONRequest(
-		router,
-		http.MethodPost,
-		"/api/v1/admission/freshman/applications",
-		body,
-	)
-	require.Equal(t, http.StatusCreated, second.Code, second.Body.String())
-	secondBody := decodeFreshmanApplicationResponse(t, second)
-	assert.True(t, secondBody.Success)
-	assert.Equal(t, firstBody.Data.ID, secondBody.Data.ID)
-	assert.Equal(t, "pending", secondBody.Data.Status)
-}
-
-func TestAdmissionPublicSchoolRequestsRejectSchoolIDField(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	fixture := postgresfixture.Start(t)
-	svc := newSessionTestService(t, fixture)
-	userID := seedAdmissionUser(t, fixture, "handler-school-id-rejected")
-	router := newAdmissionHandlerTestRouter(t, svc, userID)
-
-	cases := []struct {
-		name string
-		path string
-		body string
-	}{
-		{
-			name: "freshman application",
-			path: "/api/v1/admission/freshman/applications",
-			body: `{"schoolCode":"4111010006","schoolID":4111019999,"applicantName":"张三","materialType":"admission_notice"}`,
-		},
-		{
-			name: "request school email otp",
-			path: "/api/v1/admission/school-email/request-otp",
-			body: `{"schoolCode":"4111010006","schoolID":4111019999,"studentID":"20240001","studentName":"张三"}`,
-		},
-		{
-			name: "match school email academic student",
-			path: "/api/v1/admission/school-email/academic-match",
-			body: `{"schoolCode":"4111010006","schoolID":4111019999,"studentID":"20240001","studentName":"张三"}`,
-		},
-		{
-			name: "verify school email otp",
-			path: "/api/v1/admission/school-email/verify-otp",
-			body: `{"schoolCode":"4111010006","schoolID":4111019999,"email":"20240001@buaa.edu.cn","code":"123456"}`,
-		},
-	}
-
-	for _, tt := range cases {
-		t.Run(tt.name, func(t *testing.T) {
-			response := performAdmissionHandlerJSONRequest(
-				router,
-				http.MethodPost,
-				tt.path,
-				tt.body,
-			)
-			require.Equal(t, http.StatusBadRequest, response.Code, response.Body.String())
-			assert.Contains(t, response.Body.String(), "schoolID is not accepted; use schoolCode")
-		})
-	}
-}
-
 func newAdmissionHandlerTestRouter(t *testing.T, svc *Service, userID int64) *gin.Engine {
 	t.Helper()
 
@@ -196,19 +106,6 @@ func performAdmissionHandlerRequest(router http.Handler, method string, target s
 	return recorder
 }
 
-func performAdmissionHandlerJSONRequest(
-	router http.Handler,
-	method string,
-	target string,
-	body string,
-) *httptest.ResponseRecorder {
-	req := httptest.NewRequest(method, target, strings.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	recorder := httptest.NewRecorder()
-	router.ServeHTTP(recorder, req)
-	return recorder
-}
-
 func decodeAdmissionSessionResponse(t *testing.T, recorder *httptest.ResponseRecorder) struct {
 	Success bool                        `json:"success"`
 	Data    admissionSessionHTTPPayload `json:"data"`
@@ -228,24 +125,6 @@ type admissionSessionHTTPPayload struct {
 	UserID string                 `json:"userID"`
 }
 
-func decodeFreshmanApplicationResponse(t *testing.T, recorder *httptest.ResponseRecorder) struct {
-	Success bool                           `json:"success"`
-	Data    freshmanApplicationHTTPPayload `json:"data"`
-} {
-	t.Helper()
-	var body struct {
-		Success bool                           `json:"success"`
-		Data    freshmanApplicationHTTPPayload `json:"data"`
-	}
-	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &body), recorder.Body.String())
-	return body
-}
-
-type freshmanApplicationHTTPPayload struct {
-	ID     string `json:"id"`
-	Status string `json:"status"`
-}
-
 func decodeAdmissionErrorResponse(t *testing.T, recorder *httptest.ResponseRecorder) struct {
 	Success bool `json:"success"`
 	Error   struct {
@@ -263,14 +142,4 @@ func decodeAdmissionErrorResponse(t *testing.T, recorder *httptest.ResponseRecor
 	}
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &body), recorder.Body.String())
 	return body
-}
-
-func enableBUAAAdmissionSchool(t *testing.T, fixture *postgresfixture.Fixture) {
-	t.Helper()
-	_, err := fixture.Pool.Exec(context.Background(), `
-		UPDATE school_configs
-		SET enabled = true, updated_at = NOW()
-		WHERE school_id = 4111010006
-	`)
-	require.NoError(t, err)
 }

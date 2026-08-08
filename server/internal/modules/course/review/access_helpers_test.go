@@ -34,6 +34,12 @@ func (f fakeAccessReader) ListReviewAccessSystemConfigs(context.Context) ([]revi
 func (f fakeAccessReader) GetReviewAccessSubject(context.Context, string) (*reviewaccess.Subject, error) {
 	return f.subject, f.err
 }
+func (f fakeAccessReader) PhonePublishingRequirementSatisfied(context.Context, int64) (bool, error) {
+	if f.err != nil {
+		return false, f.err
+	}
+	return f.subject != nil && f.subject.IdentityVerified, nil
+}
 
 type contextAwareAccessReader struct{}
 
@@ -45,6 +51,9 @@ func (contextAwareAccessReader) ListReviewAccessSystemConfigs(ctx context.Contex
 }
 func (contextAwareAccessReader) GetReviewAccessSubject(ctx context.Context, _ string) (*reviewaccess.Subject, error) {
 	return nil, ctx.Err()
+}
+func (contextAwareAccessReader) PhonePublishingRequirementSatisfied(ctx context.Context, _ int64) (bool, error) {
+	return false, ctx.Err()
 }
 
 func fullReviewWriteAccess(userID int64) ReviewWriteAccess {
@@ -116,11 +125,12 @@ func TestResolveAccessFacts(t *testing.T) {
 	t.Cleanup(systemconfig.InvalidateReviewAccessPolicySnapshot)
 
 	schoolID := int64(4111010001)
-	svc := &Service{accessReader: fakeAccessReader{
+	reader := fakeAccessReader{
 		schools: []reviewaccess.SchoolConfig{{SchoolID: 4111010001}},
 		configs: []reviewaccess.SystemConfig{{Key: systemconfig.ReviewGuestPreviewContentCharsKey, Value: `16`}},
 		subject: &reviewaccess.Subject{InternalUserID: 42, SchoolID: &schoolID, StudentVerified: true, IdentityVerified: true},
-	}}
+	}
+	svc := &Service{accessReader: reader, phoneGate: reader}
 
 	facts, err := svc.ResolveAccessFacts(context.Background(), "external-1", []string{
 		capability.ReviewListFull,
@@ -131,7 +141,8 @@ func TestResolveAccessFacts(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, facts.Authenticated)
 	assert.True(t, facts.StudentVerified)
-	assert.True(t, facts.IdentityVerified)
+	assert.False(t, facts.IdentityVerified)
+	assert.True(t, facts.PhoneVerified)
 	assert.True(t, facts.CanViewFull)
 	assert.True(t, facts.CanPostReview)
 	assert.True(t, facts.CanEditOwn)
@@ -187,9 +198,13 @@ func TestResolveReviewAccessFactsForRequestRequiresGlobalManageCapability(t *tes
 	})
 	t.Cleanup(systemconfig.InvalidateReviewAccessPolicySnapshot)
 
-	handler := &Handler{service: &Service{accessReader: fakeAccessReader{
+	reader := fakeAccessReader{
 		subject: &reviewaccess.Subject{InternalUserID: 42},
-	}}}
+	}
+	handler := &Handler{service: &Service{
+		accessReader: reader,
+		phoneGate:    reader,
+	}}
 	resolve := func(t *testing.T, snapshot capability.UserAccessSnapshot) ReviewAccessFacts {
 		t.Helper()
 		w := httptest.NewRecorder()

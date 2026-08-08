@@ -6,6 +6,9 @@ const (
 	EnvDevelopment = "development"
 	EnvProduction  = "production"
 	EnvProdParity  = "prod-parity"
+
+	RuntimeModeApp                      = "app"
+	RuntimeModeCampusConnectorBootstrap = "campus-connector-bootstrap"
 )
 
 // IsProductionLikeEnv reports whether an environment should use production-grade
@@ -25,24 +28,26 @@ func normalizeCookieDomain(domain string) string {
 
 // Config 应用配置
 type Config struct {
-	App           AppConfig
-	Database      DatabaseConfig
-	Redis         RedisConfig
-	Casdoor       CasdoorConfig
-	OpenFGA       OpenFGAConfig
-	ObjectStorage ObjectStorageConfig
-	Token         TokenConfig
-	Log           LogConfig
-	RateLimit     ReviewRateLimitConfig
-	Review        ReviewConfig
-	Security      SecurityConfig
-	SMS           SMSConfig
-	Email         EmailConfig
-	Bot           BotConfig
-	Admission     AdmissionConfig
-	ExternalData  ExternalDataConfig
-	Observability ObservabilityConfig
-	OpenPlatform  OpenPlatformConfig
+	App                 AppConfig
+	Database            DatabaseConfig
+	Redis               RedisConfig
+	Casdoor             CasdoorConfig
+	OpenFGA             OpenFGAConfig
+	ObjectStorage       ObjectStorageConfig
+	Token               TokenConfig
+	Log                 LogConfig
+	RateLimit           ReviewRateLimitConfig
+	Review              ReviewConfig
+	Security            SecurityConfig
+	SMS                 SMSConfig
+	Email               EmailConfig
+	Bot                 BotConfig
+	Admission           AdmissionConfig
+	StudentVerification StudentVerificationConfig
+	CampusConnector     CampusConnectorGatewayConfig
+	ExternalData        ExternalDataConfig
+	Observability       ObservabilityConfig
+	OpenPlatform        OpenPlatformConfig
 }
 
 // SecurityConfig PII 加密安全配置（已验证、可直接消费的强类型结果）
@@ -99,6 +104,33 @@ type OpenPlatformTokenProbeConfig struct {
 // AdmissionConfig controls the public group admission verification surface.
 type AdmissionConfig struct {
 	PublicBaseURL string
+}
+
+// StudentVerificationConfig controls the independent student-verification
+// browser surface. It is intentionally separate from group admission.
+type StudentVerificationConfig struct {
+	PublicBaseURL string
+}
+
+// CampusConnectorGatewayConfig controls the dedicated mutually-authenticated
+// listener used by outbound campus connector nodes. It is separate from the
+// browser API listener so client-certificate identity cannot be weakened by a
+// TLS-terminating reverse proxy.
+type CampusConnectorGatewayConfig struct {
+	Enabled                     bool
+	ListenAddress               string
+	ServerCertificateFile       string
+	ServerPrivateKeyFile        string
+	ClientCAFile                string
+	SnapshotDecryptionKeyFile   string
+	SnapshotDecryptionKeyID     string
+	ProtocolVersion             string
+	PollWaitSeconds             int
+	SignatureMaxSkewSeconds     int
+	ReplayTTLSeconds            int
+	MaxSnapshotPlaintextBytes   int
+	MaxSnapshotRequestBytes     int
+	MaxInteractivePasswordBytes int
 }
 
 // ExternalDataConfig controls external school/business data sources.
@@ -177,6 +209,7 @@ type ObjectStorageConfig struct {
 // AppConfig 应用配置
 type AppConfig struct {
 	Env                string
+	RuntimeMode        string
 	Port               string
 	CORSOrigins        []string
 	TrustedProxies     []string
@@ -283,6 +316,10 @@ type EmailConfig struct {
 	ResendAPIKey                 string
 	ResendEndpoint               string
 	ResendReplyTo                string
+	InboundEnabled               bool
+	InboundTargetAddress         string
+	InboundWebhookSecret         string
+	InboundWebhookMaxSkewSeconds int
 }
 
 // BotConfig 机器人内部调用配置。
@@ -318,21 +355,26 @@ func Load() (*Config, error) {
 	var parseErrs []string
 
 	cfg := &Config{
-		App:           loadAppConfig(&parseErrs),
-		Database:      loadDatabaseConfig(&parseErrs),
-		Casdoor:       loadCasdoorConfig(),
-		OpenFGA:       loadOpenFGAConfig(),
-		ObjectStorage: loadObjectStorageConfig(&parseErrs),
-		Redis:         loadRedisConfig(&parseErrs),
-		Token:         loadTokenConfig(&parseErrs),
-		Log:           loadLogConfig(&parseErrs),
-		RateLimit:     loadReviewRateLimitConfig(&parseErrs),
-		Review:        loadReviewConfig(&parseErrs),
-		SMS:           loadSMSConfig(&parseErrs),
-		Email:         loadEmailConfig(&parseErrs),
-		Bot:           loadBotConfig(),
-		Admission:     loadAdmissionConfig(),
-		ExternalData:  loadExternalDataConfig(&parseErrs),
+		App:                 loadAppConfig(&parseErrs),
+		Database:            loadDatabaseConfig(&parseErrs),
+		Casdoor:             loadCasdoorConfig(),
+		OpenFGA:             loadOpenFGAConfig(),
+		ObjectStorage:       loadObjectStorageConfig(&parseErrs),
+		Redis:               loadRedisConfig(&parseErrs),
+		Token:               loadTokenConfig(&parseErrs),
+		Log:                 loadLogConfig(&parseErrs),
+		RateLimit:           loadReviewRateLimitConfig(&parseErrs),
+		Review:              loadReviewConfig(&parseErrs),
+		SMS:                 loadSMSConfig(&parseErrs),
+		Email:               loadEmailConfig(&parseErrs),
+		Bot:                 loadBotConfig(),
+		Admission:           loadAdmissionConfig(),
+		StudentVerification: loadStudentVerificationConfig(),
+		CampusConnector:     loadCampusConnectorGatewayConfig(&parseErrs),
+		// The online API process must never read Oracle credentials. Legacy
+		// external-source variables are consumed only by isolated operational
+		// commands and the campus connector node, never by Config.Load.
+		ExternalData:  ExternalDataConfig{},
 		Observability: loadObservabilityConfig(&parseErrs),
 		OpenPlatform:  loadOpenPlatformConfig(&parseErrs),
 	}
@@ -351,6 +393,7 @@ func Load() (*Config, error) {
 func loadAppConfig(parseErrs *[]string) AppConfig {
 	return AppConfig{
 		Env:            getEnv("APP_ENV", "development"),
+		RuntimeMode:    getEnv("APP_RUNTIME_MODE", RuntimeModeApp),
 		Port:           getEnv("APP_PORT", "8080"),
 		CORSOrigins:    getEnvSlice("CORS_ORIGINS", []string{}),
 		TrustedProxies: getEnvSlice("TRUSTED_PROXIES", []string{}),
@@ -567,6 +610,10 @@ func loadEmailConfig(parseErrs *[]string) EmailConfig {
 		ResendAPIKey:                 getEnv("EMAIL_RESEND_API_KEY", ""),
 		ResendEndpoint:               getEnv("EMAIL_RESEND_ENDPOINT", "https://api.resend.com/emails"),
 		ResendReplyTo:                getEnv("EMAIL_RESEND_REPLY_TO", ""),
+		InboundEnabled:               getEnvBool("EMAIL_INBOUND_ENABLED", false, parseErrs),
+		InboundTargetAddress:         getEnv("EMAIL_INBOUND_TARGET_ADDRESS", ""),
+		InboundWebhookSecret:         getEnv("EMAIL_INBOUND_WEBHOOK_SECRET", ""),
+		InboundWebhookMaxSkewSeconds: getEnvInt("EMAIL_INBOUND_WEBHOOK_MAX_SKEW_SECONDS", 300, parseErrs),
 	}
 }
 
@@ -579,6 +626,31 @@ func loadBotConfig() BotConfig {
 func loadAdmissionConfig() AdmissionConfig {
 	return AdmissionConfig{
 		PublicBaseURL: getEnv("ADMISSION_PUBLIC_BASE_URL", ""),
+	}
+}
+
+func loadStudentVerificationConfig() StudentVerificationConfig {
+	return StudentVerificationConfig{
+		PublicBaseURL: getEnv("STUDENT_VERIFICATION_PUBLIC_BASE_URL", ""),
+	}
+}
+
+func loadCampusConnectorGatewayConfig(parseErrs *[]string) CampusConnectorGatewayConfig {
+	return CampusConnectorGatewayConfig{
+		Enabled:                     getEnvBool("CAMPUS_CONNECTOR_GATEWAY_ENABLED", false, parseErrs),
+		ListenAddress:               getEnv("CAMPUS_CONNECTOR_GATEWAY_LISTEN_ADDRESS", "127.0.0.1:9444"),
+		ServerCertificateFile:       getEnv("CAMPUS_CONNECTOR_GATEWAY_TLS_CERT_FILE", ""),
+		ServerPrivateKeyFile:        getEnv("CAMPUS_CONNECTOR_GATEWAY_TLS_KEY_FILE", ""),
+		ClientCAFile:                getEnv("CAMPUS_CONNECTOR_GATEWAY_CLIENT_CA_FILE", ""),
+		SnapshotDecryptionKeyFile:   getEnv("CAMPUS_CONNECTOR_SNAPSHOT_PRIVATE_KEY_FILE", ""),
+		SnapshotDecryptionKeyID:     getEnv("CAMPUS_CONNECTOR_SNAPSHOT_KEY_ID", ""),
+		ProtocolVersion:             getEnv("CAMPUS_CONNECTOR_PROTOCOL_VERSION", "1"),
+		PollWaitSeconds:             getEnvInt("CAMPUS_CONNECTOR_POLL_WAIT_SECONDS", 25, parseErrs),
+		SignatureMaxSkewSeconds:     getEnvInt("CAMPUS_CONNECTOR_SIGNATURE_MAX_SKEW_SECONDS", 120, parseErrs),
+		ReplayTTLSeconds:            getEnvInt("CAMPUS_CONNECTOR_REPLAY_TTL_SECONDS", 360, parseErrs),
+		MaxSnapshotPlaintextBytes:   getEnvInt("CAMPUS_CONNECTOR_MAX_SNAPSHOT_PLAINTEXT_BYTES", 134217728, parseErrs),
+		MaxSnapshotRequestBytes:     getEnvInt("CAMPUS_CONNECTOR_MAX_SNAPSHOT_REQUEST_BYTES", 201326592, parseErrs),
+		MaxInteractivePasswordBytes: getEnvInt("CAMPUS_CONNECTOR_MAX_PASSWORD_BYTES", 256, parseErrs),
 	}
 }
 

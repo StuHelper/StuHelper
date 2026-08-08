@@ -23,10 +23,6 @@ export const ADMIN_COMMAND_DESCRIPTION_BINDINGS = Object.freeze([
   { commandName: '群审禁言', messageKey: 'guardBatchMuteCommandDescription' },
   { commandName: '群审踢人申请', messageKey: 'guardKickReviewCommandDescription' },
   { commandName: '群审拉黑申请', messageKey: 'guardBlockReviewCommandDescription' },
-  { commandName: '新生审核查看', messageKey: 'freshmanViewCommandDescription' },
-  { commandName: '新生审核通过', messageKey: 'freshmanApproveCommandDescription' },
-  { commandName: '新生审核驳回', messageKey: 'freshmanRejectCommandDescription' },
-  { commandName: '新生黑名单解除', messageKey: 'freshmanBlacklistReleaseCommandDescription' },
 ] as const satisfies readonly CommandDescriptionBinding<keyof StuhelperAdminMessageConfig>[])
 
 export const GROUP_GUARD_COMMAND_DESCRIPTION_BINDINGS = Object.freeze([

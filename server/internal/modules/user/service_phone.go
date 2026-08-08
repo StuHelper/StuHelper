@@ -26,34 +26,6 @@ func normalizeMaskedPhone(phone *string) *string {
 	return &masked
 }
 
-func (s *Service) buildPhoneProjection(phone string) (string, []byte, string, error) {
-	trimmed := strings.TrimSpace(phone)
-	masked := phoneutil.Mask(trimmed)
-	phoneEnc, err := s.docCipher.Encrypt(masked)
-	if err != nil {
-		return "", nil, "", fmt.Errorf("encrypt phone: %w", err)
-	}
-	phoneHash, err := phoneutil.HashLookupWithKey(trimmed, s.hmacKey)
-	if err != nil {
-		return "", nil, "", fmt.Errorf("hash phone projection: %w", err)
-	}
-	return masked, phoneEnc, phoneHash, nil
-}
-
-func (s *Service) prepareAvailablePhoneProjection(ctx context.Context, userID int64, phone string) (string, []byte, string, error) {
-	if err := validateUserID(userID); err != nil {
-		return "", nil, "", err
-	}
-	masked, phoneEnc, phoneHash, err := s.buildPhoneProjection(phone)
-	if err != nil {
-		return "", nil, "", err
-	}
-	if err := s.repo.EnsureUserPhoneAvailable(ctx, userID, phoneHash); err != nil {
-		return "", nil, "", err
-	}
-	return masked, phoneEnc, phoneHash, nil
-}
-
 func (s *Service) hydrateProfilePhone(profile *Profile) error {
 	if profile == nil {
 		return nil
@@ -83,56 +55,28 @@ func (s *Service) phoneProjectionFromCiphertext(phoneEnc []byte) (*string, error
 	if err != nil {
 		return nil, fmt.Errorf("decrypt phone_enc: %w", err)
 	}
-	return normalizeMaskedPhone(&plaintext), nil
+	trimmed := strings.TrimSpace(plaintext)
+	mainland := trimmed
+	if strings.HasPrefix(mainland, "+86") {
+		mainland = strings.TrimPrefix(mainland, "+86")
+	} else if strings.HasPrefix(mainland, "86") && len(mainland) == 13 {
+		mainland = strings.TrimPrefix(mainland, "86")
+	}
+	if phoneutil.IsValidMainlandPhone(mainland) {
+		masked := phoneutil.Mask(mainland)
+		return &masked, nil
+	}
+	// Migration compatibility: historical ciphertext contained only the
+	// masked display value. New writes are owned exclusively by the independent
+	// phone domain and contain the full canonical Casdoor projection.
+	return normalizeMaskedPhone(&trimmed), nil
 }
 
-func (s *Service) getAccountPhoneProjection(ctx context.Context, userID int64, profile *Profile) (*string, error) {
-	if profile != nil {
-		if err := s.hydrateProfilePhone(profile); err != nil {
-			return nil, err
-		}
-		if profile.Phone != nil {
-			return profile.Phone, nil
-		}
-	}
-
-	phoneEnc, err := s.repo.GetUserPhoneProjection(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("get user phone projection: %w", err)
-	}
-	return s.phoneProjectionFromCiphertext(phoneEnc)
-}
-
-// BindPhone 绑定手机号。
-// Casdoor 是手机号真相源；StuHelper 只在本地 users 上保存 masked projection，
-// 用于业务页面快速判断是否已绑定。
-func (s *Service) BindPhone(ctx context.Context, userID int64, phone string) error {
-	if err := validateUserID(userID); err != nil {
-		return err
-	}
-	trimmed := strings.TrimSpace(phone)
-	if !phoneutil.IsValidMainlandPhone(trimmed) {
-		return ErrInvalidPhoneFormat
-	}
-	if s.profileIdentitySync == nil {
-		return ErrProfileIdentitySyncMissing
-	}
-
-	_, phoneEnc, phoneHash, err := s.prepareAvailablePhoneProjection(ctx, userID, trimmed)
-	if err != nil {
-		return fmt.Errorf("BindPhone check phone projection: %w", err)
-	}
-
-	subject, err := s.repo.GetCasdoorSubject(ctx, userID)
-	if err != nil {
-		return fmt.Errorf("BindPhone get Casdoor subject: %w", err)
-	}
-	if err := s.profileIdentitySync.UpdatePhone(ctx, subject, "+86"+trimmed); err != nil {
-		return fmt.Errorf("BindPhone update Casdoor phone: %w", err)
-	}
-
-	if err := s.repo.SetUserPhone(ctx, userID, phoneEnc, phoneHash); err != nil {
-		return fmt.Errorf("BindPhone update phone projection: %w", err)
-	}
-	return nil
+// BindPhone is retained only as a compile-time compatibility surface for
+// callers that have not yet migrated. It deliberately performs no mutation;
+// all binding/change/unbind operations must go through the independent phone
+// state machine, which creates a verification credential only after Casdoor
+// write and authoritative readback.
+func (s *Service) BindPhone(_ context.Context, _ int64, _ string) error {
+	return ErrLegacyPhoneBindingRemoved
 }

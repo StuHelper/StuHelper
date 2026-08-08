@@ -3,7 +3,7 @@ type: guide
 audience: all
 status: current
 authoritative-source: this file
-last-verified: 2026-08-03
+last-verified: 2026-08-06
 ---
 
 # 快速开始
@@ -239,6 +239,10 @@ runtime token 占位文件，以及 PostgreSQL 逻辑备份 / base backup / back
 [GitHub 仓库与 Actions 治理](guides/github-migration.md)。
 
 Ansible 入口：
+
+先将 `infra/ansible/inventory/production.example.ini` 或 `staging.example.ini` 复制为对应的忽略文件，
+填写真实非本机主机和 SSH 用户。入口会拒绝缺失、空文件、示例占位符、无法解析的清单以及空
+`stuhelper` 主机组；本机没有 Ansible 时会通过 `uvx` 使用 `requirements.txt` 锁定的版本。
 
 ```bash
 make ansible-bootstrap

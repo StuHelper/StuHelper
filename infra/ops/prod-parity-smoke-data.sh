@@ -41,6 +41,9 @@ evidence_file="${PROD_PARITY_SMOKE_DATA_EVIDENCE_FILE:-${PARITY_DIR}/smoke-data-
 admission_token="${PROD_PARITY_ADMISSION_TOKEN:-PROD-PARITY-ADMIT-LOGIN}"
 admission_qq="${PROD_PARITY_ADMISSION_QQ:-990001}"
 admission_public_base_url="${ADMISSION_PUBLIC_BASE_URL:-https://join.stuhelper.com}"
+admission_student_id="${ADMISSION_PROD_SIM_STUDENT_ID:-20259901}"
+admission_student_name="${ADMISSION_PROD_SIM_STUDENT_NAME:-张三}"
+roster_snapshot_id="01999999-0300-7000-8000-000000000003"
 casdoor_login_username="${PROD_PARITY_CASDOOR_LOGIN_USERNAME:-admission-e2e}"
 casdoor_login_password="${PROD_PARITY_CASDOOR_LOGIN_PASSWORD:-ProdParityAdmission1!}"
 casdoor_login_user_id="${PROD_PARITY_CASDOOR_LOGIN_USER_ID:-prod-parity-admission-e2e-user}"
@@ -76,6 +79,42 @@ print(hmac.new(key, token, hashlib.sha256).hexdigest())
 PY
 )"
 
+roster_hashes="$(
+  python3 - "${HMAC_SECRET}" "${admission_student_id}" "${admission_student_name}" <<'PY'
+import hashlib
+import hmac
+import sys
+
+key = sys.argv[1].encode()
+student_id = sys.argv[2].strip()
+student_name = sys.argv[3].strip()
+school_id = 4111010006
+
+
+def digest(value: str) -> str:
+    return hmac.new(key, value.encode(), hashlib.sha256).hexdigest()
+
+
+def blind_index(scope: str, value: str) -> str:
+    return digest(f"student-roster:v1:{school_id}:{scope}:{value}")
+
+
+print("\t".join((
+    blind_index("student_id", student_id),
+    blind_index("name", student_name),
+    digest(f"prod-parity:roster-source-record:{school_id}:{student_id}"),
+    digest(f"prod-parity:roster-record:{school_id}:{student_id}:{student_name}"),
+    digest(f"prod-parity:roster-snapshot:{school_id}"),
+)))
+PY
+)"
+IFS=$'\t' read -r \
+  roster_student_id_hash \
+  roster_name_hash \
+  roster_source_record_key_hash \
+  roster_record_checksum \
+  roster_snapshot_checksum <<<"${roster_hashes}"
+
 casdoor_password_hash="$(
   python3 -W ignore::DeprecationWarning - "${casdoor_login_password}" <<'PY'
 import crypt
@@ -102,10 +141,18 @@ docker exec \
   psql \
     -v ON_ERROR_STOP=1 \
     -v admission_token="${admission_token}" \
-    -v admission_token_hash="${admission_token_hash}" \
-    -v admission_qq="${admission_qq}" \
-    -v admission_public_base_url="${admission_public_base_url%/}" \
-    -v casdoor_login_user_id="${casdoor_login_user_id}" \
+	    -v admission_token_hash="${admission_token_hash}" \
+	    -v admission_qq="${admission_qq}" \
+	    -v admission_public_base_url="${admission_public_base_url%/}" \
+	    -v admission_student_id="${admission_student_id}" \
+	    -v admission_student_name="${admission_student_name}" \
+	    -v roster_snapshot_id="${roster_snapshot_id}" \
+	    -v roster_student_id_hash="${roster_student_id_hash}" \
+	    -v roster_name_hash="${roster_name_hash}" \
+	    -v roster_source_record_key_hash="${roster_source_record_key_hash}" \
+	    -v roster_record_checksum="${roster_record_checksum}" \
+	    -v roster_snapshot_checksum="${roster_snapshot_checksum}" \
+	    -v casdoor_login_user_id="${casdoor_login_user_id}" \
     -h 127.0.0.1 \
     -U "${app_user}" \
     -d "${stuhelper_db}" <<'SQL' >/dev/null
@@ -341,7 +388,7 @@ VALUES (
     4111010006,
     '北京航空航天大学',
     'ldap',
-    'academic.buaa_students',
+	    NULL,
     '生产等价 admission smoke 使用学校 SSO 或邮箱 OTP 验证学生身份。',
     '{"admission":{"emailDomains":["buaa.edu.cn"],"ssoLoginURL":"https://sso.school.example/login","emailIdentityPolicy":{"type":"academic_student_email","studentIDEmailDomain":"buaa.edu.cn","requireStudentName":true}}}'::jsonb,
     true,
@@ -357,33 +404,132 @@ SET school_name = EXCLUDED.school_name,
     approval_policy = EXCLUDED.approval_policy,
     updated_at = now();
 
-INSERT INTO academic.buaa_students (
-    xh, xm, yxdm, zydm, bjdm, rxnj, dzxx, xjztdm, sfzx, sfzj, synced_at
+UPDATE public.school_verification_profiles
+SET enabled = true,
+    validation_status = 'valid',
+    validation_code = 'prod_parity_fixture',
+    validated_at = now(),
+    updated_at = now()
+WHERE school_id = 4111010006;
+
+UPDATE public.school_verification_methods
+SET enabled = true,
+    validation_status = 'valid',
+    health_status = 'healthy',
+    health_code = 'prod_parity_fixture',
+    health_checked_at = now(),
+    privacy_notice_version = 'prod-parity-v1',
+    privacy_notice = '{"title":"生产等价学生认证隐私说明","summary":"仅处理本机生产等价验收所需的合成学号和姓名。","dataCategories":["学号","姓名"],"retentionSummary":"验收数据仅保存在隔离的 prod-parity 数据卷中。"}'::jsonb,
+    validated_at = now(),
+    updated_at = now()
+WHERE school_id = 4111010006
+  AND method = 'student_email_outbound_otp';
+
+UPDATE academic.student_roster_snapshots
+SET status = 'superseded',
+    updated_at = now()
+WHERE school_id = 4111010006
+  AND status = 'active'
+  AND id <> :'roster_snapshot_id';
+
+INSERT INTO academic.student_roster_snapshots (
+    id, school_id, source_kind, source_version, import_mode,
+    schema_version, mapping_version, status, source_started_at,
+    source_cutoff_at, import_started_at, import_completed_at, activated_at,
+    row_count, eligible_row_count, deleted_row_count, checksum,
+    encryption_key_version, hmac_key_version
 )
 VALUES (
-    '20259901',
-    '张三',
-    'prod-parity-dept',
-    'prod-parity-major',
-    'prod-parity-class',
-    '2025',
-    '20259901@buaa.edu.cn',
+    :'roster_snapshot_id',
+    4111010006,
+    'fixture',
+    'prod-parity-v1',
+    'full',
+    1,
+    'prod-parity-v1',
     'active',
-    '1',
-    '1',
-    now()
+    now() - interval '1 minute',
+    now(),
+    now() - interval '1 minute',
+    now(),
+    now(),
+    1,
+    1,
+    0,
+    :'roster_snapshot_checksum',
+    1,
+    1
 )
-ON CONFLICT (xh) DO UPDATE
-SET xm = EXCLUDED.xm,
-    yxdm = EXCLUDED.yxdm,
-    zydm = EXCLUDED.zydm,
-    bjdm = EXCLUDED.bjdm,
-    rxnj = EXCLUDED.rxnj,
-    dzxx = EXCLUDED.dzxx,
-    xjztdm = EXCLUDED.xjztdm,
-    sfzx = EXCLUDED.sfzx,
-    sfzj = EXCLUDED.sfzj,
-    synced_at = now();
+ON CONFLICT (id) DO UPDATE
+SET status = 'active',
+    source_cutoff_at = EXCLUDED.source_cutoff_at,
+    import_completed_at = EXCLUDED.import_completed_at,
+    activated_at = EXCLUDED.activated_at,
+    row_count = EXCLUDED.row_count,
+    eligible_row_count = EXCLUDED.eligible_row_count,
+    deleted_row_count = EXCLUDED.deleted_row_count,
+    checksum = EXCLUDED.checksum,
+    failure_code = NULL,
+    updated_at = now();
+
+INSERT INTO academic.student_roster_records (
+    snapshot_id, school_id, source_record_key_hash,
+    student_id_enc, student_id_hash, name_enc, name_hash,
+    encryption_key_version, hmac_key_version,
+    student_status, on_campus_status, registration_status,
+    enrollment_year, current_marker, eligibility_status, eligibility_code,
+    source_updated_at, record_checksum
+)
+VALUES (
+    :'roster_snapshot_id',
+    4111010006,
+    :'roster_source_record_key_hash',
+    decode('0101', 'hex'),
+    :'roster_student_id_hash',
+    decode('0102', 'hex'),
+    :'roster_name_hash',
+    1,
+    1,
+    'active',
+    'on_campus',
+    'registered',
+    2025,
+    true,
+    'eligible',
+    'active_student',
+    now(),
+    :'roster_record_checksum'
+)
+ON CONFLICT (snapshot_id, student_id_hash) DO UPDATE
+SET source_record_key_hash = EXCLUDED.source_record_key_hash,
+    student_id_enc = EXCLUDED.student_id_enc,
+    name_enc = EXCLUDED.name_enc,
+    name_hash = EXCLUDED.name_hash,
+    student_status = EXCLUDED.student_status,
+    on_campus_status = EXCLUDED.on_campus_status,
+    registration_status = EXCLUDED.registration_status,
+    enrollment_year = EXCLUDED.enrollment_year,
+    current_marker = EXCLUDED.current_marker,
+    eligibility_status = EXCLUDED.eligibility_status,
+    eligibility_code = EXCLUDED.eligibility_code,
+    source_updated_at = EXCLUDED.source_updated_at,
+    record_checksum = EXCLUDED.record_checksum,
+    updated_at = now();
+
+INSERT INTO academic.student_roster_active (
+    school_id, snapshot_id, activation_revision, activated_at, updated_at
+)
+VALUES (4111010006, :'roster_snapshot_id', 1, now(), now())
+ON CONFLICT (school_id) DO UPDATE
+SET previous_snapshot_id = CASE
+        WHEN academic.student_roster_active.snapshot_id <> EXCLUDED.snapshot_id
+        THEN academic.student_roster_active.snapshot_id
+        ELSE academic.student_roster_active.previous_snapshot_id
+    END,
+    snapshot_id = EXCLUDED.snapshot_id,
+    activation_revision = academic.student_roster_active.activation_revision + 1,
+    activated_at = EXCLUDED.activated_at,
+    updated_at = now();
 
 INSERT INTO public.group_admission_policies (
     id, platform, guild_id, school_id, auto_approve_join,
@@ -431,7 +577,7 @@ VALUES (
     format('%s/verify/%s', :'admission_public_base_url', :'admission_token'),
     now() + interval '1 hour',
     NULL,
-    'joined_muted',
+    'awaiting_account_link',
     now() + interval '1 hour',
     now() + interval '1 day',
     NULL,
@@ -572,6 +718,9 @@ query_json="$(
     psql \
       -v ON_ERROR_STOP=1 \
       -v admission_qq="${admission_qq}" \
+      -v roster_snapshot_id="${roster_snapshot_id}" \
+      -v roster_student_id_hash="${roster_student_id_hash}" \
+      -v roster_name_hash="${roster_name_hash}" \
       -h 127.0.0.1 \
       -U "${app_user}" \
       -d "${stuhelper_db}" \
@@ -598,12 +747,46 @@ SELECT jsonb_build_object(
         AND manual_form_fields #>> '{admission,emailIdentityPolicy,studentIDEmailDomain}' = 'buaa.edu.cn'
         AND (manual_form_fields #>> '{admission,emailIdentityPolicy,requireStudentName}')::boolean
   ),
-  'admissionAcademicStudentCount', (
+  'studentVerificationProfileCount', (
       SELECT count(*)
-      FROM academic.buaa_students
-      WHERE xh = '20259901'
-        AND xm = '张三'
-        AND dzxx = '20259901@buaa.edu.cn'
+      FROM public.school_verification_profiles
+      WHERE school_id = 4111010006
+        AND enabled
+        AND validation_status = 'valid'
+  ),
+  'studentVerificationEmailMethodCount', (
+      SELECT count(*)
+      FROM public.school_verification_methods
+      WHERE school_id = 4111010006
+        AND method = 'student_email_outbound_otp'
+        AND enabled
+        AND validation_status = 'valid'
+        AND health_status = 'healthy'
+        AND privacy_notice_version = 'prod-parity-v1'
+  ),
+  'studentRosterSnapshotCount', (
+      SELECT count(*)
+      FROM academic.student_roster_snapshots
+      WHERE id = :'roster_snapshot_id'
+        AND school_id = 4111010006
+        AND status = 'active'
+        AND row_count = 1
+        AND eligible_row_count = 1
+  ),
+  'studentRosterRecordCount', (
+      SELECT count(*)
+      FROM academic.student_roster_records
+      WHERE snapshot_id = :'roster_snapshot_id'
+        AND school_id = 4111010006
+        AND student_id_hash = :'roster_student_id_hash'
+        AND name_hash = :'roster_name_hash'
+        AND eligibility_status = 'eligible'
+  ),
+  'studentRosterActiveCount', (
+      SELECT count(*)
+      FROM academic.student_roster_active
+      WHERE school_id = 4111010006
+        AND snapshot_id = :'roster_snapshot_id'
   ),
   'admissionPolicyCount', (
       SELECT count(*)
@@ -624,7 +807,7 @@ SELECT jsonb_build_object(
       FROM public.group_admission_sessions
       WHERE id = 'prod-parity-admission-session'
         AND qq_id = :'admission_qq'
-        AND status = 'joined_muted'
+        AND status = 'awaiting_account_link'
         AND token_consumed_at IS NULL
         AND token_expires_at > now()
   )
@@ -688,7 +871,11 @@ required = {
     "teacherRatingStatsCount": 10,
     "teacherPublicStatsCount": 1,
     "admissionSchoolConfigCount": 1,
-    "admissionAcademicStudentCount": 1,
+    "studentVerificationProfileCount": 1,
+    "studentVerificationEmailMethodCount": 1,
+    "studentRosterSnapshotCount": 1,
+    "studentRosterRecordCount": 1,
+    "studentRosterActiveCount": 1,
     "admissionPolicyCount": 1,
     "admissionSessionCount": 1,
     "casdoorStuhelperWebApplicationCount": 1,

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -30,4 +31,19 @@ func TestNewSchoolEmailSenderUsesConfiguredStudentVerificationSubject(t *testing
 	require.NoError(t, err)
 	require.NotNil(t, sender)
 	assert.Equal(t, "BUAA 学生认证验证码", sender.subject)
+}
+
+func TestBlackholeSchoolEmailSenderAcceptsStudentVerificationOTP(t *testing.T) {
+	sender, err := newSchoolEmailSender(config.EmailConfig{
+		Enabled: true,
+		Driver:  "blackhole",
+	}, nil)
+
+	require.NoError(t, err)
+	require.NotNil(t, sender)
+	require.NoError(t, sender.SendStudentVerificationOTP(
+		context.Background(),
+		"20259901@buaa.edu.cn",
+		"123456",
+	))
 }

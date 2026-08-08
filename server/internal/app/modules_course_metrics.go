@@ -19,6 +19,7 @@ import (
 type courseModule struct {
 	courseHandler *course.Handler
 	reviewHandler *review.Handler
+	reviewService *review.Service
 }
 
 func (rt *Runtime) registerMetricsRoutes(api *gin.RouterGroup) {
@@ -66,6 +67,7 @@ func (rt *Runtime) initCourseModule(
 	return courseModule{
 		courseHandler: course.NewHandler(courseCache, courseService),
 		reviewHandler: reviewHandler,
+		reviewService: reviewService,
 	}
 }
 

@@ -9,26 +9,34 @@ const (
 	AdminSensitiveWordsManage = "admin:sensitive_words:manage"
 	AdminLogsView             = "admin:logs:view"
 
-	UserIdentityRead   = "user:identity:read"
-	UserIdentityReview = "user:identity:review"
-	UserStudentRead    = "user:student:read"
-	UserStudentReview  = "user:student:review"
-	UserSchoolRead     = "user:school:read"
-	UserSchoolUpdate   = "user:school:update"
-	UserSystemRead     = "user:system:read"
-	UserSystemUpdate   = "user:system:update"
-	IAMGrantsManage    = "iam:grants:manage"
+	UserSchoolRead                  = "user:school:read"
+	UserSchoolUpdate                = "user:school:update"
+	UserSystemRead                  = "user:system:read"
+	UserSystemUpdate                = "user:system:update"
+	IAMGrantsManage                 = "iam:grants:manage"
+	StudentRosterRead               = "student:roster:read"
+	StudentRosterActivate           = "student:roster:activate"
+	StudentRosterDecryptPII         = "student:roster:decrypt_pii"
+	StudentManualReviewRead         = "student:manual_review:read"
+	StudentManualReviewDecide       = "student:manual_review:decide"
+	StudentManualMaterialAccess     = "student:manual_material:access"
+	StudentVerificationConfigRead   = "student:verification_config:read"
+	StudentVerificationConfigUpdate = "student:verification_config:update"
+	StudentCredentialRead           = "student:credential:read"
+	StudentCredentialRevoke         = "student:credential:revoke"
+	StudentSubjectConflictRead      = "student:subject_conflict:read"
+	StudentSubjectConflictResolve   = "student:subject_conflict:resolve"
+	CampusConnectorHealthRead       = "campus_connector:health:read"
+	CampusConnectorManage           = "campus_connector:manage"
 
-	AdmissionPolicyRead     = "admission:policy:read"
-	AdmissionPolicyUpdate   = "admission:policy:update"
-	AdmissionFreshmanRead   = "admission:freshman:read"
-	AdmissionFreshmanReview = "admission:freshman:review"
-	AdmissionSessionRead    = "admission:session:read"
-	AdmissionSessionManage  = "admission:session:manage"
-	MemberBlacklistRead     = "member_blacklist:read"
-	MemberBlacklistManage   = "member_blacklist:manage"
-	OpenPlatformRead        = "open_platform:read"
-	OpenPlatformManage      = "open_platform:manage"
+	AdmissionPolicyRead    = "admission:policy:read"
+	AdmissionPolicyUpdate  = "admission:policy:update"
+	AdmissionSessionRead   = "admission:session:read"
+	AdmissionSessionManage = "admission:session:manage"
+	MemberBlacklistRead    = "member_blacklist:read"
+	MemberBlacklistManage  = "member_blacklist:manage"
+	OpenPlatformRead       = "open_platform:read"
+	OpenPlatformManage     = "open_platform:manage"
 
 	ReviewListFull  = "review:list:full"
 	ReviewCreate    = "review:create"
@@ -41,21 +49,29 @@ var roleCapabilities = map[string][]string{
 	"super_admin": {
 		AdminDashboardView, AdminReviewsManage, AdminReviewsEditContent, AdminReportsManage,
 		AdminTeachersManage, AdminSensitiveWordsManage, AdminLogsView,
-		UserIdentityRead, UserIdentityReview,
-		UserStudentRead, UserStudentReview,
 		UserSchoolRead, UserSchoolUpdate,
 		UserSystemRead, UserSystemUpdate,
 		IAMGrantsManage,
+		StudentRosterRead, StudentRosterActivate, StudentRosterDecryptPII,
+		StudentManualReviewRead, StudentManualReviewDecide, StudentManualMaterialAccess,
+		StudentVerificationConfigRead, StudentVerificationConfigUpdate,
+		StudentCredentialRead, StudentCredentialRevoke,
+		StudentSubjectConflictRead, StudentSubjectConflictResolve,
+		CampusConnectorHealthRead, CampusConnectorManage,
 		AdmissionPolicyRead, AdmissionPolicyUpdate,
-		AdmissionFreshmanRead, AdmissionFreshmanReview,
 		AdmissionSessionRead, AdmissionSessionManage,
 		MemberBlacklistRead, MemberBlacklistManage,
 		OpenPlatformRead, OpenPlatformManage,
 	},
 	"school_admin": {
 		AdminReviewsManage, AdminReviewsEditContent, AdminReportsManage,
-		UserStudentRead, UserStudentReview,
 		UserSchoolRead, UserSchoolUpdate,
+		StudentRosterRead, StudentRosterActivate,
+		StudentManualReviewRead, StudentManualReviewDecide, StudentManualMaterialAccess,
+		StudentVerificationConfigRead, StudentVerificationConfigUpdate,
+		StudentCredentialRead, StudentCredentialRevoke,
+		StudentSubjectConflictRead, StudentSubjectConflictResolve,
+		CampusConnectorHealthRead,
 	},
 	"section_admin": {
 		AdminReviewsManage, AdminReportsManage,
@@ -83,19 +99,27 @@ var AdminEntryCapabilities = []string{
 	AdminTeachersManage,
 	AdminSensitiveWordsManage,
 	AdminLogsView,
-	UserIdentityRead,
-	UserIdentityReview,
-	UserStudentRead,
-	UserStudentReview,
 	UserSchoolRead,
 	UserSchoolUpdate,
 	UserSystemRead,
 	UserSystemUpdate,
 	IAMGrantsManage,
+	StudentRosterRead,
+	StudentRosterActivate,
+	StudentRosterDecryptPII,
+	StudentManualReviewRead,
+	StudentManualReviewDecide,
+	StudentManualMaterialAccess,
+	StudentVerificationConfigRead,
+	StudentVerificationConfigUpdate,
+	StudentCredentialRead,
+	StudentCredentialRevoke,
+	StudentSubjectConflictRead,
+	StudentSubjectConflictResolve,
+	CampusConnectorHealthRead,
+	CampusConnectorManage,
 	AdmissionPolicyRead,
 	AdmissionPolicyUpdate,
-	AdmissionFreshmanRead,
-	AdmissionFreshmanReview,
 	AdmissionSessionRead,
 	AdmissionSessionManage,
 	MemberBlacklistRead,

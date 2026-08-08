@@ -24,7 +24,8 @@ last-verified: 2026-07-29
     ├── stuhelper.com /             → 127.0.0.1:18000 → web 前端 (Nginx, :80)
     ├── stuhelper.com /verify 和 /verify/* → 404（不兼容旧入口）
     ├── join.stuhelper.com /verify/<code> → 127.0.0.1:18000 → web 前端
-    ├── join.stuhelper.com /admission/freshman/camera/* → 127.0.0.1:18000 → web 前端
+    ├── join.stuhelper.com /student-verification/manual-camera/* → 127.0.0.1:18000 → web 前端
+    ├── join.stuhelper.com /admission/freshman/camera/* 与旧 handoff SSE → 404
     ├── join.stuhelper.com /verify → 404
     ├── join.stuhelper.com / 和主站业务页面路径 → 404（防止串站）
     ├── join.stuhelper.com /api/* 与 /health/* → 127.0.0.1:18080 → backend
@@ -66,6 +67,7 @@ Koishi 与 NapCat 当前不纳入主站 Docker Compose 拓扑，而是作为外�
 - 群管本地数据库路径为 `bots/koishi/data/koishi.db`
 - Koishi 与主站之间只通过 `/api/v1/bot/*` 服务令牌接口通信，不共享 PostgreSQL 或 Redis
 - Koishi 容器必须通过 `.env`、Compose `env_file` 或等价机制注入 `STUHELPER_PLATFORM_BASE_URL`、`STUHELPER_PLATFORM_SERVICE_TOKEN`、`STUHELPER_FRESHMAN_MATERIAL_HOSTS` 和 Console 管理密码；真实 token 不写入仓库。
+- Alertmanager 只通过 Koishi 的固定 `POST /stuhelper/internal/alertmanager` 路由发送管理群告警；该路由使用与 `ALERTMANAGER_WEBHOOK_TOKEN` 相同的 Bearer secret、后端唯一 `managementGuildIDs` 和精确的 QQ bot 选择。不得公开 Koishi `5140` Console，也不得让 webhook payload 指定群号。两台主机之间优先使用受控内网/overlay 或精确反代；连接性和 firing/resolved 成功/失败计数必须在生产验收中实测。
 
 ## 公网入口
 
@@ -74,13 +76,13 @@ Koishi 与 NapCat 当前不纳入主站 Docker Compose 拓扑，而是作为外�
 | Edge Proxy | 宝塔 Nginx（宿主机管理） |
 | TLS 终止 | 宝塔 Nginx 证书管理，或外部 CDN/LB 终止后转发到宝塔 Nginx |
 | 公网端口 | 443 (HTTPS)、80 (HTTP → 301 → HTTPS)，只由宝塔 Nginx 监听 |
-| 容器宿主机端口 | `127.0.0.1:18080` backend、`127.0.0.1:18000` web、`127.0.0.1:18001` admin |
+| 容器宿主机端口 | `127.0.0.1:18080` backend、`127.0.0.1:18000` web、`127.0.0.1:18001` admin、`127.0.0.1:3003` Grafana（仅由 Nginx 的 `/admin/observability/` 反代） |
 
 当前生产拓扑不使用 Traefik。Traefik 与 Nginx 技术上可以共存，但不能同时拥有公网 `80/443` 或分别承担同一批域名的入口职责；否则 TLS 终止、`X-Forwarded-*`、OIDC discovery、JWKS、授权页回调和路径路由会出现双层漂移。StuHelper 在宝塔单机环境中固定选择宝塔 Nginx 作为唯一公网入口，Compose 只把应用服务暴露到宿主机回环端口。
 
 如果生产机已经由宝塔 Compose 管理全局 PostgreSQL，可用 `docker-compose.external-datastore.yml` 把 StuHelper 生产容器接入 `EXTERNAL_DATASTORE_NETWORK=baota_net`，并设置 `EXTERNAL_POSTGRES_ENABLED=true`。该模式不会启动 `stuhelper-prod-postgres`，也不会生成、读取或要求 StuHelper 内置 PostgreSQL 的超级用户密码；应用、备份、复制、OpenFGA 和监控只使用各自的最小权限凭据。数据库管理员需要先在外部 PostgreSQL 中为 StuHelper / OpenFGA 创建独立数据库和独立账号，并把旧 StuHelper 专用 Postgres 中的 `stuhelper` / `openfga` 数据迁移到外部 Postgres；还必须预置 `stuhelper_metrics` 登录角色，限制连接数为 5，只授予 `pg_monitor` 和维护库 `postgres` 的 `CONNECT`，并把独立密码通过 `POSTGRES_EXPORTER_DB_PASSWORD` 注入 StuHelper secret backend。备份角色还要能执行只读 `pg_control_system()`，以便把 root 管理的 `/etc/stuhelper/external-postgres-pitr-evidence.json` 与当前集群 `system_identifier` 绑定；外部平台必须持续更新该证据并证明异机连续 WAL、保留策略及隔离恢复演练，缺失或过期时发布失败。部署脚本不会拿应用/备份凭据代替，也不会越过外部数据库责任边界自动使用超级用户建角色；启动后的严格观测 smoke 以 `pg_up=1` 验证预置结果。若维护库、端口或主机名不同，可通过 `POSTGRES_EXPORTER_DATA_SOURCE_URI` 覆盖不含凭据的连接目标。生产环境中的外部 PostgreSQL 也必须启用可验证 TLS：`POSTGRES_CLIENT_CA_HOST_PATH` 必须指向宿主机上经过核验的 PEM CA bundle，应用、备份和复制连接 URL 必须使用 `sslmode=verify-ca` 或 `verify-full` 并包含 `sslrootcert`；部署脚本只把公开证书复制到 `infra/generated/postgres-client-ca/ca.crt`，不会生成或误用本地服务端 CA。`EXTERNAL_POSTGRES_ALLOW_PLAINTEXT=true` 只允许本地 `prod-parity`，生产配置和部署前置检查都会拒绝它。Redis 仍由 StuHelper Compose 以独立 TLS/ACL 实例运行，不复用全局 Redis，也不加入外部 datastore 网络。本机 `make prod-parity-smoke` 会运行 `prod-parity-datastore-smoke.sh`，用容器级连接检查证明共享 PostgreSQL 的库/账号隔离、监控角色最小权限和 Redis 独立实例约束；随后 `prod-parity-smoke-data.sh` 会写入本机专用最小课程 / 教师 / 评课数据和入群认证会话、刷新评分统计和教师物化视图，使浏览器 smoke 能验证生产镜像在真实后端数据下的课程详情、课程评课详情、评课聚合、教师详情和入群认证链接渲染。
 
-外部 Oracle 学籍源是应用的只读出站依赖，不加入 PostgreSQL/Redis 的数据网络，也不向 Oracle 暴露任何 StuHelper 数据库凭据。应用通过 TCPS `verify-full` 连接，默认端口 `2484`；`EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_HOST_PATH` 的公开 CA 被复制到专用只读挂载 `/external-student-source-tls/ca.crt`。Oracle 账号只具备目标表查询权限，连接池最多 4 个连接，连续失败由熔断器快速隔离。学籍源不可用时身份流程返回 503，应用其他业务域继续服务。
+外部 Oracle 学籍源只允许由学校批准的 Campus Connector 节点访问；在线 App、Admin、Web 和 Koishi 都不得持有 Oracle 地址或凭据。校园节点通过校内路径连接 Oracle，并主动出站连接 `connector.stuhelper.com` 的 TLS 1.3 mTLS 网关；中心不获得校园网通用路由。节点只使用用户明确指定的既有账号，即使账号权限较宽也只执行代码中固定的 `SELECT`，且绝不创建、申请、调整或通过写入探测 Oracle 账号与权限。完整快照在校园侧加密签名后上传，中心通过质量门禁原子激活；连接器或学籍源不可用时，依赖名册的新认证失败关闭，其他业务域继续服务。
 
 ### 证书终止策略
 

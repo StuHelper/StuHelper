@@ -115,12 +115,14 @@ func (s *Service) GetQQVerificationStateByQQID(ctx context.Context, qqID string)
 		return newUnboundQQVerificationStatus(trimmedQQID), nil
 	}
 
-	profile, err := s.repo.GetProfileByUserID(ctx, binding.UserID)
-	if err != nil {
-		return nil, fmt.Errorf("GetQQVerificationStateByQQID profile: %w", err)
+	if s.verificationStatus == nil {
+		return nil, fmt.Errorf("GetQQVerificationStateByQQID: verification status gateway is not configured")
 	}
-
-	return buildQQVerificationStatus(binding, profile), nil
+	student, err := s.verificationStatus.GetCurrentStudentStatus(ctx, binding.UserID)
+	if err != nil {
+		return nil, fmt.Errorf("GetQQVerificationStateByQQID student status: %w", err)
+	}
+	return buildQQVerificationStatus(binding, student.Eligible), nil
 }
 
 func (s *Service) ensureQQBindingAbsent(ctx context.Context, userID int64) error {
@@ -271,31 +273,23 @@ func resolveQQBindingConflict(userBinding, qqBinding *QQBinding, userID int64, q
 
 func newUnboundQQVerificationStatus(qqID string) *QQVerificationStatus {
 	return &QQVerificationStatus{
-		QQID:                      qqID,
-		VerificationState:         QQVerificationStateUnbound,
-		ProfileVerificationStatus: StatusUnverified,
-		StudentVerified:           false,
+		QQID:              qqID,
+		VerificationState: QQVerificationStateUnbound,
+		StudentVerified:   false,
 	}
 }
 
-func buildQQVerificationStatus(binding *QQBinding, profile *Profile) *QQVerificationStatus {
+func buildQQVerificationStatus(binding *QQBinding, eligible bool) *QQVerificationStatus {
 	state := QQVerificationStateBoundUnverified
-	status := StatusUnverified
-	verified := false
-	if profile != nil {
-		status = profile.VerificationStatus
-	}
-	if profile != nil && profile.VerificationStatus == StatusVerified {
+	if eligible {
 		state = QQVerificationStateVerified
-		verified = true
 	}
 
 	return &QQVerificationStatus{
-		QQID:                      binding.QQID,
-		UserID:                    &binding.UserID,
-		BoundAt:                   &binding.BoundAt,
-		VerificationState:         state,
-		ProfileVerificationStatus: status,
-		StudentVerified:           verified,
+		QQID:              binding.QQID,
+		UserID:            &binding.UserID,
+		BoundAt:           &binding.BoundAt,
+		VerificationState: state,
+		StudentVerified:   eligible,
 	}
 }

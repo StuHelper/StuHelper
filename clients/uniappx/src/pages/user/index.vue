@@ -14,35 +14,26 @@ const t = translate
 const loading = ref(false)
 const logoutLoading = ref(false)
 const surface = ref<components['schemas']['UserSurface'] | null>(null)
+const phoneStatus = ref<components['schemas']['PhoneStatus'] | null>(null)
 const menus = computed(() => getUserMenuItems())
 let surfaceLoadPromise: Promise<void> | null = null
 
 const verificationSummary = computed(() => {
   if (!surface.value) return t('user.index.verification.unverified')
-  if (surface.value.verificationStatus === 'approved') return t('user.index.verification.verified')
-  if (surface.value.verificationStatus === 'pending') return t('user.index.verification.pending')
-  if (surface.value.verificationStatus === 'rejected') return t('user.index.verification.rejected')
+  if (surface.value.studentVerificationStatus === 'approved') return t('user.index.verification.verified')
   return t('user.index.verification.unverified')
 })
 
-const identitySummary = computed(() => {
-  if (!surface.value) return t('user.index.identity.unverified')
-  if (surface.value.identityStatus === 'approved') return t('user.index.identity.verified')
-  if (surface.value.identityStatus === 'rejected') return t('user.index.identity.rejected')
-  if (surface.value.identityStatus === 'pending') return t('user.index.identity.pending')
-  return t('user.index.identity.unverified')
-})
+const studentVerified = computed(() => surface.value?.studentVerificationStatus === 'approved')
+const phoneVerified = computed(() => phoneStatus.value?.publishingRequirementSatisfied === true)
 
-const identityVerified = computed(() => surface.value?.identityStatus === 'approved')
-const studentVerified = computed(() => surface.value?.verificationStatus === 'approved')
-
-function goVerify(type: 'identity' | 'student') {
+function goVerify(type: 'student' | 'phone') {
   if (!authStore.isAuthenticated) {
     uni.navigateTo({ url: '/pages/auth/login' })
     return
   }
   const webBase = import.meta.env.VITE_WEB_URL || ''
-  const path = type === 'identity' ? '/user/identity-verification' : '/user/student-verification'
+  const path = type === 'phone' ? '/user/phone-binding' : '/user/student-verification'
   if (!webBase) {
     uni.showToast({ title: t('user.index.verifyOnWeb'), icon: 'none' })
     return
@@ -77,10 +68,15 @@ async function performUserSurfaceLoad() {
     await authStore.bootstrapSession()
     if (!authStore.isAuthenticated) {
       surface.value = null
+      phoneStatus.value = null
       return
     }
-    const result = await api.identity.getUserSurface()
-    surface.value = unwrapOptionalData<components['schemas']['UserSurface']>(result)
+    const [surfaceResult, phoneResult] = await Promise.all([
+      api.identity.getUserSurface(),
+      api.studentVerification.getPhoneStatus(),
+    ])
+    surface.value = unwrapOptionalData<components['schemas']['UserSurface']>(surfaceResult)
+    phoneStatus.value = unwrapOptionalData<components['schemas']['PhoneStatus']>(phoneResult)
   } catch (error) {
     uni.showToast({
       title: error instanceof Error ? error.message : t('common.retryLater'),
@@ -113,6 +109,7 @@ async function handleLogout() {
   try {
     await authStore.logout()
     surface.value = null
+    phoneStatus.value = null
     uni.showToast({ title: t('user.index.logoutSuccess'), icon: 'none' })
   } catch (error) {
     uni.showToast({
@@ -160,31 +157,26 @@ onShow(() => {
       <view class="summary-row">
         <A11yButton
           class="summary-item"
-          data-testid="uni-user-identity-summary"
-          :aria-disabled="identityVerified"
-          @tap="!identityVerified && goVerify('identity')"
+          data-testid="uni-user-student-summary"
+          :aria-disabled="studentVerified"
+          @tap="!studentVerified && goVerify('student')"
         >
-          <text class="summary-label">{{ t('user.index.realName') }}</text>
-          <text class="summary-value" :class="{ 'action-link': !identityVerified }">{{ identitySummary }}</text>
-          <text v-if="!identityVerified" class="action-hint">{{ t('user.index.tapToVerify') }}</text>
+          <text class="summary-label">{{ t('user.index.student') }}</text>
+          <text class="summary-value" :class="{ 'action-link': !studentVerified }">{{ verificationSummary }}</text>
+          <text v-if="!studentVerified" class="action-hint">{{ t('user.index.tapToVerify') }}</text>
         </A11yButton>
         <A11yButton
           class="summary-item"
-          data-testid="uni-user-student-summary"
-          :aria-disabled="!identityVerified || studentVerified"
-          @tap="identityVerified && !studentVerified && goVerify('student')"
+          data-testid="uni-user-phone-summary"
+          :aria-disabled="phoneVerified"
+          @tap="!phoneVerified && goVerify('phone')"
         >
-          <text class="summary-label">{{ t('user.index.student') }}</text>
-          <text class="summary-value" :class="{ 'action-link': identityVerified && !studentVerified }">{{ verificationSummary }}</text>
-          <text v-if="identityVerified && !studentVerified" class="action-hint">{{ t('user.index.tapToVerify') }}</text>
-          <text v-else-if="!identityVerified && !studentVerified" class="action-hint">{{ t('user.index.identityFirst') }}</text>
-        </A11yButton>
-        <view class="summary-item" data-testid="uni-user-phone-summary">
           <text class="summary-label">{{ t('user.index.phone') }}</text>
-          <text class="summary-value">
-            {{ surface?.phoneBound ? t('user.index.phoneBound') : t('user.index.phoneUnbound') }}
+          <text class="summary-value" :class="{ 'action-link': !phoneVerified }">
+            {{ phoneVerified ? t('user.index.phoneBound') : t('user.index.phoneUnbound') }}
           </text>
-        </view>
+          <text v-if="!phoneVerified" class="action-hint">{{ t('user.index.tapToVerify') }}</text>
+        </A11yButton>
       </view>
     </view>
 

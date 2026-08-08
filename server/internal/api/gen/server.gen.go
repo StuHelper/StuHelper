@@ -42,126 +42,141 @@ func (e AcademicImportJobStatus) Valid() bool {
 	}
 }
 
-// Defines values for AdminIdentityReviewDetailDocType.
+// Defines values for AdminCampusConnectorHealthStatus.
 const (
-	AdminIdentityReviewDetailDocTypeHKMACAU    AdminIdentityReviewDetailDocType = "HK_MACAU"
-	AdminIdentityReviewDetailDocTypeMAINLANDID AdminIdentityReviewDetailDocType = "MAINLAND_ID"
-	AdminIdentityReviewDetailDocTypePASSPORT   AdminIdentityReviewDetailDocType = "PASSPORT"
-	AdminIdentityReviewDetailDocTypeTW         AdminIdentityReviewDetailDocType = "TW"
+	AdminCampusConnectorHealthStatusActive     AdminCampusConnectorHealthStatus = "active"
+	AdminCampusConnectorHealthStatusDegraded   AdminCampusConnectorHealthStatus = "degraded"
+	AdminCampusConnectorHealthStatusOffline    AdminCampusConnectorHealthStatus = "offline"
+	AdminCampusConnectorHealthStatusRegistered AdminCampusConnectorHealthStatus = "registered"
+	AdminCampusConnectorHealthStatusRevoked    AdminCampusConnectorHealthStatus = "revoked"
 )
 
-// Valid indicates whether the value is a known member of the AdminIdentityReviewDetailDocType enum.
-func (e AdminIdentityReviewDetailDocType) Valid() bool {
+// Valid indicates whether the value is a known member of the AdminCampusConnectorHealthStatus enum.
+func (e AdminCampusConnectorHealthStatus) Valid() bool {
 	switch e {
-	case AdminIdentityReviewDetailDocTypeHKMACAU:
+	case AdminCampusConnectorHealthStatusActive:
 		return true
-	case AdminIdentityReviewDetailDocTypeMAINLANDID:
+	case AdminCampusConnectorHealthStatusDegraded:
 		return true
-	case AdminIdentityReviewDetailDocTypePASSPORT:
+	case AdminCampusConnectorHealthStatusOffline:
 		return true
-	case AdminIdentityReviewDetailDocTypeTW:
+	case AdminCampusConnectorHealthStatusRegistered:
+		return true
+	case AdminCampusConnectorHealthStatusRevoked:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for AdminIdentityReviewDetailVerifyMethod.
+// Defines values for AdminCampusConnectorOperationHealthHealthStatus.
 const (
-	AdminIdentityReviewDetailVerifyMethodAcademicDbMatch AdminIdentityReviewDetailVerifyMethod = "academic_db_match"
-	AdminIdentityReviewDetailVerifyMethodManual          AdminIdentityReviewDetailVerifyMethod = "manual"
-	AdminIdentityReviewDetailVerifyMethodTencentCloud    AdminIdentityReviewDetailVerifyMethod = "tencent_cloud"
+	AdminCampusConnectorOperationHealthHealthStatusDegraded    AdminCampusConnectorOperationHealthHealthStatus = "degraded"
+	AdminCampusConnectorOperationHealthHealthStatusHealthy     AdminCampusConnectorOperationHealthHealthStatus = "healthy"
+	AdminCampusConnectorOperationHealthHealthStatusUnavailable AdminCampusConnectorOperationHealthHealthStatus = "unavailable"
+	AdminCampusConnectorOperationHealthHealthStatusUnknown     AdminCampusConnectorOperationHealthHealthStatus = "unknown"
 )
 
-// Valid indicates whether the value is a known member of the AdminIdentityReviewDetailVerifyMethod enum.
-func (e AdminIdentityReviewDetailVerifyMethod) Valid() bool {
+// Valid indicates whether the value is a known member of the AdminCampusConnectorOperationHealthHealthStatus enum.
+func (e AdminCampusConnectorOperationHealthHealthStatus) Valid() bool {
 	switch e {
-	case AdminIdentityReviewDetailVerifyMethodAcademicDbMatch:
+	case AdminCampusConnectorOperationHealthHealthStatusDegraded:
 		return true
-	case AdminIdentityReviewDetailVerifyMethodManual:
+	case AdminCampusConnectorOperationHealthHealthStatusHealthy:
 		return true
-	case AdminIdentityReviewDetailVerifyMethodTencentCloud:
+	case AdminCampusConnectorOperationHealthHealthStatusUnavailable:
+		return true
+	case AdminCampusConnectorOperationHealthHealthStatusUnknown:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for AdminIdentityReviewItemDocType.
+// Defines values for AdminCampusConnectorOperationHealthOperationType.
 const (
-	AdminIdentityReviewItemDocTypeHKMACAU    AdminIdentityReviewItemDocType = "HK_MACAU"
-	AdminIdentityReviewItemDocTypeMAINLANDID AdminIdentityReviewItemDocType = "MAINLAND_ID"
-	AdminIdentityReviewItemDocTypePASSPORT   AdminIdentityReviewItemDocType = "PASSPORT"
-	AdminIdentityReviewItemDocTypeTW         AdminIdentityReviewItemDocType = "TW"
+	RosterSnapshotUpload      AdminCampusConnectorOperationHealthOperationType = "roster_snapshot_upload"
+	SchoolAccountAuthenticate AdminCampusConnectorOperationHealthOperationType = "school_account_authenticate"
 )
 
-// Valid indicates whether the value is a known member of the AdminIdentityReviewItemDocType enum.
-func (e AdminIdentityReviewItemDocType) Valid() bool {
+// Valid indicates whether the value is a known member of the AdminCampusConnectorOperationHealthOperationType enum.
+func (e AdminCampusConnectorOperationHealthOperationType) Valid() bool {
 	switch e {
-	case AdminIdentityReviewItemDocTypeHKMACAU:
+	case RosterSnapshotUpload:
 		return true
-	case AdminIdentityReviewItemDocTypeMAINLANDID:
-		return true
-	case AdminIdentityReviewItemDocTypePASSPORT:
-		return true
-	case AdminIdentityReviewItemDocTypeTW:
+	case SchoolAccountAuthenticate:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for AdminIdentityReviewItemVerifyMethod.
+// Defines values for AdminCampusConnectorOperationHealthValidationStatus.
 const (
-	AdminIdentityReviewItemVerifyMethodAcademicDbMatch AdminIdentityReviewItemVerifyMethod = "academic_db_match"
-	AdminIdentityReviewItemVerifyMethodManual          AdminIdentityReviewItemVerifyMethod = "manual"
-	AdminIdentityReviewItemVerifyMethodTencentCloud    AdminIdentityReviewItemVerifyMethod = "tencent_cloud"
+	AdminCampusConnectorOperationHealthValidationStatusInvalid AdminCampusConnectorOperationHealthValidationStatus = "invalid"
+	AdminCampusConnectorOperationHealthValidationStatusPending AdminCampusConnectorOperationHealthValidationStatus = "pending"
+	AdminCampusConnectorOperationHealthValidationStatusValid   AdminCampusConnectorOperationHealthValidationStatus = "valid"
 )
 
-// Valid indicates whether the value is a known member of the AdminIdentityReviewItemVerifyMethod enum.
-func (e AdminIdentityReviewItemVerifyMethod) Valid() bool {
+// Valid indicates whether the value is a known member of the AdminCampusConnectorOperationHealthValidationStatus enum.
+func (e AdminCampusConnectorOperationHealthValidationStatus) Valid() bool {
 	switch e {
-	case AdminIdentityReviewItemVerifyMethodAcademicDbMatch:
+	case AdminCampusConnectorOperationHealthValidationStatusInvalid:
 		return true
-	case AdminIdentityReviewItemVerifyMethodManual:
+	case AdminCampusConnectorOperationHealthValidationStatusPending:
 		return true
-	case AdminIdentityReviewItemVerifyMethodTencentCloud:
+	case AdminCampusConnectorOperationHealthValidationStatusValid:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for AdminSchoolConfigApprovalPolicy.
+// Defines values for AdminManualReviewDecisionRequestAction.
 const (
-	AdminSchoolConfigApprovalPolicyAuto   AdminSchoolConfigApprovalPolicy = "auto"
-	AdminSchoolConfigApprovalPolicyManual AdminSchoolConfigApprovalPolicy = "manual"
+	AdminManualReviewDecisionRequestActionApprove           AdminManualReviewDecisionRequestAction = "approve"
+	AdminManualReviewDecisionRequestActionReject            AdminManualReviewDecisionRequestAction = "reject"
+	AdminManualReviewDecisionRequestActionRequestSupplement AdminManualReviewDecisionRequestAction = "request_supplement"
 )
 
-// Valid indicates whether the value is a known member of the AdminSchoolConfigApprovalPolicy enum.
-func (e AdminSchoolConfigApprovalPolicy) Valid() bool {
+// Valid indicates whether the value is a known member of the AdminManualReviewDecisionRequestAction enum.
+func (e AdminManualReviewDecisionRequestAction) Valid() bool {
 	switch e {
-	case AdminSchoolConfigApprovalPolicyAuto:
+	case AdminManualReviewDecisionRequestActionApprove:
 		return true
-	case AdminSchoolConfigApprovalPolicyManual:
+	case AdminManualReviewDecisionRequestActionReject:
+		return true
+	case AdminManualReviewDecisionRequestActionRequestSupplement:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for AdminSchoolConfigVerificationMethod.
+// Defines values for AdminRosterSyncRequestStatus.
 const (
-	AdminSchoolConfigVerificationMethodLdap   AdminSchoolConfigVerificationMethod = "ldap"
-	AdminSchoolConfigVerificationMethodManual AdminSchoolConfigVerificationMethod = "manual"
+	AdminRosterSyncRequestStatusCancelled AdminRosterSyncRequestStatus = "cancelled"
+	AdminRosterSyncRequestStatusFailed    AdminRosterSyncRequestStatus = "failed"
+	AdminRosterSyncRequestStatusPending   AdminRosterSyncRequestStatus = "pending"
+	AdminRosterSyncRequestStatusStarted   AdminRosterSyncRequestStatus = "started"
+	AdminRosterSyncRequestStatusSucceeded AdminRosterSyncRequestStatus = "succeeded"
+	AdminRosterSyncRequestStatusTimedOut  AdminRosterSyncRequestStatus = "timed_out"
 )
 
-// Valid indicates whether the value is a known member of the AdminSchoolConfigVerificationMethod enum.
-func (e AdminSchoolConfigVerificationMethod) Valid() bool {
+// Valid indicates whether the value is a known member of the AdminRosterSyncRequestStatus enum.
+func (e AdminRosterSyncRequestStatus) Valid() bool {
 	switch e {
-	case AdminSchoolConfigVerificationMethodLdap:
+	case AdminRosterSyncRequestStatusCancelled:
 		return true
-	case AdminSchoolConfigVerificationMethodManual:
+	case AdminRosterSyncRequestStatusFailed:
+		return true
+	case AdminRosterSyncRequestStatusPending:
+		return true
+	case AdminRosterSyncRequestStatusStarted:
+		return true
+	case AdminRosterSyncRequestStatusSucceeded:
+		return true
+	case AdminRosterSyncRequestStatusTimedOut:
 		return true
 	default:
 		return false
@@ -189,48 +204,102 @@ func (e AdminSensitiveWordLevel) Valid() bool {
 	}
 }
 
-// Defines values for AdminStudentVerificationItemVerificationMethod.
+// Defines values for AdminStudentCredentialAssurance.
 const (
-	AdminStudentVerificationItemVerificationMethodLdap           AdminStudentVerificationItemVerificationMethod = "ldap"
-	AdminStudentVerificationItemVerificationMethodManual         AdminStudentVerificationItemVerificationMethod = "manual"
-	AdminStudentVerificationItemVerificationMethodSchoolEmailOtp AdminStudentVerificationItemVerificationMethod = "school_email_otp"
-	AdminStudentVerificationItemVerificationMethodSchoolSso      AdminStudentVerificationItemVerificationMethod = "school_sso"
+	Reviewed AdminStudentCredentialAssurance = "reviewed"
+	Standard AdminStudentCredentialAssurance = "standard"
 )
 
-// Valid indicates whether the value is a known member of the AdminStudentVerificationItemVerificationMethod enum.
-func (e AdminStudentVerificationItemVerificationMethod) Valid() bool {
+// Valid indicates whether the value is a known member of the AdminStudentCredentialAssurance enum.
+func (e AdminStudentCredentialAssurance) Valid() bool {
 	switch e {
-	case AdminStudentVerificationItemVerificationMethodLdap:
+	case Reviewed:
 		return true
-	case AdminStudentVerificationItemVerificationMethodManual:
-		return true
-	case AdminStudentVerificationItemVerificationMethodSchoolEmailOtp:
-		return true
-	case AdminStudentVerificationItemVerificationMethodSchoolSso:
+	case Standard:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for AdminStudentVerificationItemVerificationStatus.
+// Defines values for AdminStudentCredentialCredentialClass.
 const (
-	AdminStudentVerificationItemVerificationStatusPending    AdminStudentVerificationItemVerificationStatus = "pending"
-	AdminStudentVerificationItemVerificationStatusRejected   AdminStudentVerificationItemVerificationStatus = "rejected"
-	AdminStudentVerificationItemVerificationStatusUnverified AdminStudentVerificationItemVerificationStatus = "unverified"
-	AdminStudentVerificationItemVerificationStatusVerified   AdminStudentVerificationItemVerificationStatus = "verified"
+	AdminStudentCredentialCredentialClassFormalStudent     AdminStudentCredentialCredentialClass = "formal_student"
+	AdminStudentCredentialCredentialClassTemporaryFreshman AdminStudentCredentialCredentialClass = "temporary_freshman"
 )
 
-// Valid indicates whether the value is a known member of the AdminStudentVerificationItemVerificationStatus enum.
-func (e AdminStudentVerificationItemVerificationStatus) Valid() bool {
+// Valid indicates whether the value is a known member of the AdminStudentCredentialCredentialClass enum.
+func (e AdminStudentCredentialCredentialClass) Valid() bool {
 	switch e {
-	case AdminStudentVerificationItemVerificationStatusPending:
+	case AdminStudentCredentialCredentialClassFormalStudent:
 		return true
-	case AdminStudentVerificationItemVerificationStatusRejected:
+	case AdminStudentCredentialCredentialClassTemporaryFreshman:
 		return true
-	case AdminStudentVerificationItemVerificationStatusUnverified:
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminStudentCredentialRosterDependency.
+const (
+	AdminStudentCredentialRosterDependencyConditional AdminStudentCredentialRosterDependency = "conditional"
+	AdminStudentCredentialRosterDependencyIndependent AdminStudentCredentialRosterDependency = "independent"
+	AdminStudentCredentialRosterDependencyRequired    AdminStudentCredentialRosterDependency = "required"
+)
+
+// Valid indicates whether the value is a known member of the AdminStudentCredentialRosterDependency enum.
+func (e AdminStudentCredentialRosterDependency) Valid() bool {
+	switch e {
+	case AdminStudentCredentialRosterDependencyConditional:
 		return true
-	case AdminStudentVerificationItemVerificationStatusVerified:
+	case AdminStudentCredentialRosterDependencyIndependent:
+		return true
+	case AdminStudentCredentialRosterDependencyRequired:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminStudentSubjectConflictStatus.
+const (
+	AdminStudentSubjectConflictStatusDismissed   AdminStudentSubjectConflictStatus = "dismissed"
+	AdminStudentSubjectConflictStatusOpen        AdminStudentSubjectConflictStatus = "open"
+	AdminStudentSubjectConflictStatusResolved    AdminStudentSubjectConflictStatus = "resolved"
+	AdminStudentSubjectConflictStatusUnderReview AdminStudentSubjectConflictStatus = "under_review"
+)
+
+// Valid indicates whether the value is a known member of the AdminStudentSubjectConflictStatus enum.
+func (e AdminStudentSubjectConflictStatus) Valid() bool {
+	switch e {
+	case AdminStudentSubjectConflictStatusDismissed:
+		return true
+	case AdminStudentSubjectConflictStatusOpen:
+		return true
+	case AdminStudentSubjectConflictStatusResolved:
+		return true
+	case AdminStudentSubjectConflictStatusUnderReview:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminSubjectConflictDecisionRequestAction.
+const (
+	DismissClaim                    AdminSubjectConflictDecisionRequestAction = "dismiss_claim"
+	ReleaseSubjectForReverification AdminSubjectConflictDecisionRequestAction = "release_subject_for_reverification"
+	StartReview                     AdminSubjectConflictDecisionRequestAction = "start_review"
+)
+
+// Valid indicates whether the value is a known member of the AdminSubjectConflictDecisionRequestAction enum.
+func (e AdminSubjectConflictDecisionRequestAction) Valid() bool {
+	switch e {
+	case DismissClaim:
+		return true
+	case ReleaseSubjectForReverification:
+		return true
+	case StartReview:
 		return true
 	default:
 		return false
@@ -258,21 +327,87 @@ func (e AdminUpdateReviewRequestAction) Valid() bool {
 	}
 }
 
-// Defines values for AdmissionMeCredentialKind.
+// Defines values for AdminVerificationMethodConfigHealthStatus.
 const (
-	AdmissionMeCredentialKindFreshmanMaterialManual AdmissionMeCredentialKind = "freshman_material_manual"
-	AdmissionMeCredentialKindSchoolEmailOtp         AdmissionMeCredentialKind = "school_email_otp"
-	AdmissionMeCredentialKindSchoolSso              AdmissionMeCredentialKind = "school_sso"
+	AdminVerificationMethodConfigHealthStatusDegraded    AdminVerificationMethodConfigHealthStatus = "degraded"
+	AdminVerificationMethodConfigHealthStatusHealthy     AdminVerificationMethodConfigHealthStatus = "healthy"
+	AdminVerificationMethodConfigHealthStatusUnavailable AdminVerificationMethodConfigHealthStatus = "unavailable"
+	AdminVerificationMethodConfigHealthStatusUnknown     AdminVerificationMethodConfigHealthStatus = "unknown"
 )
 
-// Valid indicates whether the value is a known member of the AdmissionMeCredentialKind enum.
-func (e AdmissionMeCredentialKind) Valid() bool {
+// Valid indicates whether the value is a known member of the AdminVerificationMethodConfigHealthStatus enum.
+func (e AdminVerificationMethodConfigHealthStatus) Valid() bool {
 	switch e {
-	case AdmissionMeCredentialKindFreshmanMaterialManual:
+	case AdminVerificationMethodConfigHealthStatusDegraded:
 		return true
-	case AdmissionMeCredentialKindSchoolEmailOtp:
+	case AdminVerificationMethodConfigHealthStatusHealthy:
 		return true
-	case AdmissionMeCredentialKindSchoolSso:
+	case AdminVerificationMethodConfigHealthStatusUnavailable:
+		return true
+	case AdminVerificationMethodConfigHealthStatusUnknown:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminVerificationMethodConfigRosterDependency.
+const (
+	AdminVerificationMethodConfigRosterDependencyConditional AdminVerificationMethodConfigRosterDependency = "conditional"
+	AdminVerificationMethodConfigRosterDependencyIndependent AdminVerificationMethodConfigRosterDependency = "independent"
+	AdminVerificationMethodConfigRosterDependencyRequired    AdminVerificationMethodConfigRosterDependency = "required"
+)
+
+// Valid indicates whether the value is a known member of the AdminVerificationMethodConfigRosterDependency enum.
+func (e AdminVerificationMethodConfigRosterDependency) Valid() bool {
+	switch e {
+	case AdminVerificationMethodConfigRosterDependencyConditional:
+		return true
+	case AdminVerificationMethodConfigRosterDependencyIndependent:
+		return true
+	case AdminVerificationMethodConfigRosterDependencyRequired:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminVerificationMethodConfigValidationStatus.
+const (
+	AdminVerificationMethodConfigValidationStatusInvalid AdminVerificationMethodConfigValidationStatus = "invalid"
+	AdminVerificationMethodConfigValidationStatusPending AdminVerificationMethodConfigValidationStatus = "pending"
+	AdminVerificationMethodConfigValidationStatusValid   AdminVerificationMethodConfigValidationStatus = "valid"
+)
+
+// Valid indicates whether the value is a known member of the AdminVerificationMethodConfigValidationStatus enum.
+func (e AdminVerificationMethodConfigValidationStatus) Valid() bool {
+	switch e {
+	case AdminVerificationMethodConfigValidationStatusInvalid:
+		return true
+	case AdminVerificationMethodConfigValidationStatusPending:
+		return true
+	case AdminVerificationMethodConfigValidationStatusValid:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminVerificationSchoolConfigValidationStatus.
+const (
+	AdminVerificationSchoolConfigValidationStatusInvalid AdminVerificationSchoolConfigValidationStatus = "invalid"
+	AdminVerificationSchoolConfigValidationStatusPending AdminVerificationSchoolConfigValidationStatus = "pending"
+	AdminVerificationSchoolConfigValidationStatusValid   AdminVerificationSchoolConfigValidationStatus = "valid"
+)
+
+// Valid indicates whether the value is a known member of the AdminVerificationSchoolConfigValidationStatus enum.
+func (e AdminVerificationSchoolConfigValidationStatus) Valid() bool {
+	switch e {
+	case AdminVerificationSchoolConfigValidationStatusInvalid:
+		return true
+	case AdminVerificationSchoolConfigValidationStatusPending:
+		return true
+	case AdminVerificationSchoolConfigValidationStatusValid:
 		return true
 	default:
 		return false
@@ -302,28 +437,43 @@ func (e AdmissionPolicyJoinHandlingStrategy) Valid() bool {
 
 // Defines values for AdmissionStatus.
 const (
-	AdmissionStatusCancelled         AdmissionStatus = "cancelled"
-	AdmissionStatusExpiredKicked     AdmissionStatus = "expired_kicked"
-	AdmissionStatusJoinedMuted       AdmissionStatus = "joined_muted"
-	AdmissionStatusLinked            AdmissionStatus = "linked"
-	AdmissionStatusMaterialSubmitted AdmissionStatus = "material_submitted"
-	AdmissionStatusVerified          AdmissionStatus = "verified"
+	AdmissionStatusActionPending        AdmissionStatus = "action_pending"
+	AdmissionStatusAdmitted             AdmissionStatus = "admitted"
+	AdmissionStatusAwaitingAccountLink  AdmissionStatus = "awaiting_account_link"
+	AdmissionStatusAwaitingRequirements AdmissionStatus = "awaiting_requirements"
+	AdmissionStatusCancelled            AdmissionStatus = "cancelled"
+	AdmissionStatusCreated              AdmissionStatus = "created"
+	AdmissionStatusEligible             AdmissionStatus = "eligible"
+	AdmissionStatusExpired              AdmissionStatus = "expired"
+	AdmissionStatusPendingManualReview  AdmissionStatus = "pending_manual_review"
+	AdmissionStatusRejected             AdmissionStatus = "rejected"
+	AdmissionStatusReleased             AdmissionStatus = "released"
 )
 
 // Valid indicates whether the value is a known member of the AdmissionStatus enum.
 func (e AdmissionStatus) Valid() bool {
 	switch e {
+	case AdmissionStatusActionPending:
+		return true
+	case AdmissionStatusAdmitted:
+		return true
+	case AdmissionStatusAwaitingAccountLink:
+		return true
+	case AdmissionStatusAwaitingRequirements:
+		return true
 	case AdmissionStatusCancelled:
 		return true
-	case AdmissionStatusExpiredKicked:
+	case AdmissionStatusCreated:
 		return true
-	case AdmissionStatusJoinedMuted:
+	case AdmissionStatusEligible:
 		return true
-	case AdmissionStatusLinked:
+	case AdmissionStatusExpired:
 		return true
-	case AdmissionStatusMaterialSubmitted:
+	case AdmissionStatusPendingManualReview:
 		return true
-	case AdmissionStatusVerified:
+	case AdmissionStatusRejected:
+		return true
+	case AdmissionStatusReleased:
 		return true
 	default:
 		return false
@@ -374,16 +524,16 @@ func (e AuthorizationDesiredState) Valid() bool {
 
 // Defines values for AuthorizationGrantSource.
 const (
-	AuthorizationGrantSourceCasdoorOrgAdmin AuthorizationGrantSource = "casdoor_org_admin"
-	AuthorizationGrantSourceManual          AuthorizationGrantSource = "manual"
+	CasdoorOrgAdmin AuthorizationGrantSource = "casdoor_org_admin"
+	Manual          AuthorizationGrantSource = "manual"
 )
 
 // Valid indicates whether the value is a known member of the AuthorizationGrantSource enum.
 func (e AuthorizationGrantSource) Valid() bool {
 	switch e {
-	case AuthorizationGrantSourceCasdoorOrgAdmin:
+	case CasdoorOrgAdmin:
 		return true
-	case AuthorizationGrantSourceManual:
+	case Manual:
 		return true
 	default:
 		return false
@@ -639,45 +789,6 @@ func (e BotAdmissionPolicyTargetJoinHandlingStrategy) Valid() bool {
 	}
 }
 
-// Defines values for BotFreshmanReviewRequestAction.
-const (
-	BotFreshmanReviewRequestActionApprove BotFreshmanReviewRequestAction = "approve"
-	BotFreshmanReviewRequestActionReject  BotFreshmanReviewRequestAction = "reject"
-)
-
-// Valid indicates whether the value is a known member of the BotFreshmanReviewRequestAction enum.
-func (e BotFreshmanReviewRequestAction) Valid() bool {
-	switch e {
-	case BotFreshmanReviewRequestActionApprove:
-		return true
-	case BotFreshmanReviewRequestActionReject:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for CameraCaptureRequestContentType.
-const (
-	CameraCaptureRequestContentTypeImagejpeg CameraCaptureRequestContentType = "image/jpeg"
-	CameraCaptureRequestContentTypeImagepng  CameraCaptureRequestContentType = "image/png"
-	CameraCaptureRequestContentTypeImagewebp CameraCaptureRequestContentType = "image/webp"
-)
-
-// Valid indicates whether the value is a known member of the CameraCaptureRequestContentType enum.
-func (e CameraCaptureRequestContentType) Valid() bool {
-	switch e {
-	case CameraCaptureRequestContentTypeImagejpeg:
-		return true
-	case CameraCaptureRequestContentTypeImagepng:
-		return true
-	case CameraCaptureRequestContentTypeImagewebp:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for ContentCheckResultLevel.
 const (
 	ContentCheckResultLevelBlock ContentCheckResultLevel = "block"
@@ -750,141 +861,342 @@ func (e ErrorResponseBodySuccess) Valid() bool {
 	}
 }
 
-// Defines values for FreshmanApplicationMaterialType.
+// Defines values for InboundEmailChallengeStatus.
 const (
-	FreshmanApplicationMaterialTypeAdmissionCertificate FreshmanApplicationMaterialType = "admission_certificate"
-	FreshmanApplicationMaterialTypeAdmissionNotice      FreshmanApplicationMaterialType = "admission_notice"
+	InboundEmailChallengeStatusCancelled InboundEmailChallengeStatus = "cancelled"
+	InboundEmailChallengeStatusExpired   InboundEmailChallengeStatus = "expired"
+	InboundEmailChallengeStatusVerified  InboundEmailChallengeStatus = "verified"
+	InboundEmailChallengeStatusWaiting   InboundEmailChallengeStatus = "waiting"
 )
 
-// Valid indicates whether the value is a known member of the FreshmanApplicationMaterialType enum.
-func (e FreshmanApplicationMaterialType) Valid() bool {
+// Valid indicates whether the value is a known member of the InboundEmailChallengeStatus enum.
+func (e InboundEmailChallengeStatus) Valid() bool {
 	switch e {
-	case FreshmanApplicationMaterialTypeAdmissionCertificate:
+	case InboundEmailChallengeStatusCancelled:
 		return true
-	case FreshmanApplicationMaterialTypeAdmissionNotice:
+	case InboundEmailChallengeStatusExpired:
+		return true
+	case InboundEmailChallengeStatusVerified:
+		return true
+	case InboundEmailChallengeStatusWaiting:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for FreshmanApplicationStatus.
+// Defines values for InboundEmailWebhookRequestDkim.
 const (
-	FreshmanApplicationStatusApproved FreshmanApplicationStatus = "approved"
-	FreshmanApplicationStatusPending  FreshmanApplicationStatus = "pending"
-	FreshmanApplicationStatusRejected FreshmanApplicationStatus = "rejected"
+	InboundEmailWebhookRequestDkimFail    InboundEmailWebhookRequestDkim = "fail"
+	InboundEmailWebhookRequestDkimNeutral InboundEmailWebhookRequestDkim = "neutral"
+	InboundEmailWebhookRequestDkimNone    InboundEmailWebhookRequestDkim = "none"
+	InboundEmailWebhookRequestDkimPass    InboundEmailWebhookRequestDkim = "pass"
 )
 
-// Valid indicates whether the value is a known member of the FreshmanApplicationStatus enum.
-func (e FreshmanApplicationStatus) Valid() bool {
+// Valid indicates whether the value is a known member of the InboundEmailWebhookRequestDkim enum.
+func (e InboundEmailWebhookRequestDkim) Valid() bool {
 	switch e {
-	case FreshmanApplicationStatusApproved:
+	case InboundEmailWebhookRequestDkimFail:
 		return true
-	case FreshmanApplicationStatusPending:
+	case InboundEmailWebhookRequestDkimNeutral:
 		return true
-	case FreshmanApplicationStatusRejected:
+	case InboundEmailWebhookRequestDkimNone:
+		return true
+	case InboundEmailWebhookRequestDkimPass:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for FreshmanCameraHandoffContinueOn.
+// Defines values for InboundEmailWebhookRequestDmarc.
 const (
-	FreshmanCameraHandoffContinueOnDesktop FreshmanCameraHandoffContinueOn = "desktop"
-	FreshmanCameraHandoffContinueOnMobile  FreshmanCameraHandoffContinueOn = "mobile"
+	InboundEmailWebhookRequestDmarcFail    InboundEmailWebhookRequestDmarc = "fail"
+	InboundEmailWebhookRequestDmarcNeutral InboundEmailWebhookRequestDmarc = "neutral"
+	InboundEmailWebhookRequestDmarcNone    InboundEmailWebhookRequestDmarc = "none"
+	InboundEmailWebhookRequestDmarcPass    InboundEmailWebhookRequestDmarc = "pass"
 )
 
-// Valid indicates whether the value is a known member of the FreshmanCameraHandoffContinueOn enum.
-func (e FreshmanCameraHandoffContinueOn) Valid() bool {
+// Valid indicates whether the value is a known member of the InboundEmailWebhookRequestDmarc enum.
+func (e InboundEmailWebhookRequestDmarc) Valid() bool {
 	switch e {
-	case FreshmanCameraHandoffContinueOnDesktop:
+	case InboundEmailWebhookRequestDmarcFail:
 		return true
-	case FreshmanCameraHandoffContinueOnMobile:
+	case InboundEmailWebhookRequestDmarcNeutral:
+		return true
+	case InboundEmailWebhookRequestDmarcNone:
+		return true
+	case InboundEmailWebhookRequestDmarcPass:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for FreshmanCameraHandoffStatus.
+// Defines values for InboundEmailWebhookRequestSpf.
 const (
-	FreshmanCameraHandoffStatusExpired  FreshmanCameraHandoffStatus = "expired"
-	FreshmanCameraHandoffStatusLocked   FreshmanCameraHandoffStatus = "locked"
-	FreshmanCameraHandoffStatusPending  FreshmanCameraHandoffStatus = "pending"
-	FreshmanCameraHandoffStatusUploaded FreshmanCameraHandoffStatus = "uploaded"
+	InboundEmailWebhookRequestSpfFail    InboundEmailWebhookRequestSpf = "fail"
+	InboundEmailWebhookRequestSpfNeutral InboundEmailWebhookRequestSpf = "neutral"
+	InboundEmailWebhookRequestSpfNone    InboundEmailWebhookRequestSpf = "none"
+	InboundEmailWebhookRequestSpfPass    InboundEmailWebhookRequestSpf = "pass"
 )
 
-// Valid indicates whether the value is a known member of the FreshmanCameraHandoffStatus enum.
-func (e FreshmanCameraHandoffStatus) Valid() bool {
+// Valid indicates whether the value is a known member of the InboundEmailWebhookRequestSpf enum.
+func (e InboundEmailWebhookRequestSpf) Valid() bool {
 	switch e {
-	case FreshmanCameraHandoffStatusExpired:
+	case InboundEmailWebhookRequestSpfFail:
 		return true
-	case FreshmanCameraHandoffStatusLocked:
+	case InboundEmailWebhookRequestSpfNeutral:
 		return true
-	case FreshmanCameraHandoffStatusPending:
+	case InboundEmailWebhookRequestSpfNone:
 		return true
-	case FreshmanCameraHandoffStatusUploaded:
+	case InboundEmailWebhookRequestSpfPass:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for FreshmanCameraHandoffContinuationRequestContinueOn.
+// Defines values for ManualCameraCaptureRequestCaptureSource.
 const (
-	FreshmanCameraHandoffContinuationRequestContinueOnDesktop FreshmanCameraHandoffContinuationRequestContinueOn = "desktop"
-	FreshmanCameraHandoffContinuationRequestContinueOnMobile  FreshmanCameraHandoffContinuationRequestContinueOn = "mobile"
+	WebCamera ManualCameraCaptureRequestCaptureSource = "web_camera"
 )
 
-// Valid indicates whether the value is a known member of the FreshmanCameraHandoffContinuationRequestContinueOn enum.
-func (e FreshmanCameraHandoffContinuationRequestContinueOn) Valid() bool {
+// Valid indicates whether the value is a known member of the ManualCameraCaptureRequestCaptureSource enum.
+func (e ManualCameraCaptureRequestCaptureSource) Valid() bool {
 	switch e {
-	case FreshmanCameraHandoffContinuationRequestContinueOnDesktop:
-		return true
-	case FreshmanCameraHandoffContinuationRequestContinueOnMobile:
+	case WebCamera:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for FreshmanReviewRequestAction.
+// Defines values for ManualCameraCaptureRequestContentType.
 const (
-	FreshmanReviewRequestActionApprove FreshmanReviewRequestAction = "approve"
-	FreshmanReviewRequestActionReject  FreshmanReviewRequestAction = "reject"
+	ManualCameraCaptureRequestContentTypeImagejpeg ManualCameraCaptureRequestContentType = "image/jpeg"
+	ManualCameraCaptureRequestContentTypeImagepng  ManualCameraCaptureRequestContentType = "image/png"
+	ManualCameraCaptureRequestContentTypeImagewebp ManualCameraCaptureRequestContentType = "image/webp"
 )
 
-// Valid indicates whether the value is a known member of the FreshmanReviewRequestAction enum.
-func (e FreshmanReviewRequestAction) Valid() bool {
+// Valid indicates whether the value is a known member of the ManualCameraCaptureRequestContentType enum.
+func (e ManualCameraCaptureRequestContentType) Valid() bool {
 	switch e {
-	case FreshmanReviewRequestActionApprove:
+	case ManualCameraCaptureRequestContentTypeImagejpeg:
 		return true
-	case FreshmanReviewRequestActionReject:
+	case ManualCameraCaptureRequestContentTypeImagepng:
+		return true
+	case ManualCameraCaptureRequestContentTypeImagewebp:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for ManualFieldDescriptorType.
+// Defines values for ManualCameraCaptureRequestRequestedFacingMode.
 const (
-	Date     ManualFieldDescriptorType = "date"
-	Select   ManualFieldDescriptorType = "select"
-	Text     ManualFieldDescriptorType = "text"
-	Textarea ManualFieldDescriptorType = "textarea"
+	ManualCameraCaptureRequestRequestedFacingModeEnvironment ManualCameraCaptureRequestRequestedFacingMode = "environment"
+	ManualCameraCaptureRequestRequestedFacingModeUnknown     ManualCameraCaptureRequestRequestedFacingMode = "unknown"
 )
 
-// Valid indicates whether the value is a known member of the ManualFieldDescriptorType enum.
-func (e ManualFieldDescriptorType) Valid() bool {
+// Valid indicates whether the value is a known member of the ManualCameraCaptureRequestRequestedFacingMode enum.
+func (e ManualCameraCaptureRequestRequestedFacingMode) Valid() bool {
 	switch e {
-	case Date:
+	case ManualCameraCaptureRequestRequestedFacingModeEnvironment:
 		return true
-	case Select:
+	case ManualCameraCaptureRequestRequestedFacingModeUnknown:
 		return true
-	case Text:
+	default:
+		return false
+	}
+}
+
+// Defines values for ManualCameraContinuationRequestContinueOn.
+const (
+	ManualCameraContinuationRequestContinueOnDesktop ManualCameraContinuationRequestContinueOn = "desktop"
+	ManualCameraContinuationRequestContinueOnMobile  ManualCameraContinuationRequestContinueOn = "mobile"
+)
+
+// Valid indicates whether the value is a known member of the ManualCameraContinuationRequestContinueOn enum.
+func (e ManualCameraContinuationRequestContinueOn) Valid() bool {
+	switch e {
+	case ManualCameraContinuationRequestContinueOnDesktop:
 		return true
-	case Textarea:
+	case ManualCameraContinuationRequestContinueOnMobile:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ManualCameraHandoffContinueOn.
+const (
+	ManualCameraHandoffContinueOnDesktop     ManualCameraHandoffContinueOn = "desktop"
+	ManualCameraHandoffContinueOnLessThannil ManualCameraHandoffContinueOn = "<nil>"
+	ManualCameraHandoffContinueOnMobile      ManualCameraHandoffContinueOn = "mobile"
+)
+
+// Valid indicates whether the value is a known member of the ManualCameraHandoffContinueOn enum.
+func (e ManualCameraHandoffContinueOn) Valid() bool {
+	switch e {
+	case ManualCameraHandoffContinueOnDesktop:
+		return true
+	case ManualCameraHandoffContinueOnLessThannil:
+		return true
+	case ManualCameraHandoffContinueOnMobile:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ManualCameraHandoffStatus.
+const (
+	ManualCameraHandoffStatusExpired  ManualCameraHandoffStatus = "expired"
+	ManualCameraHandoffStatusLocked   ManualCameraHandoffStatus = "locked"
+	ManualCameraHandoffStatusPending  ManualCameraHandoffStatus = "pending"
+	ManualCameraHandoffStatusUploaded ManualCameraHandoffStatus = "uploaded"
+)
+
+// Valid indicates whether the value is a known member of the ManualCameraHandoffStatus enum.
+func (e ManualCameraHandoffStatus) Valid() bool {
+	switch e {
+	case ManualCameraHandoffStatusExpired:
+		return true
+	case ManualCameraHandoffStatusLocked:
+		return true
+	case ManualCameraHandoffStatusPending:
+		return true
+	case ManualCameraHandoffStatusUploaded:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ManualMaterialType.
+const (
+	AdmissionNotice ManualMaterialType = "admission_notice"
+	CampusCard      ManualMaterialType = "campus_card"
+	OtherApproved   ManualMaterialType = "other_approved"
+	StudentCard     ManualMaterialType = "student_card"
+)
+
+// Valid indicates whether the value is a known member of the ManualMaterialType enum.
+func (e ManualMaterialType) Valid() bool {
+	switch e {
+	case AdmissionNotice:
+		return true
+	case CampusCard:
+		return true
+	case OtherApproved:
+		return true
+	case StudentCard:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ManualReviewCaseCredentialClass.
+const (
+	ManualReviewCaseCredentialClassFormalStudent     ManualReviewCaseCredentialClass = "formal_student"
+	ManualReviewCaseCredentialClassLessThannil       ManualReviewCaseCredentialClass = "<nil>"
+	ManualReviewCaseCredentialClassTemporaryFreshman ManualReviewCaseCredentialClass = "temporary_freshman"
+)
+
+// Valid indicates whether the value is a known member of the ManualReviewCaseCredentialClass enum.
+func (e ManualReviewCaseCredentialClass) Valid() bool {
+	switch e {
+	case ManualReviewCaseCredentialClassFormalStudent:
+		return true
+	case ManualReviewCaseCredentialClassLessThannil:
+		return true
+	case ManualReviewCaseCredentialClassTemporaryFreshman:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ManualReviewCaseNextActions.
+const (
+	ManualReviewCaseNextActionsAddSupplement    ManualReviewCaseNextActions = "add_supplement"
+	ManualReviewCaseNextActionsCaptureMaterial  ManualReviewCaseNextActions = "capture_material"
+	ManualReviewCaseNextActionsEditForm         ManualReviewCaseNextActions = "edit_form"
+	ManualReviewCaseNextActionsReturnToConsumer ManualReviewCaseNextActions = "return_to_consumer"
+	ManualReviewCaseNextActionsSubmit           ManualReviewCaseNextActions = "submit"
+	ManualReviewCaseNextActionsWaitForReview    ManualReviewCaseNextActions = "wait_for_review"
+)
+
+// Valid indicates whether the value is a known member of the ManualReviewCaseNextActions enum.
+func (e ManualReviewCaseNextActions) Valid() bool {
+	switch e {
+	case ManualReviewCaseNextActionsAddSupplement:
+		return true
+	case ManualReviewCaseNextActionsCaptureMaterial:
+		return true
+	case ManualReviewCaseNextActionsEditForm:
+		return true
+	case ManualReviewCaseNextActionsReturnToConsumer:
+		return true
+	case ManualReviewCaseNextActionsSubmit:
+		return true
+	case ManualReviewCaseNextActionsWaitForReview:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ManualReviewMaterialContentType.
+const (
+	ManualReviewMaterialContentTypeImagejpeg ManualReviewMaterialContentType = "image/jpeg"
+	ManualReviewMaterialContentTypeImagepng  ManualReviewMaterialContentType = "image/png"
+	ManualReviewMaterialContentTypeImagewebp ManualReviewMaterialContentType = "image/webp"
+)
+
+// Valid indicates whether the value is a known member of the ManualReviewMaterialContentType enum.
+func (e ManualReviewMaterialContentType) Valid() bool {
+	switch e {
+	case ManualReviewMaterialContentTypeImagejpeg:
+		return true
+	case ManualReviewMaterialContentTypeImagepng:
+		return true
+	case ManualReviewMaterialContentTypeImagewebp:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ManualReviewStatus.
+const (
+	ManualReviewStatusApproved           ManualReviewStatus = "approved"
+	ManualReviewStatusCancelled          ManualReviewStatus = "cancelled"
+	ManualReviewStatusDraft              ManualReviewStatus = "draft"
+	ManualReviewStatusExpired            ManualReviewStatus = "expired"
+	ManualReviewStatusPending            ManualReviewStatus = "pending"
+	ManualReviewStatusRejected           ManualReviewStatus = "rejected"
+	ManualReviewStatusSupplementRequired ManualReviewStatus = "supplement_required"
+)
+
+// Valid indicates whether the value is a known member of the ManualReviewStatus enum.
+func (e ManualReviewStatus) Valid() bool {
+	switch e {
+	case ManualReviewStatusApproved:
+		return true
+	case ManualReviewStatusCancelled:
+		return true
+	case ManualReviewStatusDraft:
+		return true
+	case ManualReviewStatusExpired:
+		return true
+	case ManualReviewStatusPending:
+		return true
+	case ManualReviewStatusRejected:
+		return true
+	case ManualReviewStatusSupplementRequired:
 		return true
 	default:
 		return false
@@ -1232,25 +1544,25 @@ func (e OpenPlatformDisclosureEndpointStatsEndpoint) Valid() bool {
 
 // Defines values for OpenPlatformDisclosureRateLimitStatsDimension.
 const (
-	App      OpenPlatformDisclosureRateLimitStatsDimension = "app"
-	AppUser  OpenPlatformDisclosureRateLimitStatsDimension = "app_user"
-	Consent  OpenPlatformDisclosureRateLimitStatsDimension = "consent"
-	Endpoint OpenPlatformDisclosureRateLimitStatsDimension = "endpoint"
-	Unknown  OpenPlatformDisclosureRateLimitStatsDimension = "unknown"
+	OpenPlatformDisclosureRateLimitStatsDimensionApp      OpenPlatformDisclosureRateLimitStatsDimension = "app"
+	OpenPlatformDisclosureRateLimitStatsDimensionAppUser  OpenPlatformDisclosureRateLimitStatsDimension = "app_user"
+	OpenPlatformDisclosureRateLimitStatsDimensionConsent  OpenPlatformDisclosureRateLimitStatsDimension = "consent"
+	OpenPlatformDisclosureRateLimitStatsDimensionEndpoint OpenPlatformDisclosureRateLimitStatsDimension = "endpoint"
+	OpenPlatformDisclosureRateLimitStatsDimensionUnknown  OpenPlatformDisclosureRateLimitStatsDimension = "unknown"
 )
 
 // Valid indicates whether the value is a known member of the OpenPlatformDisclosureRateLimitStatsDimension enum.
 func (e OpenPlatformDisclosureRateLimitStatsDimension) Valid() bool {
 	switch e {
-	case App:
+	case OpenPlatformDisclosureRateLimitStatsDimensionApp:
 		return true
-	case AppUser:
+	case OpenPlatformDisclosureRateLimitStatsDimensionAppUser:
 		return true
-	case Consent:
+	case OpenPlatformDisclosureRateLimitStatsDimensionConsent:
 		return true
-	case Endpoint:
+	case OpenPlatformDisclosureRateLimitStatsDimensionEndpoint:
 		return true
-	case Unknown:
+	case OpenPlatformDisclosureRateLimitStatsDimensionUnknown:
 		return true
 	default:
 		return false
@@ -1620,6 +1932,132 @@ func (e OpenPlatformUserConsentScopeSensitivity) Valid() bool {
 	}
 }
 
+// Defines values for PhoneBindingOperationOperationKind.
+const (
+	Bind   PhoneBindingOperationOperationKind = "bind"
+	Change PhoneBindingOperationOperationKind = "change"
+	Unbind PhoneBindingOperationOperationKind = "unbind"
+)
+
+// Valid indicates whether the value is a known member of the PhoneBindingOperationOperationKind enum.
+func (e PhoneBindingOperationOperationKind) Valid() bool {
+	switch e {
+	case Bind:
+		return true
+	case Change:
+		return true
+	case Unbind:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PhoneBindingOperationStatus.
+const (
+	PhoneBindingOperationStatusCancelled             PhoneBindingOperationStatus = "cancelled"
+	PhoneBindingOperationStatusCasdoorUpdatePending  PhoneBindingOperationStatus = "casdoor_update_pending"
+	PhoneBindingOperationStatusCasdoorUpdated        PhoneBindingOperationStatus = "casdoor_updated"
+	PhoneBindingOperationStatusCompleted             PhoneBindingOperationStatus = "completed"
+	PhoneBindingOperationStatusExpired               PhoneBindingOperationStatus = "expired"
+	PhoneBindingOperationStatusFailed                PhoneBindingOperationStatus = "failed"
+	PhoneBindingOperationStatusPendingVerification   PhoneBindingOperationStatus = "pending_verification"
+	PhoneBindingOperationStatusProjectionSyncPending PhoneBindingOperationStatus = "projection_sync_pending"
+	PhoneBindingOperationStatusVerificationSucceeded PhoneBindingOperationStatus = "verification_succeeded"
+)
+
+// Valid indicates whether the value is a known member of the PhoneBindingOperationStatus enum.
+func (e PhoneBindingOperationStatus) Valid() bool {
+	switch e {
+	case PhoneBindingOperationStatusCancelled:
+		return true
+	case PhoneBindingOperationStatusCasdoorUpdatePending:
+		return true
+	case PhoneBindingOperationStatusCasdoorUpdated:
+		return true
+	case PhoneBindingOperationStatusCompleted:
+		return true
+	case PhoneBindingOperationStatusExpired:
+		return true
+	case PhoneBindingOperationStatusFailed:
+		return true
+	case PhoneBindingOperationStatusPendingVerification:
+		return true
+	case PhoneBindingOperationStatusProjectionSyncPending:
+		return true
+	case PhoneBindingOperationStatusVerificationSucceeded:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PhoneBindingOperationVerificationStep.
+const (
+	PhoneBindingOperationVerificationStepNone      PhoneBindingOperationVerificationStep = "none"
+	PhoneBindingOperationVerificationStepSmsOtp    PhoneBindingOperationVerificationStep = "sms_otp"
+	PhoneBindingOperationVerificationStepStepUpMfa PhoneBindingOperationVerificationStep = "step_up_mfa"
+	PhoneBindingOperationVerificationStepSyncing   PhoneBindingOperationVerificationStep = "syncing"
+)
+
+// Valid indicates whether the value is a known member of the PhoneBindingOperationVerificationStep enum.
+func (e PhoneBindingOperationVerificationStep) Valid() bool {
+	switch e {
+	case PhoneBindingOperationVerificationStepNone:
+		return true
+	case PhoneBindingOperationVerificationStepSmsOtp:
+		return true
+	case PhoneBindingOperationVerificationStepStepUpMfa:
+		return true
+	case PhoneBindingOperationVerificationStepSyncing:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PhoneStatusState.
+const (
+	PhoneStatusStateReviewRequired PhoneStatusState = "review_required"
+	PhoneStatusStateSyncing        PhoneStatusState = "syncing"
+	PhoneStatusStateUnbound        PhoneStatusState = "unbound"
+	PhoneStatusStateVerified       PhoneStatusState = "verified"
+)
+
+// Valid indicates whether the value is a known member of the PhoneStatusState enum.
+func (e PhoneStatusState) Valid() bool {
+	switch e {
+	case PhoneStatusStateReviewRequired:
+		return true
+	case PhoneStatusStateSyncing:
+		return true
+	case PhoneStatusStateUnbound:
+		return true
+	case PhoneStatusStateVerified:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PhoneVerificationMethod.
+const (
+	SchoolRosterPhoneMatch PhoneVerificationMethod = "school_roster_phone_match"
+	SmsPossession          PhoneVerificationMethod = "sms_possession"
+)
+
+// Valid indicates whether the value is a known member of the PhoneVerificationMethod enum.
+func (e PhoneVerificationMethod) Valid() bool {
+	switch e {
+	case SchoolRosterPhoneMatch:
+		return true
+	case SmsPossession:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PostReviewRequestGrade.
 const (
 	PostReviewRequestGradeA  PostReviewRequestGrade = "A+"
@@ -1680,30 +2118,6 @@ func (e ProcessReportRequestAction) Valid() bool {
 	case ProcessReportRequestActionHide:
 		return true
 	case ProcessReportRequestActionReject:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for QQVerificationStatusProfileVerificationStatus.
-const (
-	QQVerificationStatusProfileVerificationStatusPending    QQVerificationStatusProfileVerificationStatus = "pending"
-	QQVerificationStatusProfileVerificationStatusRejected   QQVerificationStatusProfileVerificationStatus = "rejected"
-	QQVerificationStatusProfileVerificationStatusUnverified QQVerificationStatusProfileVerificationStatus = "unverified"
-	QQVerificationStatusProfileVerificationStatusVerified   QQVerificationStatusProfileVerificationStatus = "verified"
-)
-
-// Valid indicates whether the value is a known member of the QQVerificationStatusProfileVerificationStatus enum.
-func (e QQVerificationStatusProfileVerificationStatus) Valid() bool {
-	switch e {
-	case QQVerificationStatusProfileVerificationStatusPending:
-		return true
-	case QQVerificationStatusProfileVerificationStatusRejected:
-		return true
-	case QQVerificationStatusProfileVerificationStatusUnverified:
-		return true
-	case QQVerificationStatusProfileVerificationStatusVerified:
 		return true
 	default:
 		return false
@@ -1959,6 +2373,105 @@ func (e ReviewReportStatus) Valid() bool {
 	}
 }
 
+// Defines values for RosterQualityCheckStatus.
+const (
+	RosterQualityCheckStatusFailed  RosterQualityCheckStatus = "failed"
+	RosterQualityCheckStatusPassed  RosterQualityCheckStatus = "passed"
+	RosterQualityCheckStatusPending RosterQualityCheckStatus = "pending"
+	RosterQualityCheckStatusWarning RosterQualityCheckStatus = "warning"
+)
+
+// Valid indicates whether the value is a known member of the RosterQualityCheckStatus enum.
+func (e RosterQualityCheckStatus) Valid() bool {
+	switch e {
+	case RosterQualityCheckStatusFailed:
+		return true
+	case RosterQualityCheckStatusPassed:
+		return true
+	case RosterQualityCheckStatusPending:
+		return true
+	case RosterQualityCheckStatusWarning:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RosterSnapshotImportMode.
+const (
+	Full           RosterSnapshotImportMode = "full"
+	Incremental    RosterSnapshotImportMode = "incremental"
+	ReconciledFull RosterSnapshotImportMode = "reconciled_full"
+)
+
+// Valid indicates whether the value is a known member of the RosterSnapshotImportMode enum.
+func (e RosterSnapshotImportMode) Valid() bool {
+	switch e {
+	case Full:
+		return true
+	case Incremental:
+		return true
+	case ReconciledFull:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RosterSnapshotSourceKind.
+const (
+	CampusConnector      RosterSnapshotSourceKind = "campus_connector"
+	Fixture              RosterSnapshotSourceKind = "fixture"
+	IsolatedOracleWorker RosterSnapshotSourceKind = "isolated_oracle_worker"
+)
+
+// Valid indicates whether the value is a known member of the RosterSnapshotSourceKind enum.
+func (e RosterSnapshotSourceKind) Valid() bool {
+	switch e {
+	case CampusConnector:
+		return true
+	case Fixture:
+		return true
+	case IsolatedOracleWorker:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RosterSnapshotStatus.
+const (
+	RosterSnapshotStatusActive     RosterSnapshotStatus = "active"
+	RosterSnapshotStatusFailed     RosterSnapshotStatus = "failed"
+	RosterSnapshotStatusReady      RosterSnapshotStatus = "ready"
+	RosterSnapshotStatusRolledBack RosterSnapshotStatus = "rolled_back"
+	RosterSnapshotStatusStaging    RosterSnapshotStatus = "staging"
+	RosterSnapshotStatusSuperseded RosterSnapshotStatus = "superseded"
+	RosterSnapshotStatusValidating RosterSnapshotStatus = "validating"
+)
+
+// Valid indicates whether the value is a known member of the RosterSnapshotStatus enum.
+func (e RosterSnapshotStatus) Valid() bool {
+	switch e {
+	case RosterSnapshotStatusActive:
+		return true
+	case RosterSnapshotStatusFailed:
+		return true
+	case RosterSnapshotStatusReady:
+		return true
+	case RosterSnapshotStatusRolledBack:
+		return true
+	case RosterSnapshotStatusStaging:
+		return true
+	case RosterSnapshotStatusSuperseded:
+		return true
+	case RosterSnapshotStatusValidating:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for SaveDraftRequestGrade.
 const (
 	SaveDraftRequestGradeA  SaveDraftRequestGrade = "A+"
@@ -2004,57 +2517,138 @@ func (e SaveDraftRequestGrade) Valid() bool {
 	}
 }
 
-// Defines values for SchoolConfigVerificationMethod.
+// Defines values for SchoolVerificationSuggestionStatus.
 const (
-	SchoolConfigVerificationMethodLdap   SchoolConfigVerificationMethod = "ldap"
-	SchoolConfigVerificationMethodManual SchoolConfigVerificationMethod = "manual"
+	SchoolVerificationSuggestionStatusPending SchoolVerificationSuggestionStatus = "pending"
 )
 
-// Valid indicates whether the value is a known member of the SchoolConfigVerificationMethod enum.
-func (e SchoolConfigVerificationMethod) Valid() bool {
+// Valid indicates whether the value is a known member of the SchoolVerificationSuggestionStatus enum.
+func (e SchoolVerificationSuggestionStatus) Valid() bool {
 	switch e {
-	case SchoolConfigVerificationMethodLdap:
-		return true
-	case SchoolConfigVerificationMethodManual:
+	case SchoolVerificationSuggestionStatusPending:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for SchoolEmailIdentityPolicyType.
+// Defines values for StudentEligibilityCredentialClass.
 const (
-	AcademicStudentEmail SchoolEmailIdentityPolicyType = "academic_student_email"
+	StudentEligibilityCredentialClassFormalStudent     StudentEligibilityCredentialClass = "formal_student"
+	StudentEligibilityCredentialClassLessThannil       StudentEligibilityCredentialClass = "<nil>"
+	StudentEligibilityCredentialClassTemporaryFreshman StudentEligibilityCredentialClass = "temporary_freshman"
 )
 
-// Valid indicates whether the value is a known member of the SchoolEmailIdentityPolicyType enum.
-func (e SchoolEmailIdentityPolicyType) Valid() bool {
+// Valid indicates whether the value is a known member of the StudentEligibilityCredentialClass enum.
+func (e StudentEligibilityCredentialClass) Valid() bool {
 	switch e {
-	case AcademicStudentEmail:
+	case StudentEligibilityCredentialClassFormalStudent:
+		return true
+	case StudentEligibilityCredentialClassLessThannil:
+		return true
+	case StudentEligibilityCredentialClassTemporaryFreshman:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for SubmitIdentityRequestDocType.
+// Defines values for StudentEligibilityCredentialMethods.
 const (
-	SubmitIdentityRequestDocTypeHKMACAU    SubmitIdentityRequestDocType = "HK_MACAU"
-	SubmitIdentityRequestDocTypeMAINLANDID SubmitIdentityRequestDocType = "MAINLAND_ID"
-	SubmitIdentityRequestDocTypePASSPORT   SubmitIdentityRequestDocType = "PASSPORT"
-	SubmitIdentityRequestDocTypeTW         SubmitIdentityRequestDocType = "TW"
+	StudentEligibilityCredentialMethodsManualMaterialReview         StudentEligibilityCredentialMethods = "manual_material_review"
+	StudentEligibilityCredentialMethodsRealNameIdentityCheck        StudentEligibilityCredentialMethods = "real_name_identity_check"
+	StudentEligibilityCredentialMethodsSchoolSso                    StudentEligibilityCredentialMethods = "school_sso"
+	StudentEligibilityCredentialMethodsStudentEmailInboundChallenge StudentEligibilityCredentialMethods = "student_email_inbound_challenge"
+	StudentEligibilityCredentialMethodsStudentEmailOutboundOtp      StudentEligibilityCredentialMethods = "student_email_outbound_otp"
 )
 
-// Valid indicates whether the value is a known member of the SubmitIdentityRequestDocType enum.
-func (e SubmitIdentityRequestDocType) Valid() bool {
+// Valid indicates whether the value is a known member of the StudentEligibilityCredentialMethods enum.
+func (e StudentEligibilityCredentialMethods) Valid() bool {
 	switch e {
-	case SubmitIdentityRequestDocTypeHKMACAU:
+	case StudentEligibilityCredentialMethodsManualMaterialReview:
 		return true
-	case SubmitIdentityRequestDocTypeMAINLANDID:
+	case StudentEligibilityCredentialMethodsRealNameIdentityCheck:
 		return true
-	case SubmitIdentityRequestDocTypePASSPORT:
+	case StudentEligibilityCredentialMethodsSchoolSso:
 		return true
-	case SubmitIdentityRequestDocTypeTW:
+	case StudentEligibilityCredentialMethodsStudentEmailInboundChallenge:
+		return true
+	case StudentEligibilityCredentialMethodsStudentEmailOutboundOtp:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for StudentEmailIdentityRequestSensitiveDataConsent.
+const (
+	StudentEmailIdentityRequestSensitiveDataConsentTrue StudentEmailIdentityRequestSensitiveDataConsent = true
+)
+
+// Valid indicates whether the value is a known member of the StudentEmailIdentityRequestSensitiveDataConsent enum.
+func (e StudentEmailIdentityRequestSensitiveDataConsent) Valid() bool {
+	switch e {
+	case StudentEmailIdentityRequestSensitiveDataConsentTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for StudentVerificationCredentialCredentialClass.
+const (
+	StudentVerificationCredentialCredentialClassFormalStudent     StudentVerificationCredentialCredentialClass = "formal_student"
+	StudentVerificationCredentialCredentialClassTemporaryFreshman StudentVerificationCredentialCredentialClass = "temporary_freshman"
+)
+
+// Valid indicates whether the value is a known member of the StudentVerificationCredentialCredentialClass enum.
+func (e StudentVerificationCredentialCredentialClass) Valid() bool {
+	switch e {
+	case StudentVerificationCredentialCredentialClassFormalStudent:
+		return true
+	case StudentVerificationCredentialCredentialClassTemporaryFreshman:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for StudentVerificationCredentialMethod.
+const (
+	StudentVerificationCredentialMethodManualMaterialReview         StudentVerificationCredentialMethod = "manual_material_review"
+	StudentVerificationCredentialMethodRealNameIdentityCheck        StudentVerificationCredentialMethod = "real_name_identity_check"
+	StudentVerificationCredentialMethodSchoolSso                    StudentVerificationCredentialMethod = "school_sso"
+	StudentVerificationCredentialMethodStudentEmailInboundChallenge StudentVerificationCredentialMethod = "student_email_inbound_challenge"
+	StudentVerificationCredentialMethodStudentEmailOutboundOtp      StudentVerificationCredentialMethod = "student_email_outbound_otp"
+)
+
+// Valid indicates whether the value is a known member of the StudentVerificationCredentialMethod enum.
+func (e StudentVerificationCredentialMethod) Valid() bool {
+	switch e {
+	case StudentVerificationCredentialMethodManualMaterialReview:
+		return true
+	case StudentVerificationCredentialMethodRealNameIdentityCheck:
+		return true
+	case StudentVerificationCredentialMethodSchoolSso:
+		return true
+	case StudentVerificationCredentialMethodStudentEmailInboundChallenge:
+		return true
+	case StudentVerificationCredentialMethodStudentEmailOutboundOtp:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SubmitManualReviewRequestConfirmMaterialUse.
+const (
+	SubmitManualReviewRequestConfirmMaterialUseTrue SubmitManualReviewRequestConfirmMaterialUse = true
+)
+
+// Valid indicates whether the value is a known member of the SubmitManualReviewRequestConfirmMaterialUse enum.
+func (e SubmitManualReviewRequestConfirmMaterialUse) Valid() bool {
+	switch e {
+	case SubmitManualReviewRequestConfirmMaterialUseTrue:
 		return true
 	default:
 		return false
@@ -2070,6 +2664,27 @@ const (
 func (e SuccessResponseSuccess) Valid() bool {
 	switch e {
 	case SuccessResponseSuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UpdateAdminVerificationMethodConfigRequestRosterDependency.
+const (
+	UpdateAdminVerificationMethodConfigRequestRosterDependencyConditional UpdateAdminVerificationMethodConfigRequestRosterDependency = "conditional"
+	UpdateAdminVerificationMethodConfigRequestRosterDependencyIndependent UpdateAdminVerificationMethodConfigRequestRosterDependency = "independent"
+	UpdateAdminVerificationMethodConfigRequestRosterDependencyRequired    UpdateAdminVerificationMethodConfigRequestRosterDependency = "required"
+)
+
+// Valid indicates whether the value is a known member of the UpdateAdminVerificationMethodConfigRequestRosterDependency enum.
+func (e UpdateAdminVerificationMethodConfigRequestRosterDependency) Valid() bool {
+	switch e {
+	case UpdateAdminVerificationMethodConfigRequestRosterDependencyConditional:
+		return true
+	case UpdateAdminVerificationMethodConfigRequestRosterDependencyIndependent:
+		return true
+	case UpdateAdminVerificationMethodConfigRequestRosterDependencyRequired:
 		return true
 	default:
 		return false
@@ -2139,42 +2754,6 @@ func (e UpdateReviewRequestGrade) Valid() bool {
 	}
 }
 
-// Defines values for UpdateSchoolConfigRequestApprovalPolicy.
-const (
-	UpdateSchoolConfigRequestApprovalPolicyAuto   UpdateSchoolConfigRequestApprovalPolicy = "auto"
-	UpdateSchoolConfigRequestApprovalPolicyManual UpdateSchoolConfigRequestApprovalPolicy = "manual"
-)
-
-// Valid indicates whether the value is a known member of the UpdateSchoolConfigRequestApprovalPolicy enum.
-func (e UpdateSchoolConfigRequestApprovalPolicy) Valid() bool {
-	switch e {
-	case UpdateSchoolConfigRequestApprovalPolicyAuto:
-		return true
-	case UpdateSchoolConfigRequestApprovalPolicyManual:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for UpdateSchoolConfigRequestVerificationMethod.
-const (
-	UpdateSchoolConfigRequestVerificationMethodLdap   UpdateSchoolConfigRequestVerificationMethod = "ldap"
-	UpdateSchoolConfigRequestVerificationMethodManual UpdateSchoolConfigRequestVerificationMethod = "manual"
-)
-
-// Valid indicates whether the value is a known member of the UpdateSchoolConfigRequestVerificationMethod enum.
-func (e UpdateSchoolConfigRequestVerificationMethod) Valid() bool {
-	switch e {
-	case UpdateSchoolConfigRequestVerificationMethodLdap:
-		return true
-	case UpdateSchoolConfigRequestVerificationMethodManual:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for UpdateSensitiveWordRequestLevel.
 const (
 	UpdateSensitiveWordRequestLevelBlock  UpdateSensitiveWordRequestLevel = "block"
@@ -2196,183 +2775,234 @@ func (e UpdateSensitiveWordRequestLevel) Valid() bool {
 	}
 }
 
-// Defines values for UploadIdentityPhotoRequestContentType.
+// Defines values for UpsertManualReviewRequestSensitiveDataConsent.
 const (
-	UploadIdentityPhotoRequestContentTypeImagejpeg UploadIdentityPhotoRequestContentType = "image/jpeg"
-	UploadIdentityPhotoRequestContentTypeImagepng  UploadIdentityPhotoRequestContentType = "image/png"
-	UploadIdentityPhotoRequestContentTypeImagewebp UploadIdentityPhotoRequestContentType = "image/webp"
+	UpsertManualReviewRequestSensitiveDataConsentTrue UpsertManualReviewRequestSensitiveDataConsent = true
 )
 
-// Valid indicates whether the value is a known member of the UploadIdentityPhotoRequestContentType enum.
-func (e UploadIdentityPhotoRequestContentType) Valid() bool {
+// Valid indicates whether the value is a known member of the UpsertManualReviewRequestSensitiveDataConsent enum.
+func (e UpsertManualReviewRequestSensitiveDataConsent) Valid() bool {
 	switch e {
-	case UploadIdentityPhotoRequestContentTypeImagejpeg:
-		return true
-	case UploadIdentityPhotoRequestContentTypeImagepng:
-		return true
-	case UploadIdentityPhotoRequestContentTypeImagewebp:
+	case UpsertManualReviewRequestSensitiveDataConsentTrue:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for UploadIdentityPhotoRequestSlot.
+// Defines values for UserSurfaceStudentVerificationStatus.
 const (
-	Back   UploadIdentityPhotoRequestSlot = "back"
-	Front  UploadIdentityPhotoRequestSlot = "front"
-	Selfie UploadIdentityPhotoRequestSlot = "selfie"
+	UserSurfaceStudentVerificationStatusApproved UserSurfaceStudentVerificationStatus = "approved"
+	UserSurfaceStudentVerificationStatusNone     UserSurfaceStudentVerificationStatus = "none"
 )
 
-// Valid indicates whether the value is a known member of the UploadIdentityPhotoRequestSlot enum.
-func (e UploadIdentityPhotoRequestSlot) Valid() bool {
+// Valid indicates whether the value is a known member of the UserSurfaceStudentVerificationStatus enum.
+func (e UserSurfaceStudentVerificationStatus) Valid() bool {
 	switch e {
-	case Back:
+	case UserSurfaceStudentVerificationStatusApproved:
 		return true
-	case Front:
-		return true
-	case Selfie:
+	case UserSurfaceStudentVerificationStatusNone:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for UserIdentityDocType.
+// Defines values for VerificationApplicationNextActions.
 const (
-	UserIdentityDocTypeHKMACAU    UserIdentityDocType = "HK_MACAU"
-	UserIdentityDocTypeMAINLANDID UserIdentityDocType = "MAINLAND_ID"
-	UserIdentityDocTypePASSPORT   UserIdentityDocType = "PASSPORT"
-	UserIdentityDocTypeTW         UserIdentityDocType = "TW"
+	VerificationApplicationNextActionsChooseAnotherMethod VerificationApplicationNextActions = "choose_another_method"
+	VerificationApplicationNextActionsChooseMethod        VerificationApplicationNextActions = "choose_method"
+	VerificationApplicationNextActionsOpenAccountRecovery VerificationApplicationNextActions = "open_account_recovery"
+	VerificationApplicationNextActionsRetryCurrentMethod  VerificationApplicationNextActions = "retry_current_method"
+	VerificationApplicationNextActionsReturnToConsumer    VerificationApplicationNextActions = "return_to_consumer"
+	VerificationApplicationNextActionsWaitForReview       VerificationApplicationNextActions = "wait_for_review"
 )
 
-// Valid indicates whether the value is a known member of the UserIdentityDocType enum.
-func (e UserIdentityDocType) Valid() bool {
+// Valid indicates whether the value is a known member of the VerificationApplicationNextActions enum.
+func (e VerificationApplicationNextActions) Valid() bool {
 	switch e {
-	case UserIdentityDocTypeHKMACAU:
+	case VerificationApplicationNextActionsChooseAnotherMethod:
 		return true
-	case UserIdentityDocTypeMAINLANDID:
+	case VerificationApplicationNextActionsChooseMethod:
 		return true
-	case UserIdentityDocTypePASSPORT:
+	case VerificationApplicationNextActionsOpenAccountRecovery:
 		return true
-	case UserIdentityDocTypeTW:
+	case VerificationApplicationNextActionsRetryCurrentMethod:
+		return true
+	case VerificationApplicationNextActionsReturnToConsumer:
+		return true
+	case VerificationApplicationNextActionsWaitForReview:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for UserIdentityVerifyMethod.
+// Defines values for VerificationApplicationStatus.
 const (
-	UserIdentityVerifyMethodAcademicDbMatch UserIdentityVerifyMethod = "academic_db_match"
-	UserIdentityVerifyMethodManual          UserIdentityVerifyMethod = "manual"
-	UserIdentityVerifyMethodTencentCloud    UserIdentityVerifyMethod = "tencent_cloud"
+	VerificationApplicationStatusApproved            VerificationApplicationStatus = "approved"
+	VerificationApplicationStatusCancelled           VerificationApplicationStatus = "cancelled"
+	VerificationApplicationStatusCreated             VerificationApplicationStatus = "created"
+	VerificationApplicationStatusExpired             VerificationApplicationStatus = "expired"
+	VerificationApplicationStatusInProgress          VerificationApplicationStatus = "in_progress"
+	VerificationApplicationStatusPendingManualReview VerificationApplicationStatus = "pending_manual_review"
+	VerificationApplicationStatusRejected            VerificationApplicationStatus = "rejected"
 )
 
-// Valid indicates whether the value is a known member of the UserIdentityVerifyMethod enum.
-func (e UserIdentityVerifyMethod) Valid() bool {
+// Valid indicates whether the value is a known member of the VerificationApplicationStatus enum.
+func (e VerificationApplicationStatus) Valid() bool {
 	switch e {
-	case UserIdentityVerifyMethodAcademicDbMatch:
+	case VerificationApplicationStatusApproved:
 		return true
-	case UserIdentityVerifyMethodManual:
+	case VerificationApplicationStatusCancelled:
 		return true
-	case UserIdentityVerifyMethodTencentCloud:
+	case VerificationApplicationStatusCreated:
+		return true
+	case VerificationApplicationStatusExpired:
+		return true
+	case VerificationApplicationStatusInProgress:
+		return true
+	case VerificationApplicationStatusPendingManualReview:
+		return true
+	case VerificationApplicationStatusRejected:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for UserProfileVerificationMethod.
+// Defines values for VerificationCredentialStatus.
 const (
-	UserProfileVerificationMethodLdap           UserProfileVerificationMethod = "ldap"
-	UserProfileVerificationMethodManual         UserProfileVerificationMethod = "manual"
-	UserProfileVerificationMethodSchoolEmailOtp UserProfileVerificationMethod = "school_email_otp"
-	UserProfileVerificationMethodSchoolSso      UserProfileVerificationMethod = "school_sso"
+	VerificationCredentialStatusActive         VerificationCredentialStatus = "active"
+	VerificationCredentialStatusExpired        VerificationCredentialStatus = "expired"
+	VerificationCredentialStatusPending        VerificationCredentialStatus = "pending"
+	VerificationCredentialStatusRejected       VerificationCredentialStatus = "rejected"
+	VerificationCredentialStatusReviewRequired VerificationCredentialStatus = "review_required"
+	VerificationCredentialStatusRevoked        VerificationCredentialStatus = "revoked"
 )
 
-// Valid indicates whether the value is a known member of the UserProfileVerificationMethod enum.
-func (e UserProfileVerificationMethod) Valid() bool {
+// Valid indicates whether the value is a known member of the VerificationCredentialStatus enum.
+func (e VerificationCredentialStatus) Valid() bool {
 	switch e {
-	case UserProfileVerificationMethodLdap:
+	case VerificationCredentialStatusActive:
 		return true
-	case UserProfileVerificationMethodManual:
+	case VerificationCredentialStatusExpired:
 		return true
-	case UserProfileVerificationMethodSchoolEmailOtp:
+	case VerificationCredentialStatusPending:
 		return true
-	case UserProfileVerificationMethodSchoolSso:
+	case VerificationCredentialStatusRejected:
+		return true
+	case VerificationCredentialStatusReviewRequired:
+		return true
+	case VerificationCredentialStatusRevoked:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for UserProfileVerificationStatus.
+// Defines values for VerificationFieldDescriptorInputType.
 const (
-	UserProfileVerificationStatusPending    UserProfileVerificationStatus = "pending"
-	UserProfileVerificationStatusRejected   UserProfileVerificationStatus = "rejected"
-	UserProfileVerificationStatusUnverified UserProfileVerificationStatus = "unverified"
-	UserProfileVerificationStatusVerified   UserProfileVerificationStatus = "verified"
+	Date     VerificationFieldDescriptorInputType = "date"
+	Email    VerificationFieldDescriptorInputType = "email"
+	Password VerificationFieldDescriptorInputType = "password"
+	Select   VerificationFieldDescriptorInputType = "select"
+	Text     VerificationFieldDescriptorInputType = "text"
+	Textarea VerificationFieldDescriptorInputType = "textarea"
 )
 
-// Valid indicates whether the value is a known member of the UserProfileVerificationStatus enum.
-func (e UserProfileVerificationStatus) Valid() bool {
+// Valid indicates whether the value is a known member of the VerificationFieldDescriptorInputType enum.
+func (e VerificationFieldDescriptorInputType) Valid() bool {
 	switch e {
-	case UserProfileVerificationStatusPending:
+	case Date:
 		return true
-	case UserProfileVerificationStatusRejected:
+	case Email:
 		return true
-	case UserProfileVerificationStatusUnverified:
+	case Password:
 		return true
-	case UserProfileVerificationStatusVerified:
+	case Select:
+		return true
+	case Text:
+		return true
+	case Textarea:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for UserSurfaceIdentityStatus.
+// Defines values for VerificationMethod.
 const (
-	UserSurfaceIdentityStatusApproved UserSurfaceIdentityStatus = "approved"
-	UserSurfaceIdentityStatusNone     UserSurfaceIdentityStatus = "none"
-	UserSurfaceIdentityStatusPending  UserSurfaceIdentityStatus = "pending"
-	UserSurfaceIdentityStatusRejected UserSurfaceIdentityStatus = "rejected"
+	VerificationMethodManualMaterialReview         VerificationMethod = "manual_material_review"
+	VerificationMethodRealNameIdentityCheck        VerificationMethod = "real_name_identity_check"
+	VerificationMethodSchoolSso                    VerificationMethod = "school_sso"
+	VerificationMethodStudentEmailInboundChallenge VerificationMethod = "student_email_inbound_challenge"
+	VerificationMethodStudentEmailOutboundOtp      VerificationMethod = "student_email_outbound_otp"
 )
 
-// Valid indicates whether the value is a known member of the UserSurfaceIdentityStatus enum.
-func (e UserSurfaceIdentityStatus) Valid() bool {
+// Valid indicates whether the value is a known member of the VerificationMethod enum.
+func (e VerificationMethod) Valid() bool {
 	switch e {
-	case UserSurfaceIdentityStatusApproved:
+	case VerificationMethodManualMaterialReview:
 		return true
-	case UserSurfaceIdentityStatusNone:
+	case VerificationMethodRealNameIdentityCheck:
 		return true
-	case UserSurfaceIdentityStatusPending:
+	case VerificationMethodSchoolSso:
 		return true
-	case UserSurfaceIdentityStatusRejected:
+	case VerificationMethodStudentEmailInboundChallenge:
+		return true
+	case VerificationMethodStudentEmailOutboundOtp:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for UserSurfaceVerificationStatus.
+// Defines values for VerificationMethodAvailability.
 const (
-	UserSurfaceVerificationStatusApproved UserSurfaceVerificationStatus = "approved"
-	UserSurfaceVerificationStatusNone     UserSurfaceVerificationStatus = "none"
-	UserSurfaceVerificationStatusPending  UserSurfaceVerificationStatus = "pending"
-	UserSurfaceVerificationStatusRejected UserSurfaceVerificationStatus = "rejected"
+	Available              VerificationMethodAvailability = "available"
+	Disabled               VerificationMethodAvailability = "disabled"
+	TemporarilyUnavailable VerificationMethodAvailability = "temporarily_unavailable"
 )
 
-// Valid indicates whether the value is a known member of the UserSurfaceVerificationStatus enum.
-func (e UserSurfaceVerificationStatus) Valid() bool {
+// Valid indicates whether the value is a known member of the VerificationMethodAvailability enum.
+func (e VerificationMethodAvailability) Valid() bool {
 	switch e {
-	case UserSurfaceVerificationStatusApproved:
+	case Available:
 		return true
-	case UserSurfaceVerificationStatusNone:
+	case Disabled:
 		return true
-	case UserSurfaceVerificationStatusPending:
+	case TemporarilyUnavailable:
 		return true
-	case UserSurfaceVerificationStatusRejected:
+	default:
+		return false
+	}
+}
+
+// Defines values for VerifyRealNameRequestSensitiveDataConsent.
+const (
+	VerifyRealNameRequestSensitiveDataConsentTrue VerifyRealNameRequestSensitiveDataConsent = true
+)
+
+// Valid indicates whether the value is a known member of the VerifyRealNameRequestSensitiveDataConsent enum.
+func (e VerifyRealNameRequestSensitiveDataConsent) Valid() bool {
+	switch e {
+	case VerifyRealNameRequestSensitiveDataConsentTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for VerifySchoolSSORequestSensitiveDataConsent.
+const (
+	VerifySchoolSSORequestSensitiveDataConsentTrue VerifySchoolSSORequestSensitiveDataConsent = true
+)
+
+// Valid indicates whether the value is a known member of the VerifySchoolSSORequestSensitiveDataConsent enum.
+func (e VerifySchoolSSORequestSensitiveDataConsent) Valid() bool {
+	switch e {
+	case VerifySchoolSSORequestSensitiveDataConsentTrue:
 		return true
 	default:
 		return false
@@ -2391,6 +3021,21 @@ func (e VoteType) Valid() bool {
 	case VoteTypeDislike:
 		return true
 	case VoteTypeLike:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ApplicationResponseSuccess.
+const (
+	ApplicationResponseSuccessTrue ApplicationResponseSuccess = true
+)
+
+// Valid indicates whether the value is a known member of the ApplicationResponseSuccess enum.
+func (e ApplicationResponseSuccess) Valid() bool {
+	switch e {
+	case ApplicationResponseSuccessTrue:
 		return true
 	default:
 		return false
@@ -2421,6 +3066,51 @@ const (
 func (e DisclosureResponseSuccess) Valid() bool {
 	switch e {
 	case DisclosureResponseSuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ManualHandoffResponseSuccess.
+const (
+	ManualHandoffResponseSuccessTrue ManualHandoffResponseSuccess = true
+)
+
+// Valid indicates whether the value is a known member of the ManualHandoffResponseSuccess enum.
+func (e ManualHandoffResponseSuccess) Valid() bool {
+	switch e {
+	case ManualHandoffResponseSuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ManualReviewResponseSuccess.
+const (
+	ManualReviewResponseSuccessTrue ManualReviewResponseSuccess = true
+)
+
+// Valid indicates whether the value is a known member of the ManualReviewResponseSuccess enum.
+func (e ManualReviewResponseSuccess) Valid() bool {
+	switch e {
+	case ManualReviewResponseSuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RosterSnapshotResponseSuccess.
+const (
+	RosterSnapshotResponseSuccessTrue RosterSnapshotResponseSuccess = true
+)
+
+// Valid indicates whether the value is a known member of the RosterSnapshotResponseSuccess enum.
+func (e RosterSnapshotResponseSuccess) Valid() bool {
+	switch e {
+	case RosterSnapshotResponseSuccessTrue:
 		return true
 	default:
 		return false
@@ -2496,6 +3186,111 @@ const (
 func (e ListAcademicTerms200JSONResponseBodySuccess) Valid() bool {
 	switch e {
 	case ListAcademicTerms200JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UnbindAccountPhone202JSONResponseBodySuccess.
+const (
+	UnbindAccountPhone202JSONResponseBodySuccessTrue UnbindAccountPhone202JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the UnbindAccountPhone202JSONResponseBodySuccess enum.
+func (e UnbindAccountPhone202JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case UnbindAccountPhone202JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetAccountPhoneStatus200JSONResponseBodySuccess.
+const (
+	GetAccountPhoneStatus200JSONResponseBodySuccessTrue GetAccountPhoneStatus200JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the GetAccountPhoneStatus200JSONResponseBodySuccess enum.
+func (e GetAccountPhoneStatus200JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case GetAccountPhoneStatus200JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateAccountPhoneChangeOperation201JSONResponseBodySuccess.
+const (
+	CreateAccountPhoneChangeOperation201JSONResponseBodySuccessTrue CreateAccountPhoneChangeOperation201JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the CreateAccountPhoneChangeOperation201JSONResponseBodySuccess enum.
+func (e CreateAccountPhoneChangeOperation201JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case CreateAccountPhoneChangeOperation201JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateAccountPhoneOperation201JSONResponseBodySuccess.
+const (
+	CreateAccountPhoneOperation201JSONResponseBodySuccessTrue CreateAccountPhoneOperation201JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the CreateAccountPhoneOperation201JSONResponseBodySuccess enum.
+func (e CreateAccountPhoneOperation201JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case CreateAccountPhoneOperation201JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetAccountPhoneOperation200JSONResponseBodySuccess.
+const (
+	GetAccountPhoneOperation200JSONResponseBodySuccessTrue GetAccountPhoneOperation200JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the GetAccountPhoneOperation200JSONResponseBodySuccess enum.
+func (e GetAccountPhoneOperation200JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case GetAccountPhoneOperation200JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SendAccountPhoneSMS200JSONResponseBodySuccess.
+const (
+	SendAccountPhoneSMS200JSONResponseBodySuccessTrue SendAccountPhoneSMS200JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the SendAccountPhoneSMS200JSONResponseBodySuccess enum.
+func (e SendAccountPhoneSMS200JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case SendAccountPhoneSMS200JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for VerifyAccountPhoneSMS200JSONResponseBodySuccess.
+const (
+	VerifyAccountPhoneSMS200JSONResponseBodySuccessTrue VerifyAccountPhoneSMS200JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the VerifyAccountPhoneSMS200JSONResponseBodySuccess enum.
+func (e VerifyAccountPhoneSMS200JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case VerifyAccountPhoneSMS200JSONResponseBodySuccessTrue:
 		return true
 	default:
 		return false
@@ -2751,120 +3546,6 @@ const (
 func (e ReconcileAllAuthorizationProjections200JSONResponseBodySuccess) Valid() bool {
 	switch e {
 	case ReconcileAllAuthorizationProjections200JSONResponseBodySuccessTrue:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for ListFreshmanVerifications200JSONResponseBodySuccess.
-const (
-	ListFreshmanVerifications200JSONResponseBodySuccessTrue ListFreshmanVerifications200JSONResponseBodySuccess = true
-)
-
-// Valid indicates whether the value is a known member of the ListFreshmanVerifications200JSONResponseBodySuccess enum.
-func (e ListFreshmanVerifications200JSONResponseBodySuccess) Valid() bool {
-	switch e {
-	case ListFreshmanVerifications200JSONResponseBodySuccessTrue:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for GetFreshmanVerification200JSONResponseBodySuccess.
-const (
-	GetFreshmanVerification200JSONResponseBodySuccessTrue GetFreshmanVerification200JSONResponseBodySuccess = true
-)
-
-// Valid indicates whether the value is a known member of the GetFreshmanVerification200JSONResponseBodySuccess enum.
-func (e GetFreshmanVerification200JSONResponseBodySuccess) Valid() bool {
-	switch e {
-	case GetFreshmanVerification200JSONResponseBodySuccessTrue:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for ReviewFreshmanVerification200JSONResponseBodySuccess.
-const (
-	ReviewFreshmanVerification200JSONResponseBodySuccessTrue ReviewFreshmanVerification200JSONResponseBodySuccess = true
-)
-
-// Valid indicates whether the value is a known member of the ReviewFreshmanVerification200JSONResponseBodySuccess enum.
-func (e ReviewFreshmanVerification200JSONResponseBodySuccess) Valid() bool {
-	switch e {
-	case ReviewFreshmanVerification200JSONResponseBodySuccessTrue:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for ListIdentityVerificationsParamsStatus.
-const (
-	ListIdentityVerificationsParamsStatusAll      ListIdentityVerificationsParamsStatus = "all"
-	ListIdentityVerificationsParamsStatusPending  ListIdentityVerificationsParamsStatus = "pending"
-	ListIdentityVerificationsParamsStatusRejected ListIdentityVerificationsParamsStatus = "rejected"
-	ListIdentityVerificationsParamsStatusVerified ListIdentityVerificationsParamsStatus = "verified"
-)
-
-// Valid indicates whether the value is a known member of the ListIdentityVerificationsParamsStatus enum.
-func (e ListIdentityVerificationsParamsStatus) Valid() bool {
-	switch e {
-	case ListIdentityVerificationsParamsStatusAll:
-		return true
-	case ListIdentityVerificationsParamsStatusPending:
-		return true
-	case ListIdentityVerificationsParamsStatusRejected:
-		return true
-	case ListIdentityVerificationsParamsStatusVerified:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for ListIdentityVerifications200JSONResponseBodySuccess.
-const (
-	ListIdentityVerifications200JSONResponseBodySuccessTrue ListIdentityVerifications200JSONResponseBodySuccess = true
-)
-
-// Valid indicates whether the value is a known member of the ListIdentityVerifications200JSONResponseBodySuccess enum.
-func (e ListIdentityVerifications200JSONResponseBodySuccess) Valid() bool {
-	switch e {
-	case ListIdentityVerifications200JSONResponseBodySuccessTrue:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for GetIdentityVerificationReviewDetail200JSONResponseBodySuccess.
-const (
-	GetIdentityVerificationReviewDetail200JSONResponseBodySuccessTrue GetIdentityVerificationReviewDetail200JSONResponseBodySuccess = true
-)
-
-// Valid indicates whether the value is a known member of the GetIdentityVerificationReviewDetail200JSONResponseBodySuccess enum.
-func (e GetIdentityVerificationReviewDetail200JSONResponseBodySuccess) Valid() bool {
-	switch e {
-	case GetIdentityVerificationReviewDetail200JSONResponseBodySuccessTrue:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for ReviewIdentityVerification200JSONResponseBodySuccess.
-const (
-	ReviewIdentityVerification200JSONResponseBodySuccessTrue ReviewIdentityVerification200JSONResponseBodySuccess = true
-)
-
-// Valid indicates whether the value is a known member of the ReviewIdentityVerification200JSONResponseBodySuccess enum.
-func (e ReviewIdentityVerification200JSONResponseBodySuccess) Valid() bool {
-	switch e {
-	case ReviewIdentityVerification200JSONResponseBodySuccessTrue:
 		return true
 	default:
 		return false
@@ -3276,36 +3957,6 @@ func (e ListAdminOpenPlatformTokenProbeEvidence200JSONResponseBodySuccess) Valid
 	}
 }
 
-// Defines values for ListSchoolConfigs200JSONResponseBodySuccess.
-const (
-	ListSchoolConfigs200JSONResponseBodySuccessTrue ListSchoolConfigs200JSONResponseBodySuccess = true
-)
-
-// Valid indicates whether the value is a known member of the ListSchoolConfigs200JSONResponseBodySuccess enum.
-func (e ListSchoolConfigs200JSONResponseBodySuccess) Valid() bool {
-	switch e {
-	case ListSchoolConfigs200JSONResponseBodySuccessTrue:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for UpdateSchoolConfig200JSONResponseBodySuccess.
-const (
-	UpdateSchoolConfig200JSONResponseBodySuccessTrue UpdateSchoolConfig200JSONResponseBodySuccess = true
-)
-
-// Valid indicates whether the value is a known member of the UpdateSchoolConfig200JSONResponseBodySuccess enum.
-func (e UpdateSchoolConfig200JSONResponseBodySuccess) Valid() bool {
-	switch e {
-	case UpdateSchoolConfig200JSONResponseBodySuccessTrue:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for ListStorageMounts200JSONResponseBodySuccess.
 const (
 	ListStorageMounts200JSONResponseBodySuccessTrue ListStorageMounts200JSONResponseBodySuccess = true
@@ -3351,54 +4002,378 @@ func (e CheckStorageMountHealth200JSONResponseBodySuccess) Valid() bool {
 	}
 }
 
-// Defines values for ListStudentVerificationsParamsStatus.
+// Defines values for ListAdminCampusConnectorHealth200JSONResponseBodySuccess.
 const (
-	ListStudentVerificationsParamsStatusAll      ListStudentVerificationsParamsStatus = "all"
-	ListStudentVerificationsParamsStatusPending  ListStudentVerificationsParamsStatus = "pending"
-	ListStudentVerificationsParamsStatusRejected ListStudentVerificationsParamsStatus = "rejected"
-	ListStudentVerificationsParamsStatusVerified ListStudentVerificationsParamsStatus = "verified"
+	ListAdminCampusConnectorHealth200JSONResponseBodySuccessTrue ListAdminCampusConnectorHealth200JSONResponseBodySuccess = true
 )
 
-// Valid indicates whether the value is a known member of the ListStudentVerificationsParamsStatus enum.
-func (e ListStudentVerificationsParamsStatus) Valid() bool {
+// Valid indicates whether the value is a known member of the ListAdminCampusConnectorHealth200JSONResponseBodySuccess enum.
+func (e ListAdminCampusConnectorHealth200JSONResponseBodySuccess) Valid() bool {
 	switch e {
-	case ListStudentVerificationsParamsStatusAll:
-		return true
-	case ListStudentVerificationsParamsStatusPending:
-		return true
-	case ListStudentVerificationsParamsStatusRejected:
-		return true
-	case ListStudentVerificationsParamsStatusVerified:
+	case ListAdminCampusConnectorHealth200JSONResponseBodySuccessTrue:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for ListStudentVerifications200JSONResponseBodySuccess.
+// Defines values for ListAdminStudentCredentials200JSONResponseBodySuccess.
 const (
-	ListStudentVerifications200JSONResponseBodySuccessTrue ListStudentVerifications200JSONResponseBodySuccess = true
+	ListAdminStudentCredentials200JSONResponseBodySuccessTrue ListAdminStudentCredentials200JSONResponseBodySuccess = true
 )
 
-// Valid indicates whether the value is a known member of the ListStudentVerifications200JSONResponseBodySuccess enum.
-func (e ListStudentVerifications200JSONResponseBodySuccess) Valid() bool {
+// Valid indicates whether the value is a known member of the ListAdminStudentCredentials200JSONResponseBodySuccess enum.
+func (e ListAdminStudentCredentials200JSONResponseBodySuccess) Valid() bool {
 	switch e {
-	case ListStudentVerifications200JSONResponseBodySuccessTrue:
+	case ListAdminStudentCredentials200JSONResponseBodySuccessTrue:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for ReviewStudentVerification200JSONResponseBodySuccess.
+// Defines values for RevokeAdminStudentCredential200JSONResponseBodySuccess.
 const (
-	ReviewStudentVerification200JSONResponseBodySuccessTrue ReviewStudentVerification200JSONResponseBodySuccess = true
+	RevokeAdminStudentCredential200JSONResponseBodySuccessTrue RevokeAdminStudentCredential200JSONResponseBodySuccess = true
 )
 
-// Valid indicates whether the value is a known member of the ReviewStudentVerification200JSONResponseBodySuccess enum.
-func (e ReviewStudentVerification200JSONResponseBodySuccess) Valid() bool {
+// Valid indicates whether the value is a known member of the RevokeAdminStudentCredential200JSONResponseBodySuccess enum.
+func (e RevokeAdminStudentCredential200JSONResponseBodySuccess) Valid() bool {
 	switch e {
-	case ReviewStudentVerification200JSONResponseBodySuccessTrue:
+	case RevokeAdminStudentCredential200JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListAdminManualStudentReviewsParamsStatus.
+const (
+	ListAdminManualStudentReviewsParamsStatusApproved           ListAdminManualStudentReviewsParamsStatus = "approved"
+	ListAdminManualStudentReviewsParamsStatusPending            ListAdminManualStudentReviewsParamsStatus = "pending"
+	ListAdminManualStudentReviewsParamsStatusRejected           ListAdminManualStudentReviewsParamsStatus = "rejected"
+	ListAdminManualStudentReviewsParamsStatusSupplementRequired ListAdminManualStudentReviewsParamsStatus = "supplement_required"
+)
+
+// Valid indicates whether the value is a known member of the ListAdminManualStudentReviewsParamsStatus enum.
+func (e ListAdminManualStudentReviewsParamsStatus) Valid() bool {
+	switch e {
+	case ListAdminManualStudentReviewsParamsStatusApproved:
+		return true
+	case ListAdminManualStudentReviewsParamsStatusPending:
+		return true
+	case ListAdminManualStudentReviewsParamsStatusRejected:
+		return true
+	case ListAdminManualStudentReviewsParamsStatusSupplementRequired:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListAdminManualStudentReviews200JSONResponseBodySuccess.
+const (
+	ListAdminManualStudentReviews200JSONResponseBodySuccessTrue ListAdminManualStudentReviews200JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the ListAdminManualStudentReviews200JSONResponseBodySuccess enum.
+func (e ListAdminManualStudentReviews200JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case ListAdminManualStudentReviews200JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetAdminManualStudentReview200JSONResponseBodySuccess.
+const (
+	GetAdminManualStudentReview200JSONResponseBodySuccessTrue GetAdminManualStudentReview200JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the GetAdminManualStudentReview200JSONResponseBodySuccess enum.
+func (e GetAdminManualStudentReview200JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case GetAdminManualStudentReview200JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DecideAdminManualStudentReview200JSONResponseBodySuccess.
+const (
+	DecideAdminManualStudentReview200JSONResponseBodySuccessTrue DecideAdminManualStudentReview200JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the DecideAdminManualStudentReview200JSONResponseBodySuccess enum.
+func (e DecideAdminManualStudentReview200JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case DecideAdminManualStudentReview200JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AccessAdminManualStudentReviewMaterial200JSONResponseBodySuccess.
+const (
+	AccessAdminManualStudentReviewMaterial200JSONResponseBodySuccessTrue AccessAdminManualStudentReviewMaterial200JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the AccessAdminManualStudentReviewMaterial200JSONResponseBodySuccess enum.
+func (e AccessAdminManualStudentReviewMaterial200JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case AccessAdminManualStudentReviewMaterial200JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListAdminVerificationSchools200JSONResponseBodySuccess.
+const (
+	ListAdminVerificationSchools200JSONResponseBodySuccessTrue ListAdminVerificationSchools200JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the ListAdminVerificationSchools200JSONResponseBodySuccess enum.
+func (e ListAdminVerificationSchools200JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case ListAdminVerificationSchools200JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateAdminVerificationSchool201JSONResponseBodySuccess.
+const (
+	CreateAdminVerificationSchool201JSONResponseBodySuccessTrue CreateAdminVerificationSchool201JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the CreateAdminVerificationSchool201JSONResponseBodySuccess enum.
+func (e CreateAdminVerificationSchool201JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case CreateAdminVerificationSchool201JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetAdminVerificationSchool200JSONResponseBodySuccess.
+const (
+	GetAdminVerificationSchool200JSONResponseBodySuccessTrue GetAdminVerificationSchool200JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the GetAdminVerificationSchool200JSONResponseBodySuccess enum.
+func (e GetAdminVerificationSchool200JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case GetAdminVerificationSchool200JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UpdateAdminVerificationSchool200JSONResponseBodySuccess.
+const (
+	UpdateAdminVerificationSchool200JSONResponseBodySuccessTrue UpdateAdminVerificationSchool200JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the UpdateAdminVerificationSchool200JSONResponseBodySuccess enum.
+func (e UpdateAdminVerificationSchool200JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case UpdateAdminVerificationSchool200JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UpdateAdminVerificationMethod200JSONResponseBodySuccess.
+const (
+	UpdateAdminVerificationMethod200JSONResponseBodySuccessTrue UpdateAdminVerificationMethod200JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the UpdateAdminVerificationMethod200JSONResponseBodySuccess enum.
+func (e UpdateAdminVerificationMethod200JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case UpdateAdminVerificationMethod200JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ValidateAdminVerificationMethod200JSONResponseBodySuccess.
+const (
+	ValidateAdminVerificationMethod200JSONResponseBodySuccessTrue ValidateAdminVerificationMethod200JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the ValidateAdminVerificationMethod200JSONResponseBodySuccess enum.
+func (e ValidateAdminVerificationMethod200JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case ValidateAdminVerificationMethod200JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListAdminRosterSnapshots200JSONResponseBodySuccess.
+const (
+	ListAdminRosterSnapshots200JSONResponseBodySuccessTrue ListAdminRosterSnapshots200JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the ListAdminRosterSnapshots200JSONResponseBodySuccess enum.
+func (e ListAdminRosterSnapshots200JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case ListAdminRosterSnapshots200JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetAdminRosterSnapshot200JSONResponseBodySuccess.
+const (
+	GetAdminRosterSnapshot200JSONResponseBodySuccessTrue GetAdminRosterSnapshot200JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the GetAdminRosterSnapshot200JSONResponseBodySuccess enum.
+func (e GetAdminRosterSnapshot200JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case GetAdminRosterSnapshot200JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ActivateAdminRosterSnapshot200JSONResponseBodySuccess.
+const (
+	ActivateAdminRosterSnapshot200JSONResponseBodySuccessTrue ActivateAdminRosterSnapshot200JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the ActivateAdminRosterSnapshot200JSONResponseBodySuccess enum.
+func (e ActivateAdminRosterSnapshot200JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case ActivateAdminRosterSnapshot200JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RollbackAdminRosterSnapshot200JSONResponseBodySuccess.
+const (
+	RollbackAdminRosterSnapshot200JSONResponseBodySuccessTrue RollbackAdminRosterSnapshot200JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the RollbackAdminRosterSnapshot200JSONResponseBodySuccess enum.
+func (e RollbackAdminRosterSnapshot200JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case RollbackAdminRosterSnapshot200JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListAdminRosterSyncRequests200JSONResponseBodySuccess.
+const (
+	ListAdminRosterSyncRequests200JSONResponseBodySuccessTrue ListAdminRosterSyncRequests200JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the ListAdminRosterSyncRequests200JSONResponseBodySuccess enum.
+func (e ListAdminRosterSyncRequests200JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case ListAdminRosterSyncRequests200JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateAdminRosterSyncRequest202JSONResponseBodySuccess.
+const (
+	CreateAdminRosterSyncRequest202JSONResponseBodySuccessTrue CreateAdminRosterSyncRequest202JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the CreateAdminRosterSyncRequest202JSONResponseBodySuccess enum.
+func (e CreateAdminRosterSyncRequest202JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case CreateAdminRosterSyncRequest202JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ValidateAdminVerificationSchool200JSONResponseBodySuccess.
+const (
+	ValidateAdminVerificationSchool200JSONResponseBodySuccessTrue ValidateAdminVerificationSchool200JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the ValidateAdminVerificationSchool200JSONResponseBodySuccess enum.
+func (e ValidateAdminVerificationSchool200JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case ValidateAdminVerificationSchool200JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListAdminStudentSubjectConflictsParamsStatus.
+const (
+	ListAdminStudentSubjectConflictsParamsStatusDismissed   ListAdminStudentSubjectConflictsParamsStatus = "dismissed"
+	ListAdminStudentSubjectConflictsParamsStatusOpen        ListAdminStudentSubjectConflictsParamsStatus = "open"
+	ListAdminStudentSubjectConflictsParamsStatusResolved    ListAdminStudentSubjectConflictsParamsStatus = "resolved"
+	ListAdminStudentSubjectConflictsParamsStatusUnderReview ListAdminStudentSubjectConflictsParamsStatus = "under_review"
+)
+
+// Valid indicates whether the value is a known member of the ListAdminStudentSubjectConflictsParamsStatus enum.
+func (e ListAdminStudentSubjectConflictsParamsStatus) Valid() bool {
+	switch e {
+	case ListAdminStudentSubjectConflictsParamsStatusDismissed:
+		return true
+	case ListAdminStudentSubjectConflictsParamsStatusOpen:
+		return true
+	case ListAdminStudentSubjectConflictsParamsStatusResolved:
+		return true
+	case ListAdminStudentSubjectConflictsParamsStatusUnderReview:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListAdminStudentSubjectConflicts200JSONResponseBodySuccess.
+const (
+	ListAdminStudentSubjectConflicts200JSONResponseBodySuccessTrue ListAdminStudentSubjectConflicts200JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the ListAdminStudentSubjectConflicts200JSONResponseBodySuccess enum.
+func (e ListAdminStudentSubjectConflicts200JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case ListAdminStudentSubjectConflicts200JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DecideAdminStudentSubjectConflict200JSONResponseBodySuccess.
+const (
+	DecideAdminStudentSubjectConflict200JSONResponseBodySuccessTrue DecideAdminStudentSubjectConflict200JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the DecideAdminStudentSubjectConflict200JSONResponseBodySuccess enum.
+func (e DecideAdminStudentSubjectConflict200JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case DecideAdminStudentSubjectConflict200JSONResponseBodySuccessTrue:
 		return true
 	default:
 		return false
@@ -3435,129 +4410,6 @@ func (e UpdateSystemConfig200JSONResponseBodySuccess) Valid() bool {
 	}
 }
 
-// Defines values for CreateFreshmanApplicationJSONBodyMaterialType.
-const (
-	CreateFreshmanApplicationJSONBodyMaterialTypeAdmissionCertificate CreateFreshmanApplicationJSONBodyMaterialType = "admission_certificate"
-	CreateFreshmanApplicationJSONBodyMaterialTypeAdmissionNotice      CreateFreshmanApplicationJSONBodyMaterialType = "admission_notice"
-)
-
-// Valid indicates whether the value is a known member of the CreateFreshmanApplicationJSONBodyMaterialType enum.
-func (e CreateFreshmanApplicationJSONBodyMaterialType) Valid() bool {
-	switch e {
-	case CreateFreshmanApplicationJSONBodyMaterialTypeAdmissionCertificate:
-		return true
-	case CreateFreshmanApplicationJSONBodyMaterialTypeAdmissionNotice:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for CreateFreshmanApplication201JSONResponseBodySuccess.
-const (
-	CreateFreshmanApplication201JSONResponseBodySuccessTrue CreateFreshmanApplication201JSONResponseBodySuccess = true
-)
-
-// Valid indicates whether the value is a known member of the CreateFreshmanApplication201JSONResponseBodySuccess enum.
-func (e CreateFreshmanApplication201JSONResponseBodySuccess) Valid() bool {
-	switch e {
-	case CreateFreshmanApplication201JSONResponseBodySuccessTrue:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for UploadFreshmanCameraCapture200JSONResponseBodySuccess.
-const (
-	UploadFreshmanCameraCapture200JSONResponseBodySuccessTrue UploadFreshmanCameraCapture200JSONResponseBodySuccess = true
-)
-
-// Valid indicates whether the value is a known member of the UploadFreshmanCameraCapture200JSONResponseBodySuccess enum.
-func (e UploadFreshmanCameraCapture200JSONResponseBodySuccess) Valid() bool {
-	switch e {
-	case UploadFreshmanCameraCapture200JSONResponseBodySuccessTrue:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for CreateFreshmanCameraHandoff201JSONResponseBodySuccess.
-const (
-	CreateFreshmanCameraHandoff201JSONResponseBodySuccessTrue CreateFreshmanCameraHandoff201JSONResponseBodySuccess = true
-)
-
-// Valid indicates whether the value is a known member of the CreateFreshmanCameraHandoff201JSONResponseBodySuccess enum.
-func (e CreateFreshmanCameraHandoff201JSONResponseBodySuccess) Valid() bool {
-	switch e {
-	case CreateFreshmanCameraHandoff201JSONResponseBodySuccessTrue:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for GetFreshmanCameraHandoff200JSONResponseBodySuccess.
-const (
-	GetFreshmanCameraHandoff200JSONResponseBodySuccessTrue GetFreshmanCameraHandoff200JSONResponseBodySuccess = true
-)
-
-// Valid indicates whether the value is a known member of the GetFreshmanCameraHandoff200JSONResponseBodySuccess enum.
-func (e GetFreshmanCameraHandoff200JSONResponseBodySuccess) Valid() bool {
-	switch e {
-	case GetFreshmanCameraHandoff200JSONResponseBodySuccessTrue:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for PreviewFreshmanMobileCameraHandoff200JSONResponseBodySuccess.
-const (
-	PreviewFreshmanMobileCameraHandoff200JSONResponseBodySuccessTrue PreviewFreshmanMobileCameraHandoff200JSONResponseBodySuccess = true
-)
-
-// Valid indicates whether the value is a known member of the PreviewFreshmanMobileCameraHandoff200JSONResponseBodySuccess enum.
-func (e PreviewFreshmanMobileCameraHandoff200JSONResponseBodySuccess) Valid() bool {
-	switch e {
-	case PreviewFreshmanMobileCameraHandoff200JSONResponseBodySuccessTrue:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for UploadFreshmanMobileCameraCapture200JSONResponseBodySuccess.
-const (
-	UploadFreshmanMobileCameraCapture200JSONResponseBodySuccessTrue UploadFreshmanMobileCameraCapture200JSONResponseBodySuccess = true
-)
-
-// Valid indicates whether the value is a known member of the UploadFreshmanMobileCameraCapture200JSONResponseBodySuccess enum.
-func (e UploadFreshmanMobileCameraCapture200JSONResponseBodySuccess) Valid() bool {
-	switch e {
-	case UploadFreshmanMobileCameraCapture200JSONResponseBodySuccessTrue:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for ChooseFreshmanMobileCameraContinuation200JSONResponseBodySuccess.
-const (
-	ChooseFreshmanMobileCameraContinuation200JSONResponseBodySuccessTrue ChooseFreshmanMobileCameraContinuation200JSONResponseBodySuccess = true
-)
-
-// Valid indicates whether the value is a known member of the ChooseFreshmanMobileCameraContinuation200JSONResponseBodySuccess enum.
-func (e ChooseFreshmanMobileCameraContinuation200JSONResponseBodySuccess) Valid() bool {
-	switch e {
-	case ChooseFreshmanMobileCameraContinuation200JSONResponseBodySuccessTrue:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for GetAdmissionMe200JSONResponseBodySuccess.
 const (
 	GetAdmissionMe200JSONResponseBodySuccessTrue GetAdmissionMe200JSONResponseBodySuccess = true
@@ -3567,51 +4419,6 @@ const (
 func (e GetAdmissionMe200JSONResponseBodySuccess) Valid() bool {
 	switch e {
 	case GetAdmissionMe200JSONResponseBodySuccessTrue:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for MatchAdmissionAcademicStudent200JSONResponseBodySuccess.
-const (
-	MatchAdmissionAcademicStudent200JSONResponseBodySuccessTrue MatchAdmissionAcademicStudent200JSONResponseBodySuccess = true
-)
-
-// Valid indicates whether the value is a known member of the MatchAdmissionAcademicStudent200JSONResponseBodySuccess enum.
-func (e MatchAdmissionAcademicStudent200JSONResponseBodySuccess) Valid() bool {
-	switch e {
-	case MatchAdmissionAcademicStudent200JSONResponseBodySuccessTrue:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for RequestAdmissionSchoolEmailOTP200JSONResponseBodySuccess.
-const (
-	RequestAdmissionSchoolEmailOTP200JSONResponseBodySuccessTrue RequestAdmissionSchoolEmailOTP200JSONResponseBodySuccess = true
-)
-
-// Valid indicates whether the value is a known member of the RequestAdmissionSchoolEmailOTP200JSONResponseBodySuccess enum.
-func (e RequestAdmissionSchoolEmailOTP200JSONResponseBodySuccess) Valid() bool {
-	switch e {
-	case RequestAdmissionSchoolEmailOTP200JSONResponseBodySuccessTrue:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for VerifyAdmissionSchoolEmailOTP200JSONResponseBodySuccess.
-const (
-	VerifyAdmissionSchoolEmailOTP200JSONResponseBodySuccessTrue VerifyAdmissionSchoolEmailOTP200JSONResponseBodySuccess = true
-)
-
-// Valid indicates whether the value is a known member of the VerifyAdmissionSchoolEmailOTP200JSONResponseBodySuccess enum.
-func (e VerifyAdmissionSchoolEmailOTP200JSONResponseBodySuccess) Valid() bool {
-	switch e {
-	case VerifyAdmissionSchoolEmailOTP200JSONResponseBodySuccessTrue:
 		return true
 	default:
 		return false
@@ -3903,51 +4710,6 @@ const (
 func (e ResetBotAdmissionFailureCount200JSONResponseBodySuccess) Valid() bool {
 	switch e {
 	case ResetBotAdmissionFailureCount200JSONResponseBodySuccessTrue:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for ListBotPendingFreshmanForwards200JSONResponseBodySuccess.
-const (
-	ListBotPendingFreshmanForwards200JSONResponseBodySuccessTrue ListBotPendingFreshmanForwards200JSONResponseBodySuccess = true
-)
-
-// Valid indicates whether the value is a known member of the ListBotPendingFreshmanForwards200JSONResponseBodySuccess enum.
-func (e ListBotPendingFreshmanForwards200JSONResponseBodySuccess) Valid() bool {
-	switch e {
-	case ListBotPendingFreshmanForwards200JSONResponseBodySuccessTrue:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for ReviewBotFreshmanApplication200JSONResponseBodySuccess.
-const (
-	ReviewBotFreshmanApplication200JSONResponseBodySuccessTrue ReviewBotFreshmanApplication200JSONResponseBodySuccess = true
-)
-
-// Valid indicates whether the value is a known member of the ReviewBotFreshmanApplication200JSONResponseBodySuccess enum.
-func (e ReviewBotFreshmanApplication200JSONResponseBodySuccess) Valid() bool {
-	switch e {
-	case ReviewBotFreshmanApplication200JSONResponseBodySuccessTrue:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for ViewBotFreshmanApplication200JSONResponseBodySuccess.
-const (
-	ViewBotFreshmanApplication200JSONResponseBodySuccessTrue ViewBotFreshmanApplication200JSONResponseBodySuccess = true
-)
-
-// Valid indicates whether the value is a known member of the ViewBotFreshmanApplication200JSONResponseBodySuccess enum.
-func (e ViewBotFreshmanApplication200JSONResponseBodySuccess) Valid() bool {
-	switch e {
-	case ViewBotFreshmanApplication200JSONResponseBodySuccessTrue:
 		return true
 	default:
 		return false
@@ -5301,6 +6063,36 @@ func (e GetTerms200JSONResponseBodySuccess) Valid() bool {
 	}
 }
 
+// Defines values for GetInternalPhoneGateEligibility200JSONResponseBodySuccess.
+const (
+	GetInternalPhoneGateEligibility200JSONResponseBodySuccessTrue GetInternalPhoneGateEligibility200JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the GetInternalPhoneGateEligibility200JSONResponseBodySuccess enum.
+func (e GetInternalPhoneGateEligibility200JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case GetInternalPhoneGateEligibility200JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetInternalStudentEligibility200JSONResponseBodySuccess.
+const (
+	GetInternalStudentEligibility200JSONResponseBodySuccessTrue GetInternalStudentEligibility200JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the GetInternalStudentEligibility200JSONResponseBodySuccess enum.
+func (e GetInternalStudentEligibility200JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case GetInternalStudentEligibility200JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ReportFrontendErrorJSONBodyKind.
 const (
 	Error              ReportFrontendErrorJSONBodyKind = "error"
@@ -5985,45 +6777,390 @@ func (e GetResourceDownloadURL200JSONResponseBodySuccess) Valid() bool {
 	}
 }
 
-// Defines values for GetUserIdentity200JSONResponseBodySuccess.
+// Defines values for CreateVerificationApplication201JSONResponseBodySuccess.
 const (
-	GetUserIdentity200JSONResponseBodySuccessTrue GetUserIdentity200JSONResponseBodySuccess = true
+	CreateVerificationApplication201JSONResponseBodySuccessTrue CreateVerificationApplication201JSONResponseBodySuccess = true
 )
 
-// Valid indicates whether the value is a known member of the GetUserIdentity200JSONResponseBodySuccess enum.
-func (e GetUserIdentity200JSONResponseBodySuccess) Valid() bool {
+// Valid indicates whether the value is a known member of the CreateVerificationApplication201JSONResponseBodySuccess enum.
+func (e CreateVerificationApplication201JSONResponseBodySuccess) Valid() bool {
 	switch e {
-	case GetUserIdentity200JSONResponseBodySuccessTrue:
+	case CreateVerificationApplication201JSONResponseBodySuccessTrue:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for SubmitIdentity201JSONResponseBodySuccess.
+// Defines values for CancelVerificationApplication200JSONResponseBodySuccess.
 const (
-	SubmitIdentity201JSONResponseBodySuccessTrue SubmitIdentity201JSONResponseBodySuccess = true
+	CancelVerificationApplication200JSONResponseBodySuccessTrue CancelVerificationApplication200JSONResponseBodySuccess = true
 )
 
-// Valid indicates whether the value is a known member of the SubmitIdentity201JSONResponseBodySuccess enum.
-func (e SubmitIdentity201JSONResponseBodySuccess) Valid() bool {
+// Valid indicates whether the value is a known member of the CancelVerificationApplication200JSONResponseBodySuccess enum.
+func (e CancelVerificationApplication200JSONResponseBodySuccess) Valid() bool {
 	switch e {
-	case SubmitIdentity201JSONResponseBodySuccessTrue:
+	case CancelVerificationApplication200JSONResponseBodySuccessTrue:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for UploadIdentityPhoto201JSONResponseBodySuccess.
+// Defines values for GetVerificationApplication200JSONResponseBodySuccess.
 const (
-	UploadIdentityPhoto201JSONResponseBodySuccessTrue UploadIdentityPhoto201JSONResponseBodySuccess = true
+	GetVerificationApplication200JSONResponseBodySuccessTrue GetVerificationApplication200JSONResponseBodySuccess = true
 )
 
-// Valid indicates whether the value is a known member of the UploadIdentityPhoto201JSONResponseBodySuccess enum.
-func (e UploadIdentityPhoto201JSONResponseBodySuccess) Valid() bool {
+// Valid indicates whether the value is a known member of the GetVerificationApplication200JSONResponseBodySuccess enum.
+func (e GetVerificationApplication200JSONResponseBodySuccess) Valid() bool {
 	switch e {
-	case UploadIdentityPhoto201JSONResponseBodySuccessTrue:
+	case GetVerificationApplication200JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetApplicationInboundEmailChallenge200JSONResponseBodySuccess.
+const (
+	GetApplicationInboundEmailChallenge200JSONResponseBodySuccessTrue GetApplicationInboundEmailChallenge200JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the GetApplicationInboundEmailChallenge200JSONResponseBodySuccess enum.
+func (e GetApplicationInboundEmailChallenge200JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case GetApplicationInboundEmailChallenge200JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateApplicationInboundEmailChallenge201JSONResponseBodySuccess.
+const (
+	CreateApplicationInboundEmailChallenge201JSONResponseBodySuccessTrue CreateApplicationInboundEmailChallenge201JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the CreateApplicationInboundEmailChallenge201JSONResponseBodySuccess enum.
+func (e CreateApplicationInboundEmailChallenge201JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case CreateApplicationInboundEmailChallenge201JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RequestApplicationEmailOTP200JSONResponseBodySuccess.
+const (
+	RequestApplicationEmailOTP200JSONResponseBodySuccessTrue RequestApplicationEmailOTP200JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the RequestApplicationEmailOTP200JSONResponseBodySuccess enum.
+func (e RequestApplicationEmailOTP200JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case RequestApplicationEmailOTP200JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for VerifyApplicationEmailOTP200JSONResponseBodySuccess.
+const (
+	VerifyApplicationEmailOTP200JSONResponseBodySuccessTrue VerifyApplicationEmailOTP200JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the VerifyApplicationEmailOTP200JSONResponseBodySuccess enum.
+func (e VerifyApplicationEmailOTP200JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case VerifyApplicationEmailOTP200JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetManualStudentReview200JSONResponseBodySuccess.
+const (
+	GetManualStudentReview200JSONResponseBodySuccessTrue GetManualStudentReview200JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the GetManualStudentReview200JSONResponseBodySuccess enum.
+func (e GetManualStudentReview200JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case GetManualStudentReview200JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UpsertManualStudentReview200JSONResponseBodySuccess.
+const (
+	UpsertManualStudentReview200JSONResponseBodySuccessTrue UpsertManualStudentReview200JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the UpsertManualStudentReview200JSONResponseBodySuccess enum.
+func (e UpsertManualStudentReview200JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case UpsertManualStudentReview200JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UploadManualReviewCameraCapture201JSONResponseBodySuccess.
+const (
+	UploadManualReviewCameraCapture201JSONResponseBodySuccessTrue UploadManualReviewCameraCapture201JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the UploadManualReviewCameraCapture201JSONResponseBodySuccess enum.
+func (e UploadManualReviewCameraCapture201JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case UploadManualReviewCameraCapture201JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateManualReviewCameraHandoff201JSONResponseBodySuccess.
+const (
+	CreateManualReviewCameraHandoff201JSONResponseBodySuccessTrue CreateManualReviewCameraHandoff201JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the CreateManualReviewCameraHandoff201JSONResponseBodySuccess enum.
+func (e CreateManualReviewCameraHandoff201JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case CreateManualReviewCameraHandoff201JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetManualReviewCameraHandoff200JSONResponseBodySuccess.
+const (
+	GetManualReviewCameraHandoff200JSONResponseBodySuccessTrue GetManualReviewCameraHandoff200JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the GetManualReviewCameraHandoff200JSONResponseBodySuccess enum.
+func (e GetManualReviewCameraHandoff200JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case GetManualReviewCameraHandoff200JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RequestManualReviewEmailOTP200JSONResponseBodySuccess.
+const (
+	RequestManualReviewEmailOTP200JSONResponseBodySuccessTrue RequestManualReviewEmailOTP200JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the RequestManualReviewEmailOTP200JSONResponseBodySuccess enum.
+func (e RequestManualReviewEmailOTP200JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case RequestManualReviewEmailOTP200JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for VerifyManualReviewEmailOTP200JSONResponseBodySuccess.
+const (
+	VerifyManualReviewEmailOTP200JSONResponseBodySuccessTrue VerifyManualReviewEmailOTP200JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the VerifyManualReviewEmailOTP200JSONResponseBodySuccess enum.
+func (e VerifyManualReviewEmailOTP200JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case VerifyManualReviewEmailOTP200JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SubmitManualStudentReview200JSONResponseBodySuccess.
+const (
+	SubmitManualStudentReview200JSONResponseBodySuccessTrue SubmitManualStudentReview200JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the SubmitManualStudentReview200JSONResponseBodySuccess enum.
+func (e SubmitManualStudentReview200JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case SubmitManualStudentReview200JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for VerifyApplicationRealName200JSONResponseBodySuccess.
+const (
+	VerifyApplicationRealName200JSONResponseBodySuccessTrue VerifyApplicationRealName200JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the VerifyApplicationRealName200JSONResponseBodySuccess enum.
+func (e VerifyApplicationRealName200JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case VerifyApplicationRealName200JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for VerifyApplicationSchoolSSO200JSONResponseBodySuccess.
+const (
+	VerifyApplicationSchoolSSO200JSONResponseBodySuccessTrue VerifyApplicationSchoolSSO200JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the VerifyApplicationSchoolSSO200JSONResponseBodySuccess enum.
+func (e VerifyApplicationSchoolSSO200JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case VerifyApplicationSchoolSSO200JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListStudentVerificationCredentials200JSONResponseBodySuccess.
+const (
+	ListStudentVerificationCredentials200JSONResponseBodySuccessTrue ListStudentVerificationCredentials200JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the ListStudentVerificationCredentials200JSONResponseBodySuccess enum.
+func (e ListStudentVerificationCredentials200JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case ListStudentVerificationCredentials200JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RevokeStudentVerificationCredential200JSONResponseBodySuccess.
+const (
+	RevokeStudentVerificationCredential200JSONResponseBodySuccessTrue RevokeStudentVerificationCredential200JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the RevokeStudentVerificationCredential200JSONResponseBodySuccess enum.
+func (e RevokeStudentVerificationCredential200JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case RevokeStudentVerificationCredential200JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetStudentVerificationEligibility200JSONResponseBodySuccess.
+const (
+	GetStudentVerificationEligibility200JSONResponseBodySuccessTrue GetStudentVerificationEligibility200JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the GetStudentVerificationEligibility200JSONResponseBodySuccess enum.
+func (e GetStudentVerificationEligibility200JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case GetStudentVerificationEligibility200JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PreviewManualReviewCameraHandoff200JSONResponseBodySuccess.
+const (
+	PreviewManualReviewCameraHandoff200JSONResponseBodySuccessTrue PreviewManualReviewCameraHandoff200JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the PreviewManualReviewCameraHandoff200JSONResponseBodySuccess enum.
+func (e PreviewManualReviewCameraHandoff200JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case PreviewManualReviewCameraHandoff200JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UploadManualReviewHandoffCameraCapture201JSONResponseBodySuccess.
+const (
+	UploadManualReviewHandoffCameraCapture201JSONResponseBodySuccessTrue UploadManualReviewHandoffCameraCapture201JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the UploadManualReviewHandoffCameraCapture201JSONResponseBodySuccess enum.
+func (e UploadManualReviewHandoffCameraCapture201JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case UploadManualReviewHandoffCameraCapture201JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ChooseManualReviewCameraContinuation200JSONResponseBodySuccess.
+const (
+	ChooseManualReviewCameraContinuation200JSONResponseBodySuccessTrue ChooseManualReviewCameraContinuation200JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the ChooseManualReviewCameraContinuation200JSONResponseBodySuccess enum.
+func (e ChooseManualReviewCameraContinuation200JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case ChooseManualReviewCameraContinuation200JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ResumeManualReviewCameraHandoff200JSONResponseBodySuccess.
+const (
+	ResumeManualReviewCameraHandoff200JSONResponseBodySuccessTrue ResumeManualReviewCameraHandoff200JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the ResumeManualReviewCameraHandoff200JSONResponseBodySuccess enum.
+func (e ResumeManualReviewCameraHandoff200JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case ResumeManualReviewCameraHandoff200JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateStudentVerificationSchoolSuggestion201JSONResponseBodySuccess.
+const (
+	CreateStudentVerificationSchoolSuggestion201JSONResponseBodySuccessTrue CreateStudentVerificationSchoolSuggestion201JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the CreateStudentVerificationSchoolSuggestion201JSONResponseBodySuccess enum.
+func (e CreateStudentVerificationSchoolSuggestion201JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case CreateStudentVerificationSchoolSuggestion201JSONResponseBodySuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListVerificationSchools200JSONResponseBodySuccess.
+const (
+	ListVerificationSchools200JSONResponseBodySuccessTrue ListVerificationSchools200JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the ListVerificationSchools200JSONResponseBodySuccess enum.
+func (e ListVerificationSchools200JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case ListVerificationSchools200JSONResponseBodySuccessTrue:
 		return true
 	default:
 		return false
@@ -6039,126 +7176,6 @@ const (
 func (e GetUserSurface200JSONResponseBodySuccess) Valid() bool {
 	switch e {
 	case GetUserSurface200JSONResponseBodySuccessTrue:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for GetUserProfile200JSONResponseBodySuccess.
-const (
-	GetUserProfile200JSONResponseBodySuccessTrue GetUserProfile200JSONResponseBodySuccess = true
-)
-
-// Valid indicates whether the value is a known member of the GetUserProfile200JSONResponseBodySuccess enum.
-func (e GetUserProfile200JSONResponseBodySuccess) Valid() bool {
-	switch e {
-	case GetUserProfile200JSONResponseBodySuccessTrue:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for GetAcademicInfo200JSONResponseBodySuccess.
-const (
-	GetAcademicInfo200JSONResponseBodySuccessTrue GetAcademicInfo200JSONResponseBodySuccess = true
-)
-
-// Valid indicates whether the value is a known member of the GetAcademicInfo200JSONResponseBodySuccess enum.
-func (e GetAcademicInfo200JSONResponseBodySuccess) Valid() bool {
-	switch e {
-	case GetAcademicInfo200JSONResponseBodySuccessTrue:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for BindPhone200JSONResponseBodySuccess.
-const (
-	BindPhone200JSONResponseBodySuccessTrue BindPhone200JSONResponseBodySuccess = true
-)
-
-// Valid indicates whether the value is a known member of the BindPhone200JSONResponseBodySuccess enum.
-func (e BindPhone200JSONResponseBodySuccess) Valid() bool {
-	switch e {
-	case BindPhone200JSONResponseBodySuccessTrue:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for RequestBindPhoneOTP200JSONResponseBodySuccess.
-const (
-	RequestBindPhoneOTP200JSONResponseBodySuccessTrue RequestBindPhoneOTP200JSONResponseBodySuccess = true
-)
-
-// Valid indicates whether the value is a known member of the RequestBindPhoneOTP200JSONResponseBodySuccess enum.
-func (e RequestBindPhoneOTP200JSONResponseBodySuccess) Valid() bool {
-	switch e {
-	case RequestBindPhoneOTP200JSONResponseBodySuccessTrue:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for MatchStudentEmailAcademicStudent200JSONResponseBodySuccess.
-const (
-	MatchStudentEmailAcademicStudent200JSONResponseBodySuccessTrue MatchStudentEmailAcademicStudent200JSONResponseBodySuccess = true
-)
-
-// Valid indicates whether the value is a known member of the MatchStudentEmailAcademicStudent200JSONResponseBodySuccess enum.
-func (e MatchStudentEmailAcademicStudent200JSONResponseBodySuccess) Valid() bool {
-	switch e {
-	case MatchStudentEmailAcademicStudent200JSONResponseBodySuccessTrue:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for RequestStudentEmailOTP200JSONResponseBodySuccess.
-const (
-	RequestStudentEmailOTP200JSONResponseBodySuccessTrue RequestStudentEmailOTP200JSONResponseBodySuccess = true
-)
-
-// Valid indicates whether the value is a known member of the RequestStudentEmailOTP200JSONResponseBodySuccess enum.
-func (e RequestStudentEmailOTP200JSONResponseBodySuccess) Valid() bool {
-	switch e {
-	case RequestStudentEmailOTP200JSONResponseBodySuccessTrue:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for VerifyStudentEmailOTP200JSONResponseBodySuccess.
-const (
-	VerifyStudentEmailOTP200JSONResponseBodySuccessTrue VerifyStudentEmailOTP200JSONResponseBodySuccess = true
-)
-
-// Valid indicates whether the value is a known member of the VerifyStudentEmailOTP200JSONResponseBodySuccess enum.
-func (e VerifyStudentEmailOTP200JSONResponseBodySuccess) Valid() bool {
-	switch e {
-	case VerifyStudentEmailOTP200JSONResponseBodySuccessTrue:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for SubmitStudentVerification200JSONResponseBodySuccess.
-const (
-	SubmitStudentVerification200JSONResponseBodySuccessTrue SubmitStudentVerification200JSONResponseBodySuccess = true
-)
-
-// Valid indicates whether the value is a known member of the SubmitStudentVerification200JSONResponseBodySuccess enum.
-func (e SubmitStudentVerification200JSONResponseBodySuccess) Valid() bool {
-	switch e {
-	case SubmitStudentVerification200JSONResponseBodySuccessTrue:
 		return true
 	default:
 		return false
@@ -6195,15 +7212,30 @@ func (e CreateUserQQBindingCode201JSONResponseBodySuccess) Valid() bool {
 	}
 }
 
-// Defines values for ListSchools200JSONResponseBodySuccess.
+// Defines values for ReceiveStudentVerificationInboundEmail202JSONResponseBodyDataStatus.
 const (
-	ListSchools200JSONResponseBodySuccessTrue ListSchools200JSONResponseBodySuccess = true
+	Accepted ReceiveStudentVerificationInboundEmail202JSONResponseBodyDataStatus = "accepted"
 )
 
-// Valid indicates whether the value is a known member of the ListSchools200JSONResponseBodySuccess enum.
-func (e ListSchools200JSONResponseBodySuccess) Valid() bool {
+// Valid indicates whether the value is a known member of the ReceiveStudentVerificationInboundEmail202JSONResponseBodyDataStatus enum.
+func (e ReceiveStudentVerificationInboundEmail202JSONResponseBodyDataStatus) Valid() bool {
 	switch e {
-	case ListSchools200JSONResponseBodySuccessTrue:
+	case Accepted:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ReceiveStudentVerificationInboundEmail202JSONResponseBodySuccess.
+const (
+	ReceiveStudentVerificationInboundEmail202JSONResponseBodySuccessTrue ReceiveStudentVerificationInboundEmail202JSONResponseBodySuccess = true
+)
+
+// Valid indicates whether the value is a known member of the ReceiveStudentVerificationInboundEmail202JSONResponseBodySuccess enum.
+func (e ReceiveStudentVerificationInboundEmail202JSONResponseBodySuccess) Valid() bool {
+	switch e {
+	case ReceiveStudentVerificationInboundEmail202JSONResponseBodySuccessTrue:
 		return true
 	default:
 		return false
@@ -6227,16 +7259,16 @@ func (e HealthLive200JSONResponseBodySuccess) Valid() bool {
 
 // Defines values for HealthReady200JSONResponseBodyDataStatus.
 const (
-	Degraded HealthReady200JSONResponseBodyDataStatus = "degraded"
-	Ok       HealthReady200JSONResponseBodyDataStatus = "ok"
+	HealthReady200JSONResponseBodyDataStatusDegraded HealthReady200JSONResponseBodyDataStatus = "degraded"
+	HealthReady200JSONResponseBodyDataStatusOk       HealthReady200JSONResponseBodyDataStatus = "ok"
 )
 
 // Valid indicates whether the value is a known member of the HealthReady200JSONResponseBodyDataStatus enum.
 func (e HealthReady200JSONResponseBodyDataStatus) Valid() bool {
 	switch e {
-	case Degraded:
+	case HealthReady200JSONResponseBodyDataStatusDegraded:
 		return true
-	case Ok:
+	case HealthReady200JSONResponseBodyDataStatusOk:
 		return true
 	default:
 		return false
@@ -6324,39 +7356,6 @@ type AcademicSource struct {
 	Provider string `json:"provider"`
 }
 
-// AcademicStudentInfo defines model for AcademicStudentInfo.
-type AcademicStudentInfo struct {
-	// Bjdm Class code
-	Bjdm *string `json:"bjdm,omitempty"`
-
-	// Dzxx Email address
-	Dzxx *string `json:"dzxx,omitempty"`
-
-	// Pyccdm Education level code
-	Pyccdm *string `json:"pyccdm,omitempty"`
-
-	// Rxnj Enrollment grade
-	Rxnj *string `json:"rxnj,omitempty"`
-
-	// Sjh Phone number
-	Sjh *string `json:"sjh,omitempty"`
-
-	// Xh Student ID
-	Xh string `json:"xh"`
-
-	// Xm Student name
-	Xm string `json:"xm"`
-
-	// Xznj Current grade
-	Xznj *string `json:"xznj,omitempty"`
-
-	// Yxdm College code
-	Yxdm *string `json:"yxdm,omitempty"`
-
-	// Zydm Major code
-	Zydm *string `json:"zydm,omitempty"`
-}
-
 // AcademicTerm defines model for AcademicTerm.
 type AcademicTerm struct {
 	Code      string              `json:"code"`
@@ -6367,6 +7366,55 @@ type AcademicTerm struct {
 	StartDate *openapi_types.Date `json:"startDate,omitempty"`
 }
 
+// AdminCampusConnectorHealth defines model for AdminCampusConnectorHealth.
+type AdminCampusConnectorHealth struct {
+	CertificateNotAfter      time.Time                             `json:"certificateNotAfter"`
+	DisplayName              string                                `json:"displayName"`
+	HeartbeatIntervalSeconds int                                   `json:"heartbeatIntervalSeconds"`
+	Id                       openapi_types.UUID                    `json:"id"`
+	LastHealthCode           *string                               `json:"lastHealthCode,omitempty"`
+	LastHeartbeatAt          *time.Time                            `json:"lastHeartbeatAt,omitempty"`
+	MaxConcurrency           int                                   `json:"maxConcurrency"`
+	Operations               []AdminCampusConnectorOperationHealth `json:"operations"`
+	ProtocolVersion          string                                `json:"protocolVersion"`
+	Revision                 int64                                 `json:"revision"`
+	SoftwareVersion          string                                `json:"softwareVersion"`
+	Status                   AdminCampusConnectorHealthStatus      `json:"status"`
+}
+
+// AdminCampusConnectorHealthStatus defines model for AdminCampusConnectorHealth.Status.
+type AdminCampusConnectorHealthStatus string
+
+// AdminCampusConnectorOperationHealth defines model for AdminCampusConnectorOperationHealth.
+type AdminCampusConnectorOperationHealth struct {
+	AdapterID        string                                              `json:"adapterID"`
+	AdapterVersion   string                                              `json:"adapterVersion"`
+	ConfigRevision   int64                                               `json:"configRevision"`
+	Enabled          bool                                                `json:"enabled"`
+	HealthCheckedAt  *time.Time                                          `json:"healthCheckedAt,omitempty"`
+	HealthCode       *string                                             `json:"healthCode,omitempty"`
+	HealthStatus     AdminCampusConnectorOperationHealthHealthStatus     `json:"healthStatus"`
+	OperationKey     string                                              `json:"operationKey"`
+	OperationType    AdminCampusConnectorOperationHealthOperationType    `json:"operationType"`
+	SchoolCode       string                                              `json:"schoolCode"`
+	ValidationStatus AdminCampusConnectorOperationHealthValidationStatus `json:"validationStatus"`
+}
+
+// AdminCampusConnectorOperationHealthHealthStatus defines model for AdminCampusConnectorOperationHealth.HealthStatus.
+type AdminCampusConnectorOperationHealthHealthStatus string
+
+// AdminCampusConnectorOperationHealthOperationType defines model for AdminCampusConnectorOperationHealth.OperationType.
+type AdminCampusConnectorOperationHealthOperationType string
+
+// AdminCampusConnectorOperationHealthValidationStatus defines model for AdminCampusConnectorOperationHealth.ValidationStatus.
+type AdminCampusConnectorOperationHealthValidationStatus string
+
+// AdminCredentialRevokeRequest defines model for AdminCredentialRevokeRequest.
+type AdminCredentialRevokeRequest struct {
+	ExpectedRevision int64  `json:"expectedRevision"`
+	Reason           string `json:"reason"`
+}
+
 // AdminEditReviewRequest defines model for AdminEditReviewRequest.
 type AdminEditReviewRequest struct {
 	Content string  `json:"content"`
@@ -6374,54 +7422,32 @@ type AdminEditReviewRequest struct {
 	Title   *string `json:"title,omitempty"`
 }
 
-// AdminIdentityReviewDetail defines model for AdminIdentityReviewDetail.
-type AdminIdentityReviewDetail struct {
-	CreatedAt time.Time `json:"createdAt"`
-
-	// DocPhotoBackURL 证件背面材料的短期签名 URL；可能为空。
-	DocPhotoBackURL *string `json:"docPhotoBackURL"`
-
-	// DocPhotoFrontURL 证件正面材料的短期签名 URL；仅管理员详情接口返回。
-	DocPhotoFrontURL *string `json:"docPhotoFrontURL"`
-
-	// DocPhotoSelfieURL 本人手持证件材料的短期签名 URL；仅管理员详情接口返回。
-	DocPhotoSelfieURL *string                                `json:"docPhotoSelfieURL"`
-	DocType           AdminIdentityReviewDetailDocType       `json:"docType"`
-	RealName          string                                 `json:"realName"`
-	RejectionReason   *string                                `json:"rejectionReason,omitempty"`
-	ReviewedAt        *time.Time                             `json:"reviewedAt,omitempty"`
-	UpdatedAt         time.Time                              `json:"updatedAt"`
-	UserID            int64                                  `json:"userID"`
-	Verified          bool                                   `json:"verified"`
-	VerifiedAt        *time.Time                             `json:"verifiedAt,omitempty"`
-	VerifyMethod      *AdminIdentityReviewDetailVerifyMethod `json:"verifyMethod,omitempty"`
+// AdminManualMaterialAccess defines model for AdminManualMaterialAccess.
+type AdminManualMaterialAccess struct {
+	ExpiresAt time.Time `json:"expiresAt"`
+	Url       string    `json:"url"`
 }
 
-// AdminIdentityReviewDetailDocType defines model for AdminIdentityReviewDetail.DocType.
-type AdminIdentityReviewDetailDocType string
+// AdminManualReviewDecisionRequest defines model for AdminManualReviewDecisionRequest.
+type AdminManualReviewDecisionRequest struct {
+	Action AdminManualReviewDecisionRequestAction `json:"action"`
 
-// AdminIdentityReviewDetailVerifyMethod defines model for AdminIdentityReviewDetail.VerifyMethod.
-type AdminIdentityReviewDetailVerifyMethod string
-
-// AdminIdentityReviewItem defines model for AdminIdentityReviewItem.
-type AdminIdentityReviewItem struct {
-	CreatedAt       time.Time                            `json:"createdAt"`
-	DocType         AdminIdentityReviewItemDocType       `json:"docType"`
-	RealName        string                               `json:"realName"`
-	RejectionReason *string                              `json:"rejectionReason,omitempty"`
-	ReviewedAt      *time.Time                           `json:"reviewedAt,omitempty"`
-	UpdatedAt       time.Time                            `json:"updatedAt"`
-	UserID          int64                                `json:"userID"`
-	Verified        bool                                 `json:"verified"`
-	VerifiedAt      *time.Time                           `json:"verifiedAt,omitempty"`
-	VerifyMethod    *AdminIdentityReviewItemVerifyMethod `json:"verifyMethod,omitempty"`
+	// ExpiresInDays 批准时必填；录取通知书的上限由服务端进一步收紧。
+	ExpiresInDays     *int    `json:"expiresInDays,omitempty"`
+	InternalRiskNote  *string `json:"internalRiskNote,omitempty"`
+	UserVisibleReason string  `json:"userVisibleReason"`
 }
 
-// AdminIdentityReviewItemDocType defines model for AdminIdentityReviewItem.DocType.
-type AdminIdentityReviewItemDocType string
+// AdminManualReviewDecisionRequestAction defines model for AdminManualReviewDecisionRequest.Action.
+type AdminManualReviewDecisionRequestAction string
 
-// AdminIdentityReviewItemVerifyMethod defines model for AdminIdentityReviewItem.VerifyMethod.
-type AdminIdentityReviewItemVerifyMethod string
+// AdminManualReviewDetail defines model for AdminManualReviewDetail.
+type AdminManualReviewDetail struct {
+	Case ManualReviewCase `json:"case"`
+
+	// FormValues 仅在学校范围授权和近期 MFA step-up 后返回。
+	FormValues map[string]string `json:"formValues"`
+}
 
 // AdminOperationLog defines model for AdminOperationLog.
 type AdminOperationLog struct {
@@ -6438,34 +7464,34 @@ type AdminOperationLog struct {
 	UserAgent     *string                 `json:"userAgent,omitempty"`
 }
 
-// AdminSchoolConfig defines model for AdminSchoolConfig.
-type AdminSchoolConfig struct {
-	// AcademicDbTable 本地学籍表名
-	AcademicDbTable           *string                         `json:"academicDbTable,omitempty"`
-	ApprovalPolicy            AdminSchoolConfigApprovalPolicy `json:"approvalPolicy"`
-	ConsentText               *string                         `json:"consentText,omitempty"`
-	CreatedAt                 time.Time                       `json:"createdAt"`
-	Enabled                   bool                            `json:"enabled"`
-	LdapConfig                *SchoolLDAPConfigView           `json:"ldapConfig,omitempty"`
-	ManualFormFields          *[]ManualFieldDescriptor        `json:"manualFormFields,omitempty"`
-	SchoolCode                string                          `json:"schoolCode"`
-	SchoolEmailIdentityPolicy *SchoolEmailIdentityPolicy      `json:"schoolEmailIdentityPolicy,omitempty"`
-
-	// SchoolEmailOtpEnabled 该学校是否已接入加群验证用的学校邮箱 OTP
-	SchoolEmailOtpEnabled bool   `json:"schoolEmailOtpEnabled"`
-	SchoolID              int64  `json:"schoolID"`
-	SchoolName            string `json:"schoolName"`
-
-	// SchoolSsoEnabled 该学校是否已接入加群验证用的学校官方 SSO
-	SchoolSsoEnabled   bool                                `json:"schoolSsoEnabled"`
-	VerificationMethod AdminSchoolConfigVerificationMethod `json:"verificationMethod"`
+// AdminRosterSyncCreateRequest defines model for AdminRosterSyncCreateRequest.
+type AdminRosterSyncCreateRequest struct {
+	// Reason 审计原因、工单或事件编号；不会发送给校园连接器节点。
+	Reason string `json:"reason"`
 }
 
-// AdminSchoolConfigApprovalPolicy defines model for AdminSchoolConfig.ApprovalPolicy.
-type AdminSchoolConfigApprovalPolicy string
+// AdminRosterSyncRequest defines model for AdminRosterSyncRequest.
+type AdminRosterSyncRequest struct {
+	AdapterID           string                       `json:"adapterID"`
+	AdapterVersion      string                       `json:"adapterVersion"`
+	ClaimAttempts       int                          `json:"claimAttempts"`
+	ClaimedAt           *time.Time                   `json:"claimedAt,omitempty"`
+	CompletedAt         *time.Time                   `json:"completedAt,omitempty"`
+	CreatedAt           time.Time                    `json:"createdAt"`
+	DeadlineAt          time.Time                    `json:"deadlineAt"`
+	Id                  openapi_types.UUID           `json:"id"`
+	LatencyMilliseconds *int                         `json:"latencyMilliseconds,omitempty"`
+	OperationKey        string                       `json:"operationKey"`
+	Reason              string                       `json:"reason"`
+	RequestedByUserID   int64                        `json:"requestedByUserID"`
+	ResultCode          *string                      `json:"resultCode,omitempty"`
+	SchoolCode          string                       `json:"schoolCode"`
+	Status              AdminRosterSyncRequestStatus `json:"status"`
+	UpdatedAt           time.Time                    `json:"updatedAt"`
+}
 
-// AdminSchoolConfigVerificationMethod defines model for AdminSchoolConfig.VerificationMethod.
-type AdminSchoolConfigVerificationMethod string
+// AdminRosterSyncRequestStatus defines model for AdminRosterSyncRequest.Status.
+type AdminRosterSyncRequestStatus string
 
 // AdminSensitiveWord defines model for AdminSensitiveWord.
 type AdminSensitiveWord struct {
@@ -6492,32 +7518,61 @@ type AdminStats struct {
 	WeekReviews      int `json:"weekReviews"`
 }
 
-// AdminStudentVerificationItem defines model for AdminStudentVerificationItem.
-type AdminStudentVerificationItem struct {
-	ActiveStudentID *string                 `json:"activeStudentID,omitempty"`
-	ConsentGivenAt  *time.Time              `json:"consentGivenAt,omitempty"`
-	CreatedAt       time.Time               `json:"createdAt"`
-	ManualFormData  *map[string]interface{} `json:"manualFormData,omitempty"`
-
-	// Phone 掩码手机号（如 138****5678）
-	Phone              *string                                         `json:"phone,omitempty"`
-	PhoneVerified      *bool                                           `json:"phoneVerified,omitempty"`
-	RejectionReason    *string                                         `json:"rejectionReason,omitempty"`
-	ReviewedAt         *time.Time                                      `json:"reviewedAt,omitempty"`
-	SchoolID           *int64                                          `json:"schoolID,omitempty"`
-	StudentIDs         *[]string                                       `json:"studentIDs,omitempty"`
-	UpdatedAt          time.Time                                       `json:"updatedAt"`
-	UserID             int64                                           `json:"userID"`
-	VerificationMethod *AdminStudentVerificationItemVerificationMethod `json:"verificationMethod,omitempty"`
-	VerificationStatus AdminStudentVerificationItemVerificationStatus  `json:"verificationStatus"`
-	VerifiedAt         *time.Time                                      `json:"verifiedAt,omitempty"`
+// AdminStudentCredential defines model for AdminStudentCredential.
+type AdminStudentCredential struct {
+	Assurance        AdminStudentCredentialAssurance        `json:"assurance"`
+	CredentialClass  AdminStudentCredentialCredentialClass  `json:"credentialClass"`
+	ExpiresAt        *time.Time                             `json:"expiresAt,omitempty"`
+	Id               openapi_types.UUID                     `json:"id"`
+	Method           VerificationMethod                     `json:"method"`
+	ReviewRequiredAt *time.Time                             `json:"reviewRequiredAt,omitempty"`
+	Revision         int64                                  `json:"revision"`
+	RevokedReason    *string                                `json:"revokedReason,omitempty"`
+	RosterDependency AdminStudentCredentialRosterDependency `json:"rosterDependency"`
+	SchoolCode       string                                 `json:"schoolCode"`
+	SchoolName       string                                 `json:"schoolName"`
+	Status           VerificationCredentialStatus           `json:"status"`
+	SubjectDisplay   string                                 `json:"subjectDisplay"`
+	UserID           int64                                  `json:"userID"`
+	VerifiedAt       time.Time                              `json:"verifiedAt"`
 }
 
-// AdminStudentVerificationItemVerificationMethod defines model for AdminStudentVerificationItem.VerificationMethod.
-type AdminStudentVerificationItemVerificationMethod string
+// AdminStudentCredentialAssurance defines model for AdminStudentCredential.Assurance.
+type AdminStudentCredentialAssurance string
 
-// AdminStudentVerificationItemVerificationStatus defines model for AdminStudentVerificationItem.VerificationStatus.
-type AdminStudentVerificationItemVerificationStatus string
+// AdminStudentCredentialCredentialClass defines model for AdminStudentCredential.CredentialClass.
+type AdminStudentCredentialCredentialClass string
+
+// AdminStudentCredentialRosterDependency defines model for AdminStudentCredential.RosterDependency.
+type AdminStudentCredentialRosterDependency string
+
+// AdminStudentSubjectConflict defines model for AdminStudentSubjectConflict.
+type AdminStudentSubjectConflict struct {
+	ApplicationID   *openapi_types.UUID               `json:"applicationID,omitempty"`
+	ClaimantUserID  int64                             `json:"claimantUserID"`
+	CreatedAt       time.Time                         `json:"createdAt"`
+	Id              openapi_types.UUID                `json:"id"`
+	IncumbentUserID *int64                            `json:"incumbentUserID,omitempty"`
+	ReasonCode      string                            `json:"reasonCode"`
+	ResolutionCode  *string                           `json:"resolutionCode,omitempty"`
+	ResolvedAt      *time.Time                        `json:"resolvedAt,omitempty"`
+	SchoolCode      string                            `json:"schoolCode"`
+	SchoolName      string                            `json:"schoolName"`
+	Status          AdminStudentSubjectConflictStatus `json:"status"`
+	UpdatedAt       time.Time                         `json:"updatedAt"`
+}
+
+// AdminStudentSubjectConflictStatus defines model for AdminStudentSubjectConflict.Status.
+type AdminStudentSubjectConflictStatus string
+
+// AdminSubjectConflictDecisionRequest defines model for AdminSubjectConflictDecisionRequest.
+type AdminSubjectConflictDecisionRequest struct {
+	Action AdminSubjectConflictDecisionRequestAction `json:"action"`
+	Reason string                                    `json:"reason"`
+}
+
+// AdminSubjectConflictDecisionRequestAction defines model for AdminSubjectConflictDecisionRequest.Action.
+type AdminSubjectConflictDecisionRequestAction string
 
 // AdminTeacher defines model for AdminTeacher.
 type AdminTeacher struct {
@@ -6539,31 +7594,89 @@ type AdminUpdateReviewRequest struct {
 // AdminUpdateReviewRequestAction restore 对 pending_review 状态表示审核通过并发布
 type AdminUpdateReviewRequestAction string
 
-// AdmissionMe defines model for AdmissionMe.
-type AdmissionMe struct {
-	CredentialKind       *AdmissionMeCredentialKind `json:"credentialKind,omitempty"`
-	ProjectionPending    bool                       `json:"projectionPending"`
-	ProvisionalExpiresAt *time.Time                 `json:"provisionalExpiresAt,omitempty"`
-	Session              *AdmissionSession          `json:"session,omitempty"`
-	Status               AdmissionStatus            `json:"status"`
+// AdminVerificationMethodConfig defines model for AdminVerificationMethodConfig.
+type AdminVerificationMethodConfig struct {
+	AdapterID             string                                        `json:"adapterID"`
+	AdapterVersion        string                                        `json:"adapterVersion"`
+	ConditionalPolicy     map[string]interface{}                        `json:"conditionalPolicy"`
+	ConfigRevision        int64                                         `json:"configRevision"`
+	ConnectorOperationKey *string                                       `json:"connectorOperationKey,omitempty"`
+	CredentialTTLSeconds  *int                                          `json:"credentialTTLSeconds,omitempty"`
+	Description           string                                        `json:"description"`
+	DisplayName           string                                        `json:"displayName"`
+	Enabled               bool                                          `json:"enabled"`
+	HealthCheckedAt       *time.Time                                    `json:"healthCheckedAt,omitempty"`
+	HealthCode            *string                                       `json:"healthCode,omitempty"`
+	HealthStatus          AdminVerificationMethodConfigHealthStatus     `json:"healthStatus"`
+	Method                VerificationMethod                            `json:"method"`
+	PrivacyNotice         map[string]interface{}                        `json:"privacyNotice"`
+	PrivacyNoticeVersion  *string                                       `json:"privacyNoticeVersion,omitempty"`
+	PublicFormSchema      map[string]interface{}                        `json:"publicFormSchema"`
+	RiskPolicy            map[string]interface{}                        `json:"riskPolicy"`
+	RosterDependency      AdminVerificationMethodConfigRosterDependency `json:"rosterDependency"`
+	SecretConfigured      *bool                                         `json:"secretConfigured,omitempty"`
+	UpdatedAt             *time.Time                                    `json:"updatedAt,omitempty"`
+	ValidationCode        *string                                       `json:"validationCode,omitempty"`
+	ValidationStatus      AdminVerificationMethodConfigValidationStatus `json:"validationStatus"`
 }
 
-// AdmissionMeCredentialKind defines model for AdmissionMe.CredentialKind.
-type AdmissionMeCredentialKind string
+// AdminVerificationMethodConfigHealthStatus defines model for AdminVerificationMethodConfig.HealthStatus.
+type AdminVerificationMethodConfigHealthStatus string
+
+// AdminVerificationMethodConfigRosterDependency defines model for AdminVerificationMethodConfig.RosterDependency.
+type AdminVerificationMethodConfigRosterDependency string
+
+// AdminVerificationMethodConfigValidationStatus defines model for AdminVerificationMethodConfig.ValidationStatus.
+type AdminVerificationMethodConfigValidationStatus string
+
+// AdminVerificationSchoolConfig defines model for AdminVerificationSchoolConfig.
+type AdminVerificationSchoolConfig struct {
+	AdapterID        string                          `json:"adapterID"`
+	AdapterVersion   string                          `json:"adapterVersion"`
+	ConfigRevision   int64                           `json:"configRevision"`
+	EmailDomains     []string                        `json:"emailDomains"`
+	Enabled          bool                            `json:"enabled"`
+	EnrollmentPolicy map[string]interface{}          `json:"enrollmentPolicy"`
+	Location         *string                         `json:"location,omitempty"`
+	ManualFormSchema map[string]interface{}          `json:"manualFormSchema"`
+	Methods          []AdminVerificationMethodConfig `json:"methods"`
+	NameMatchPolicy  map[string]interface{}          `json:"nameMatchPolicy"`
+	SchoolCode       string                          `json:"schoolCode"`
+	SchoolName       string                          `json:"schoolName"`
+
+	// SnapshotAutoActivate 明确启用后，只有通过全部质量门禁的新完整快照才会由系统自动原子激活；默认关闭。
+	SnapshotAutoActivate        bool                                          `json:"snapshotAutoActivate"`
+	SnapshotGraceSeconds        int                                           `json:"snapshotGraceSeconds"`
+	SnapshotHardExpirySeconds   int                                           `json:"snapshotHardExpirySeconds"`
+	SnapshotSyncIntervalSeconds int                                           `json:"snapshotSyncIntervalSeconds"`
+	SnapshotWarningAfterSeconds int                                           `json:"snapshotWarningAfterSeconds"`
+	StudentIDPolicy             map[string]interface{}                        `json:"studentIDPolicy"`
+	UpdatedAt                   time.Time                                     `json:"updatedAt"`
+	ValidationCode              *string                                       `json:"validationCode,omitempty"`
+	ValidationStatus            AdminVerificationSchoolConfigValidationStatus `json:"validationStatus"`
+}
+
+// AdminVerificationSchoolConfigValidationStatus defines model for AdminVerificationSchoolConfig.ValidationStatus.
+type AdminVerificationSchoolConfigValidationStatus string
+
+// AdmissionMe defines model for AdmissionMe.
+type AdmissionMe struct {
+	ProjectionPending bool              `json:"projectionPending"`
+	Session           *AdmissionSession `json:"session,omitempty"`
+	Status            AdmissionStatus   `json:"status"`
+}
 
 // AdmissionPolicy defines model for AdmissionPolicy.
 type AdmissionPolicy struct {
+	// AllowTemporaryFreshman 是否允许有效期内的临时新生凭据满足本群准入；正式学生凭据不受此开关影响。
+	AllowTemporaryFreshman bool `json:"allowTemporaryFreshman"`
 	// Deprecated: this property has been marked as deprecated upstream, but no `x-deprecated-reason` was set
 	AutoApproveJoin bool `json:"autoApproveJoin"`
 	// Deprecated: this property has been marked as deprecated upstream, but no `x-deprecated-reason` was set
-	AutoApproveUnverifiedJoin bool      `json:"autoApproveUnverifiedJoin"`
-	AutoApproveVerifiedJoin   bool      `json:"autoApproveVerifiedJoin"`
-	BlacklistDurationSeconds  *int      `json:"blacklistDurationSeconds,omitempty"`
-	FailedJoinLimit           int       `json:"failedJoinLimit"`
-	ForwardRawMaterialToQQ    bool      `json:"forwardRawMaterialToQQ"`
-	FreshmanChannelClosesAt   time.Time `json:"freshmanChannelClosesAt"`
-	FreshmanChannelEnabled    bool      `json:"freshmanChannelEnabled"`
-	FreshmanDefaultExpiresAt  time.Time `json:"freshmanDefaultExpiresAt"`
+	AutoApproveUnverifiedJoin bool `json:"autoApproveUnverifiedJoin"`
+	AutoApproveVerifiedJoin   bool `json:"autoApproveVerifiedJoin"`
+	BlacklistDurationSeconds  *int `json:"blacklistDurationSeconds,omitempty"`
+	FailedJoinLimit           int  `json:"failedJoinLimit"`
 
 	// GuardEnabled 是否把该目标群同步为 Koishi 入群认证守卫绑定。
 	GuardEnabled               bool   `json:"guardEnabled"`
@@ -6574,10 +7687,7 @@ type AdmissionPolicy struct {
 	// JoinHandlingStrategy 入群处理策略。post_join_guard 表示加群后禁言并发送认证链接；join_request_review 表示在加群申请阶段按 StuHelper 学生认证状态自动通过或拒绝；post_join_time_code 表示 Koishi 先同意入群申请，成员入群后在群内发送动态验证码完成验证，超时未验证则移出群聊。
 	JoinHandlingStrategy       AdmissionPolicyJoinHandlingStrategy `json:"joinHandlingStrategy"`
 	LinkWaitSeconds            int                                 `json:"linkWaitSeconds"`
-	ManagementGuildIDs         []string                            `json:"managementGuildIDs"`
 	ManualReviewTimeoutSeconds int                                 `json:"manualReviewTimeoutSeconds"`
-	MaxExtensionDays           int                                 `json:"maxExtensionDays"`
-	MaxMaterialBytes           int64                               `json:"maxMaterialBytes"`
 	Platform                   string                              `json:"platform"`
 	ReminderIntervalSeconds    int                                 `json:"reminderIntervalSeconds"`
 	SubmissionWaitSeconds      int                                 `json:"submissionWaitSeconds"`
@@ -6591,7 +7701,7 @@ type AdmissionPolicyJoinHandlingStrategy string
 
 // AdmissionPolicyCreateRequest defines model for AdmissionPolicyCreateRequest.
 type AdmissionPolicyCreateRequest struct {
-	// GuildID 新生认证目标群号。
+	// GuildID 入群认证目标群号。
 	GuildID  string `json:"guildID"`
 	Platform string `json:"platform"`
 
@@ -6601,10 +7711,14 @@ type AdmissionPolicyCreateRequest struct {
 
 // AdmissionSession defines model for AdmissionSession.
 type AdmissionSession struct {
-	AuthURL                  *string         `json:"authURL,omitempty"`
-	BotSelfID                *string         `json:"botSelfID,omitempty"`
-	CancelledAt              *time.Time      `json:"cancelledAt,omitempty"`
-	ChannelID                *string         `json:"channelID,omitempty"`
+	AuthURL                *string    `json:"authURL,omitempty"`
+	BotSelfID              *string    `json:"botSelfID,omitempty"`
+	CancelledAt            *time.Time `json:"cancelledAt,omitempty"`
+	ChannelID              *string    `json:"channelID,omitempty"`
+	EligibilityEvaluatedAt *time.Time `json:"eligibilityEvaluatedAt,omitempty"`
+
+	// EligibilityRevision Monotonic student-eligibility fence used by this admission decision.
+	EligibilityRevision      *int64          `json:"eligibilityRevision,omitempty"`
 	FailureCount             *int            `json:"failureCount,omitempty"`
 	GuildID                  string          `json:"guildID"`
 	Id                       string          `json:"id"`
@@ -6612,7 +7726,6 @@ type AdmissionSession struct {
 	LastBotError             *string         `json:"lastBotError,omitempty"`
 	LinkWaitDeadlineAt       time.Time       `json:"linkWaitDeadlineAt"`
 	ManualReviewDeadlineAt   *time.Time      `json:"manualReviewDeadlineAt,omitempty"`
-	MaxMaterialBytes         *int64          `json:"maxMaterialBytes,omitempty"`
 	Platform                 string          `json:"platform"`
 	ProjectionPending        bool            `json:"projectionPending"`
 	QqID                     string          `json:"qqID"`
@@ -6723,13 +7836,6 @@ type BatchUpdateReviewsRequest struct {
 // BatchUpdateReviewsRequestAction restore 对 pending_review 状态表示审核通过并发布
 type BatchUpdateReviewsRequestAction string
 
-// BindPhoneRequest defines model for BindPhoneRequest.
-type BindPhoneRequest struct {
-	// OtpCode 短信验证码（6位）
-	OtpCode string `json:"otpCode"`
-	Phone   string `json:"phone"`
-}
-
 // BotAdmissionActionEventRequest defines model for BotAdmissionActionEventRequest.
 type BotAdmissionActionEventRequest struct {
 	Action BotAdmissionActionEventRequestAction `json:"action"`
@@ -6820,7 +7926,10 @@ type BotAdmissionPendingAction struct {
 	DeadlineAt *time.Time `json:"deadlineAt,omitempty"`
 
 	// DispatchAttempt actionID 对应的派发代次；ACK 时必须原样提交。
-	DispatchAttempt        *int    `json:"dispatchAttempt,omitempty"`
+	DispatchAttempt *int `json:"dispatchAttempt,omitempty"`
+
+	// EligibilityRevision release 动作使用的学生资格修订号；执行器不得修改或缓存为学生身份真源。
+	EligibilityRevision    *int64  `json:"eligibilityRevision,omitempty"`
 	FailureCount           *int    `json:"failureCount,omitempty"`
 	GuildID                *string `json:"guildID,omitempty"`
 	Platform               *string `json:"platform,omitempty"`
@@ -6845,9 +7954,13 @@ type BotAdmissionPolicyTarget struct {
 
 	// LinkWaitSeconds 入群后等待秒数。`post_join_guard` 下表示学生认证链接等待时间；`post_join_time_code`
 	// 下表示群内动态验证码等待时间，Koishi 会按该值生成本地超时踢出期限。
-	LinkWaitSeconds int    `json:"linkWaitSeconds"`
-	Platform        string `json:"platform"`
-	PolicyID        string `json:"policyID"`
+	LinkWaitSeconds int `json:"linkWaitSeconds"`
+
+	// ManagementGuildIDs 由 PostgreSQL admission policy 下发的 QQ 管理群白名单。Koishi 只能把它用于固定的
+	// 管理通知和受权命令边界，不得接受 webhook 或事件载荷覆盖目标群。
+	ManagementGuildIDs []string `json:"managementGuildIDs"`
+	Platform           string   `json:"platform"`
+	PolicyID           string   `json:"policyID"`
 }
 
 // BotAdmissionPolicyTargetJoinHandlingStrategy 该目标群当前使用的入群处理策略。
@@ -6876,41 +7989,6 @@ type BotAdmissionSessionSubjectRequest struct {
 	Platform string `json:"platform"`
 	QqID     string `json:"qqID"`
 }
-
-// BotFreshmanCommandContext defines model for BotFreshmanCommandContext.
-type BotFreshmanCommandContext struct {
-	ChannelID     *string `json:"channelID,omitempty"`
-	GuildID       string  `json:"guildID"`
-	OperatorQQID  string  `json:"operatorQQID"`
-	Platform      *string `json:"platform,omitempty"`
-	RawCommand    string  `json:"rawCommand"`
-	TargetGuildID *string `json:"targetGuildID,omitempty"`
-}
-
-// BotFreshmanReviewRequest defines model for BotFreshmanReviewRequest.
-type BotFreshmanReviewRequest struct {
-	Action        BotFreshmanReviewRequestAction `json:"action"`
-	ChannelID     *string                        `json:"channelID,omitempty"`
-	ExpiresInDays *int                           `json:"expiresInDays,omitempty"`
-	GuildID       string                         `json:"guildID"`
-	OperatorQQID  string                         `json:"operatorQQID"`
-	Platform      *string                        `json:"platform,omitempty"`
-	RawCommand    string                         `json:"rawCommand"`
-	Reason        *string                        `json:"reason,omitempty"`
-	TargetGuildID *string                        `json:"targetGuildID,omitempty"`
-}
-
-// BotFreshmanReviewRequestAction defines model for BotFreshmanReviewRequest.Action.
-type BotFreshmanReviewRequestAction string
-
-// CameraCaptureRequest defines model for CameraCaptureRequest.
-type CameraCaptureRequest struct {
-	ContentType CameraCaptureRequestContentType `json:"contentType"`
-	ImageBase64 string                          `json:"imageBase64"`
-}
-
-// CameraCaptureRequestContentType defines model for CameraCaptureRequest.ContentType.
-type CameraCaptureRequestContentType string
 
 // CapabilityGrant defines model for CapabilityGrant.
 type CapabilityGrant struct {
@@ -6994,6 +8072,26 @@ type CourseTeacherStats struct {
 	TeacherName    string   `json:"teacherName"`
 }
 
+// CreateAdminVerificationSchoolConfigRequest defines model for CreateAdminVerificationSchoolConfigRequest.
+type CreateAdminVerificationSchoolConfigRequest struct {
+	AdapterID        string                 `json:"adapterID"`
+	AdapterVersion   string                 `json:"adapterVersion"`
+	EmailDomains     []string               `json:"emailDomains"`
+	EnrollmentPolicy map[string]interface{} `json:"enrollmentPolicy"`
+	ManualFormSchema map[string]interface{} `json:"manualFormSchema"`
+	NameMatchPolicy  map[string]interface{} `json:"nameMatchPolicy"`
+	Reason           string                 `json:"reason"`
+
+	// SchoolCode 必须先存在于学校目录；创建本配置才会进入待校验认证白名单。
+	SchoolCode                  string                 `json:"schoolCode"`
+	SnapshotAutoActivate        bool                   `json:"snapshotAutoActivate"`
+	SnapshotGraceSeconds        int                    `json:"snapshotGraceSeconds"`
+	SnapshotHardExpirySeconds   int                    `json:"snapshotHardExpirySeconds"`
+	SnapshotSyncIntervalSeconds int                    `json:"snapshotSyncIntervalSeconds"`
+	SnapshotWarningAfterSeconds int                    `json:"snapshotWarningAfterSeconds"`
+	StudentIDPolicy             map[string]interface{} `json:"studentIDPolicy"`
+}
+
 // CreateAuthorizationGrantRequest defines model for CreateAuthorizationGrantRequest.
 type CreateAuthorizationGrantRequest struct {
 	// Reason 必填的授权业务理由，会写入不可变审计。
@@ -7008,6 +8106,14 @@ type CreateAuthorizationGrantRequest struct {
 	// SectionID section_* 角色必填；其他角色不得提供。
 	SectionID     *string `json:"sectionID,omitempty"`
 	SubjectUserID int64   `json:"subjectUserID"`
+}
+
+// CreatePhoneOperationRequest defines model for CreatePhoneOperationRequest.
+type CreatePhoneOperationRequest struct {
+	Name       *string `json:"name,omitempty"`
+	Phone      *string `json:"phone,omitempty"`
+	SchoolCode *string `json:"schoolCode,omitempty"`
+	StudentID  *string `json:"studentID,omitempty"`
 }
 
 // CreateReplyRequest defines model for CreateReplyRequest.
@@ -7063,6 +8169,12 @@ type CreateStorageMountRequest struct {
 type CreateTeacherRequest struct {
 	DepartmentID int64  `json:"departmentID"`
 	Name         string `json:"name"`
+}
+
+// CreateVerificationApplicationRequest defines model for CreateVerificationApplicationRequest.
+type CreateVerificationApplicationRequest struct {
+	ContinuationToken *string `json:"continuationToken,omitempty"`
+	SchoolCode        string  `json:"schoolCode"`
 }
 
 // CreatedAdmissionSession defines model for CreatedAdmissionSession.
@@ -7137,70 +8249,6 @@ type FavoriteStatusData struct {
 	Favorited bool `json:"favorited"`
 }
 
-// FreshmanApplication defines model for FreshmanApplication.
-type FreshmanApplication struct {
-	AdmissionSessionID   *string                         `json:"admissionSessionID,omitempty"`
-	ApplicantName        *string                         `json:"applicantName,omitempty"`
-	ApplicantNameMasked  string                          `json:"applicantNameMasked"`
-	CreatedAt            time.Time                       `json:"createdAt"`
-	DepartmentOrMajor    *string                         `json:"departmentOrMajor,omitempty"`
-	FailureCount         *int                            `json:"failureCount,omitempty"`
-	Id                   string                          `json:"id"`
-	MaterialType         FreshmanApplicationMaterialType `json:"materialType"`
-	MaterialURL          *string                         `json:"materialURL,omitempty"`
-	ProvisionalExpiresAt *time.Time                      `json:"provisionalExpiresAt,omitempty"`
-	QqID                 *string                         `json:"qqID,omitempty"`
-	ReviewedAt           *time.Time                      `json:"reviewedAt,omitempty"`
-	SchoolID             int64                           `json:"schoolID"`
-	Status               FreshmanApplicationStatus       `json:"status"`
-	UserID               string                          `json:"userID"`
-}
-
-// FreshmanApplicationMaterialType defines model for FreshmanApplication.MaterialType.
-type FreshmanApplicationMaterialType string
-
-// FreshmanApplicationStatus defines model for FreshmanApplicationStatus.
-type FreshmanApplicationStatus string
-
-// FreshmanCameraHandoff defines model for FreshmanCameraHandoff.
-type FreshmanCameraHandoff struct {
-	ApplicationID    string                           `json:"applicationID"`
-	ChosenAt         *time.Time                       `json:"chosenAt,omitempty"`
-	ContinueOn       *FreshmanCameraHandoffContinueOn `json:"continueOn,omitempty"`
-	CreatedAt        time.Time                        `json:"createdAt"`
-	ExpiresAt        time.Time                        `json:"expiresAt"`
-	Id               string                           `json:"id"`
-	MaxMaterialBytes int64                            `json:"maxMaterialBytes"`
-	MobileURL        *string                          `json:"mobileURL,omitempty"`
-	Status           FreshmanCameraHandoffStatus      `json:"status"`
-	UploadedAt       *time.Time                       `json:"uploadedAt,omitempty"`
-	UserID           string                           `json:"userID"`
-}
-
-// FreshmanCameraHandoffContinueOn defines model for FreshmanCameraHandoff.ContinueOn.
-type FreshmanCameraHandoffContinueOn string
-
-// FreshmanCameraHandoffStatus defines model for FreshmanCameraHandoff.Status.
-type FreshmanCameraHandoffStatus string
-
-// FreshmanCameraHandoffContinuationRequest defines model for FreshmanCameraHandoffContinuationRequest.
-type FreshmanCameraHandoffContinuationRequest struct {
-	ContinueOn FreshmanCameraHandoffContinuationRequestContinueOn `json:"continueOn"`
-}
-
-// FreshmanCameraHandoffContinuationRequestContinueOn defines model for FreshmanCameraHandoffContinuationRequest.ContinueOn.
-type FreshmanCameraHandoffContinuationRequestContinueOn string
-
-// FreshmanReviewRequest defines model for FreshmanReviewRequest.
-type FreshmanReviewRequest struct {
-	Action        FreshmanReviewRequestAction `json:"action"`
-	ExpiresInDays *int                        `json:"expiresInDays,omitempty"`
-	Reason        *string                     `json:"reason,omitempty"`
-}
-
-// FreshmanReviewRequestAction defines model for FreshmanReviewRequest.Action.
-type FreshmanReviewRequestAction string
-
 // HotCourse defines model for HotCourse.
 type HotCourse struct {
 	AvgRating   float64 `json:"avgRating"`
@@ -7209,11 +8257,43 @@ type HotCourse struct {
 	ReviewCount int     `json:"reviewCount"`
 }
 
-// IdentityPhotoUploadResult defines model for IdentityPhotoUploadResult.
-type IdentityPhotoUploadResult struct {
-	// Key 后续提交实名认证时使用的对象存储 key
-	Key string `json:"key"`
+// InboundEmailChallenge defines model for InboundEmailChallenge.
+type InboundEmailChallenge struct {
+	ApplicationID openapi_types.UUID `json:"applicationID"`
+
+	// ChallengeValue 仅在挑战仍等待时返回；验证完成、取消或过期后不再返回。
+	ChallengeValue       *string                     `json:"challengeValue,omitempty"`
+	ExpectedSenderMasked string                      `json:"expectedSenderMasked"`
+	ExpiresAt            time.Time                   `json:"expiresAt"`
+	Status               InboundEmailChallengeStatus `json:"status"`
+	Subject              string                      `json:"subject"`
+	TargetAddress        openapi_types.Email         `json:"targetAddress"`
+	VerifiedAt           *time.Time                  `json:"verifiedAt,omitempty"`
 }
+
+// InboundEmailChallengeStatus defines model for InboundEmailChallenge.Status.
+type InboundEmailChallengeStatus string
+
+// InboundEmailWebhookRequest defines model for InboundEmailWebhookRequest.
+type InboundEmailWebhookRequest struct {
+	Dkim         InboundEmailWebhookRequestDkim  `json:"dkim"`
+	Dmarc        InboundEmailWebhookRequestDmarc `json:"dmarc"`
+	EnvelopeFrom *openapi_types.Email            `json:"envelopeFrom,omitempty"`
+	HeaderFrom   *openapi_types.Email            `json:"headerFrom,omitempty"`
+	ReceivedAt   time.Time                       `json:"receivedAt"`
+	Spf          InboundEmailWebhookRequestSpf   `json:"spf"`
+	Subject      *string                         `json:"subject,omitempty"`
+	TextBody     *string                         `json:"textBody,omitempty"`
+}
+
+// InboundEmailWebhookRequestDkim defines model for InboundEmailWebhookRequest.Dkim.
+type InboundEmailWebhookRequestDkim string
+
+// InboundEmailWebhookRequestDmarc defines model for InboundEmailWebhookRequest.Dmarc.
+type InboundEmailWebhookRequestDmarc string
+
+// InboundEmailWebhookRequestSpf defines model for InboundEmailWebhookRequest.Spf.
+type InboundEmailWebhookRequestSpf string
 
 // LoginURLResponse defines model for LoginURLResponse.
 type LoginURLResponse struct {
@@ -7222,25 +8302,115 @@ type LoginURLResponse struct {
 	Url   string `json:"url"`
 }
 
-// ManualFieldDescriptor defines model for ManualFieldDescriptor.
-type ManualFieldDescriptor struct {
-	// Key 动态字段唯一标识
-	Key string `json:"key"`
+// ManualCameraCaptureRequest defines model for ManualCameraCaptureRequest.
+type ManualCameraCaptureRequest struct {
+	CaptureSource ManualCameraCaptureRequestCaptureSource `json:"captureSource"`
+	ContentType   ManualCameraCaptureRequestContentType   `json:"contentType"`
+	ImageBase64   *string                                 `json:"imageBase64,omitempty"`
 
-	// Label 字段展示文案
-	Label string `json:"label"`
-
-	// Options select 类型可选项
-	Options *[]string `json:"options,omitempty"`
-
-	// Placeholder 输入占位文案
-	Placeholder *string                   `json:"placeholder,omitempty"`
-	Required    bool                      `json:"required"`
-	Type        ManualFieldDescriptorType `json:"type"`
+	// RequestedFacingMode 仅记录浏览器请求意图，不表示已证明来自后置摄像头。
+	RequestedFacingMode *ManualCameraCaptureRequestRequestedFacingMode `json:"requestedFacingMode,omitempty"`
 }
 
-// ManualFieldDescriptorType defines model for ManualFieldDescriptor.Type.
-type ManualFieldDescriptorType string
+// ManualCameraCaptureRequestCaptureSource defines model for ManualCameraCaptureRequest.CaptureSource.
+type ManualCameraCaptureRequestCaptureSource string
+
+// ManualCameraCaptureRequestContentType defines model for ManualCameraCaptureRequest.ContentType.
+type ManualCameraCaptureRequestContentType string
+
+// ManualCameraCaptureRequestRequestedFacingMode 仅记录浏览器请求意图，不表示已证明来自后置摄像头。
+type ManualCameraCaptureRequestRequestedFacingMode string
+
+// ManualCameraContinuationRequest defines model for ManualCameraContinuationRequest.
+type ManualCameraContinuationRequest struct {
+	ContinueOn ManualCameraContinuationRequestContinueOn `json:"continueOn"`
+}
+
+// ManualCameraContinuationRequestContinueOn defines model for ManualCameraContinuationRequest.ContinueOn.
+type ManualCameraContinuationRequestContinueOn string
+
+// ManualCameraHandoff defines model for ManualCameraHandoff.
+type ManualCameraHandoff struct {
+	CaseID           openapi_types.UUID             `json:"caseID"`
+	ContinueOn       *ManualCameraHandoffContinueOn `json:"continueOn,omitempty"`
+	ExpiresAt        time.Time                      `json:"expiresAt"`
+	Id               openapi_types.UUID             `json:"id"`
+	Material         *ManualReviewMaterial          `json:"material,omitempty"`
+	MaxMaterialBytes int64                          `json:"maxMaterialBytes"`
+
+	// MobileURL 只含一次性短期交接 token，不含原始个人信息。
+	MobileURL *string                   `json:"mobileURL,omitempty"`
+	Status    ManualCameraHandoffStatus `json:"status"`
+}
+
+// ManualCameraHandoffContinueOn defines model for ManualCameraHandoff.ContinueOn.
+type ManualCameraHandoffContinueOn string
+
+// ManualCameraHandoffStatus defines model for ManualCameraHandoff.Status.
+type ManualCameraHandoffStatus string
+
+// ManualEmailOTPChallenge defines model for ManualEmailOTPChallenge.
+type ManualEmailOTPChallenge struct {
+	CaseID            openapi_types.UUID `json:"caseID"`
+	ExpiresAt         time.Time          `json:"expiresAt"`
+	MaskedEmail       string             `json:"maskedEmail"`
+	RemainingAttempts int                `json:"remainingAttempts"`
+	ResendAvailableAt time.Time          `json:"resendAvailableAt"`
+}
+
+// ManualMaterialType defines model for ManualMaterialType.
+type ManualMaterialType string
+
+// ManualReviewCase defines model for ManualReviewCase.
+type ManualReviewCase struct {
+	ApplicantNameMasked       string                           `json:"applicantNameMasked"`
+	ApplicationID             openapi_types.UUID               `json:"applicationID"`
+	CreatedAt                 time.Time                        `json:"createdAt"`
+	CredentialClass           *ManualReviewCaseCredentialClass `json:"credentialClass,omitempty"`
+	CredentialExpiresAt       *time.Time                       `json:"credentialExpiresAt,omitempty"`
+	EmailMasked               *string                          `json:"emailMasked,omitempty"`
+	EmailVerificationRequired bool                             `json:"emailVerificationRequired"`
+
+	// EmailVerified 仅表示该联系邮箱验证码已通过，不能单独授予学生身份。
+	EmailVerified bool                          `json:"emailVerified"`
+	Id            openapi_types.UUID            `json:"id"`
+	MaterialType  ManualMaterialType            `json:"materialType"`
+	Materials     []ManualReviewMaterial        `json:"materials"`
+	NextActions   []ManualReviewCaseNextActions `json:"nextActions"`
+	ReviewedAt    *time.Time                    `json:"reviewedAt,omitempty"`
+	Revision      int64                         `json:"revision"`
+	School        struct {
+		Code string `json:"code"`
+		Name string `json:"name"`
+	} `json:"school"`
+	Status            ManualReviewStatus `json:"status"`
+	StudentIDMasked   string             `json:"studentIDMasked"`
+	SubmittedAt       *time.Time         `json:"submittedAt,omitempty"`
+	UpdatedAt         time.Time          `json:"updatedAt"`
+	UserVisibleReason *string            `json:"userVisibleReason,omitempty"`
+}
+
+// ManualReviewCaseCredentialClass defines model for ManualReviewCase.CredentialClass.
+type ManualReviewCaseCredentialClass string
+
+// ManualReviewCaseNextActions defines model for ManualReviewCase.NextActions.
+type ManualReviewCaseNextActions string
+
+// ManualReviewMaterial defines model for ManualReviewMaterial.
+type ManualReviewMaterial struct {
+	CapturedAt  time.Time                       `json:"capturedAt"`
+	ContentType ManualReviewMaterialContentType `json:"contentType"`
+	Height      int                             `json:"height"`
+	Id          openapi_types.UUID              `json:"id"`
+	SizeBytes   int64                           `json:"sizeBytes"`
+	Width       int                             `json:"width"`
+}
+
+// ManualReviewMaterialContentType defines model for ManualReviewMaterial.ContentType.
+type ManualReviewMaterialContentType string
+
+// ManualReviewStatus defines model for ManualReviewStatus.
+type ManualReviewStatus string
 
 // MemberBlacklistAccessDecision defines model for MemberBlacklistAccessDecision.
 type MemberBlacklistAccessDecision struct {
@@ -8004,6 +9174,53 @@ type OpenPlatformWithdrawalRequest struct {
 	Reason string `json:"reason"`
 }
 
+// PhoneBindingOperation defines model for PhoneBindingOperation.
+type PhoneBindingOperation struct {
+	ExpiresAt            time.Time                             `json:"expiresAt"`
+	Id                   openapi_types.UUID                    `json:"id"`
+	MaskedPhone          *string                               `json:"maskedPhone,omitempty"`
+	OperationKind        PhoneBindingOperationOperationKind    `json:"operationKind"`
+	Revision             int64                                 `json:"revision"`
+	SmsResendAvailableAt *time.Time                            `json:"smsResendAvailableAt,omitempty"`
+	Status               PhoneBindingOperationStatus           `json:"status"`
+	VerificationStep     PhoneBindingOperationVerificationStep `json:"verificationStep"`
+}
+
+// PhoneBindingOperationOperationKind defines model for PhoneBindingOperation.OperationKind.
+type PhoneBindingOperationOperationKind string
+
+// PhoneBindingOperationStatus defines model for PhoneBindingOperation.Status.
+type PhoneBindingOperationStatus string
+
+// PhoneBindingOperationVerificationStep defines model for PhoneBindingOperation.VerificationStep.
+type PhoneBindingOperationVerificationStep string
+
+// PhoneGateEligibility defines model for PhoneGateEligibility.
+type PhoneGateEligibility struct {
+	Eligible    bool                     `json:"eligible"`
+	EvaluatedAt time.Time                `json:"evaluatedAt"`
+	ExpiresAt   *time.Time               `json:"expiresAt,omitempty"`
+	Method      *PhoneVerificationMethod `json:"method,omitempty"`
+	Revision    int64                    `json:"revision"`
+}
+
+// PhoneStatus defines model for PhoneStatus.
+type PhoneStatus struct {
+	ExpiresAt                      *time.Time               `json:"expiresAt,omitempty"`
+	MaskedPhone                    *string                  `json:"maskedPhone,omitempty"`
+	Method                         *PhoneVerificationMethod `json:"method,omitempty"`
+	PublishingRequirementSatisfied bool                     `json:"publishingRequirementSatisfied"`
+	Revision                       int64                    `json:"revision"`
+	State                          PhoneStatusState         `json:"state"`
+	VerifiedAt                     *time.Time               `json:"verifiedAt,omitempty"`
+}
+
+// PhoneStatusState defines model for PhoneStatus.State.
+type PhoneStatusState string
+
+// PhoneVerificationMethod defines model for PhoneVerificationMethod.
+type PhoneVerificationMethod string
+
 // PostReviewRequest defines model for PostReviewRequest.
 type PostReviewRequest struct {
 	Content  string                  `json:"content"`
@@ -8046,16 +9263,14 @@ type QQBindingCode struct {
 
 // QQVerificationStatus defines model for QQVerificationStatus.
 type QQVerificationStatus struct {
-	BoundAt                   *time.Time                                    `json:"boundAt,omitempty"`
-	ProfileVerificationStatus QQVerificationStatusProfileVerificationStatus `json:"profileVerificationStatus"`
-	QqID                      string                                        `json:"qqID"`
-	StudentVerified           bool                                          `json:"studentVerified"`
-	UserID                    *int64                                        `json:"userID,omitempty"`
-	VerificationState         QQVerificationStatusVerificationState         `json:"verificationState"`
-}
+	BoundAt *time.Time `json:"boundAt,omitempty"`
+	QqID    string     `json:"qqID"`
 
-// QQVerificationStatusProfileVerificationStatus defines model for QQVerificationStatus.ProfileVerificationStatus.
-type QQVerificationStatusProfileVerificationStatus string
+	// StudentVerified 由当前有效学生凭据实时派生，不读取旧 user profile 认证状态。
+	StudentVerified   bool                                  `json:"studentVerified"`
+	UserID            *int64                                `json:"userID,omitempty"`
+	VerificationState QQVerificationStatusVerificationState `json:"verificationState"`
+}
 
 // QQVerificationStatusVerificationState defines model for QQVerificationStatus.VerificationState.
 type QQVerificationStatusVerificationState string
@@ -8204,12 +9419,6 @@ type ReviewDraft struct {
 // ReviewDraftGrade defines model for ReviewDraft.Grade.
 type ReviewDraftGrade string
 
-// ReviewIdentityRequest defines model for ReviewIdentityRequest.
-type ReviewIdentityRequest struct {
-	Approved        bool    `json:"approved"`
-	RejectionReason *string `json:"rejectionReason,omitempty"`
-}
-
 // ReviewRatings Map of dimension key to rating value (1-5)
 type ReviewRatings map[string]int
 
@@ -8241,12 +9450,62 @@ type ReviewStats struct {
 	UserCount       int `json:"userCount"`
 }
 
-// ReviewStudentVerificationRequest defines model for ReviewStudentVerificationRequest.
-type ReviewStudentVerificationRequest struct {
-	Approved bool `json:"approved"`
+// RosterQualityCheck defines model for RosterQualityCheck.
+type RosterQualityCheck struct {
+	CheckKey   string    `json:"checkKey"`
+	CheckedAt  time.Time `json:"checkedAt"`
+	DetailCode *string   `json:"detailCode,omitempty"`
 
-	// RejectionReason 驳回理由，可留空
-	RejectionReason *string `json:"rejectionReason,omitempty"`
+	// Measured 仅允许聚合或匿名测量值，不得包含学生明细。
+	Measured  map[string]interface{}   `json:"measured"`
+	Status    RosterQualityCheckStatus `json:"status"`
+	Threshold map[string]interface{}   `json:"threshold"`
+}
+
+// RosterQualityCheckStatus defines model for RosterQualityCheck.Status.
+type RosterQualityCheckStatus string
+
+// RosterSnapshot defines model for RosterSnapshot.
+type RosterSnapshot struct {
+	ActivatedAt        *time.Time               `json:"activatedAt,omitempty"`
+	ActivationRevision *int64                   `json:"activationRevision,omitempty"`
+	Checksum           *string                  `json:"checksum,omitempty"`
+	CreatedAt          time.Time                `json:"createdAt"`
+	DeletedRowCount    int64                    `json:"deletedRowCount"`
+	EligibleRowCount   int64                    `json:"eligibleRowCount"`
+	FailureCode        *string                  `json:"failureCode,omitempty"`
+	Id                 openapi_types.UUID       `json:"id"`
+	ImportCompletedAt  *time.Time               `json:"importCompletedAt,omitempty"`
+	ImportMode         RosterSnapshotImportMode `json:"importMode"`
+	ImportStartedAt    time.Time                `json:"importStartedAt"`
+	IsCurrent          bool                     `json:"isCurrent"`
+	MappingVersion     string                   `json:"mappingVersion"`
+	QualityChecks      []RosterQualityCheck     `json:"qualityChecks"`
+	RowCount           int64                    `json:"rowCount"`
+	SchemaVersion      int                      `json:"schemaVersion"`
+	SchoolCode         string                   `json:"schoolCode"`
+	SchoolName         string                   `json:"schoolName"`
+	SourceCutoffAt     time.Time                `json:"sourceCutoffAt"`
+	SourceKind         RosterSnapshotSourceKind `json:"sourceKind"`
+	SourceVersion      string                   `json:"sourceVersion"`
+	Status             RosterSnapshotStatus     `json:"status"`
+	UpdatedAt          time.Time                `json:"updatedAt"`
+}
+
+// RosterSnapshotImportMode defines model for RosterSnapshot.ImportMode.
+type RosterSnapshotImportMode string
+
+// RosterSnapshotSourceKind defines model for RosterSnapshot.SourceKind.
+type RosterSnapshotSourceKind string
+
+// RosterSnapshotStatus defines model for RosterSnapshot.Status.
+type RosterSnapshotStatus string
+
+// RosterSnapshotSwitchRequest defines model for RosterSnapshotSwitchRequest.
+type RosterSnapshotSwitchRequest struct {
+	// AllowSourceRegression 仅激活接口接受；必须由显式授权、MFA step-up 和审计共同保护。
+	AllowSourceRegression *bool  `json:"allowSourceRegression,omitempty"`
+	Reason                string `json:"reason"`
 }
 
 // SaveDraftRequest defines model for SaveDraftRequest.
@@ -8265,129 +9524,20 @@ type SaveDraftRequest struct {
 // SaveDraftRequestGrade defines model for SaveDraftRequest.Grade.
 type SaveDraftRequestGrade string
 
-// SchoolConfig defines model for SchoolConfig.
-type SchoolConfig struct {
-	ConsentText      *string                  `json:"consentText,omitempty"`
-	Enabled          bool                     `json:"enabled"`
-	ManualFormFields *[]ManualFieldDescriptor `json:"manualFormFields,omitempty"`
-
-	// SchoolCode 教育部学校标识码；对外选择和展示应优先使用此字段
-	SchoolCode                string                     `json:"schoolCode"`
-	SchoolEmailIdentityPolicy *SchoolEmailIdentityPolicy `json:"schoolEmailIdentityPolicy,omitempty"`
-
-	// SchoolEmailOtpEnabled 该学校是否已接入加群验证用的学校邮箱 OTP
-	SchoolEmailOtpEnabled bool `json:"schoolEmailOtpEnabled"`
-
-	// SchoolID StuHelper 内部学校主键，仅用于后端外键兼容
-	SchoolID   int64  `json:"schoolID"`
-	SchoolName string `json:"schoolName"`
-
-	// SchoolSsoEnabled 该学校是否已接入加群验证用的学校官方 SSO
-	SchoolSsoEnabled   bool                           `json:"schoolSsoEnabled"`
-	VerificationMethod SchoolConfigVerificationMethod `json:"verificationMethod"`
+// SchoolVerificationSuggestion defines model for SchoolVerificationSuggestion.
+type SchoolVerificationSuggestion struct {
+	CreatedAt time.Time                          `json:"createdAt"`
+	Id        openapi_types.UUID                 `json:"id"`
+	Status    SchoolVerificationSuggestionStatus `json:"status"`
 }
 
-// SchoolConfigVerificationMethod defines model for SchoolConfig.VerificationMethod.
-type SchoolConfigVerificationMethod string
+// SchoolVerificationSuggestionStatus defines model for SchoolVerificationSuggestion.Status.
+type SchoolVerificationSuggestionStatus string
 
-// SchoolEmailAcademicMatchRequest defines model for SchoolEmailAcademicMatchRequest.
-type SchoolEmailAcademicMatchRequest struct {
-	// AdmissionSessionID 当前 Join 页面绑定的 admission session ID；用于确认匹配请求属于当前页面 session。
-	AdmissionSessionID *string `json:"admissionSessionID,omitempty"`
-
-	// SchoolCode 教育部学校标识码；即时学籍匹配必须以此字段识别学校。
-	SchoolCode string `json:"schoolCode"`
-
-	// StudentID 学号。
-	StudentID string `json:"studentID"`
-
-	// StudentName 姓名。
-	StudentName string `json:"studentName"`
-}
-
-// SchoolEmailAcademicMatchResponse defines model for SchoolEmailAcademicMatchResponse.
-type SchoolEmailAcademicMatchResponse struct {
-	// Email 匹配通过后由后端按学号派生出的学校邮箱。
-	Email *openapi_types.Email `json:"email,omitempty"`
-
-	// Matched 学号和姓名是否在学校学籍数据源中匹配。
-	Matched bool `json:"matched"`
-
-	// Message 面向前端展示的匹配提示。
-	Message *string `json:"message,omitempty"`
-
-	// StudentID 规范化后的学号。
-	StudentID *string `json:"studentID,omitempty"`
-}
-
-// SchoolEmailIdentityPolicy defines model for SchoolEmailIdentityPolicy.
-type SchoolEmailIdentityPolicy struct {
-	RequireStudentName bool `json:"requireStudentName"`
-
-	// StudentIDEmailDomain 学号邮箱域名，例如 buaa.edu.cn
-	StudentIDEmailDomain *string                       `json:"studentIDEmailDomain,omitempty"`
-	Type                 SchoolEmailIdentityPolicyType `json:"type"`
-}
-
-// SchoolEmailIdentityPolicyType defines model for SchoolEmailIdentityPolicy.Type.
-type SchoolEmailIdentityPolicyType string
-
-// SchoolEmailOTPRequest defines model for SchoolEmailOTPRequest.
-type SchoolEmailOTPRequest struct {
-	// AdmissionSessionID 当前 Join 页面绑定的 admission session ID；用于多群/多会话时校验 OTP 请求属于当前页面 session。
-	AdmissionSessionID *string `json:"admissionSessionID,omitempty"`
-
-	// Email 普通学校邮箱 OTP 可直接提交邮箱；配置学籍邮箱策略时由后端按学号派生并校验不可篡改
-	Email *openapi_types.Email `json:"email,omitempty"`
-
-	// SchoolCode 教育部学校标识码；公开 admission 学校邮箱 OTP 请求必须以此字段识别学校。
-	SchoolCode string `json:"schoolCode"`
-
-	// StudentID 配置 academic_student_email 策略的学校必填
-	StudentID *string `json:"studentID,omitempty"`
-
-	// StudentName 配置 academic_student_email 且 requireStudentName=true 的学校必填
-	StudentName *string `json:"studentName,omitempty"`
-}
-
-// SchoolEmailOTPResponse defines model for SchoolEmailOTPResponse.
-type SchoolEmailOTPResponse struct {
-	CooldownSeconds int `json:"cooldownSeconds"`
-
-	// Email 后端最终锁定并发送验证码的学校邮箱
-	Email openapi_types.Email `json:"email"`
-
-	// StudentID 学籍邮箱策略下已匹配的学号
-	StudentID *string `json:"studentID,omitempty"`
-}
-
-// SchoolEmailOTPVerifyRequest defines model for SchoolEmailOTPVerifyRequest.
-type SchoolEmailOTPVerifyRequest struct {
-	// AdmissionSessionID 当前 Join 页面绑定的 admission session ID；用于多群/多会话时返回当前页面 session 的 admission 状态。
-	AdmissionSessionID *string             `json:"admissionSessionID,omitempty"`
-	Code               string              `json:"code"`
-	Email              openapi_types.Email `json:"email"`
-
-	// SchoolCode 教育部学校标识码；公开 admission 学校邮箱 OTP 校验请求必须以此字段识别学校。
-	SchoolCode string `json:"schoolCode"`
-}
-
-// SchoolLDAPConfigInput defines model for SchoolLDAPConfigInput.
-type SchoolLDAPConfigInput struct {
-	BaseDN             *string `json:"baseDN,omitempty"`
-	SystemBindDN       *string `json:"systemBindDN,omitempty"`
-	SystemBindPassword *string `json:"systemBindPassword,omitempty"`
-	Url                *string `json:"url,omitempty"`
-	UseTLS             *bool   `json:"useTLS,omitempty"`
-}
-
-// SchoolLDAPConfigView defines model for SchoolLDAPConfigView.
-type SchoolLDAPConfigView struct {
-	BaseDN                *string `json:"baseDN,omitempty"`
-	HasSystemBindPassword bool    `json:"hasSystemBindPassword"`
-	SystemBindDN          *string `json:"systemBindDN,omitempty"`
-	Url                   *string `json:"url,omitempty"`
-	UseTLS                bool    `json:"useTLS"`
+// SchoolVerificationSuggestionRequest defines model for SchoolVerificationSuggestionRequest.
+type SchoolVerificationSuggestionRequest struct {
+	SchoolLocation *string `json:"schoolLocation,omitempty"`
+	SchoolName     string  `json:"schoolName"`
 }
 
 // StorageCapabilitySet defines model for StorageCapabilitySet.
@@ -8414,95 +9564,71 @@ type StorageMount struct {
 	Name                string               `json:"name"`
 }
 
-// StudentEmailAcademicMatchRequest defines model for StudentEmailAcademicMatchRequest.
-type StudentEmailAcademicMatchRequest struct {
-	// SchoolCode 教育部学校标识码；即时学籍匹配必须以此字段识别学校。
-	SchoolCode string `json:"schoolCode"`
-
-	// StudentID 学号。
-	StudentID string `json:"studentID"`
-
-	// StudentName 姓名。
-	StudentName string `json:"studentName"`
+// StudentEligibility defines model for StudentEligibility.
+type StudentEligibility struct {
+	CredentialClass   *StudentEligibilityCredentialClass    `json:"credentialClass"`
+	CredentialMethods []StudentEligibilityCredentialMethods `json:"credentialMethods"`
+	Eligible          bool                                  `json:"eligible"`
+	EvaluatedAt       time.Time                             `json:"evaluatedAt"`
+	ExpiresAt         *time.Time                            `json:"expiresAt,omitempty"`
+	Revision          int64                                 `json:"revision"`
+	SchoolCode        string                                `json:"schoolCode"`
 }
 
-// StudentEmailAcademicMatchResponse defines model for StudentEmailAcademicMatchResponse.
-type StudentEmailAcademicMatchResponse struct {
-	// Email 匹配通过后由后端按学号派生出的学校邮箱。
-	Email *openapi_types.Email `json:"email,omitempty"`
+// StudentEligibilityCredentialClass defines model for StudentEligibility.CredentialClass.
+type StudentEligibilityCredentialClass string
 
-	// Matched 学号和姓名是否在学校学籍数据源中匹配。
-	Matched bool `json:"matched"`
+// StudentEligibilityCredentialMethods defines model for StudentEligibility.CredentialMethods.
+type StudentEligibilityCredentialMethods string
 
-	// Message 面向前端展示的匹配提示。
-	Message *string `json:"message,omitempty"`
-
-	// StudentID 规范化后的学号。
-	StudentID *string `json:"studentID,omitempty"`
+// StudentEmailIdentityRequest defines model for StudentEmailIdentityRequest.
+type StudentEmailIdentityRequest struct {
+	Name                 string                                          `json:"name"`
+	PrivacyNoticeVersion string                                          `json:"privacyNoticeVersion"`
+	SensitiveDataConsent StudentEmailIdentityRequestSensitiveDataConsent `json:"sensitiveDataConsent"`
+	StudentID            string                                          `json:"studentID"`
 }
 
-// StudentEmailOTPRequest defines model for StudentEmailOTPRequest.
-type StudentEmailOTPRequest struct {
-	// Email 普通学校邮箱 OTP 可直接提交邮箱；配置学籍邮箱策略时由后端按学号派生并校验不可篡改
-	Email *openapi_types.Email `json:"email,omitempty"`
+// StudentEmailIdentityRequestSensitiveDataConsent defines model for StudentEmailIdentityRequest.SensitiveDataConsent.
+type StudentEmailIdentityRequestSensitiveDataConsent bool
 
-	// SchoolCode 教育部学校标识码；公开学校邮箱 OTP 请求必须以此字段识别学校。
-	SchoolCode string `json:"schoolCode"`
-
-	// StudentID 配置 academic_student_email 策略的学校必填
-	StudentID *string `json:"studentID,omitempty"`
-
-	// StudentName 配置 academic_student_email 且 requireStudentName=true 的学校必填
-	StudentName *string `json:"studentName,omitempty"`
+// StudentEmailOTPChallenge defines model for StudentEmailOTPChallenge.
+type StudentEmailOTPChallenge struct {
+	ApplicationID     openapi_types.UUID `json:"applicationID"`
+	ExpiresAt         time.Time          `json:"expiresAt"`
+	MaskedEmail       string             `json:"maskedEmail"`
+	RemainingAttempts int                `json:"remainingAttempts"`
+	ResendAvailableAt time.Time          `json:"resendAvailableAt"`
 }
 
-// StudentEmailOTPResponse defines model for StudentEmailOTPResponse.
-type StudentEmailOTPResponse struct {
-	CooldownSeconds int `json:"cooldownSeconds"`
-
-	// Email 后端最终锁定并发送验证码的学校邮箱
-	Email openapi_types.Email `json:"email"`
-
-	// StudentID 学籍邮箱策略下已匹配的学号
-	StudentID *string `json:"studentID,omitempty"`
+// StudentVerificationCredential defines model for StudentVerificationCredential.
+type StudentVerificationCredential struct {
+	CredentialClass  StudentVerificationCredentialCredentialClass `json:"credentialClass"`
+	ExpiresAt        *time.Time                                   `json:"expiresAt,omitempty"`
+	Id               openapi_types.UUID                           `json:"id"`
+	Method           StudentVerificationCredentialMethod          `json:"method"`
+	ReviewRequiredAt *time.Time                                   `json:"reviewRequiredAt,omitempty"`
+	Revision         int64                                        `json:"revision"`
+	SchoolCode       string                                       `json:"schoolCode"`
+	SchoolName       string                                       `json:"schoolName"`
+	Status           VerificationCredentialStatus                 `json:"status"`
+	SubjectDisplay   string                                       `json:"subjectDisplay"`
+	VerifiedAt       time.Time                                    `json:"verifiedAt"`
 }
 
-// StudentEmailOTPVerifyRequest defines model for StudentEmailOTPVerifyRequest.
-type StudentEmailOTPVerifyRequest struct {
-	Code    string               `json:"code"`
-	Consent bool                 `json:"consent"`
-	Email   *openapi_types.Email `json:"email,omitempty"`
+// StudentVerificationCredentialCredentialClass defines model for StudentVerificationCredential.CredentialClass.
+type StudentVerificationCredentialCredentialClass string
 
-	// SchoolCode 教育部学校标识码；公开学校邮箱 OTP 校验请求必须以此字段识别学校。
-	SchoolCode string `json:"schoolCode"`
+// StudentVerificationCredentialMethod defines model for StudentVerificationCredential.Method.
+type StudentVerificationCredentialMethod string
+
+// SubmitManualReviewRequest defines model for SubmitManualReviewRequest.
+type SubmitManualReviewRequest struct {
+	ConfirmMaterialUse SubmitManualReviewRequestConfirmMaterialUse `json:"confirmMaterialUse"`
 }
 
-// SubmitIdentityRequest defines model for SubmitIdentityRequest.
-type SubmitIdentityRequest struct {
-	// DocNumber MAINLAND_ID 使用中国大陆居民身份证号码，服务端会校验证件格式、出生日期和校验位。
-	DocNumber      string                       `json:"docNumber"`
-	DocPhotoBack   *string                      `json:"docPhotoBack,omitempty"`
-	DocPhotoFront  *string                      `json:"docPhotoFront,omitempty"`
-	DocPhotoSelfie *string                      `json:"docPhotoSelfie,omitempty"`
-	DocType        SubmitIdentityRequestDocType `json:"docType"`
-	RealName       string                       `json:"realName"`
-}
-
-// SubmitIdentityRequestDocType defines model for SubmitIdentityRequest.DocType.
-type SubmitIdentityRequestDocType string
-
-// SubmitStudentVerificationRequest defines model for SubmitStudentVerificationRequest.
-type SubmitStudentVerificationRequest struct {
-	Consent bool `json:"consent"`
-
-	// ManualFormData manual 模式动态表单提交数据
-	ManualFormData *map[string]interface{} `json:"manualFormData,omitempty"`
-	Password       *string                 `json:"password,omitempty"`
-
-	// SchoolCode 教育部学校标识码；公开学生认证请求必须以此字段识别学校。
-	SchoolCode string  `json:"schoolCode"`
-	StudentID  *string `json:"studentID,omitempty"`
-}
+// SubmitManualReviewRequestConfirmMaterialUse defines model for SubmitManualReviewRequest.ConfirmMaterialUse.
+type SubmitManualReviewRequestConfirmMaterialUse bool
 
 // SuccessResponse defines model for SuccessResponse.
 type SuccessResponse struct {
@@ -8578,6 +9704,47 @@ type UnreadCountData struct {
 	Count int `json:"count"`
 }
 
+// UpdateAdminVerificationMethodConfigRequest defines model for UpdateAdminVerificationMethodConfigRequest.
+type UpdateAdminVerificationMethodConfigRequest struct {
+	AdapterID             string                 `json:"adapterID"`
+	AdapterVersion        string                 `json:"adapterVersion"`
+	ConditionalPolicy     map[string]interface{} `json:"conditionalPolicy"`
+	ConnectorOperationKey *string                `json:"connectorOperationKey,omitempty"`
+	CredentialTTLSeconds  *int                   `json:"credentialTTLSeconds,omitempty"`
+	Description           string                 `json:"description"`
+	DisplayName           string                 `json:"displayName"`
+
+	// ExpectedRevision 新增该方法时传 0；更新已存在方法时传当前正整数 revision。
+	ExpectedRevision     int64                                                      `json:"expectedRevision"`
+	PrivacyNotice        map[string]interface{}                                     `json:"privacyNotice"`
+	PrivacyNoticeVersion *string                                                    `json:"privacyNoticeVersion,omitempty"`
+	PublicFormSchema     map[string]interface{}                                     `json:"publicFormSchema"`
+	Reason               string                                                     `json:"reason"`
+	RiskPolicy           map[string]interface{}                                     `json:"riskPolicy"`
+	RosterDependency     UpdateAdminVerificationMethodConfigRequestRosterDependency `json:"rosterDependency"`
+}
+
+// UpdateAdminVerificationMethodConfigRequestRosterDependency defines model for UpdateAdminVerificationMethodConfigRequest.RosterDependency.
+type UpdateAdminVerificationMethodConfigRequestRosterDependency string
+
+// UpdateAdminVerificationSchoolConfigRequest defines model for UpdateAdminVerificationSchoolConfigRequest.
+type UpdateAdminVerificationSchoolConfigRequest struct {
+	AdapterID                   string                 `json:"adapterID"`
+	AdapterVersion              string                 `json:"adapterVersion"`
+	EmailDomains                []string               `json:"emailDomains"`
+	EnrollmentPolicy            map[string]interface{} `json:"enrollmentPolicy"`
+	ExpectedRevision            int64                  `json:"expectedRevision"`
+	ManualFormSchema            map[string]interface{} `json:"manualFormSchema"`
+	NameMatchPolicy             map[string]interface{} `json:"nameMatchPolicy"`
+	Reason                      string                 `json:"reason"`
+	SnapshotAutoActivate        bool                   `json:"snapshotAutoActivate"`
+	SnapshotGraceSeconds        int                    `json:"snapshotGraceSeconds"`
+	SnapshotHardExpirySeconds   int                    `json:"snapshotHardExpirySeconds"`
+	SnapshotSyncIntervalSeconds int                    `json:"snapshotSyncIntervalSeconds"`
+	SnapshotWarningAfterSeconds int                    `json:"snapshotWarningAfterSeconds"`
+	StudentIDPolicy             map[string]interface{} `json:"studentIDPolicy"`
+}
+
 // UpdateResourceRequest defines model for UpdateResourceRequest.
 type UpdateResourceRequest struct {
 	Bindings    []ResourceBinding               `json:"bindings"`
@@ -8604,24 +9771,6 @@ type UpdateReviewRequest struct {
 // UpdateReviewRequestGrade defines model for UpdateReviewRequest.Grade.
 type UpdateReviewRequestGrade string
 
-// UpdateSchoolConfigRequest defines model for UpdateSchoolConfigRequest.
-type UpdateSchoolConfigRequest struct {
-	AcademicDbTable    *string                                      `json:"academicDbTable,omitempty"`
-	ApprovalPolicy     *UpdateSchoolConfigRequestApprovalPolicy     `json:"approvalPolicy,omitempty"`
-	ConsentText        *string                                      `json:"consentText,omitempty"`
-	Enabled            *bool                                        `json:"enabled,omitempty"`
-	LdapConfig         *SchoolLDAPConfigInput                       `json:"ldapConfig,omitempty"`
-	ManualFormFields   *[]ManualFieldDescriptor                     `json:"manualFormFields,omitempty"`
-	SchoolName         *string                                      `json:"schoolName,omitempty"`
-	VerificationMethod *UpdateSchoolConfigRequestVerificationMethod `json:"verificationMethod,omitempty"`
-}
-
-// UpdateSchoolConfigRequestApprovalPolicy defines model for UpdateSchoolConfigRequest.ApprovalPolicy.
-type UpdateSchoolConfigRequestApprovalPolicy string
-
-// UpdateSchoolConfigRequestVerificationMethod defines model for UpdateSchoolConfigRequest.VerificationMethod.
-type UpdateSchoolConfigRequestVerificationMethod string
-
 // UpdateSensitiveWordRequest defines model for UpdateSensitiveWordRequest.
 type UpdateSensitiveWordRequest struct {
 	Category *string                          `json:"category,omitempty"`
@@ -8644,41 +9793,17 @@ type UpdateTeacherRequest struct {
 	Name         string `json:"name"`
 }
 
-// UploadIdentityPhotoRequest defines model for UploadIdentityPhotoRequest.
-type UploadIdentityPhotoRequest struct {
-	ContentType UploadIdentityPhotoRequestContentType `json:"contentType"`
-
-	// DataBase64 不含 data: 前缀的 Base64 内容
-	DataBase64 string                         `json:"dataBase64"`
-	Filename   string                         `json:"filename"`
-	Slot       UploadIdentityPhotoRequestSlot `json:"slot"`
+// UpsertManualReviewRequest defines model for UpsertManualReviewRequest.
+type UpsertManualReviewRequest struct {
+	// FormValues 仅允许当前学校受控 schema 中声明的字段；服务端加密保存。
+	FormValues           map[string]string                             `json:"formValues"`
+	MaterialType         ManualMaterialType                            `json:"materialType"`
+	PrivacyNoticeVersion string                                        `json:"privacyNoticeVersion"`
+	SensitiveDataConsent UpsertManualReviewRequestSensitiveDataConsent `json:"sensitiveDataConsent"`
 }
 
-// UploadIdentityPhotoRequestContentType defines model for UploadIdentityPhotoRequest.ContentType.
-type UploadIdentityPhotoRequestContentType string
-
-// UploadIdentityPhotoRequestSlot defines model for UploadIdentityPhotoRequest.Slot.
-type UploadIdentityPhotoRequestSlot string
-
-// UserIdentity defines model for UserIdentity.
-type UserIdentity struct {
-	CreatedAt       time.Time                 `json:"createdAt"`
-	DocType         UserIdentityDocType       `json:"docType"`
-	RealName        string                    `json:"realName"`
-	RejectionReason *string                   `json:"rejectionReason,omitempty"`
-	ReviewedAt      *time.Time                `json:"reviewedAt,omitempty"`
-	UpdatedAt       time.Time                 `json:"updatedAt"`
-	UserID          int64                     `json:"userID"`
-	Verified        bool                      `json:"verified"`
-	VerifiedAt      *time.Time                `json:"verifiedAt,omitempty"`
-	VerifyMethod    *UserIdentityVerifyMethod `json:"verifyMethod,omitempty"`
-}
-
-// UserIdentityDocType defines model for UserIdentity.DocType.
-type UserIdentityDocType string
-
-// UserIdentityVerifyMethod defines model for UserIdentity.VerifyMethod.
-type UserIdentityVerifyMethod string
+// UpsertManualReviewRequestSensitiveDataConsent defines model for UpsertManualReviewRequest.SensitiveDataConsent.
+type UpsertManualReviewRequestSensitiveDataConsent bool
 
 // UserInfo defines model for UserInfo.
 type UserInfo struct {
@@ -8709,50 +9834,146 @@ type UserInfo struct {
 	Roles []string `json:"roles"`
 }
 
-// UserProfile defines model for UserProfile.
-type UserProfile struct {
-	ActiveStudentID *string    `json:"activeStudentID,omitempty"`
-	ConsentGivenAt  *time.Time `json:"consentGivenAt,omitempty"`
-	CreatedAt       time.Time  `json:"createdAt"`
-
-	// Phone 掩码手机号（如 138****5678）
-	Phone              *string                        `json:"phone,omitempty"`
-	PhoneVerified      *bool                          `json:"phoneVerified,omitempty"`
-	RejectionReason    *string                        `json:"rejectionReason,omitempty"`
-	ReviewedAt         *time.Time                     `json:"reviewedAt,omitempty"`
-	SchoolID           *int64                         `json:"schoolID,omitempty"`
-	StudentIDs         *[]string                      `json:"studentIDs,omitempty"`
-	UpdatedAt          time.Time                      `json:"updatedAt"`
-	UserID             int64                          `json:"userID"`
-	VerificationMethod *UserProfileVerificationMethod `json:"verificationMethod,omitempty"`
-	VerificationStatus UserProfileVerificationStatus  `json:"verificationStatus"`
-	VerifiedAt         *time.Time                     `json:"verifiedAt,omitempty"`
-}
-
-// UserProfileVerificationMethod defines model for UserProfile.VerificationMethod.
-type UserProfileVerificationMethod string
-
-// UserProfileVerificationStatus defines model for UserProfile.VerificationStatus.
-type UserProfileVerificationStatus string
-
 // UserSurface defines model for UserSurface.
 type UserSurface struct {
-	AvatarURL      *string                   `json:"avatarURL,omitempty"`
-	Capabilities   []string                  `json:"capabilities"`
-	DisplayName    string                    `json:"displayName"`
-	IdentityStatus UserSurfaceIdentityStatus `json:"identityStatus"`
+	AvatarURL    *string  `json:"avatarURL,omitempty"`
+	Capabilities []string `json:"capabilities"`
+	DisplayName  string   `json:"displayName"`
 
 	// Phone 账号侧已验证手机号的脱敏展示值；未绑定时为空。
-	Phone              *string                       `json:"phone,omitempty"`
-	PhoneBound         bool                          `json:"phoneBound"`
-	VerificationStatus UserSurfaceVerificationStatus `json:"verificationStatus"`
+	Phone      *string `json:"phone,omitempty"`
+	PhoneBound bool    `json:"phoneBound"`
+
+	// StudentVerificationStatus 由当前有效学生凭据实时派生；不是可写或永久保存的 verified 标志。
+	StudentVerificationStatus UserSurfaceStudentVerificationStatus `json:"studentVerificationStatus"`
 }
 
-// UserSurfaceIdentityStatus defines model for UserSurface.IdentityStatus.
-type UserSurfaceIdentityStatus string
+// UserSurfaceStudentVerificationStatus 由当前有效学生凭据实时派生；不是可写或永久保存的 verified 标志。
+type UserSurfaceStudentVerificationStatus string
 
-// UserSurfaceVerificationStatus defines model for UserSurface.VerificationStatus.
-type UserSurfaceVerificationStatus string
+// ValidateAdminVerificationConfigRequest defines model for ValidateAdminVerificationConfigRequest.
+type ValidateAdminVerificationConfigRequest struct {
+	Enable           bool   `json:"enable"`
+	ExpectedRevision int64  `json:"expectedRevision"`
+	Reason           string `json:"reason"`
+}
+
+// VerificationApplication defines model for VerificationApplication.
+type VerificationApplication struct {
+	CreatedAt     time.Time                            `json:"createdAt"`
+	Credential    *StudentVerificationCredential       `json:"credential,omitempty"`
+	CurrentMethod *VerificationMethod                  `json:"currentMethod,omitempty"`
+	ExpiresAt     time.Time                            `json:"expiresAt"`
+	Id            openapi_types.UUID                   `json:"id"`
+	NextActions   []VerificationApplicationNextActions `json:"nextActions"`
+	Revision      int64                                `json:"revision"`
+	School        struct {
+		Code string `json:"code"`
+		Name string `json:"name"`
+	} `json:"school"`
+	Status VerificationApplicationStatus `json:"status"`
+
+	// TerminalCode 不可枚举、面向用户的稳定结果类别。
+	TerminalCode *string   `json:"terminalCode,omitempty"`
+	UpdatedAt    time.Time `json:"updatedAt"`
+}
+
+// VerificationApplicationNextActions defines model for VerificationApplication.NextActions.
+type VerificationApplicationNextActions string
+
+// VerificationApplicationStatus defines model for VerificationApplicationStatus.
+type VerificationApplicationStatus string
+
+// VerificationCredentialStatus defines model for VerificationCredentialStatus.
+type VerificationCredentialStatus string
+
+// VerificationFieldDescriptor defines model for VerificationFieldDescriptor.
+type VerificationFieldDescriptor struct {
+	Autocomplete *string                              `json:"autocomplete,omitempty"`
+	HelpText     *string                              `json:"helpText,omitempty"`
+	InputType    VerificationFieldDescriptorInputType `json:"inputType"`
+	Key          string                               `json:"key"`
+	Label        string                               `json:"label"`
+	MaxLength    *int                                 `json:"maxLength,omitempty"`
+	Options      *[]struct {
+		Label string `json:"label"`
+		Value string `json:"value"`
+	} `json:"options,omitempty"`
+	Required bool `json:"required"`
+}
+
+// VerificationFieldDescriptorInputType defines model for VerificationFieldDescriptor.InputType.
+type VerificationFieldDescriptorInputType string
+
+// VerificationMethod defines model for VerificationMethod.
+type VerificationMethod string
+
+// VerificationMethodAvailability defines model for VerificationMethodAvailability.
+type VerificationMethodAvailability string
+
+// VerificationMethodCapability defines model for VerificationMethodCapability.
+type VerificationMethodCapability struct {
+	Availability  VerificationMethodAvailability `json:"availability"`
+	Description   string                         `json:"description"`
+	DisplayName   string                         `json:"displayName"`
+	FormFields    []VerificationFieldDescriptor  `json:"formFields"`
+	Method        VerificationMethod             `json:"method"`
+	PrivacyNotice *VerificationPrivacyNotice     `json:"privacyNotice,omitempty"`
+
+	// UnavailableCode 面向用户的稳定降级分类；不得包含学校内部系统、表名或字段信息。
+	UnavailableCode *string `json:"unavailableCode,omitempty"`
+}
+
+// VerificationPrivacyNotice defines model for VerificationPrivacyNotice.
+type VerificationPrivacyNotice struct {
+	DataCategories   []string `json:"dataCategories"`
+	RetentionSummary string   `json:"retentionSummary"`
+	RightsUrl        *string  `json:"rightsUrl,omitempty"`
+	Summary          string   `json:"summary"`
+	Title            string   `json:"title"`
+	Version          string   `json:"version"`
+}
+
+// VerificationSchool defines model for VerificationSchool.
+type VerificationSchool struct {
+	Code     string                         `json:"code"`
+	Location *string                        `json:"location,omitempty"`
+	Methods  []VerificationMethodCapability `json:"methods"`
+	Name     string                         `json:"name"`
+}
+
+// VerifyPhoneSMSRequest defines model for VerifyPhoneSMSRequest.
+type VerifyPhoneSMSRequest struct {
+	Code *string `json:"code,omitempty"`
+}
+
+// VerifyRealNameRequest defines model for VerifyRealNameRequest.
+type VerifyRealNameRequest struct {
+	DocumentNumber       *string                                   `json:"documentNumber,omitempty"`
+	Name                 string                                    `json:"name"`
+	PrivacyNoticeVersion string                                    `json:"privacyNoticeVersion"`
+	SensitiveDataConsent VerifyRealNameRequestSensitiveDataConsent `json:"sensitiveDataConsent"`
+	StudentID            string                                    `json:"studentID"`
+}
+
+// VerifyRealNameRequestSensitiveDataConsent defines model for VerifyRealNameRequest.SensitiveDataConsent.
+type VerifyRealNameRequestSensitiveDataConsent bool
+
+// VerifySchoolSSORequest defines model for VerifySchoolSSORequest.
+type VerifySchoolSSORequest struct {
+	Password             *string                                    `json:"password,omitempty"`
+	PrivacyNoticeVersion string                                     `json:"privacyNoticeVersion"`
+	SensitiveDataConsent VerifySchoolSSORequestSensitiveDataConsent `json:"sensitiveDataConsent"`
+	StudentID            string                                     `json:"studentID"`
+}
+
+// VerifySchoolSSORequestSensitiveDataConsent defines model for VerifySchoolSSORequest.SensitiveDataConsent.
+type VerifySchoolSSORequestSensitiveDataConsent bool
+
+// VerifyStudentEmailOTPRequest defines model for VerifyStudentEmailOTPRequest.
+type VerifyStudentEmailOTPRequest struct {
+	Code *string `json:"code,omitempty"`
+}
 
 // VoteRequest defines model for VoteRequest.
 type VoteRequest struct {
@@ -8762,11 +9983,20 @@ type VoteRequest struct {
 // VoteType defines model for VoteType.
 type VoteType string
 
+// ApplicationID defines model for ApplicationID.
+type ApplicationID = openapi_types.UUID
+
+// CaseID defines model for CaseID.
+type CaseID = openapi_types.UUID
+
 // ConsentBaseURL defines model for ConsentBaseURL.
 type ConsentBaseURL = string
 
 // CourseIDPath defines model for CourseIDPath.
 type CourseIDPath = int64
+
+// CredentialID defines model for CredentialID.
+type CredentialID = openapi_types.UUID
 
 // DisclosureClientID defines model for DisclosureClientID.
 type DisclosureClientID = string
@@ -8779,6 +10009,15 @@ type DisclosureScope = string
 
 // GrantID defines model for GrantID.
 type GrantID = int64
+
+// HandoffID defines model for HandoffID.
+type HandoffID = openapi_types.UUID
+
+// HandoffToken defines model for HandoffToken.
+type HandoffToken = string
+
+// MaterialID defines model for MaterialID.
+type MaterialID = openapi_types.UUID
 
 // MountIDPath defines model for MountIDPath.
 type MountIDPath = int64
@@ -8798,6 +10037,9 @@ type PageParam = int
 // PageSizeParam defines model for PageSizeParam.
 type PageSizeParam = int
 
+// PhoneOperationID defines model for PhoneOperationID.
+type PhoneOperationID = openapi_types.UUID
+
 // ReplyIDPath defines model for ReplyIDPath.
 type ReplyIDPath = openapi_types.UUID
 
@@ -8810,11 +10052,26 @@ type ResourceIDPath = int64
 // ReviewIDPath defines model for ReviewIDPath.
 type ReviewIDPath = openapi_types.UUID
 
+// SchoolCode defines model for SchoolCode.
+type SchoolCode = string
+
 // SensitiveWordIDPath defines model for SensitiveWordIDPath.
 type SensitiveWordIDPath = openapi_types.UUID
 
+// SnapshotID defines model for SnapshotID.
+type SnapshotID = openapi_types.UUID
+
 // TeacherIDPath defines model for TeacherIDPath.
 type TeacherIDPath = int64
+
+// ApplicationResponse defines model for ApplicationResponse.
+type ApplicationResponse struct {
+	Data    VerificationApplication    `json:"data"`
+	Success ApplicationResponseSuccess `json:"success"`
+}
+
+// ApplicationResponseSuccess defines model for ApplicationResponse.Success.
+type ApplicationResponseSuccess bool
 
 // ConsentRequired defines model for ConsentRequired.
 type ConsentRequired struct {
@@ -8844,6 +10101,33 @@ type DisclosureResponseSuccess bool
 
 // ErrorResponse defines model for ErrorResponse.
 type ErrorResponse = ErrorResponseBody
+
+// ManualHandoffResponse defines model for ManualHandoffResponse.
+type ManualHandoffResponse struct {
+	Data    ManualCameraHandoff          `json:"data"`
+	Success ManualHandoffResponseSuccess `json:"success"`
+}
+
+// ManualHandoffResponseSuccess defines model for ManualHandoffResponse.Success.
+type ManualHandoffResponseSuccess bool
+
+// ManualReviewResponse defines model for ManualReviewResponse.
+type ManualReviewResponse struct {
+	Data    ManualReviewCase            `json:"data"`
+	Success ManualReviewResponseSuccess `json:"success"`
+}
+
+// ManualReviewResponseSuccess defines model for ManualReviewResponse.Success.
+type ManualReviewResponseSuccess bool
+
+// RosterSnapshotResponse defines model for RosterSnapshotResponse.
+type RosterSnapshotResponse struct {
+	Data    RosterSnapshot                `json:"data"`
+	Success RosterSnapshotResponseSuccess `json:"success"`
+}
+
+// RosterSnapshotResponseSuccess defines model for RosterSnapshotResponse.Success.
+type RosterSnapshotResponseSuccess bool
 
 // ListMyAcademicCoursesParams defines parameters for ListMyAcademicCourses.
 type ListMyAcademicCoursesParams struct {
@@ -8883,6 +10167,27 @@ type GetAcademicOffering200JSONResponseBodySuccess bool
 
 // ListAcademicTerms200JSONResponseBodySuccess defines parameters for ListAcademicTerms.
 type ListAcademicTerms200JSONResponseBodySuccess bool
+
+// UnbindAccountPhone202JSONResponseBodySuccess defines parameters for UnbindAccountPhone.
+type UnbindAccountPhone202JSONResponseBodySuccess bool
+
+// GetAccountPhoneStatus200JSONResponseBodySuccess defines parameters for GetAccountPhoneStatus.
+type GetAccountPhoneStatus200JSONResponseBodySuccess bool
+
+// CreateAccountPhoneChangeOperation201JSONResponseBodySuccess defines parameters for CreateAccountPhoneChangeOperation.
+type CreateAccountPhoneChangeOperation201JSONResponseBodySuccess bool
+
+// CreateAccountPhoneOperation201JSONResponseBodySuccess defines parameters for CreateAccountPhoneOperation.
+type CreateAccountPhoneOperation201JSONResponseBodySuccess bool
+
+// GetAccountPhoneOperation200JSONResponseBodySuccess defines parameters for GetAccountPhoneOperation.
+type GetAccountPhoneOperation200JSONResponseBodySuccess bool
+
+// SendAccountPhoneSMS200JSONResponseBodySuccess defines parameters for SendAccountPhoneSMS.
+type SendAccountPhoneSMS200JSONResponseBodySuccess bool
+
+// VerifyAccountPhoneSMS200JSONResponseBodySuccess defines parameters for VerifyAccountPhoneSMS.
+type VerifyAccountPhoneSMS200JSONResponseBodySuccess bool
 
 // ListAcademicImportJobsParams defines parameters for ListAcademicImportJobs.
 type ListAcademicImportJobsParams struct {
@@ -8972,49 +10277,6 @@ type RevokeAuthorizationGrant200JSONResponseBodySuccess bool
 
 // ReconcileAllAuthorizationProjections200JSONResponseBodySuccess defines parameters for ReconcileAllAuthorizationProjections.
 type ReconcileAllAuthorizationProjections200JSONResponseBodySuccess bool
-
-// ListFreshmanVerificationsParams defines parameters for ListFreshmanVerifications.
-type ListFreshmanVerificationsParams struct {
-	Status *FreshmanApplicationStatus `form:"status,omitempty" json:"status,omitempty"`
-
-	// Page 页码
-	Page *PageParam `form:"page,omitempty" json:"page,omitempty"`
-
-	// PageSize 每页数量
-	PageSize *PageSizeParam `form:"pageSize,omitempty" json:"pageSize,omitempty"`
-}
-
-// ListFreshmanVerifications200JSONResponseBodySuccess defines parameters for ListFreshmanVerifications.
-type ListFreshmanVerifications200JSONResponseBodySuccess bool
-
-// GetFreshmanVerification200JSONResponseBodySuccess defines parameters for GetFreshmanVerification.
-type GetFreshmanVerification200JSONResponseBodySuccess bool
-
-// ReviewFreshmanVerification200JSONResponseBodySuccess defines parameters for ReviewFreshmanVerification.
-type ReviewFreshmanVerification200JSONResponseBodySuccess bool
-
-// ListIdentityVerificationsParams defines parameters for ListIdentityVerifications.
-type ListIdentityVerificationsParams struct {
-	Status *ListIdentityVerificationsParamsStatus `form:"status,omitempty" json:"status,omitempty"`
-
-	// Page 页码
-	Page *PageParam `form:"page,omitempty" json:"page,omitempty"`
-
-	// PageSize 每页数量
-	PageSize *PageSizeParam `form:"pageSize,omitempty" json:"pageSize,omitempty"`
-}
-
-// ListIdentityVerificationsParamsStatus defines parameters for ListIdentityVerifications.
-type ListIdentityVerificationsParamsStatus string
-
-// ListIdentityVerifications200JSONResponseBodySuccess defines parameters for ListIdentityVerifications.
-type ListIdentityVerifications200JSONResponseBodySuccess bool
-
-// GetIdentityVerificationReviewDetail200JSONResponseBodySuccess defines parameters for GetIdentityVerificationReviewDetail.
-type GetIdentityVerificationReviewDetail200JSONResponseBodySuccess bool
-
-// ReviewIdentityVerification200JSONResponseBodySuccess defines parameters for ReviewIdentityVerification.
-type ReviewIdentityVerification200JSONResponseBodySuccess bool
 
 // ListAdminMemberBlacklistParams defines parameters for ListAdminMemberBlacklist.
 type ListAdminMemberBlacklistParams struct {
@@ -9174,12 +10436,6 @@ type ListAdminOpenPlatformTokenProbeEvidenceParamsResult string
 // ListAdminOpenPlatformTokenProbeEvidence200JSONResponseBodySuccess defines parameters for ListAdminOpenPlatformTokenProbeEvidence.
 type ListAdminOpenPlatformTokenProbeEvidence200JSONResponseBodySuccess bool
 
-// ListSchoolConfigs200JSONResponseBodySuccess defines parameters for ListSchoolConfigs.
-type ListSchoolConfigs200JSONResponseBodySuccess bool
-
-// UpdateSchoolConfig200JSONResponseBodySuccess defines parameters for UpdateSchoolConfig.
-type UpdateSchoolConfig200JSONResponseBodySuccess bool
-
 // ListStorageMounts200JSONResponseBodySuccess defines parameters for ListStorageMounts.
 type ListStorageMounts200JSONResponseBodySuccess bool
 
@@ -9189,70 +10445,123 @@ type CreateStorageMount201JSONResponseBodySuccess bool
 // CheckStorageMountHealth200JSONResponseBodySuccess defines parameters for CheckStorageMountHealth.
 type CheckStorageMountHealth200JSONResponseBodySuccess bool
 
-// ListStudentVerificationsParams defines parameters for ListStudentVerifications.
-type ListStudentVerificationsParams struct {
-	Status *ListStudentVerificationsParamsStatus `form:"status,omitempty" json:"status,omitempty"`
-
-	// SchoolID 按学校筛选
-	SchoolID *int64 `form:"schoolID,omitempty" json:"schoolID,omitempty"`
-
-	// Page 页码
-	Page *PageParam `form:"page,omitempty" json:"page,omitempty"`
-
-	// PageSize 每页数量
-	PageSize *PageSizeParam `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+// ListAdminCampusConnectorHealthParams defines parameters for ListAdminCampusConnectorHealth.
+type ListAdminCampusConnectorHealthParams struct {
+	SchoolCode *string `form:"schoolCode,omitempty" json:"schoolCode,omitempty"`
 }
 
-// ListStudentVerificationsParamsStatus defines parameters for ListStudentVerifications.
-type ListStudentVerificationsParamsStatus string
+// ListAdminCampusConnectorHealth200JSONResponseBodySuccess defines parameters for ListAdminCampusConnectorHealth.
+type ListAdminCampusConnectorHealth200JSONResponseBodySuccess bool
 
-// ListStudentVerifications200JSONResponseBodySuccess defines parameters for ListStudentVerifications.
-type ListStudentVerifications200JSONResponseBodySuccess bool
+// ListAdminStudentCredentialsParams defines parameters for ListAdminStudentCredentials.
+type ListAdminStudentCredentialsParams struct {
+	SchoolCode string                        `form:"schoolCode" json:"schoolCode"`
+	Status     *VerificationCredentialStatus `form:"status,omitempty" json:"status,omitempty"`
+	Limit      *int                          `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset     *int                          `form:"offset,omitempty" json:"offset,omitempty"`
+}
 
-// ReviewStudentVerification200JSONResponseBodySuccess defines parameters for ReviewStudentVerification.
-type ReviewStudentVerification200JSONResponseBodySuccess bool
+// ListAdminStudentCredentials200JSONResponseBodySuccess defines parameters for ListAdminStudentCredentials.
+type ListAdminStudentCredentials200JSONResponseBodySuccess bool
+
+// RevokeAdminStudentCredential200JSONResponseBodySuccess defines parameters for RevokeAdminStudentCredential.
+type RevokeAdminStudentCredential200JSONResponseBodySuccess bool
+
+// ListAdminManualStudentReviewsParams defines parameters for ListAdminManualStudentReviews.
+type ListAdminManualStudentReviewsParams struct {
+	SchoolCode string                                     `form:"schoolCode" json:"schoolCode"`
+	Status     *ListAdminManualStudentReviewsParamsStatus `form:"status,omitempty" json:"status,omitempty"`
+	Limit      *int                                       `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset     *int                                       `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
+// ListAdminManualStudentReviewsParamsStatus defines parameters for ListAdminManualStudentReviews.
+type ListAdminManualStudentReviewsParamsStatus string
+
+// ListAdminManualStudentReviews200JSONResponseBodySuccess defines parameters for ListAdminManualStudentReviews.
+type ListAdminManualStudentReviews200JSONResponseBodySuccess bool
+
+// GetAdminManualStudentReview200JSONResponseBodySuccess defines parameters for GetAdminManualStudentReview.
+type GetAdminManualStudentReview200JSONResponseBodySuccess bool
+
+// DecideAdminManualStudentReview200JSONResponseBodySuccess defines parameters for DecideAdminManualStudentReview.
+type DecideAdminManualStudentReview200JSONResponseBodySuccess bool
+
+// AccessAdminManualStudentReviewMaterial200JSONResponseBodySuccess defines parameters for AccessAdminManualStudentReviewMaterial.
+type AccessAdminManualStudentReviewMaterial200JSONResponseBodySuccess bool
+
+// ListAdminVerificationSchools200JSONResponseBodySuccess defines parameters for ListAdminVerificationSchools.
+type ListAdminVerificationSchools200JSONResponseBodySuccess bool
+
+// CreateAdminVerificationSchool201JSONResponseBodySuccess defines parameters for CreateAdminVerificationSchool.
+type CreateAdminVerificationSchool201JSONResponseBodySuccess bool
+
+// GetAdminVerificationSchool200JSONResponseBodySuccess defines parameters for GetAdminVerificationSchool.
+type GetAdminVerificationSchool200JSONResponseBodySuccess bool
+
+// UpdateAdminVerificationSchool200JSONResponseBodySuccess defines parameters for UpdateAdminVerificationSchool.
+type UpdateAdminVerificationSchool200JSONResponseBodySuccess bool
+
+// UpdateAdminVerificationMethod200JSONResponseBodySuccess defines parameters for UpdateAdminVerificationMethod.
+type UpdateAdminVerificationMethod200JSONResponseBodySuccess bool
+
+// ValidateAdminVerificationMethod200JSONResponseBodySuccess defines parameters for ValidateAdminVerificationMethod.
+type ValidateAdminVerificationMethod200JSONResponseBodySuccess bool
+
+// ListAdminRosterSnapshotsParams defines parameters for ListAdminRosterSnapshots.
+type ListAdminRosterSnapshotsParams struct {
+	Limit  *int `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
+// ListAdminRosterSnapshots200JSONResponseBodySuccess defines parameters for ListAdminRosterSnapshots.
+type ListAdminRosterSnapshots200JSONResponseBodySuccess bool
+
+// GetAdminRosterSnapshot200JSONResponseBodySuccess defines parameters for GetAdminRosterSnapshot.
+type GetAdminRosterSnapshot200JSONResponseBodySuccess bool
+
+// ActivateAdminRosterSnapshot200JSONResponseBodySuccess defines parameters for ActivateAdminRosterSnapshot.
+type ActivateAdminRosterSnapshot200JSONResponseBodySuccess bool
+
+// RollbackAdminRosterSnapshot200JSONResponseBodySuccess defines parameters for RollbackAdminRosterSnapshot.
+type RollbackAdminRosterSnapshot200JSONResponseBodySuccess bool
+
+// ListAdminRosterSyncRequestsParams defines parameters for ListAdminRosterSyncRequests.
+type ListAdminRosterSyncRequestsParams struct {
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// ListAdminRosterSyncRequests200JSONResponseBodySuccess defines parameters for ListAdminRosterSyncRequests.
+type ListAdminRosterSyncRequests200JSONResponseBodySuccess bool
+
+// CreateAdminRosterSyncRequest202JSONResponseBodySuccess defines parameters for CreateAdminRosterSyncRequest.
+type CreateAdminRosterSyncRequest202JSONResponseBodySuccess bool
+
+// ValidateAdminVerificationSchool200JSONResponseBodySuccess defines parameters for ValidateAdminVerificationSchool.
+type ValidateAdminVerificationSchool200JSONResponseBodySuccess bool
+
+// ListAdminStudentSubjectConflictsParams defines parameters for ListAdminStudentSubjectConflicts.
+type ListAdminStudentSubjectConflictsParams struct {
+	SchoolCode string                                        `form:"schoolCode" json:"schoolCode"`
+	Status     *ListAdminStudentSubjectConflictsParamsStatus `form:"status,omitempty" json:"status,omitempty"`
+	Limit      *int                                          `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset     *int                                          `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
+// ListAdminStudentSubjectConflictsParamsStatus defines parameters for ListAdminStudentSubjectConflicts.
+type ListAdminStudentSubjectConflictsParamsStatus string
+
+// ListAdminStudentSubjectConflicts200JSONResponseBodySuccess defines parameters for ListAdminStudentSubjectConflicts.
+type ListAdminStudentSubjectConflicts200JSONResponseBodySuccess bool
+
+// DecideAdminStudentSubjectConflict200JSONResponseBodySuccess defines parameters for DecideAdminStudentSubjectConflict.
+type DecideAdminStudentSubjectConflict200JSONResponseBodySuccess bool
 
 // ListSystemConfigs200JSONResponseBodySuccess defines parameters for ListSystemConfigs.
 type ListSystemConfigs200JSONResponseBodySuccess bool
 
 // UpdateSystemConfig200JSONResponseBodySuccess defines parameters for UpdateSystemConfig.
 type UpdateSystemConfig200JSONResponseBodySuccess bool
-
-// CreateFreshmanApplicationJSONBody defines parameters for CreateFreshmanApplication.
-type CreateFreshmanApplicationJSONBody struct {
-	// AdmissionSessionID 当前 Join 页面绑定的 admission session ID；用于多群/多会话时把新生申请绑定到当前页面 session。
-	AdmissionSessionID *string                                       `json:"admissionSessionID,omitempty"`
-	ApplicantName      string                                        `json:"applicantName"`
-	DepartmentOrMajor  *string                                       `json:"departmentOrMajor,omitempty"`
-	MaterialType       CreateFreshmanApplicationJSONBodyMaterialType `json:"materialType"`
-
-	// SchoolCode 教育部学校标识码；公开新生材料申请必须以此字段识别学校。
-	SchoolCode string `json:"schoolCode"`
-}
-
-// CreateFreshmanApplicationJSONBodyMaterialType defines parameters for CreateFreshmanApplication.
-type CreateFreshmanApplicationJSONBodyMaterialType string
-
-// CreateFreshmanApplication201JSONResponseBodySuccess defines parameters for CreateFreshmanApplication.
-type CreateFreshmanApplication201JSONResponseBodySuccess bool
-
-// UploadFreshmanCameraCapture200JSONResponseBodySuccess defines parameters for UploadFreshmanCameraCapture.
-type UploadFreshmanCameraCapture200JSONResponseBodySuccess bool
-
-// CreateFreshmanCameraHandoff201JSONResponseBodySuccess defines parameters for CreateFreshmanCameraHandoff.
-type CreateFreshmanCameraHandoff201JSONResponseBodySuccess bool
-
-// GetFreshmanCameraHandoff200JSONResponseBodySuccess defines parameters for GetFreshmanCameraHandoff.
-type GetFreshmanCameraHandoff200JSONResponseBodySuccess bool
-
-// PreviewFreshmanMobileCameraHandoff200JSONResponseBodySuccess defines parameters for PreviewFreshmanMobileCameraHandoff.
-type PreviewFreshmanMobileCameraHandoff200JSONResponseBodySuccess bool
-
-// UploadFreshmanMobileCameraCapture200JSONResponseBodySuccess defines parameters for UploadFreshmanMobileCameraCapture.
-type UploadFreshmanMobileCameraCapture200JSONResponseBodySuccess bool
-
-// ChooseFreshmanMobileCameraContinuation200JSONResponseBodySuccess defines parameters for ChooseFreshmanMobileCameraContinuation.
-type ChooseFreshmanMobileCameraContinuation200JSONResponseBodySuccess bool
 
 // GetAdmissionMeParams defines parameters for GetAdmissionMe.
 type GetAdmissionMeParams struct {
@@ -9262,29 +10571,6 @@ type GetAdmissionMeParams struct {
 
 // GetAdmissionMe200JSONResponseBodySuccess defines parameters for GetAdmissionMe.
 type GetAdmissionMe200JSONResponseBodySuccess bool
-
-// MatchAdmissionAcademicStudent200JSONResponseBodySuccess defines parameters for MatchAdmissionAcademicStudent.
-type MatchAdmissionAcademicStudent200JSONResponseBodySuccess bool
-
-// RequestAdmissionSchoolEmailOTP200JSONResponseBodySuccess defines parameters for RequestAdmissionSchoolEmailOTP.
-type RequestAdmissionSchoolEmailOTP200JSONResponseBodySuccess bool
-
-// VerifyAdmissionSchoolEmailOTP200JSONResponseBodySuccess defines parameters for VerifyAdmissionSchoolEmailOTP.
-type VerifyAdmissionSchoolEmailOTP200JSONResponseBodySuccess bool
-
-// CompleteAdmissionSchoolSSOParams defines parameters for CompleteAdmissionSchoolSSO.
-type CompleteAdmissionSchoolSSOParams struct {
-	Code  *string `form:"code,omitempty" json:"code,omitempty"`
-	State *string `form:"state,omitempty" json:"state,omitempty"`
-}
-
-// StartAdmissionSchoolSSOParams defines parameters for StartAdmissionSchoolSSO.
-type StartAdmissionSchoolSSOParams struct {
-	Return *string `form:"return,omitempty" json:"return,omitempty"`
-
-	// AdmissionSessionID 当前 Join 页面绑定的 admission session ID；SSO 回调会用该值继续同一 admission session。
-	AdmissionSessionID *string `form:"admissionSessionID,omitempty" json:"admissionSessionID,omitempty"`
-}
 
 // PreviewAdmissionSession200JSONResponseBodySuccess defines parameters for PreviewAdmissionSession.
 type PreviewAdmissionSession200JSONResponseBodySuccess bool
@@ -9425,15 +10711,6 @@ type StreamBotAdmissionActionsParams struct {
 
 // ResetBotAdmissionFailureCount200JSONResponseBodySuccess defines parameters for ResetBotAdmissionFailureCount.
 type ResetBotAdmissionFailureCount200JSONResponseBodySuccess bool
-
-// ListBotPendingFreshmanForwards200JSONResponseBodySuccess defines parameters for ListBotPendingFreshmanForwards.
-type ListBotPendingFreshmanForwards200JSONResponseBodySuccess bool
-
-// ReviewBotFreshmanApplication200JSONResponseBodySuccess defines parameters for ReviewBotFreshmanApplication.
-type ReviewBotFreshmanApplication200JSONResponseBodySuccess bool
-
-// ViewBotFreshmanApplication200JSONResponseBodySuccess defines parameters for ViewBotFreshmanApplication.
-type ViewBotFreshmanApplication200JSONResponseBodySuccess bool
 
 // ResolveBotAdmissionJoinRequestDecision200JSONResponseBodySuccess defines parameters for ResolveBotAdmissionJoinRequestDecision.
 type ResolveBotAdmissionJoinRequestDecision200JSONResponseBodySuccess bool
@@ -9973,6 +11250,12 @@ type GetCourseStats200JSONResponseBodySuccess bool
 // GetTerms200JSONResponseBodySuccess defines parameters for GetTerms.
 type GetTerms200JSONResponseBodySuccess bool
 
+// GetInternalPhoneGateEligibility200JSONResponseBodySuccess defines parameters for GetInternalPhoneGateEligibility.
+type GetInternalPhoneGateEligibility200JSONResponseBodySuccess bool
+
+// GetInternalStudentEligibility200JSONResponseBodySuccess defines parameters for GetInternalStudentEligibility.
+type GetInternalStudentEligibility200JSONResponseBodySuccess bool
+
 // ReportFrontendErrorJSONBody defines parameters for ReportFrontendError.
 type ReportFrontendErrorJSONBody struct {
 	Kind ReportFrontendErrorJSONBodyKind `json:"kind"`
@@ -10258,46 +11541,91 @@ type UpdateResource200JSONResponseBodySuccess bool
 // GetResourceDownloadURL200JSONResponseBodySuccess defines parameters for GetResourceDownloadURL.
 type GetResourceDownloadURL200JSONResponseBodySuccess bool
 
-// GetUserIdentity200JSONResponseBodySuccess defines parameters for GetUserIdentity.
-type GetUserIdentity200JSONResponseBodySuccess bool
+// CreateVerificationApplication201JSONResponseBodySuccess defines parameters for CreateVerificationApplication.
+type CreateVerificationApplication201JSONResponseBodySuccess bool
 
-// SubmitIdentity201JSONResponseBodySuccess defines parameters for SubmitIdentity.
-type SubmitIdentity201JSONResponseBodySuccess bool
+// CancelVerificationApplication200JSONResponseBodySuccess defines parameters for CancelVerificationApplication.
+type CancelVerificationApplication200JSONResponseBodySuccess bool
 
-// UploadIdentityPhoto201JSONResponseBodySuccess defines parameters for UploadIdentityPhoto.
-type UploadIdentityPhoto201JSONResponseBodySuccess bool
+// GetVerificationApplication200JSONResponseBodySuccess defines parameters for GetVerificationApplication.
+type GetVerificationApplication200JSONResponseBodySuccess bool
+
+// GetApplicationInboundEmailChallenge200JSONResponseBodySuccess defines parameters for GetApplicationInboundEmailChallenge.
+type GetApplicationInboundEmailChallenge200JSONResponseBodySuccess bool
+
+// CreateApplicationInboundEmailChallenge201JSONResponseBodySuccess defines parameters for CreateApplicationInboundEmailChallenge.
+type CreateApplicationInboundEmailChallenge201JSONResponseBodySuccess bool
+
+// RequestApplicationEmailOTP200JSONResponseBodySuccess defines parameters for RequestApplicationEmailOTP.
+type RequestApplicationEmailOTP200JSONResponseBodySuccess bool
+
+// VerifyApplicationEmailOTP200JSONResponseBodySuccess defines parameters for VerifyApplicationEmailOTP.
+type VerifyApplicationEmailOTP200JSONResponseBodySuccess bool
+
+// GetManualStudentReview200JSONResponseBodySuccess defines parameters for GetManualStudentReview.
+type GetManualStudentReview200JSONResponseBodySuccess bool
+
+// UpsertManualStudentReview200JSONResponseBodySuccess defines parameters for UpsertManualStudentReview.
+type UpsertManualStudentReview200JSONResponseBodySuccess bool
+
+// UploadManualReviewCameraCapture201JSONResponseBodySuccess defines parameters for UploadManualReviewCameraCapture.
+type UploadManualReviewCameraCapture201JSONResponseBodySuccess bool
+
+// CreateManualReviewCameraHandoff201JSONResponseBodySuccess defines parameters for CreateManualReviewCameraHandoff.
+type CreateManualReviewCameraHandoff201JSONResponseBodySuccess bool
+
+// GetManualReviewCameraHandoff200JSONResponseBodySuccess defines parameters for GetManualReviewCameraHandoff.
+type GetManualReviewCameraHandoff200JSONResponseBodySuccess bool
+
+// RequestManualReviewEmailOTP200JSONResponseBodySuccess defines parameters for RequestManualReviewEmailOTP.
+type RequestManualReviewEmailOTP200JSONResponseBodySuccess bool
+
+// VerifyManualReviewEmailOTP200JSONResponseBodySuccess defines parameters for VerifyManualReviewEmailOTP.
+type VerifyManualReviewEmailOTP200JSONResponseBodySuccess bool
+
+// SubmitManualStudentReview200JSONResponseBodySuccess defines parameters for SubmitManualStudentReview.
+type SubmitManualStudentReview200JSONResponseBodySuccess bool
+
+// VerifyApplicationRealName200JSONResponseBodySuccess defines parameters for VerifyApplicationRealName.
+type VerifyApplicationRealName200JSONResponseBodySuccess bool
+
+// VerifyApplicationSchoolSSO200JSONResponseBodySuccess defines parameters for VerifyApplicationSchoolSSO.
+type VerifyApplicationSchoolSSO200JSONResponseBodySuccess bool
+
+// ListStudentVerificationCredentials200JSONResponseBodySuccess defines parameters for ListStudentVerificationCredentials.
+type ListStudentVerificationCredentials200JSONResponseBodySuccess bool
+
+// RevokeStudentVerificationCredential200JSONResponseBodySuccess defines parameters for RevokeStudentVerificationCredential.
+type RevokeStudentVerificationCredential200JSONResponseBodySuccess bool
+
+// GetStudentVerificationEligibilityParams defines parameters for GetStudentVerificationEligibility.
+type GetStudentVerificationEligibilityParams struct {
+	SchoolCode string `form:"schoolCode" json:"schoolCode"`
+}
+
+// GetStudentVerificationEligibility200JSONResponseBodySuccess defines parameters for GetStudentVerificationEligibility.
+type GetStudentVerificationEligibility200JSONResponseBodySuccess bool
+
+// PreviewManualReviewCameraHandoff200JSONResponseBodySuccess defines parameters for PreviewManualReviewCameraHandoff.
+type PreviewManualReviewCameraHandoff200JSONResponseBodySuccess bool
+
+// UploadManualReviewHandoffCameraCapture201JSONResponseBodySuccess defines parameters for UploadManualReviewHandoffCameraCapture.
+type UploadManualReviewHandoffCameraCapture201JSONResponseBodySuccess bool
+
+// ChooseManualReviewCameraContinuation200JSONResponseBodySuccess defines parameters for ChooseManualReviewCameraContinuation.
+type ChooseManualReviewCameraContinuation200JSONResponseBodySuccess bool
+
+// ResumeManualReviewCameraHandoff200JSONResponseBodySuccess defines parameters for ResumeManualReviewCameraHandoff.
+type ResumeManualReviewCameraHandoff200JSONResponseBodySuccess bool
+
+// CreateStudentVerificationSchoolSuggestion201JSONResponseBodySuccess defines parameters for CreateStudentVerificationSchoolSuggestion.
+type CreateStudentVerificationSchoolSuggestion201JSONResponseBodySuccess bool
+
+// ListVerificationSchools200JSONResponseBodySuccess defines parameters for ListVerificationSchools.
+type ListVerificationSchools200JSONResponseBodySuccess bool
 
 // GetUserSurface200JSONResponseBodySuccess defines parameters for GetUserSurface.
 type GetUserSurface200JSONResponseBodySuccess bool
-
-// GetUserProfile200JSONResponseBodySuccess defines parameters for GetUserProfile.
-type GetUserProfile200JSONResponseBodySuccess bool
-
-// GetAcademicInfo200JSONResponseBodySuccess defines parameters for GetAcademicInfo.
-type GetAcademicInfo200JSONResponseBodySuccess bool
-
-// BindPhone200JSONResponseBodySuccess defines parameters for BindPhone.
-type BindPhone200JSONResponseBodySuccess bool
-
-// RequestBindPhoneOTPJSONBody defines parameters for RequestBindPhoneOTP.
-type RequestBindPhoneOTPJSONBody struct {
-	Phone string `json:"phone"`
-}
-
-// RequestBindPhoneOTP200JSONResponseBodySuccess defines parameters for RequestBindPhoneOTP.
-type RequestBindPhoneOTP200JSONResponseBodySuccess bool
-
-// MatchStudentEmailAcademicStudent200JSONResponseBodySuccess defines parameters for MatchStudentEmailAcademicStudent.
-type MatchStudentEmailAcademicStudent200JSONResponseBodySuccess bool
-
-// RequestStudentEmailOTP200JSONResponseBodySuccess defines parameters for RequestStudentEmailOTP.
-type RequestStudentEmailOTP200JSONResponseBodySuccess bool
-
-// VerifyStudentEmailOTP200JSONResponseBodySuccess defines parameters for VerifyStudentEmailOTP.
-type VerifyStudentEmailOTP200JSONResponseBodySuccess bool
-
-// SubmitStudentVerification200JSONResponseBodySuccess defines parameters for SubmitStudentVerification.
-type SubmitStudentVerification200JSONResponseBodySuccess bool
 
 // GetUserQQBinding200JSONResponseBodySuccess defines parameters for GetUserQQBinding.
 type GetUserQQBinding200JSONResponseBodySuccess bool
@@ -10305,8 +11633,18 @@ type GetUserQQBinding200JSONResponseBodySuccess bool
 // CreateUserQQBindingCode201JSONResponseBodySuccess defines parameters for CreateUserQQBindingCode.
 type CreateUserQQBindingCode201JSONResponseBodySuccess bool
 
-// ListSchools200JSONResponseBodySuccess defines parameters for ListSchools.
-type ListSchools200JSONResponseBodySuccess bool
+// ReceiveStudentVerificationInboundEmailParams defines parameters for ReceiveStudentVerificationInboundEmail.
+type ReceiveStudentVerificationInboundEmailParams struct {
+	XStuHelperWebhookTimestamp string `json:"X-StuHelper-Webhook-Timestamp"`
+	XStuHelperWebhookID        string `json:"X-StuHelper-Webhook-ID"`
+	XStuHelperWebhookSignature string `json:"X-StuHelper-Webhook-Signature"`
+}
+
+// ReceiveStudentVerificationInboundEmail202JSONResponseBodyDataStatus defines parameters for ReceiveStudentVerificationInboundEmail.
+type ReceiveStudentVerificationInboundEmail202JSONResponseBodyDataStatus string
+
+// ReceiveStudentVerificationInboundEmail202JSONResponseBodySuccess defines parameters for ReceiveStudentVerificationInboundEmail.
+type ReceiveStudentVerificationInboundEmail202JSONResponseBodySuccess bool
 
 // HealthLive200JSONResponseBodySuccess defines parameters for HealthLive.
 type HealthLive200JSONResponseBodySuccess bool
@@ -10316,6 +11654,15 @@ type HealthReady200JSONResponseBodyDataStatus string
 
 // HealthReady200JSONResponseBodySuccess defines parameters for HealthReady.
 type HealthReady200JSONResponseBodySuccess bool
+
+// CreateAccountPhoneChangeOperationJSONRequestBody defines body for CreateAccountPhoneChangeOperation for application/json ContentType.
+type CreateAccountPhoneChangeOperationJSONRequestBody = CreatePhoneOperationRequest
+
+// CreateAccountPhoneOperationJSONRequestBody defines body for CreateAccountPhoneOperation for application/json ContentType.
+type CreateAccountPhoneOperationJSONRequestBody = CreatePhoneOperationRequest
+
+// VerifyAccountPhoneSMSJSONRequestBody defines body for VerifyAccountPhoneSMS for application/json ContentType.
+type VerifyAccountPhoneSMSJSONRequestBody = VerifyPhoneSMSRequest
 
 // TriggerAcademicImportJSONRequestBody defines body for TriggerAcademicImport for application/json ContentType.
 type TriggerAcademicImportJSONRequestBody = AcademicImportRequest
@@ -10340,12 +11687,6 @@ type RevokeAuthorizationGrantJSONRequestBody = AuthorizationGrantMutationRequest
 
 // ReconcileAllAuthorizationProjectionsJSONRequestBody defines body for ReconcileAllAuthorizationProjections for application/json ContentType.
 type ReconcileAllAuthorizationProjectionsJSONRequestBody = AuthorizationGrantMutationRequest
-
-// ReviewFreshmanVerificationJSONRequestBody defines body for ReviewFreshmanVerification for application/json ContentType.
-type ReviewFreshmanVerificationJSONRequestBody = FreshmanReviewRequest
-
-// ReviewIdentityVerificationJSONRequestBody defines body for ReviewIdentityVerification for application/json ContentType.
-type ReviewIdentityVerificationJSONRequestBody = ReviewIdentityRequest
 
 // CreateAdminMemberBlacklistEntryJSONRequestBody defines body for CreateAdminMemberBlacklistEntry for application/json ContentType.
 type CreateAdminMemberBlacklistEntryJSONRequestBody = MemberBlacklistCreateRequest
@@ -10392,38 +11733,44 @@ type RotateAdminOpenPlatformAppSecretJSONRequestBody = OpenPlatformSecretRotatio
 // SuspendOpenPlatformAppJSONRequestBody defines body for SuspendOpenPlatformApp for application/json ContentType.
 type SuspendOpenPlatformAppJSONRequestBody = OpenPlatformLifecycleActionRequest
 
-// UpdateSchoolConfigJSONRequestBody defines body for UpdateSchoolConfig for application/json ContentType.
-type UpdateSchoolConfigJSONRequestBody = UpdateSchoolConfigRequest
-
 // CreateStorageMountJSONRequestBody defines body for CreateStorageMount for application/json ContentType.
 type CreateStorageMountJSONRequestBody = CreateStorageMountRequest
 
-// ReviewStudentVerificationJSONRequestBody defines body for ReviewStudentVerification for application/json ContentType.
-type ReviewStudentVerificationJSONRequestBody = ReviewStudentVerificationRequest
+// RevokeAdminStudentCredentialJSONRequestBody defines body for RevokeAdminStudentCredential for application/json ContentType.
+type RevokeAdminStudentCredentialJSONRequestBody = AdminCredentialRevokeRequest
+
+// DecideAdminManualStudentReviewJSONRequestBody defines body for DecideAdminManualStudentReview for application/json ContentType.
+type DecideAdminManualStudentReviewJSONRequestBody = AdminManualReviewDecisionRequest
+
+// CreateAdminVerificationSchoolJSONRequestBody defines body for CreateAdminVerificationSchool for application/json ContentType.
+type CreateAdminVerificationSchoolJSONRequestBody = CreateAdminVerificationSchoolConfigRequest
+
+// UpdateAdminVerificationSchoolJSONRequestBody defines body for UpdateAdminVerificationSchool for application/json ContentType.
+type UpdateAdminVerificationSchoolJSONRequestBody = UpdateAdminVerificationSchoolConfigRequest
+
+// UpdateAdminVerificationMethodJSONRequestBody defines body for UpdateAdminVerificationMethod for application/json ContentType.
+type UpdateAdminVerificationMethodJSONRequestBody = UpdateAdminVerificationMethodConfigRequest
+
+// ValidateAdminVerificationMethodJSONRequestBody defines body for ValidateAdminVerificationMethod for application/json ContentType.
+type ValidateAdminVerificationMethodJSONRequestBody = ValidateAdminVerificationConfigRequest
+
+// ActivateAdminRosterSnapshotJSONRequestBody defines body for ActivateAdminRosterSnapshot for application/json ContentType.
+type ActivateAdminRosterSnapshotJSONRequestBody = RosterSnapshotSwitchRequest
+
+// RollbackAdminRosterSnapshotJSONRequestBody defines body for RollbackAdminRosterSnapshot for application/json ContentType.
+type RollbackAdminRosterSnapshotJSONRequestBody = RosterSnapshotSwitchRequest
+
+// CreateAdminRosterSyncRequestJSONRequestBody defines body for CreateAdminRosterSyncRequest for application/json ContentType.
+type CreateAdminRosterSyncRequestJSONRequestBody = AdminRosterSyncCreateRequest
+
+// ValidateAdminVerificationSchoolJSONRequestBody defines body for ValidateAdminVerificationSchool for application/json ContentType.
+type ValidateAdminVerificationSchoolJSONRequestBody = ValidateAdminVerificationConfigRequest
+
+// DecideAdminStudentSubjectConflictJSONRequestBody defines body for DecideAdminStudentSubjectConflict for application/json ContentType.
+type DecideAdminStudentSubjectConflictJSONRequestBody = AdminSubjectConflictDecisionRequest
 
 // UpdateSystemConfigJSONRequestBody defines body for UpdateSystemConfig for application/json ContentType.
 type UpdateSystemConfigJSONRequestBody = UpdateSystemConfigRequest
-
-// CreateFreshmanApplicationJSONRequestBody defines body for CreateFreshmanApplication for application/json ContentType.
-type CreateFreshmanApplicationJSONRequestBody CreateFreshmanApplicationJSONBody
-
-// UploadFreshmanCameraCaptureJSONRequestBody defines body for UploadFreshmanCameraCapture for application/json ContentType.
-type UploadFreshmanCameraCaptureJSONRequestBody = CameraCaptureRequest
-
-// UploadFreshmanMobileCameraCaptureJSONRequestBody defines body for UploadFreshmanMobileCameraCapture for application/json ContentType.
-type UploadFreshmanMobileCameraCaptureJSONRequestBody = CameraCaptureRequest
-
-// ChooseFreshmanMobileCameraContinuationJSONRequestBody defines body for ChooseFreshmanMobileCameraContinuation for application/json ContentType.
-type ChooseFreshmanMobileCameraContinuationJSONRequestBody = FreshmanCameraHandoffContinuationRequest
-
-// MatchAdmissionAcademicStudentJSONRequestBody defines body for MatchAdmissionAcademicStudent for application/json ContentType.
-type MatchAdmissionAcademicStudentJSONRequestBody = SchoolEmailAcademicMatchRequest
-
-// RequestAdmissionSchoolEmailOTPJSONRequestBody defines body for RequestAdmissionSchoolEmailOTP for application/json ContentType.
-type RequestAdmissionSchoolEmailOTPJSONRequestBody = SchoolEmailOTPRequest
-
-// VerifyAdmissionSchoolEmailOTPJSONRequestBody defines body for VerifyAdmissionSchoolEmailOTP for application/json ContentType.
-type VerifyAdmissionSchoolEmailOTPJSONRequestBody = SchoolEmailOTPVerifyRequest
 
 // ExchangeNativeJSONRequestBody defines body for ExchangeNative for application/json ContentType.
 type ExchangeNativeJSONRequestBody ExchangeNativeJSONBody
@@ -10436,12 +11783,6 @@ type RecordBotAdmissionActionEventJSONRequestBody = BotAdmissionActionEventReque
 
 // ResetBotAdmissionFailureCountJSONRequestBody defines body for ResetBotAdmissionFailureCount for application/json ContentType.
 type ResetBotAdmissionFailureCountJSONRequestBody = BotAdmissionSessionOperatorRequest
-
-// ReviewBotFreshmanApplicationJSONRequestBody defines body for ReviewBotFreshmanApplication for application/json ContentType.
-type ReviewBotFreshmanApplicationJSONRequestBody = BotFreshmanReviewRequest
-
-// ViewBotFreshmanApplicationJSONRequestBody defines body for ViewBotFreshmanApplication for application/json ContentType.
-type ViewBotFreshmanApplicationJSONRequestBody = BotFreshmanCommandContext
 
 // ResolveBotAdmissionJoinRequestDecisionJSONRequestBody defines body for ResolveBotAdmissionJoinRequestDecision for application/json ContentType.
 type ResolveBotAdmissionJoinRequestDecisionJSONRequestBody = BotAdmissionJoinRequestDecisionRequest
@@ -10572,29 +11913,47 @@ type CreateResourceJSONRequestBody = CreateResourceRequest
 // UpdateResourceJSONRequestBody defines body for UpdateResource for application/json ContentType.
 type UpdateResourceJSONRequestBody = UpdateResourceRequest
 
-// SubmitIdentityJSONRequestBody defines body for SubmitIdentity for application/json ContentType.
-type SubmitIdentityJSONRequestBody = SubmitIdentityRequest
+// CreateVerificationApplicationJSONRequestBody defines body for CreateVerificationApplication for application/json ContentType.
+type CreateVerificationApplicationJSONRequestBody = CreateVerificationApplicationRequest
 
-// UploadIdentityPhotoJSONRequestBody defines body for UploadIdentityPhoto for application/json ContentType.
-type UploadIdentityPhotoJSONRequestBody = UploadIdentityPhotoRequest
+// CreateApplicationInboundEmailChallengeJSONRequestBody defines body for CreateApplicationInboundEmailChallenge for application/json ContentType.
+type CreateApplicationInboundEmailChallengeJSONRequestBody = StudentEmailIdentityRequest
 
-// BindPhoneJSONRequestBody defines body for BindPhone for application/json ContentType.
-type BindPhoneJSONRequestBody = BindPhoneRequest
+// RequestApplicationEmailOTPJSONRequestBody defines body for RequestApplicationEmailOTP for application/json ContentType.
+type RequestApplicationEmailOTPJSONRequestBody = StudentEmailIdentityRequest
 
-// RequestBindPhoneOTPJSONRequestBody defines body for RequestBindPhoneOTP for application/json ContentType.
-type RequestBindPhoneOTPJSONRequestBody RequestBindPhoneOTPJSONBody
+// VerifyApplicationEmailOTPJSONRequestBody defines body for VerifyApplicationEmailOTP for application/json ContentType.
+type VerifyApplicationEmailOTPJSONRequestBody = VerifyStudentEmailOTPRequest
 
-// MatchStudentEmailAcademicStudentJSONRequestBody defines body for MatchStudentEmailAcademicStudent for application/json ContentType.
-type MatchStudentEmailAcademicStudentJSONRequestBody = StudentEmailAcademicMatchRequest
+// UpsertManualStudentReviewJSONRequestBody defines body for UpsertManualStudentReview for application/json ContentType.
+type UpsertManualStudentReviewJSONRequestBody = UpsertManualReviewRequest
 
-// RequestStudentEmailOTPJSONRequestBody defines body for RequestStudentEmailOTP for application/json ContentType.
-type RequestStudentEmailOTPJSONRequestBody = StudentEmailOTPRequest
+// UploadManualReviewCameraCaptureJSONRequestBody defines body for UploadManualReviewCameraCapture for application/json ContentType.
+type UploadManualReviewCameraCaptureJSONRequestBody = ManualCameraCaptureRequest
 
-// VerifyStudentEmailOTPJSONRequestBody defines body for VerifyStudentEmailOTP for application/json ContentType.
-type VerifyStudentEmailOTPJSONRequestBody = StudentEmailOTPVerifyRequest
+// VerifyManualReviewEmailOTPJSONRequestBody defines body for VerifyManualReviewEmailOTP for application/json ContentType.
+type VerifyManualReviewEmailOTPJSONRequestBody = VerifyStudentEmailOTPRequest
 
-// SubmitStudentVerificationJSONRequestBody defines body for SubmitStudentVerification for application/json ContentType.
-type SubmitStudentVerificationJSONRequestBody = SubmitStudentVerificationRequest
+// SubmitManualStudentReviewJSONRequestBody defines body for SubmitManualStudentReview for application/json ContentType.
+type SubmitManualStudentReviewJSONRequestBody = SubmitManualReviewRequest
+
+// VerifyApplicationRealNameJSONRequestBody defines body for VerifyApplicationRealName for application/json ContentType.
+type VerifyApplicationRealNameJSONRequestBody = VerifyRealNameRequest
+
+// VerifyApplicationSchoolSSOJSONRequestBody defines body for VerifyApplicationSchoolSSO for application/json ContentType.
+type VerifyApplicationSchoolSSOJSONRequestBody = VerifySchoolSSORequest
+
+// UploadManualReviewHandoffCameraCaptureJSONRequestBody defines body for UploadManualReviewHandoffCameraCapture for application/json ContentType.
+type UploadManualReviewHandoffCameraCaptureJSONRequestBody = ManualCameraCaptureRequest
+
+// ChooseManualReviewCameraContinuationJSONRequestBody defines body for ChooseManualReviewCameraContinuation for application/json ContentType.
+type ChooseManualReviewCameraContinuationJSONRequestBody = ManualCameraContinuationRequest
+
+// CreateStudentVerificationSchoolSuggestionJSONRequestBody defines body for CreateStudentVerificationSchoolSuggestion for application/json ContentType.
+type CreateStudentVerificationSchoolSuggestionJSONRequestBody = SchoolVerificationSuggestionRequest
+
+// ReceiveStudentVerificationInboundEmailJSONRequestBody defines body for ReceiveStudentVerificationInboundEmail for application/json ContentType.
+type ReceiveStudentVerificationInboundEmailJSONRequestBody = InboundEmailWebhookRequest
 
 // Getter for additional properties for OpenPlatformDisclosure. Returns the specified
 // element and whether it was found
@@ -10819,667 +12178,768 @@ func (a OpenPlatformDisclosure) MarshalJSON() ([]byte, error) {
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

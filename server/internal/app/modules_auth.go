@@ -13,6 +13,7 @@ import (
 	authorizationmodule "github.com/StuHelper/StuHelper/server/internal/modules/authorization"
 	"github.com/StuHelper/StuHelper/server/internal/modules/course/review"
 	"github.com/StuHelper/StuHelper/server/internal/modules/rbac"
+	"github.com/StuHelper/StuHelper/server/internal/modules/studentverification"
 	"github.com/StuHelper/StuHelper/server/internal/modules/user"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/config"
 	"github.com/StuHelper/StuHelper/server/internal/pkg/crypto"
@@ -132,6 +133,7 @@ func (rt *Runtime) registerAdminRoutes(
 	userHandler *user.Handler,
 	authHandler *auth.Handler,
 	authorizationHandler *authorizationmodule.Handler,
+	studentVerificationHandler *studentverification.Handler,
 	admissionHandler *admission.Handler,
 	openPlatformHandler adminRouteRegistrar,
 	authMW gin.HandlerFunc,
@@ -142,6 +144,7 @@ func (rt *Runtime) registerAdminRoutes(
 	adminGroup.Use(middlewares...)
 	authHandler.RegisterAdminRoutes(adminGroup)
 	authorizationHandler.RegisterAdminRoutes(adminGroup)
+	studentVerificationHandler.RegisterAdminRoutes(adminGroup)
 	userHandler.RegisterAdminRoutes(adminGroup)
 	admissionHandler.RegisterAdminRoutes(adminGroup)
 	if openPlatformHandler != nil {

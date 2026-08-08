@@ -27,7 +27,23 @@ func (rt *Runtime) serve(router *gin.Engine) error {
 		MaxHeaderBytes:    1 << 20,
 	}
 
-	serverErr := make(chan error, 1)
+	serverErr := make(chan error, 2)
+	var connectorStarted bool
+	if rt.campusConnector != nil {
+		listener, err := rt.campusConnector.listen()
+		if err != nil {
+			return fmt.Errorf("failed to start campus connector mTLS listener: %w", err)
+		}
+		connectorStarted = true
+		go func() {
+			logger.L().Info("Campus connector mTLS gateway starting",
+				gozap.String("address", rt.campusConnector.address),
+			)
+			if err := rt.campusConnector.server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				serverErr <- fmt.Errorf("campus connector gateway failed: %w", err)
+			}
+		}()
+	}
 	go func() {
 		logger.L().Info("Server starting", gozap.String("port", rt.cfg.App.Port))
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -57,6 +73,13 @@ func (rt *Runtime) serve(router *gin.Engine) error {
 	// http.Server.Shutdown 本身不会主动取消活动中的长连接处理器。
 	rt.beginShutdown()
 	shutdownErr := shutdownHTTPServer(shutdownCtx, srv)
+	if connectorStarted {
+		connectorShutdownErr := shutdownHTTPServer(shutdownCtx, rt.campusConnector.server)
+		if connectorShutdownErr != nil {
+			shutdownErr = errors.Join(shutdownErr,
+				fmt.Errorf("campus connector gateway shutdown: %w", connectorShutdownErr))
+		}
+	}
 	if shutdownErr != nil {
 		logger.L().Error("Server forced to shutdown",
 			gozap.Error(shutdownErr),

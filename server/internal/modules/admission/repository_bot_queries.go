@@ -135,9 +135,9 @@ func (r *Repository) QueueAdmissionReminderNowTx(
 func (r *Repository) MarkBotReleaseCompletedTx(ctx context.Context, input markBotSessionTxInput) error {
 	_, err := input.Tx.Exec(ctx, `
 			UPDATE group_admission_sessions
-			SET cancelled_at = $2, last_bot_error = NULL, updated_at = NOW()
+			SET status = $4, cancelled_at = $2, last_bot_error = NULL, updated_at = NOW()
 			WHERE id = $1 AND status = $3
-	`, input.SessionID, input.Now, StatusVerified)
+	`, input.SessionID, input.Now, StatusVerified, StatusAdmitted)
 	return err
 }
 

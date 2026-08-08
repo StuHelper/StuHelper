@@ -43,6 +43,7 @@ Redis 指标采集使用独立 `stuhelper_metrics` ACL 用户和
 | `infra/observability/prometheus/prometheus.yml.tmpl` | Prometheus 抓取配置模板 |
 | `infra/observability/prometheus/rules/` | 告警规则 |
 | `infra/observability/alertmanager/alertmanager.yml` | Alertmanager 路由 |
+| `infra/generated/observability/alertmanager/webhook-token` | 由渲染器生成的 Alertmanager Bearer token 文件（仅本机，禁止提交） |
 | `infra/observability/loki/loki.yaml` | Loki 配置 |
 | `infra/observability/tempo/tempo.yaml` | Tempo 配置 |
 | `infra/observability/grafana/provisioning/` | Grafana 数据源与 dashboard 自动导入 |
@@ -69,6 +70,12 @@ make prod-deploy
 | 组件 | 默认地址 |
 | --- | --- |
 | Grafana | `http://127.0.0.1:3003` |
+
+生产用户入口固定为 `https://stuhelper.com/admin/observability/`。Grafana 容器仍只绑定宿主回环端口，
+宝塔 Nginx 用精确的 `/admin/observability/` 前缀反代，Grafana 必须启用
+`GF_SERVER_SERVE_FROM_SUB_PATH=true`。生产 ingress preflight 会拒绝缺少该反代的配置，避免只检查容器
+`/api/health` 却把用户入口 404 误报为上线成功。Grafana 自身禁止匿名访问，不能用 Nginx 静态目录或
+Admin SPA fallback 代替此反代。
 | Prometheus | `http://127.0.0.1:9090` |
 | Alertmanager | `http://127.0.0.1:9093` |
 | Loki | `http://127.0.0.1:3100` |
@@ -98,6 +105,8 @@ make prod-deploy
 - `REDIS_EXPORTER_PASSWORD`（独立 Redis 监控账号密码，不得与 `REDIS_PASSWORD` 复用）
 - `GRAFANA_ADMIN_PASSWORD`
 - `ALERTMANAGER_WEBHOOK_URL`（推荐配置到值班系统 / ChatOps）
+- `ALERTMANAGER_WEBHOOK_TOKEN`（至少 32 字节；与 Koishi 节点同值，Alertmanager YAML 只使用 `credentials_file`）
+- `ALERTMANAGER_CONFIG_GID=65534`（生产生成 token 文件的读取组；不要把 token 写进 YAML）
 - `OTEL_ENABLED=true`
 - `OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318`
 - `OTEL_TRACE_SAMPLE_RATIO=0.2`（可按流量调整）
@@ -128,7 +137,18 @@ target 均为 1。这样可以区分“exporter 进程活着”与“exporter �
 
 ## 推荐告警接入
 
-当前仓库保留了本地演练用的备用 receiver，正式上线时还是要把告警接到真实值班系统。推荐至少接其中一种：
+正式上线使用 Koishi 管理群作为值班通知出口；本地 `alert-webhook-sink` 只用于演练，不能作为生产 receiver。Alertmanager 的 webhook URL 必须指向 Koishi 的固定 `POST /stuhelper/internal/alertmanager` 路由，不能指向整个 Console 或任意代理转发器。推荐通过 Alertmanager 与 Koishi 之间的精确内网/overlay 路由或受控反代连接，不新增公网管理端口。
+
+生产必须同时配置：
+
+- `ALERTMANAGER_WEBHOOK_URL`：固定路由 URL，生产部署拒绝本地 sink。
+- `ALERTMANAGER_WEBHOOK_TOKEN`：至少 32 字节；渲染器将它写入被忽略的 `webhook-token` 文件，YAML 只引用 `credentials_file`，不会把 token 写入 URL 或配置文本。
+- Koishi 节点的 `STUHELPER_ALERTMANAGER_WEBHOOK_ENABLED=true`、同值 `ALERTMANAGER_WEBHOOK_TOKEN` 和可选 `STUHELPER_ALERTMANAGER_BOT_SELF_ID`。
+- 后端 admission policy target 的唯一 `managementGuildIDs`；Koishi 不接受 webhook payload 覆盖管理群。
+
+发布验收必须分别发送一组 firing 和 resolved 标准 Alertmanager v4 payload，确认管理群各收到一次；重复投递只应在首次 QQ 发送成功后去重。查看 Alertmanager 的 notification success/failure 计数和 Koishi 的稳定错误分类，后端、管理群配置或 QQ 发送失败都必须保持 503/重试语义。
+
+外部值班系统仍可由后续 receiver 扩展接入，但不能绕过上述固定管理群边界。推荐至少接其中一种：
 
 1. Slack / 企业微信 / 飞书 webhook
 2. PagerDuty / Opsgenie / OnCall 平台

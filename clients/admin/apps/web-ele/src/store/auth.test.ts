@@ -219,7 +219,7 @@ describe('useAuthStore', () => {
 
   it('uses full capabilities instead of globalCapabilities during session bootstrap', async () => {
     const me = {
-      capabilities: ['user:school:read'],
+      capabilities: ['student:verification_config:read'],
       globalCapabilities: [],
       canAccessAdmin: true,
     };
@@ -230,7 +230,9 @@ describe('useAuthStore', () => {
 
     await store.initSession();
 
-    expect(mocks.accessStore.accessCodes).toEqual(['user:school:read']);
+    expect(mocks.accessStore.accessCodes).toEqual([
+      'student:verification_config:read',
+    ]);
     expect(mocks.showAuthNotification).not.toHaveBeenCalled();
   });
 
@@ -238,7 +240,7 @@ describe('useAuthStore', () => {
     mocks.getUserInfoApi.mockResolvedValue({
       userInfo: { realName: 'School Admin' },
       me: {
-        capabilities: ['user:school:read'],
+        capabilities: ['student:verification_config:read'],
         globalCapabilities: [],
       },
     });
@@ -247,16 +249,18 @@ describe('useAuthStore', () => {
 
     await store.fetchUserInfo();
 
-    expect(mocks.accessStore.accessCodes).toEqual(['user:school:read']);
+    expect(mocks.accessStore.accessCodes).toEqual([
+      'student:verification_config:read',
+    ]);
   });
 
   it('defaults blank student verification school filters when only one scoped school is allowed', async () => {
     const me = {
-      capabilities: ['user:student:review'],
+      capabilities: ['student:manual_review:decide'],
       globalCapabilities: [],
       capabilityGrants: [
         {
-          name: 'user:student:review',
+          name: 'student:manual_review:decide',
           global: false,
           scopeSchoolIDs: ['4111010001'],
         },
@@ -270,21 +274,21 @@ describe('useAuthStore', () => {
 
     await store.initSession();
 
-    expect(store.resolveScopedSchoolId('user:student:review', '')).toBe(
-      '4111010001',
-    );
     expect(
-      store.resolveScopedSchoolId('user:student:review', '4111010002'),
+      store.resolveScopedSchoolId('student:manual_review:decide', ''),
+    ).toBe('4111010001');
+    expect(
+      store.resolveScopedSchoolId('student:manual_review:decide', '4111010002'),
     ).toBe('4111010002');
   });
 
   it('requires explicit school filters for multi-school scoped admins', async () => {
     const me = {
-      capabilities: ['user:student:review'],
+      capabilities: ['student:manual_review:decide'],
       globalCapabilities: [],
       capabilityGrants: [
         {
-          name: 'user:student:review',
+          name: 'student:manual_review:decide',
           global: false,
           scopeSchoolIDs: ['4111010001', '4111010002'],
         },
@@ -299,10 +303,10 @@ describe('useAuthStore', () => {
     await store.initSession();
 
     expect(() =>
-      store.resolveScopedSchoolId('user:student:review', ''),
+      store.resolveScopedSchoolId('student:manual_review:decide', ''),
     ).toThrow(SCHOOL_SCOPE_REQUIRED_ERROR);
     expect(
-      store.resolveScopedSchoolId('user:student:review', '4111010002'),
+      store.resolveScopedSchoolId('student:manual_review:decide', '4111010002'),
     ).toBe('4111010002');
   });
 
@@ -310,11 +314,11 @@ describe('useAuthStore', () => {
     mocks.getUserInfoApi.mockResolvedValue({
       userInfo: { realName: 'Platform Admin' },
       me: {
-        capabilities: ['user:student:review'],
-        globalCapabilities: ['user:student:review'],
+        capabilities: ['student:manual_review:decide'],
+        globalCapabilities: ['student:manual_review:decide'],
         capabilityGrants: [
           {
-            name: 'user:student:review',
+            name: 'student:manual_review:decide',
             global: true,
           },
         ],
@@ -325,6 +329,8 @@ describe('useAuthStore', () => {
 
     await store.fetchUserInfo();
 
-    expect(store.resolveScopedSchoolId('user:student:review', '')).toBe('');
+    expect(
+      store.resolveScopedSchoolId('student:manual_review:decide', ''),
+    ).toBe('');
   });
 });

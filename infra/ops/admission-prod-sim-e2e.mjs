@@ -4,6 +4,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, '../..');
@@ -36,15 +37,18 @@ const ssoBaseURL = normalizeBaseURL(
 const botServiceToken = process.env.BOT_SERVICE_TOKEN || '';
 const casdoorLoginUsername = process.env.PROD_PARITY_CASDOOR_LOGIN_USERNAME || 'admission-e2e';
 const casdoorLoginPassword = process.env.PROD_PARITY_CASDOOR_LOGIN_PASSWORD || 'ProdParityAdmission1!';
-const qqID = process.env.ADMISSION_PROD_SIM_QQ_ID || '990002';
+// A bot session is intentionally idempotent for an active (platform, guild,
+// QQ) subject.  Use a fresh local-only subject by default so a previous
+// failed simulation cannot make the next run reuse an already-consumed token.
+// Production callers may still pin an explicit QQ through the environment.
+const qqID = process.env.ADMISSION_PROD_SIM_QQ_ID ||
+  String(990000 + (Date.now() % 1000000));
 const botSelfID = process.env.ADMISSION_PROD_SIM_BOT_SELF_ID || 'prod-sim-bot';
 const guildID = process.env.ADMISSION_PROD_SIM_GUILD_ID || 'prod-parity-guild';
 const channelID = process.env.ADMISSION_PROD_SIM_CHANNEL_ID || 'prod-parity-channel';
 const schoolCode = process.env.ADMISSION_PROD_SIM_SCHOOL_CODE || '4111010006';
-const schoolID = Number(process.env.ADMISSION_PROD_SIM_SCHOOL_ID || '4111010006');
 const studentID = process.env.ADMISSION_PROD_SIM_STUDENT_ID || '20259901';
 const studentName = process.env.ADMISSION_PROD_SIM_STUDENT_NAME || '张三';
-const studentEmail = process.env.ADMISSION_PROD_SIM_STUDENT_EMAIL || `${studentID}@buaa.edu.cn`;
 const evidenceFile = process.env.ADMISSION_PROD_SIM_E2E_EVIDENCE_FILE ||
   resolve(repoRoot, '.run/prod-parity/admission-prod-sim-e2e-evidence.json');
 const screenshotDir = process.env.ADMISSION_PROD_SIM_E2E_SCREENSHOT_DIR ||
@@ -167,29 +171,91 @@ try {
     await page.getByRole('button', { name: '开始认证' }).click();
     await page.locator('[data-admission-bind-confirmation-input]').fill(qqID);
     await page.locator('[data-admission-bind-confirmation-submit]').click();
-    await expectText(page, '选择认证方式');
+    await page.locator('[data-admission-open-student-verification]').waitFor({
+      state: 'visible',
+      timeout: timeoutMs,
+    });
+    await expectText(page, '完成账号级学生认证');
     const userID = await waitForSessionUserID(created.sessionID);
     return { linked: true, userIDPresent: userID > 0 };
   });
 
-  const userID = await waitForSessionUserID(created.sessionID);
-
-  await step('browser completes BUAA academic email OTP verification', async () => {
-    await page.getByRole('tab', { name: '老生认证' }).click();
-    await page.locator('[data-school-select]').selectOption(schoolCode);
-    await page.locator('[data-academic-student-id-input]').fill(studentID);
-    await page.locator('[data-academic-student-name-input]').fill(studentName);
-    await page.locator('[data-school-email-otp-request]').click();
-    await expectText(page, '学号和姓名已匹配，验证码已发送到学号邮箱。');
-    const emailValue = await page.locator('[data-academic-email-input]').inputValue();
-    if (emailValue !== studentEmail) {
-      throw new Error(`derived school email mismatch: ${emailValue}`);
+  const verification = await step('browser completes BUAA student email OTP verification', async () => {
+    const verificationLink = page.locator('[data-admission-open-student-verification]');
+    await verificationLink.waitFor({ state: 'visible', timeout: timeoutMs });
+    const href = await verificationLink.getAttribute('href');
+    if (!href) throw new Error('student verification link is missing href');
+    const verificationURL = new URL(href);
+    if (verificationURL.origin !== webBaseURL || verificationURL.pathname !== '/user/student-verification') {
+      throw new Error(`student verification link is not canonical: ${redactURL(href)}`);
     }
-    const otp = await readAdmissionOTP(userID, schoolID);
-    await page.locator('input[inputmode="numeric"]').fill(otp);
-    await page.getByRole('button', { name: '验证邮箱' }).click();
+    const redirect = verificationURL.searchParams.get('redirect') || '';
+    if (!redirect.startsWith(`${admissionBaseURL}/verify/`)) {
+      throw new Error(`student verification link does not preserve admission return: ${redactAdmissionURL(redirect)}`);
+    }
+
+    await verificationLink.click();
+    await waitForLocationPrefix(page, `${webBaseURL}/user/student-verification`);
+    await expectText(page, '学生认证');
+    await page.locator('[data-verification-school-option]').first().click();
+    const method = page.locator('[data-verification-method="student_email_outbound_otp"]');
+    await method.waitFor({ state: 'visible', timeout: timeoutMs });
+    await method.click();
+    await page.locator('[data-verification-student-id]').fill(studentID);
+    await page.locator('[data-verification-name]').fill(studentName);
+    await page.locator('[data-verification-consent]').check();
+
+    const otpResponsePromise = page.waitForResponse(
+      (response) => {
+        const url = new URL(response.url());
+        return url.pathname.endsWith('/email/outbound/otp') && response.request().method() === 'POST';
+      },
+      { timeout: timeoutMs },
+    );
+    await page.locator('[data-verification-submit]').click();
+    const otpResponse = await otpResponsePromise;
+    if (otpResponse.status() >= 400) {
+      throw new Error(
+        `student email OTP request returned ${otpResponse.status()}: ${await responseErrorSummary(otpResponse)}`,
+      );
+    }
+    const otpPayload = await otpResponse.json();
+    const challenge = requireData(otpPayload, 'student email OTP challenge response');
+    if (!challenge.applicationID || !challenge.maskedEmail?.includes('@buaa.edu.cn')) {
+      throw new Error('student email OTP challenge is missing application or masked email');
+    }
+    const otp = await readStudentEmailOTP(challenge.applicationID);
+    await fillOTP(page, otp);
+
+    const verifyResponsePromise = page.waitForResponse(
+      (response) => {
+        const url = new URL(response.url());
+        return url.pathname.endsWith('/email/outbound/verify') && response.request().method() === 'POST';
+      },
+      { timeout: timeoutMs },
+    );
+    await page.locator('[data-verification-submit]').click();
+    const verifyResponse = await verifyResponsePromise;
+    if (verifyResponse.status() >= 400) {
+      throw new Error(
+        `student email OTP verification returned ${verifyResponse.status()}: ${await responseErrorSummary(verifyResponse)}`,
+      );
+    }
+    const verifiedPayload = await verifyResponse.json();
+    const verifiedApplication = requireData(verifiedPayload, 'student email OTP verification response');
+    if (verifiedApplication.status !== 'approved') {
+      throw new Error(`student verification did not approve application: ${verifiedApplication.status}`);
+    }
+    await page.locator('[data-verification-complete]').waitFor({ state: 'visible', timeout: timeoutMs });
+    await page.getByRole('button', { name: '返回账号中心' }).click();
+    await waitForLocationPrefix(page, `${admissionBaseURL}/verify/`);
     await expectText(page, '认证已通过');
-    return { email: studentEmail, credentialKind: 'school_email_otp' };
+    return {
+      applicationIDPresent: true,
+      maskedEmailPresent: true,
+      credentialKind: 'student_email_outbound_otp',
+      status: verifiedApplication.status,
+    };
   });
 
   const releaseAction = await step('bot polls pending release action', async () => {
@@ -215,7 +281,10 @@ try {
       },
     });
     const state = await querySessionState(created.sessionID);
-    if (state.status !== 'verified' || !state.cancelledAtPresent) {
+    // A successful bot release is the terminal admitted state. cancelled_at
+    // closes the pending-action lifecycle so the session cannot be released
+    // again; it does not mean the admission was rejected.
+    if (state.status !== 'admitted' || !state.verifiedAtPresent || !state.cancelledAtPresent) {
       throw new Error(`session was not released: ${JSON.stringify(state)}`);
     }
     return state;
@@ -224,6 +293,7 @@ try {
   assertNoBrowserDiagnostics();
   await writeEvidence(true, {
     input: { platform: 'qq', botSelfID, guildID, channelID, qqID, schoolCode, studentID },
+    verification,
     steps,
     browserEvents,
   });
@@ -475,12 +545,27 @@ async function waitForReleaseAction(sessionID) {
   throw new Error(`release pending action was not produced for session ${sessionID}`);
 }
 
-async function readAdmissionOTP(userID, schoolIDValue) {
+async function fillOTP(targetPage, code) {
+  if (!/^[0-9]{6}$/.test(code)) throw new Error('student email OTP candidate is invalid');
+  const group = targetPage.getByRole('group', { name: /验证码/ }).first();
+  await group.waitFor({ state: 'visible', timeout: timeoutMs });
+  const inputs = group.locator('input');
+  if (await inputs.count() !== code.length) {
+    throw new Error(`student email OTP input count is unexpected: ${await inputs.count()}`);
+  }
+  for (let index = 0; index < code.length; index += 1) {
+    await inputs.nth(index).fill(code[index]);
+  }
+}
+
+async function readStudentEmailOTP(applicationID) {
   const redisContainer = process.env.REDIS_CONTAINER_NAME ||
     `${process.env.STACK_NAME || 'stuhelper-prod-parity'}-redis`;
   const redisUsername = process.env.REDIS_USERNAME || 'stuhelper_app';
   const redisPassword = process.env.REDIS_PASSWORD || '';
   if (!redisPassword) throw new Error('REDIS_PASSWORD is required to read prod-parity OTP');
+  const hmacSecret = process.env.HMAC_SECRET || '';
+  if (!hmacSecret) throw new Error('HMAC_SECRET is required to verify prod-parity OTP challenge');
 
   const args = [
     'exec',
@@ -494,17 +579,44 @@ async function readAdmissionOTP(userID, schoolIDValue) {
   if ((process.env.REDIS_TLS_ENABLED || 'true') === 'true') {
     args.push('--tls', '--cacert', '/redis-runtime/ca.crt');
   }
-  args.push('GET', `admission:email_otp:${userID}:${schoolIDValue}`);
-  const raw = run('docker', args, { secretCommand: 'docker exec redis-cli GET admission OTP' }).trim();
+  args.push('--raw', 'GET', `student-verification:email-otp:challenge:${applicationID}`);
+  const raw = run('docker', args, { secretCommand: 'docker exec redis-cli GET student verification OTP challenge' }).trim();
   if (!raw) throw new Error('admission OTP was not found in prod-parity Redis');
   const record = JSON.parse(raw);
-  if (record.email !== studentEmail) {
-    throw new Error(`OTP record email mismatch: ${record.email}`);
+  if (record.applicationId !== applicationID || typeof record.codeHash !== 'string' || !/^[0-9a-f]{64}$/i.test(record.codeHash)) {
+    throw new Error('student email OTP challenge is malformed');
   }
-  if (!/^[0-9]{6}$/.test(record.code || '')) {
-    throw new Error('OTP record code is invalid');
+  if (Object.prototype.hasOwnProperty.call(record, 'code')) {
+    throw new Error('student email OTP challenge must not contain plaintext code');
   }
-  return record.code;
+  const expectedHash = Buffer.from(record.codeHash, 'hex');
+  const domain = 'student-verification-email-otp:v1:';
+  for (let value = 0; value <= 999999; value += 1) {
+    const candidate = String(value).padStart(6, '0');
+    const candidateHash = createHmac('sha256', hmacSecret)
+      .update(`${domain}${applicationID}:${candidate}`)
+      .digest();
+    if (candidateHash.length === expectedHash.length && timingSafeEqual(candidateHash, expectedHash)) {
+      return candidate;
+    }
+  }
+  throw new Error('student email OTP challenge code could not be recovered from its hash');
+}
+
+async function responseErrorSummary(response) {
+  try {
+    const payload = await response.json();
+    const error = payload?.error;
+    if (error && typeof error === 'object') {
+      const code = typeof error.code === 'string' ? error.code : '';
+      const message = typeof error.message === 'string' ? error.message : '';
+      return [code, message].filter(Boolean).join(': ') || 'error response';
+    }
+  } catch {
+    // Keep failure diagnostics bounded and avoid copying arbitrary HTML into
+    // the evidence bundle.
+  }
+  return 'error response';
 }
 
 async function querySessionState(sessionID) {

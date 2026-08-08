@@ -109,9 +109,6 @@ function createAdmissionRuntimeFixture(): AdmissionRuntimePageData {
         repeatWindowSize: 3,
         antiRecallNotify: false,
       },
-      freshmanForward: {
-        enabled: false,
-      },
       reminderDelivery: {
         groupEnabled: true,
         directEnabled: false,

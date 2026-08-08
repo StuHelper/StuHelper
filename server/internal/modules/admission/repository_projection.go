@@ -117,15 +117,25 @@ func latestCredentialForUserQuery(
 	schoolClause := ""
 	args := []any{userID, now}
 	if schoolID > 0 {
-		schoolClause = " AND school_id = $3"
+		schoolClause = " AND credential.school_id = $3"
 		args = append(args, schoolID)
 	}
 	return `
 		SELECT user_id, school_id, kind, subject_hash, subject_display,
 		       source_application_id, expires_at, verified_at
-		FROM user_verification_credentials
-		WHERE user_id = $1 AND revoked_at IS NULL
-		  AND (expires_at IS NULL OR expires_at > $2)
+		FROM user_verification_credentials AS credential
+		WHERE user_id = $1
+		  AND credential.status = 'active'
+		  AND credential.activated_at IS NOT NULL
+		  AND credential.revoked_at IS NULL
+		  AND (credential.expires_at IS NULL OR credential.expires_at > $2)
+		  AND NOT EXISTS (
+		      SELECT 1
+		      FROM student_subject_conflicts AS conflict
+		      WHERE conflict.school_id = credential.school_id
+		        AND conflict.claimant_user_id = credential.user_id
+		        AND conflict.status IN ('open', 'under_review')
+		  )
 		  ` + schoolClause + `
 		ORDER BY verified_at DESC
 		LIMIT 1

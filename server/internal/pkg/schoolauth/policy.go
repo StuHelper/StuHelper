@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"regexp"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 )
@@ -15,6 +16,10 @@ const (
 )
 
 var studentIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,49}$`)
+
+var mainlandDocumentChecksumWeights = [...]int{7, 9, 10, 5, 8, 4, 2, 1, 6, 3, 7, 9, 10, 5, 8, 4, 2}
+
+const mainlandDocumentChecksumChars = "10X98765432"
 
 type AdmissionSettings struct {
 	EmailDomains        []string
@@ -131,6 +136,39 @@ func IsValidAcademicName(value string) bool {
 	return !strings.ContainsFunc(normalized, func(r rune) bool {
 		return unicode.IsControl(r) || unicode.In(r, unicode.Cf, unicode.Co, unicode.Cs)
 	})
+}
+
+// NormalizeMainlandDocumentNumber returns the canonical upper-case mainland
+// resident identity-card number only when its shape, birth date and checksum
+// are all valid. Keeping this in the shared school policy package prevents the
+// campus snapshot adapter and the online verification path from drifting.
+func NormalizeMainlandDocumentNumber(value string) (string, bool) {
+	normalized := strings.ToUpper(strings.TrimSpace(value))
+	if len(normalized) != 18 || normalized[0] == '0' {
+		return "", false
+	}
+	for index := 0; index < 17; index++ {
+		if normalized[index] < '0' || normalized[index] > '9' {
+			return "", false
+		}
+	}
+	last := normalized[17]
+	if (last < '0' || last > '9') && last != 'X' {
+		return "", false
+	}
+	birthDate := normalized[6:14]
+	parsed, err := time.Parse("20060102", birthDate)
+	if err != nil || parsed.Format("20060102") != birthDate {
+		return "", false
+	}
+	checksum := 0
+	for index, weight := range mainlandDocumentChecksumWeights {
+		checksum += int(normalized[index]-'0') * weight
+	}
+	if mainlandDocumentChecksumChars[checksum%11] != last {
+		return "", false
+	}
+	return normalized, true
 }
 
 func DeriveStudentEmail(studentID string, domain string) string {

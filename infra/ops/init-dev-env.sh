@@ -322,6 +322,9 @@ fi
 ensure_dev_default "STACK_NAME" "${STACK_NAME:-}" "stuhelper-dev" "stuhelper-prod" "stuhelper-prod-parity"
 ensure_dev_default "COMPOSE_PROJECT_NAME" "${COMPOSE_PROJECT_NAME:-}" "stuhelper-dev" "stuhelper-prod" "stuhelper-prod-parity"
 ensure_dev_default "APP_ENV" "${APP_ENV:-}" "development" "production" "prod-parity"
+ensure_dev_default "APP_RUNTIME_MODE" "${APP_RUNTIME_MODE:-}" "app" "campus-connector-bootstrap"
+ensure_value "CAMPUS_CONNECTOR_GATEWAY_PUBLIC_PORT" "${CAMPUS_CONNECTOR_GATEWAY_PUBLIC_PORT:-}" "9444"
+ensure_value "CAMPUS_CONNECTOR_ALLOWED_SOURCE_CIDRS" "${CAMPUS_CONNECTOR_ALLOWED_SOURCE_CIDRS:-}" ""
 ensure_dev_default "API_IP_RATE_LIMIT" "${API_IP_RATE_LIMIT:-}" "5000" "100"
 ensure_dev_default "API_GLOBAL_RATE_LIMIT" "${API_GLOBAL_RATE_LIMIT:-}" "50000" "10000"
 ensure_dev_default "REVIEW_RATE_POST_LIMIT" "${REVIEW_RATE_POST_LIMIT:-}" "500" "5"
@@ -381,6 +384,7 @@ replace_legacy_env_value "TOKEN_COOKIE_SECURE" "${TOKEN_COOKIE_SECURE:-}" "false
 replace_legacy_env_value "TOKEN_COOKIE_DOMAIN" "${TOKEN_COOKIE_DOMAIN:-}" "" ".stuhelper.com" "localhost" "127.0.0.1"
 replace_legacy_env_value "ALLOW_LOCAL_ALERT_SINK" "${ALLOW_LOCAL_ALERT_SINK:-}" "false" "true"
 replace_legacy_env_value "ALERTMANAGER_WEBHOOK_URL" "${ALERTMANAGER_WEBHOOK_URL:-}" "" "http://alert-webhook-sink:8080/alerts"
+ensure_dev_default "ALERTMANAGER_CONFIG_GID" "${ALERTMANAGER_CONFIG_GID:-}" "$(id -g)" "65534"
 load_env
 
 ensure_value "FRONTEND_METRICS_ALLOWED_ORIGINS" "${FRONTEND_METRICS_ALLOWED_ORIGINS:-}" ""
@@ -456,6 +460,7 @@ ensure_dev_default "WEB_PUBLIC_URL" "${WEB_PUBLIC_URL:-}" "http://localhost:3000
 ensure_dev_default "ADMIN_PUBLIC_URL" "${ADMIN_PUBLIC_URL:-}" "http://localhost:3001" "http://127.0.0.1:28001/admin/" "http://stuhelper.com/admin/" "https://stuhelper.com/admin/"
 ensure_dev_default "STUHELPER_PLATFORM_BASE_URL" "${STUHELPER_PLATFORM_BASE_URL:-}" "http://localhost:8080" "http://127.0.0.1:28080" "http://stuhelper.com" "https://stuhelper.com"
 ensure_dev_default "ADMISSION_PUBLIC_BASE_URL" "${ADMISSION_PUBLIC_BASE_URL:-}" "http://join.localhost:3000" "http://localhost:3000" "http://127.0.0.1:28000" "http://join.stuhelper.com" "https://join.stuhelper.com"
+ensure_dev_default "STUDENT_VERIFICATION_PUBLIC_BASE_URL" "${STUDENT_VERIFICATION_PUBLIC_BASE_URL:-}" "http://localhost:3000" "http://127.0.0.1:3000" "https://stuhelper.com"
 ensure_dev_default "WEB_VITE_API_URL" "${WEB_VITE_API_URL:-}" "/api" ""
 ensure_dev_default "WEB_VITE_SSO_URL" "${WEB_VITE_SSO_URL:-}" "http://localhost:8085" "http://host.docker.internal:8085" "http://sso.stuhelper.com" "https://sso.stuhelper.com" "http://127.0.0.1:28085"
 ensure_dev_default "WEB_VITE_WEB_URL" "${WEB_VITE_WEB_URL:-}" "http://localhost:3000" "http://stuhelper.com" "https://stuhelper.com" "http://127.0.0.1:28000"

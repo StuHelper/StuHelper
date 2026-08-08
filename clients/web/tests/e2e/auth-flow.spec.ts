@@ -1,4 +1,10 @@
-import { test, expect, mockNotificationStream, type Page } from "./fixtures";
+import {
+    test,
+    expect,
+    mockCurrentAccountProjections,
+    mockNotificationStream,
+    type Page,
+} from "./fixtures";
 
 // ---- Auth mock helpers (inlined to avoid dual @playwright/test resolution) ----
 
@@ -62,47 +68,12 @@ async function mockAuthenticated(
             body: JSON.stringify({ success: true, data: { expiresIn: 3600 } }),
         }),
     );
-    await page.route("**/api/v1/user/identity", (route) =>
-        route.fulfill({
-            contentType: "application/json",
-            body: JSON.stringify({
-                success: true,
-                data: {
-                    verified: user.roles.includes("verified_student"),
-                    status: "verified",
-                },
-            }),
-        }),
-    );
-    await page.route("**/api/v1/user/profile", (route) =>
-        route.fulfill({
-            contentType: "application/json",
-            body: JSON.stringify({
-                success: true,
-                data: {
-                    verificationStatus: user.roles.includes("verified_student")
-                        ? "verified"
-                        : "unverified",
-                    schoolName: user.roles.includes("verified_student")
-                        ? "测试大学"
-                        : null,
-                    schoolID: user.roles.includes("verified_student")
-                        ? 1
-                        : null,
-                },
-            }),
-        }),
-    );
-    await page.route("**/api/v1/user/qq-binding", (route) =>
-        route.fulfill({
-            status: 404,
-            contentType: "application/json",
-            body: JSON.stringify({
-                success: false,
-                error: { code: "A0040404", message: "not bound" },
-            }),
-        }),
-    );
+    await mockCurrentAccountProjections(page, {
+        displayName: user.displayName,
+        studentVerified: user.roles.includes("verified_student"),
+        phoneBound: true,
+        capabilities: user.capabilities,
+    });
     await page.route(
         "**/api/v1/course/review/user/notifications/unread-count*",
         (route) =>

@@ -54,7 +54,12 @@ receivers:
   - name: webhook
     webhook_configs:
       - url: "https://alerts.example.com/hook"
+        http_config:
+          authorization:
+            type: Bearer
+            credentials_file: /etc/alertmanager/secrets/webhook-token
 YAML
+printf '%s' 'contract-alertmanager-token-0123456789abcdef' >"${generated_obs_dir}/alertmanager/webhook-token"
 
 cat >"${tmpdir}/fake-observability-server.py" <<'PY'
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -131,6 +136,7 @@ output="$(
   ALERTMANAGER_URL="${base_url}/alertmanager/-/ready" \
   ALLOY_URL="${base_url}/alloy/-/ready" \
   ALERTMANAGER_WEBHOOK_URL="https://alerts.example.com/hook" \
+  ALERTMANAGER_WEBHOOK_TOKEN="contract-alertmanager-token-0123456789abcdef" \
   GENERATED_OBS_DIR="${generated_obs_dir}" \
   OBS_SMOKE_STRICT=true \
   OBS_SMOKE_RETRIES=1 \
@@ -146,6 +152,7 @@ jq -e '
   and .summary.failed == 0
   and ([.checks[] | select(.kind == "prometheus_query")] | length >= 15)
   and ([.checks[] | select(.name == "Alertmanager webhook configured" and .passed == true)] | length == 1)
+  and ([.checks[] | select(.name == "Alertmanager webhook token" and .passed == true)] | length == 1)
 ' "${evidence_file}" >/dev/null
 
 echo "[observability-smoke-contract] all assertions passed"

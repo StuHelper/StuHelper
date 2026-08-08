@@ -43,16 +43,6 @@ type botAdmissionEventHTTPRequest struct {
 	Error           string    `json:"error"`
 }
 
-type botFreshmanReviewHTTPRequest struct {
-	Action        FreshmanReviewAction `json:"action" binding:"required"`
-	Reason        *string              `json:"reason"`
-	ExpiresInDays *int                 `json:"expiresInDays"`
-	OperatorQQID  string               `json:"operatorQQID" binding:"required"`
-	GuildID       string               `json:"guildID" binding:"required"`
-	ChannelID     *string              `json:"channelID"`
-	RawCommand    string               `json:"rawCommand" binding:"required"`
-}
-
 func (h *Handler) handleCreateBotSession(c *gin.Context) {
 	var req botSessionCreateHTTPRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -166,23 +156,6 @@ func (h *Handler) handleRecordBotActionEvent(c *gin.Context) {
 	response.Success(c, gin.H{"message": "admission action event recorded"})
 }
 
-func (h *Handler) handleBotReviewFreshmanApplication(c *gin.Context) {
-	var req botFreshmanReviewHTTPRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "invalid request parameters")
-		return
-	}
-	app, err := h.service.ReviewFreshmanApplicationFromBot(
-		c.Request.Context(),
-		botFreshmanReviewInput(c.Param("id"), req),
-	)
-	if err != nil {
-		respondAdmissionError(c, err)
-		return
-	}
-	response.Success(c, app)
-}
-
 func (h *Handler) requireBotCredential(scope string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if h.botCredentialVerifier == nil {
@@ -223,19 +196,6 @@ func botSessionOperatorInput(req botSessionOperatorHTTPRequest) BotSessionOperat
 
 func botEventInput(req botAdmissionEventHTTPRequest) BotEventInput {
 	return BotEventInput(req)
-}
-
-func botFreshmanReviewInput(applicationID string, req botFreshmanReviewHTTPRequest) BotFreshmanReviewInput {
-	return BotFreshmanReviewInput{
-		ApplicationID: applicationID,
-		Action:        req.Action,
-		Reason:        req.Reason,
-		ExpiresInDays: req.ExpiresInDays,
-		OperatorQQID:  req.OperatorQQID,
-		GuildID:       req.GuildID,
-		ChannelID:     req.ChannelID,
-		RawCommand:    req.RawCommand,
-	}
 }
 
 func parseAdmissionBearerToken(authHeader string) (string, bool) {

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -1116,31 +1117,67 @@ func createLinkableSessionForQQ(t *testing.T, svc *Service, qqID string, token s
 	return created
 }
 
-func linkAdmissionSessionForQQ(
-	t *testing.T,
-	svc *Service,
-	userID int64,
-	qqID string,
-	token string,
-) *AdmissionSession {
-	t.Helper()
-	created := createLinkableSessionForQQ(t, svc, qqID, token)
-	linked, err := svc.LinkTokenToUser(context.Background(), AdmissionTokenLinkInput{
-		Token:  created.Token,
-		UserID: userID,
-	})
-	require.NoError(t, err)
-	return linked
-}
-
 func newSessionTestService(t *testing.T, fixture *postgresfixture.Fixture) *Service {
 	t.Helper()
-	svc, err := NewService(NewRepository(fixture.DB), &testQQBindingGateway{}, []byte("test-admission-hmac-key-32-bytes!"))
+	svc, err := NewService(
+		NewRepository(fixture.DB),
+		&testQQBindingGateway{},
+		[]byte("test-admission-hmac-key-32-bytes!"),
+		WithStudentEligibilityGateway(testStudentEligibilityGateway{pool: fixture.Pool}),
+	)
 	require.NoError(t, err)
 	svc.now = fixedAdmissionNow
 	svc.generateToken = func() (string, error) { return "test-admission-token", nil }
 	svc.generateJoinToken = func() (string, error) { return svc.generateToken() }
 	return svc
+}
+
+// testStudentEligibilityGateway mirrors the target read boundary without
+// reviving the retired admission-owned verification implementation. Tests can
+// seed target credentials and observe the same derived eligibility contract as
+// production admission.
+type testStudentEligibilityGateway struct {
+	pool *pgxpool.Pool
+}
+
+func (g testStudentEligibilityGateway) EvaluateStudentEligibility(
+	ctx context.Context,
+	userID int64,
+	schoolID int64,
+) (StudentEligibilityDecision, error) {
+	var decision StudentEligibilityDecision
+	err := g.pool.QueryRow(ctx, `
+			SELECT EXISTS (
+		           SELECT 1
+		           FROM current_student_qualifying_credentials credential
+			           WHERE credential.user_id = $1
+			             AND credential.school_id = $2
+			       ),
+			       COALESCE((
+			           SELECT credential_class
+			           FROM current_student_qualifying_credentials
+			           WHERE user_id = $1
+			             AND school_id = $2
+			           ORDER BY
+			               CASE credential_class WHEN 'formal_student' THEN 0 ELSE 1 END,
+			               verified_at DESC,
+			               id DESC
+			           LIMIT 1
+			       ), ''),
+			       GREATEST(
+		           COALESCE((
+		               SELECT revision
+		               FROM student_eligibility_revisions
+		               WHERE user_id = $1 AND school_id = $2
+		           ), 1),
+		           COALESCE((
+		               SELECT MAX(revision)
+		               FROM user_verification_credentials
+		               WHERE user_id = $1 AND school_id = $2
+		           ), 1)
+		       )
+		`, userID, schoolID).Scan(&decision.Eligible, &decision.CredentialClass, &decision.Revision)
+	return decision, err
 }
 
 func fixedAdmissionNow() time.Time {
@@ -1227,12 +1264,17 @@ func bindVerifiedAdmissionQQ(t *testing.T, fixture *postgresfixture.Fixture, use
 		VALUES ($1, $2, $3)
 	`, userID, qqID, fixedAdmissionNow())
 	require.NoError(t, err)
+	applicationID := insertTargetVerificationApplication(t, fixture, userID, 4111010006)
 	_, err = fixture.Pool.Exec(context.Background(), `
 		INSERT INTO user_verification_credentials (
-			id, user_id, school_id, kind, subject_hash, subject_display, verified_at
+			id, user_id, school_id, kind, subject_hash, subject_display,
+			verification_application_id, status, credential_class,
+			roster_dependency, assurance, verified_at, activated_at
 		)
-		VALUES ($1, $2, 4111010006, $3, $4, $5, $6)
-	`, "credential-"+qqID, userID, CredentialSchoolEmailOTP, "credential-hash-"+qqID, "student "+qqID, fixedAdmissionNow())
+		VALUES ($1, $2, 4111010006, $3, $4, $5, $6,
+			'active', 'formal_student', 'independent', 'standard', $7, $7)
+	`, "credential-"+qqID, userID, CredentialSchoolEmailOTP, "credential-hash-"+qqID,
+		"student "+qqID, applicationID, fixedAdmissionNow())
 	require.NoError(t, err)
 }
 
@@ -1244,14 +1286,50 @@ func insertAdmissionVerificationCredential(
 	suffix string,
 ) {
 	t.Helper()
+	applicationID := insertTargetVerificationApplication(t, fixture, userID, schoolID)
 	_, err := fixture.Pool.Exec(context.Background(), `
 		INSERT INTO user_verification_credentials (
-			id, user_id, school_id, kind, subject_hash, subject_display, verified_at
+			id, user_id, school_id, kind, subject_hash, subject_display,
+			verification_application_id, status, credential_class,
+			roster_dependency, assurance, verified_at, activated_at
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		VALUES ($1, $2, $3, $4, $5, $6, $7,
+			'active', 'formal_student', 'independent', 'standard', $8, $8)
 	`, fmt.Sprintf("credential-%d", userID), userID, schoolID, CredentialSchoolEmailOTP,
-		"credential-hash-"+suffix, "student "+suffix, fixedAdmissionNow())
+		"credential-hash-"+suffix, "student "+suffix, applicationID, fixedAdmissionNow())
 	require.NoError(t, err)
+}
+
+func insertTargetVerificationApplication(
+	t *testing.T,
+	fixture *postgresfixture.Fixture,
+	userID int64,
+	schoolID int64,
+) string {
+	t.Helper()
+	applicationID := fmt.Sprintf("00000000-0000-4000-8000-%012d", userID)
+	_, err := fixture.Pool.Exec(context.Background(), `
+		INSERT INTO student_verification_applications (
+			id, user_id, school_id, status, current_method,
+			privacy_notice_version, consented_at, expires_at, completed_at
+		)
+		VALUES ($1, $2, $3, 'approved', 'student_email_outbound_otp',
+			'privacy-v1', NOW(), NOW() + INTERVAL '1 hour', NOW())
+	`, applicationID, userID, schoolID)
+	require.NoError(t, err)
+	return applicationID
+}
+
+func assertAdmissionSessionCancelled(t *testing.T, fixture *postgresfixture.Fixture, sessionID string) {
+	t.Helper()
+	var cancelled bool
+	err := fixture.Pool.QueryRow(context.Background(), `
+		SELECT cancelled_at IS NOT NULL
+		FROM group_admission_sessions
+		WHERE id = $1
+	`, sessionID).Scan(&cancelled)
+	require.NoError(t, err)
+	assert.True(t, cancelled)
 }
 
 func admissionSessionUserID(t *testing.T, session *AdmissionSession) string {
@@ -1323,21 +1401,6 @@ func assertAdmissionSessionStatus(
 	`, sessionID).Scan(&status)
 	require.NoError(t, err)
 	assert.Equal(t, expected, status)
-}
-
-func setAdmissionSessionUpdatedAt(
-	t *testing.T,
-	fixture *postgresfixture.Fixture,
-	sessionID string,
-	updatedAt time.Time,
-) {
-	t.Helper()
-	_, err := fixture.Pool.Exec(context.Background(), `
-		UPDATE group_admission_sessions
-		SET updated_at = $2
-		WHERE id = $1
-	`, sessionID, updatedAt)
-	require.NoError(t, err)
 }
 
 func admissionSessionLastBotError(

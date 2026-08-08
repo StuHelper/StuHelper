@@ -39,7 +39,7 @@ func TestAdmissionAuthorizationGatewayUsesRevalidatedAccessSnapshot(t *testing.T
 	allowed, err := gateway.UserHasCapabilityInSchool(
 		context.Background(),
 		42,
-		capability.AdmissionFreshmanReview,
+		capability.StudentManualReviewDecide,
 		schoolID,
 	)
 
@@ -57,7 +57,7 @@ func TestAdmissionAuthorizationGatewayFailsClosedOnRevalidationError(t *testing.
 	allowed, err := gateway.UserHasCapabilityInSchool(
 		context.Background(),
 		42,
-		capability.AdmissionFreshmanReview,
+		capability.StudentManualReviewDecide,
 		4111010006,
 	)
 

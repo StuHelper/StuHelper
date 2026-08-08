@@ -2,18 +2,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   api: {
-    getFreshmanVerification: vi.fn(),
     cancelAdminAdmissionSession: vi.fn(),
+    createAdmissionPolicy: vi.fn(),
     createMemberBlacklist: vi.fn(),
     listAdmissionPolicies: vi.fn(),
     listAdmissionSessions: vi.fn(),
-    listFreshmanVerifications: vi.fn(),
     listMemberBlacklist: vi.fn(),
     regenerateAdminAdmissionSession: vi.fn(),
     releaseMemberBlacklist: vi.fn(),
     releaseMemberBlacklistBySubject: vi.fn(),
     resendAdminAdmissionSession: vi.fn(),
-    reviewFreshmanVerification: vi.fn(),
     updateAdmissionPolicy: vi.fn(),
   },
 }));
@@ -39,19 +37,12 @@ describe('admin admission API wrapper', () => {
     }
   });
 
-  it('delegates freshman review and policy calls to the shared OpenAPI client', async () => {
+  it('delegates target admission and blacklist calls to the shared OpenAPI client', async () => {
     const api = await import('./admission');
 
-    await api.listFreshmanVerifications({
-      page: 1,
-      pageSize: 20,
-      status: 'pending',
-    });
-    await api.getFreshmanVerification('app-1');
-    await api.reviewFreshmanVerification('app-1', { action: 'approve' });
     await api.listAdmissionPolicies();
     await api.updateAdmissionPolicy({ id: 'policy-1' } as never);
-    await api.listAdmissionSessions({ status: 'linked' });
+    await api.listAdmissionSessions({ status: 'awaiting_requirements' });
     await api.resendAdminAdmissionSession('session-1');
     await api.regenerateAdminAdmissionSession('session-1');
     await api.cancelAdminAdmissionSession('session-1');
@@ -69,21 +60,12 @@ describe('admin admission API wrapper', () => {
       releaseReasonCode: 'manual_pardon',
     });
 
-    expect(mocks.api.listFreshmanVerifications).toHaveBeenCalledWith({
-      page: 1,
-      pageSize: 20,
-      status: 'pending',
-    });
-    expect(mocks.api.getFreshmanVerification).toHaveBeenCalledWith('app-1');
-    expect(mocks.api.reviewFreshmanVerification).toHaveBeenCalledWith('app-1', {
-      action: 'approve',
-    });
     expect(mocks.api.listAdmissionPolicies).toHaveBeenCalledTimes(1);
     expect(mocks.api.updateAdmissionPolicy).toHaveBeenCalledWith('policy-1', {
       id: 'policy-1',
     });
     expect(mocks.api.listAdmissionSessions).toHaveBeenCalledWith({
-      status: 'linked',
+      status: 'awaiting_requirements',
     });
     expect(mocks.api.resendAdminAdmissionSession).toHaveBeenCalledWith(
       'session-1',

@@ -3,7 +3,8 @@
 #
 # By default this audits the StuHelper app host (`stuhelper.com`, `www`,
 # `join`, and the disabled legacy `id` host). Run with NGINX_PUBLIC_INGRESS_PROFILE=sso on the external Casdoor host,
-# or NGINX_PUBLIC_INGRESS_PROFILE=all against a combined nginx -T dump.
+# connector for only the raw TCP ingress, app-all for the main HTTP plus Connector host, or all for the historical
+# combined StuHelper+SSO HTTP contract.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -18,6 +19,7 @@ fi
 require_cmd python3
 
 config_file="${NGINX_PUBLIC_INGRESS_CONFIG_FILE:-}"
+connector_config_file="${NGINX_PUBLIC_INGRESS_CONNECTOR_CONFIG_FILE:-/www/server/panel/vhost/nginx/tcp/connector.stuhelper.com.conf}"
 tmp_config_file=""
 tmp_error_file=""
 source_label=""
@@ -47,10 +49,11 @@ else
   source_label="$("${nginx_bin}" -v 2>&1 | sed 's/^nginx version: //')"
 fi
 
-python3 - "${config_file}" <<'PY'
+python3 - "${config_file}" "${connector_config_file}" <<'PY'
 from __future__ import annotations
 
 from dataclasses import dataclass
+import ipaddress
 import os
 import re
 import sys
@@ -389,8 +392,11 @@ def validate_main(block: Node, upstreams: dict[str, str]) -> None:
     require_location_return_code(block, label, "^~", "/verify/", "404")
     require_location_return_code(block, label, "=", "/start", "404")
     require_location_return_code(block, label, "^~", "/start/", "404")
+    require_location_return_code(block, label, "^~", "/api/v1/admission/freshman/camera-handoffs/", "404")
     require_location_proxy(block, label, "^~", "/api/", upstreams["backend"])
     require_location_proxy(block, label, "^~", "/health/", upstreams["backend"])
+    require_location_return(block, label, "=", "/admin/observability", "301", "/admin/observability/")
+    require_location_proxy(block, label, "^~", "/admin/observability/", upstreams["grafana"])
     require_location_proxy(block, label, "^~", "/admin/", upstreams["admin"])
     require_location_proxy(block, label, None, "/", upstreams["web"])
 
@@ -418,7 +424,9 @@ def validate_join(block: Node, upstreams: dict[str, str]) -> None:
     require_location_proxy(block, label, "=", "/start", upstreams["web"])
     require_location_proxy(block, label, "^~", "/start/", upstreams["web"])
     require_location_proxy(block, label, "^~", "/verify/", upstreams["web"])
-    require_location_proxy(block, label, "^~", "/admission/freshman/camera/", upstreams["web"])
+    require_location_proxy(block, label, "^~", "/student-verification/manual-camera/", upstreams["web"])
+    require_location_return_code(block, label, "^~", "/admission/freshman/camera/", "404")
+    require_location_return_code(block, label, "^~", "/api/v1/admission/freshman/camera-handoffs/", "404")
     require_location_proxy(block, label, "^~", "/api/", upstreams["backend"])
     require_location_proxy(block, label, "^~", "/health/", upstreams["backend"])
     require_location_proxy(block, label, "^~", "/assets/", upstreams["web"])
@@ -472,6 +480,134 @@ def validate_sso(block: Node, upstreams: dict[str, str]) -> None:
         )
 
 
+def exact_directive_args(block: Node, name: str) -> list[list[str]]:
+    return [directive.args for directive in direct(block, name)]
+
+
+def connector_port(name: str, default: str) -> int:
+    raw = os.environ.get(name, default).strip()
+    if not re.fullmatch(r"[1-9][0-9]{0,4}", raw):
+        raise CheckError(f"{name} must be a decimal port between 1 and 65535")
+    value = int(raw)
+    if value > 65535:
+        raise CheckError(f"{name} must be a decimal port between 1 and 65535")
+    return value
+
+
+def connector_allowed_cidrs() -> list[str]:
+    raw = os.environ.get("CAMPUS_CONNECTOR_ALLOWED_SOURCE_CIDRS", "").strip()
+    values = [part.strip() for part in raw.split(",")]
+    if not values or any(not value for value in values):
+        raise CheckError(
+            "CAMPUS_CONNECTOR_ALLOWED_SOURCE_CIDRS must contain one or more explicit IPv4 CIDRs"
+        )
+    if len(values) > 64:
+        raise CheckError("CAMPUS_CONNECTOR_ALLOWED_SOURCE_CIDRS must contain at most 64 CIDRs")
+
+    result: list[str] = []
+    seen: set[str] = set()
+    for raw_network in values:
+        try:
+            network = ipaddress.ip_network(raw_network, strict=True)
+        except ValueError as exc:
+            raise CheckError(f"invalid campus connector source CIDR {raw_network!r}: {exc}") from exc
+        if network.version != 4:
+            raise CheckError(
+                f"campus connector source CIDR {raw_network!r} must be IPv4 for the current IPv4 stream listener"
+            )
+        if network.prefixlen == 0:
+            raise CheckError("CAMPUS_CONNECTOR_ALLOWED_SOURCE_CIDRS must not contain 0.0.0.0/0")
+        if network.is_multicast or network.is_unspecified:
+            raise CheckError(f"campus connector source CIDR {raw_network!r} is not admissible")
+        canonical = str(network)
+        if canonical in seen:
+            raise CheckError(f"duplicate campus connector source CIDR: {canonical}")
+        seen.add(canonical)
+        result.append(canonical)
+    return result
+
+
+def validate_connector_server(block: Node, public_port: int, upstream_port: int, allowed_cidrs: list[str]) -> None:
+    label = "connector.stuhelper.com stream"
+    listen_values = exact_directive_args(block, "listen")
+    if listen_values != [[str(public_port)]]:
+        raise CheckError(
+            f"{label}: listen must be exactly {public_port} without ssl/proxy_protocol; found {listen_values or '<none>'}"
+        )
+
+    expected_upstream = f"127.0.0.1:{upstream_port}"
+    proxy_values = exact_directive_args(block, "proxy_pass")
+    if proxy_values != [[expected_upstream]]:
+        raise CheckError(
+            f"{label}: proxy_pass must be exactly {expected_upstream}; found {proxy_values or '<none>'}"
+        )
+    if exact_directive_args(block, "proxy_connect_timeout") != [["5s"]]:
+        raise CheckError(f"{label}: proxy_connect_timeout must be exactly 5s")
+    if exact_directive_args(block, "proxy_timeout") != [["15m"]]:
+        raise CheckError(f"{label}: proxy_timeout must be exactly 15m")
+
+    allow_values = exact_directive_args(block, "allow")
+    expected_allows = [[network] for network in allowed_cidrs]
+    if allow_values != expected_allows:
+        raise CheckError(
+            f"{label}: allow directives must exactly match CAMPUS_CONNECTOR_ALLOWED_SOURCE_CIDRS; "
+            f"found {allow_values or '<none>'}"
+        )
+    deny_values = exact_directive_args(block, "deny")
+    if deny_values != [["all"]]:
+        raise CheckError(f"{label}: deny all must appear exactly once; found {deny_values or '<none>'}")
+
+    allow_indexes = [index for index, child in enumerate(block.children) if child.name == "allow"]
+    deny_indexes = [index for index, child in enumerate(block.children) if child.name == "deny"]
+    if not allow_indexes or not deny_indexes or max(allow_indexes) >= min(deny_indexes):
+        raise CheckError(f"{label}: every allow directive must precede deny all")
+
+    forbidden = [
+        node.name
+        for node in walk(block.children)
+        if node.name.startswith("ssl_") or node.name.startswith("proxy_ssl")
+    ]
+    if forbidden:
+        raise CheckError(
+            f"{label}: TLS must terminate in StuHelper Gateway; forbidden Nginx TLS directives: {forbidden}"
+        )
+
+
+def validate_connector_ingress(effective_text: str, effective_path: Path) -> None:
+    public_port = connector_port("CAMPUS_CONNECTOR_GATEWAY_PUBLIC_PORT", "9444")
+    upstream_port = connector_port("CAMPUS_CONNECTOR_GATEWAY_EXTERNAL_PORT", "19444")
+    if public_port == upstream_port:
+        raise CheckError("campus connector public and loopback upstream ports must differ")
+    allowed_cidrs = connector_allowed_cidrs()
+
+    connector_path = Path(sys.argv[2])
+    if not connector_path.is_file():
+        raise CheckError(f"campus connector stream config file is missing: {connector_path}")
+    connector_text = connector_path.read_text(encoding="utf-8", errors="replace")
+    same_file = False
+    try:
+        same_file = connector_path.resolve() == effective_path.resolve()
+    except OSError:
+        pass
+    if not same_file:
+        marker_candidates = {
+            f"# configuration file {connector_path}:",
+            f"# configuration file {connector_path.resolve()}:",
+        }
+        if not any(marker in effective_text for marker in marker_candidates):
+            raise CheckError(
+                f"campus connector stream config is not present in the effective nginx -T dump: {connector_path}"
+            )
+
+    connector_nodes, _ = parse_nodes(tokenize(connector_text))
+    connector_servers = [node for node in connector_nodes if node.name == "server"]
+    if len(connector_servers) != 1:
+        raise CheckError(
+            "campus connector stream config must contain exactly one top-level server block"
+        )
+    validate_connector_server(connector_servers[0], public_port, upstream_port, allowed_cidrs)
+
+
 def matching_https_servers(servers: list[Node], domain: str) -> list[Node]:
     return [server for server in servers if domain in server_names(server) and has_https_listen(server)]
 
@@ -505,28 +641,33 @@ def upstream(direct_env: str, port_env: str | None, default_port: str) -> str:
 def selected_profiles() -> set[str]:
     raw = os.environ.get("NGINX_PUBLIC_INGRESS_PROFILE", "stuhelper").strip().lower()
     parts = {part for part in re.split(r"[\s,]+", raw) if part}
-    aliases = {
-        "all": "all",
-        "app": "stuhelper",
-        "main": "stuhelper",
-        "stuhelper": "stuhelper",
-        "casdoor": "sso",
-        "sso": "sso",
-    }
     if not parts:
         parts = {"stuhelper"}
-    profiles = {aliases.get(part, part) for part in parts}
-    if "all" in profiles:
-        profiles = {"stuhelper", "sso"}
-    unknown = profiles - {"stuhelper", "sso"}
+    aliases = {
+        "app": {"stuhelper"},
+        "main": {"stuhelper"},
+        "stuhelper": {"stuhelper"},
+        "casdoor": {"sso"},
+        "sso": {"sso"},
+        "connector": {"connector"},
+        "app-all": {"stuhelper", "connector"},
+        # Compatibility: existing `all` means the two HTTP vhost sets. The
+        # connector remains an explicit opt-in because SSO may live elsewhere.
+        "all": {"stuhelper", "sso"},
+    }
+    unknown = parts - aliases.keys()
     if unknown:
         raise CheckError(f"unknown NGINX_PUBLIC_INGRESS_PROFILE value: {', '.join(sorted(unknown))}")
+    profiles: set[str] = set()
+    for part in parts:
+        profiles.update(aliases[part])
     return profiles
 
 
 try:
     config_path = Path(sys.argv[1])
-    root_nodes, _ = parse_nodes(tokenize(config_path.read_text(encoding="utf-8", errors="replace")))
+    effective_text = config_path.read_text(encoding="utf-8", errors="replace")
+    root_nodes, _ = parse_nodes(tokenize(effective_text))
     servers = [node for node in walk(root_nodes) if node.name == "server"]
     if not servers:
         raise CheckError("no server blocks found in Nginx config")
@@ -535,6 +676,7 @@ try:
         "backend": upstream("NGINX_PUBLIC_INGRESS_BACKEND_UPSTREAM", "BACKEND_EXTERNAL_PORT", "18080"),
         "web": upstream("NGINX_PUBLIC_INGRESS_WEB_UPSTREAM", "WEB_EXTERNAL_PORT", "18000"),
         "admin": upstream("NGINX_PUBLIC_INGRESS_ADMIN_UPSTREAM", "ADMIN_EXTERNAL_PORT", "18001"),
+        "grafana": upstream("NGINX_PUBLIC_INGRESS_GRAFANA_UPSTREAM", "GRAFANA_PORT", "3003"),
         "casdoor": upstream("NGINX_PUBLIC_INGRESS_CASDOOR_UPSTREAM", None, "8087"),
     }
 
@@ -545,6 +687,8 @@ try:
         require_valid_server(servers, "join.stuhelper.com", lambda block: validate_join(block, upstreams))
     if "sso" in profiles:
         require_valid_server(servers, "sso.stuhelper.com", lambda block: validate_sso(block, upstreams))
+    if "connector" in profiles:
+        validate_connector_ingress(effective_text, config_path)
 except CheckError as exc:
     print(f"[stuhelper][error] public Nginx ingress config preflight failed: {exc}", file=sys.stderr)
     raise SystemExit(1)

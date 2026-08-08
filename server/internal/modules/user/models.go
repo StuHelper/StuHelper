@@ -152,11 +152,10 @@ type SystemConfig struct {
 
 // UserSurface 用户聚合信息（供前端单次请求获取全部状态）
 type UserSurface struct {
-	DisplayName        string   `json:"displayName"`
-	AvatarURL          string   `json:"avatarURL,omitempty"`
-	Phone              *string  `json:"phone,omitempty"`
-	IdentityStatus     string   `json:"identityStatus"`
-	VerificationStatus string   `json:"verificationStatus"`
-	PhoneBound         bool     `json:"phoneBound"`
-	Capabilities       []string `json:"capabilities"`
+	DisplayName               string   `json:"displayName"`
+	AvatarURL                 string   `json:"avatarURL,omitempty"`
+	Phone                     *string  `json:"phone,omitempty"`
+	StudentVerificationStatus string   `json:"studentVerificationStatus"`
+	PhoneBound                bool     `json:"phoneBound"`
+	Capabilities              []string `json:"capabilities"`
 }

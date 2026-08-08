@@ -1,12 +1,17 @@
 ---
 type: design
 audience: product, frontend-dev, backend-dev, ops, maintainers
-status: draft
-authoritative-source: this file
-last-verified: 2026-06-08
+status: deprecated
+authoritative-source: docs/product-specs/student-verification-and-group-admission.md + server/api/openapi.yaml + current source
+last-verified: 2026-08-05
 ---
 
 # Join 无验证码自助入口设计
+
+> **已被替代。** 本文保留为 2026-06-08 的历史交互草案。当前 `/start` 只提供登录、当前账号条件
+> 检查和前往独立学生认证/QQ 绑定页面的安全 continuation；不得在 JOIN 页面内复制学校认证流程。
+> 文中的 `linked`、`verified`、`pendingReview`、旧 profile/student/freshman API 和内嵌表单不再是
+> 当前契约。现行边界见[学生认证与群聊入群准入系统](../product-specs/student-verification-and-group-admission.md)。
 
 ## 背景
 

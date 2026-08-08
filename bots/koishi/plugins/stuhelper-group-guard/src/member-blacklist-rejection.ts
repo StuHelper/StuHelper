@@ -12,6 +12,7 @@ import type { ModerationStore } from '@stuhelper/koishi-moderation-core'
 
 import { requireAdmissionSubjectPlatform } from './admission-subject-platform'
 import { formatAdmissionActionError } from './admission-actions'
+import { opaqueLogReference } from './log-reference'
 import { requireMemberID, resolveGuildID } from './member-records'
 
 const MEMBER_BLACKLISTED_ERROR_CODE = 'admission.member_blacklisted'
@@ -74,7 +75,7 @@ async function reportBlacklistedMember(input: BlacklistedMemberEventInput) {
     payload: { memberBlacklisted: true, error: message },
   })
   input.logger.warn('group guard rejected blacklisted member', {
-    guardRecordID: input.guardRecordID,
+    guardRecordRef: opaqueLogReference('guard', input.guardRecordID),
     error: message,
   })
 }

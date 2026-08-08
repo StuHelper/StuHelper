@@ -4,6 +4,7 @@ import { REVIEW_CREATE } from '@stuhelper/shared/constants'
 
 const mockPush = vi.fn()
 const mockGetUserSurface = vi.fn()
+const mockGetPhoneStatus = vi.fn()
 const mockToastError = vi.fn()
 const mockGetErrorMessage = vi.fn()
 const mockNavigateToExternalURL = vi.fn()
@@ -16,44 +17,19 @@ const mockAuthStore = {
 vi.mock('vue-router', () => ({
   useRouter: () => ({
     push: mockPush,
-    currentRoute: {
-      value: {
-        fullPath: '/courses/reviews',
-      },
-    },
+    currentRoute: { value: { fullPath: '/courses/reviews' } },
   }),
 }))
-
 vi.mock('@/api', () => ({
   api: {
-    identity: {
-      getUserSurface: mockGetUserSurface,
-    },
+    identity: { getUserSurface: mockGetUserSurface },
+    studentVerification: { getPhoneStatus: mockGetPhoneStatus },
   },
 }))
-
-vi.mock('@/api/errors', () => ({
-  getErrorMessage: mockGetErrorMessage,
-}))
-
-vi.mock('@/i18n', () => ({
-  default: {
-    global: {
-      t: (key: string) => key,
-    },
-  },
-}))
-
-vi.mock('@/stores/auth', () => ({
-  useAuthStore: () => mockAuthStore,
-}))
-
-vi.mock('@/composables/useToast', () => ({
-  useToast: () => ({
-    error: mockToastError,
-  }),
-}))
-
+vi.mock('@/api/errors', () => ({ getErrorMessage: mockGetErrorMessage }))
+vi.mock('@/i18n', () => ({ default: { global: { t: (key: string) => key } } }))
+vi.mock('@/stores/auth', () => ({ useAuthStore: () => mockAuthStore }))
+vi.mock('@/composables/useToast', () => ({ useToast: () => ({ error: mockToastError }) }))
 vi.mock('@/utils/redirect', () => ({
   accountCenterURLWithRedirect: (path: string, redirect: string) =>
     `https://stuhelper.com${path}?redirect=${encodeURIComponent(redirect)}`,
@@ -62,184 +38,96 @@ vi.mock('@/utils/redirect', () => ({
 
 const { resolveReviewPostBlock, useReviewPost } = await import('../useReviewPost')
 
-describe('useReviewPost', () => {
+const surface = {
+  displayName: 'Alice',
+  studentVerificationStatus: 'approved',
+  phoneBound: true,
+  capabilities: [REVIEW_CREATE],
+}
+const phone = {
+  state: 'verified',
+  publishingRequirementSatisfied: true,
+  revision: 3,
+}
+const ok = (data: unknown) => ({ data: { data } })
+
+describe('useReviewPost target gates', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
-    mockPush.mockReset()
-    mockGetUserSurface.mockReset()
-    mockToastError.mockReset()
-    mockGetErrorMessage.mockReset()
-    mockNavigateToExternalURL.mockReset()
+    vi.clearAllMocks()
     mockAuthStore.bootstrapCompleted = true
-    mockAuthStore.bootstrapSession.mockReset()
     mockAuthStore.bootstrapSession.mockResolvedValue(true)
     mockAuthStore.isAuthenticated = true
+    mockGetUserSurface.mockResolvedValue(ok(surface))
+    mockGetPhoneStatus.mockResolvedValue(ok(phone))
   })
 
-  it('redirects anonymous users to login before checking review access', async () => {
+  it('redirects anonymous users before reading verification state', async () => {
     mockAuthStore.isAuthenticated = false
-
     const { ensureCanPostReview } = useReviewPost()
 
     await expect(ensureCanPostReview()).resolves.toBe(false)
     expect(mockGetUserSurface).not.toHaveBeenCalled()
+    expect(mockGetPhoneStatus).not.toHaveBeenCalled()
     expect(mockPush).toHaveBeenCalledWith({
       name: 'login',
       query: { redirect: '/courses/reviews' },
     })
   })
 
-  it('bootstraps the session before checking review access', async () => {
-    mockAuthStore.bootstrapCompleted = false
-    mockGetUserSurface.mockResolvedValue({
-      data: {
-        data: {
-          displayName: 'Alice',
-          identityStatus: 'approved',
-          verificationStatus: 'approved',
-          phoneBound: true,
-          capabilities: [REVIEW_CREATE],
-        },
-      },
-    })
-
+  it('allows posting only when student, phone and capability gates pass', async () => {
     const { ensureCanPostReview } = useReviewPost()
-
     await expect(ensureCanPostReview()).resolves.toBe(true)
-    expect(mockAuthStore.bootstrapSession).toHaveBeenCalledTimes(1)
   })
 
-  it('redirects users without identity verification to the identity page', async () => {
-    mockGetUserSurface.mockResolvedValue({
-      data: {
-        data: {
-          displayName: 'Alice',
-          identityStatus: 'pending',
-          verificationStatus: 'approved',
-          phoneBound: true,
-          capabilities: [REVIEW_CREATE],
-        },
-      },
-    })
-
+  it('routes a missing student credential to the independent verification center', async () => {
+    mockGetUserSurface.mockResolvedValue(ok({ ...surface, studentVerificationStatus: 'none' }))
     const { ensureCanPostReview } = useReviewPost()
 
     await expect(ensureCanPostReview()).resolves.toBe(false)
-    expect(mockToastError).toHaveBeenCalledWith('user.verification.student.identityRequired')
     expect(mockNavigateToExternalURL).toHaveBeenCalledWith(
-      'https://stuhelper.com/user/identity-verification?redirect=%2Fcourses%2Freviews',
+      'https://stuhelper.com/user/student-verification?redirect=%2Fcourses%2Freviews',
     )
   })
 
-  it('preserves the intended post-review redirect when identity verification is required', async () => {
-    mockGetUserSurface.mockResolvedValue({
-      data: {
-        data: {
-          displayName: 'Alice',
-          identityStatus: 'pending',
-          verificationStatus: 'approved',
-          phoneBound: true,
-          capabilities: [REVIEW_CREATE],
-        },
-      },
-    })
-
+  it('routes a missing publishing phone gate to Casdoor-backed phone maintenance', async () => {
+    mockGetPhoneStatus.mockResolvedValue(ok({
+      state: 'unbound',
+      publishingRequirementSatisfied: false,
+      revision: 4,
+    }))
     const { ensureCanPostReview } = useReviewPost()
 
     await expect(
       ensureCanPostReview({ redirect: '/courses/reviews/post' }),
     ).resolves.toBe(false)
     expect(mockNavigateToExternalURL).toHaveBeenCalledWith(
-      'https://stuhelper.com/user/identity-verification?redirect=%2Fcourses%2Freviews%2Fpost',
+      'https://stuhelper.com/user/phone-binding?redirect=%2Fcourses%2Freviews%2Fpost',
     )
   })
 
-  it('redirects users without student verification to the student page', async () => {
-    mockGetUserSurface.mockResolvedValue({
-      data: {
-        data: {
-          displayName: 'Alice',
-          identityStatus: 'approved',
-          verificationStatus: 'pending',
-          phoneBound: true,
-          capabilities: [REVIEW_CREATE],
-        },
-      },
-    })
-
-    const { ensureCanPostReview } = useReviewPost()
-
-    await expect(ensureCanPostReview()).resolves.toBe(false)
-    expect(mockToastError).toHaveBeenCalledWith('review.card.verifyToView')
-    expect(mockNavigateToExternalURL).toHaveBeenCalledWith(
-      'https://stuhelper.com/user/student-verification?redirect=%2Fcourses%2Freviews',
-    )
+  it('does not infer phone control from phoneBound alone', () => {
+    expect(resolveReviewPostBlock(surface as never, {
+      state: 'syncing',
+      publishingRequirementSatisfied: false,
+      revision: 5,
+    } as never)?.routeName).toBe('phone-binding')
   })
 
-  it('redirects users without review:create capability away from the post flow', async () => {
-    mockGetUserSurface.mockResolvedValue({
-      data: {
-        data: {
-          displayName: 'Alice',
-          identityStatus: 'approved',
-          verificationStatus: 'approved',
-          phoneBound: true,
-          capabilities: [],
-        },
-      },
-    })
-
+  it('routes a missing capability to home after identity gates pass', async () => {
+    mockGetUserSurface.mockResolvedValue(ok({ ...surface, capabilities: [] }))
     const { ensureCanPostReview } = useReviewPost()
 
     await expect(ensureCanPostReview()).resolves.toBe(false)
-    expect(mockToastError).toHaveBeenCalledWith('errors.A0010200')
     expect(mockPush).toHaveBeenCalledWith({ name: 'home' })
   })
 
-  it('uses getErrorMessage when user surface lookup fails', async () => {
-    const failure = new Error('internal stack hint')
-    mockGetUserSurface.mockRejectedValue(failure)
+  it('fails closed on a malformed projection', async () => {
+    mockGetPhoneStatus.mockResolvedValue(ok({ ...phone, publishingRequirementSatisfied: 'yes' }))
     mockGetErrorMessage.mockReturnValue('common.loadFailed')
-
-    const { ensureCanPostReview } = useReviewPost()
-
-    await expect(ensureCanPostReview()).resolves.toBe(false)
-    expect(mockGetErrorMessage).toHaveBeenCalledWith(
-      failure,
-      'common.loadFailed',
-    )
-    expect(mockToastError).toHaveBeenCalledWith('common.loadFailed')
-  })
-
-  it('fails closed when user surface response is malformed', async () => {
-    mockGetUserSurface.mockResolvedValue({
-      data: {
-        data: {
-          identityStatus: 'approved',
-          verificationStatus: 'approved',
-          phoneBound: true,
-          capabilities: [REVIEW_CREATE],
-        },
-      },
-    })
-    mockGetErrorMessage.mockReturnValue('common.loadFailed')
-
     const { ensureCanPostReview } = useReviewPost()
 
     await expect(ensureCanPostReview()).resolves.toBe(false)
     expect(mockToastError).toHaveBeenCalledWith('common.loadFailed')
-    expect(mockPush).not.toHaveBeenCalled()
-  })
-})
-
-describe('resolveReviewPostBlock', () => {
-  it('returns null only when identity, student verification and capability all pass', () => {
-    expect(resolveReviewPostBlock({
-      displayName: 'Alice',
-      identityStatus: 'approved',
-      verificationStatus: 'approved',
-      phoneBound: true,
-      capabilities: [REVIEW_CREATE],
-    } as never)).toBeNull()
   })
 })

@@ -16,11 +16,12 @@ type MockOptions = {
   ssoState?: string
   teacherDetailFailures?: number
   teacherResponseDelayMs?: number
+  phoneVerified?: boolean
   userSurface?: {
     displayName?: string
-    identityStatus: 'none' | 'pending' | 'approved' | 'rejected'
-    verificationStatus: 'none' | 'pending' | 'approved' | 'rejected'
+    studentVerificationStatus: 'none' | 'approved'
     phoneBound: boolean
+    phone?: string | null
     capabilities?: string[]
   }
 }
@@ -258,12 +259,22 @@ async function mockUniApi(page: Page, options: MockOptions = {}): Promise<MockUn
       title: `移动端通知 ${index + 2}`,
     })),
   ]
+  const phoneVerified = options.phoneVerified ?? authenticated
   const userSurface = options.userSurface ?? {
     displayName: user.displayName,
-    identityStatus: authenticated ? 'approved' : 'none',
-    verificationStatus: authenticated ? 'approved' : 'none',
-    phoneBound: authenticated,
+    studentVerificationStatus: authenticated ? 'approved' : 'none',
+    phoneBound: phoneVerified,
+    phone: phoneVerified ? '138****5678' : null,
     capabilities: user.capabilities,
+  }
+  const phoneStatus = {
+    state: phoneVerified ? 'verified' : 'unbound',
+    maskedPhone: phoneVerified ? '138****5678' : null,
+    method: phoneVerified ? 'sms_possession' : null,
+    verifiedAt: phoneVerified ? now : null,
+    expiresAt: null,
+    publishingRequirementSatisfied: phoneVerified,
+    revision: 1,
   }
 
   await page.addInitScript(({ isAuthenticated, ssoState }) => {
@@ -552,6 +563,10 @@ async function mockUniApi(page: Page, options: MockOptions = {}): Promise<MockUn
 
     if (method === 'GET' && pathname === '/api/v1/user/me') {
       await route.fulfill(ok(userSurface))
+      return
+    }
+    if (method === 'GET' && pathname === '/api/v1/account/phone') {
+      await route.fulfill(ok(phoneStatus))
       return
     }
     if (method === 'GET' && pathname === '/api/v1/course/review/user/reviews') {
@@ -1406,8 +1421,8 @@ test.describe('UniAppX H5 surface', () => {
     await expectUniPageTitle(page, '个人中心')
     await expect(page.getByText(user.displayName)).toBeVisible()
     await expect(page.getByText('认证概览')).toBeVisible()
-    await expect(page.getByText('实名已通过')).toBeVisible()
     await expect(page.getByText('学生认证已通过')).toBeVisible()
+    await expect(page.getByTestId('uni-user-phone-summary')).toContainText('已绑定')
 
     await gotoUniPage(page, '/#/pages/user/reviews')
     await expectUniPageTitle(page, '我的评课')
@@ -1437,12 +1452,16 @@ test.describe('UniAppX H5 surface', () => {
 
     await gotoUniPage(page, '/#/pages/user/index')
 
-    const approvedIdentity = page.getByTestId('uni-user-identity-summary')
-    await expect(approvedIdentity).toHaveAttribute('role', 'button')
-    await expect(approvedIdentity).toHaveAttribute('aria-disabled', 'true')
-    await approvedIdentity.focus()
+    const approvedStudent = page.getByTestId('uni-user-student-summary')
+    await expect(approvedStudent).toHaveAttribute('role', 'button')
+    await expect(approvedStudent).toHaveAttribute('aria-disabled', 'true')
+    await approvedStudent.focus()
     await page.keyboard.press('Enter')
     await expect(page).toHaveURL(/\/#\/pages\/user\/index$/)
+
+    const approvedPhone = page.getByTestId('uni-user-phone-summary')
+    await expect(approvedPhone).toHaveAttribute('role', 'button')
+    await expect(approvedPhone).toHaveAttribute('aria-disabled', 'true')
 
     const reviewsMenu = page.getByRole('button', { name: /我的评课/ })
     await reviewsMenu.focus()
@@ -1451,17 +1470,18 @@ test.describe('UniAppX H5 surface', () => {
     await expect(page.getByText(review.title)).toBeVisible()
   })
 
-  test('authenticated user center opens Web identity verification when real-name status is incomplete', async ({
+  test('authenticated user center opens independent Web student verification when no credential exists', async ({
     page,
   }) => {
     await mockWebVerificationTarget(page)
     await mockUniApi(page, {
       authenticated: true,
+      phoneVerified: false,
       userSurface: {
         displayName: user.displayName,
-        identityStatus: 'none',
-        verificationStatus: 'none',
+        studentVerificationStatus: 'none',
         phoneBound: false,
+        phone: null,
         capabilities: user.capabilities,
       },
     })
@@ -1469,49 +1489,44 @@ test.describe('UniAppX H5 surface', () => {
     await gotoUniPage(page, '/#/pages/user/index')
 
     await expectUniPageTitle(page, '个人中心')
-    await expect(page.getByTestId('uni-user-identity-summary')).toContainText('未完成实名')
-    await expect(page.getByTestId('uni-user-identity-summary')).toContainText('点击去认证')
-    await expect(page.getByTestId('uni-user-student-summary')).toContainText('请先完成实名认证')
+    await expect(page.getByTestId('uni-user-student-summary')).toContainText('未完成学生认证')
+    await expect(page.getByTestId('uni-user-student-summary')).toContainText('点击去认证')
     await expect(page.getByTestId('uni-user-phone-summary')).toContainText('未绑定')
+
+    await page.getByTestId('uni-user-student-summary').click()
+    await page.waitForURL(`${webVerificationOrigin}/user/student-verification`)
+    await expect(page.getByText('Mock Web Verification')).toBeVisible()
+  })
+
+  test('authenticated user center opens Web phone binding independently of student status', async ({
+    page,
+  }) => {
+    await mockWebVerificationTarget(page)
+    await mockUniApi(page, {
+      authenticated: true,
+      phoneVerified: false,
+      userSurface: {
+        displayName: user.displayName,
+        studentVerificationStatus: 'approved',
+        phoneBound: false,
+        phone: null,
+        capabilities: user.capabilities,
+      },
+    })
+
+    await gotoUniPage(page, '/#/pages/user/index')
+
+    await expectUniPageTitle(page, '个人中心')
+    await expect(page.getByTestId('uni-user-student-summary')).toContainText('学生认证已通过')
+    await expect(page.getByTestId('uni-user-phone-summary')).toContainText('未绑定')
+    await expect(page.getByTestId('uni-user-phone-summary')).toContainText('点击去认证')
 
     await page.getByTestId('uni-user-student-summary').focus()
     await page.keyboard.press('Enter')
     await expect(page).toHaveURL(/\/#\/pages\/user\/index$/)
 
-    await page.getByTestId('uni-user-identity-summary').click()
-    await page.waitForURL(`${webVerificationOrigin}/user/identity-verification`)
-    await expect(page.getByText('Mock Web Verification')).toBeVisible()
-  })
-
-  test('authenticated user center opens Web student verification after real-name approval', async ({
-    page,
-  }) => {
-    await mockWebVerificationTarget(page)
-    await mockUniApi(page, {
-      authenticated: true,
-      userSurface: {
-        displayName: user.displayName,
-        identityStatus: 'approved',
-        verificationStatus: 'rejected',
-        phoneBound: true,
-        capabilities: user.capabilities,
-      },
-    })
-
-    await gotoUniPage(page, '/#/pages/user/index')
-
-    await expectUniPageTitle(page, '个人中心')
-    await expect(page.getByTestId('uni-user-identity-summary')).toContainText('实名已通过')
-    await expect(page.getByTestId('uni-user-student-summary')).toContainText('学生认证被驳回')
-    await expect(page.getByTestId('uni-user-student-summary')).toContainText('点击去认证')
-    await expect(page.getByTestId('uni-user-phone-summary')).toContainText('已绑定')
-
-    await page.getByTestId('uni-user-identity-summary').focus()
-    await page.keyboard.press('Enter')
-    await expect(page).toHaveURL(/\/#\/pages\/user\/index$/)
-
-    await page.getByTestId('uni-user-student-summary').click()
-    await page.waitForURL(`${webVerificationOrigin}/user/student-verification`)
+    await page.getByTestId('uni-user-phone-summary').click()
+    await page.waitForURL(`${webVerificationOrigin}/user/phone-binding`)
     await expect(page.getByText('Mock Web Verification')).toBeVisible()
   })
 

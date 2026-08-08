@@ -654,7 +654,7 @@ export BACKUP_OBJECT_STORAGE_ACCESS_KEY_ID="contract-runtime-key"
 export BACKUP_OBJECT_STORAGE_SECRET_ACCESS_KEY="contract-runtime-secret"
 export BACKUP_OBJECT_STORAGE_FORCE_PATH_STYLE="false"
 export BACKUP_OBJECT_STORAGE_TLS_INSECURE="false"
-export RCLONE_IMAGE_REF="rclone/rclone:beta@sha256:f52965eba611ba8984117638b2a0539dcce170731937f93fbace66897d102698"
+export RCLONE_IMAGE_REF="rclone/rclone:1.75.0@sha256:b06aed988cf5967de7c25be5925240983981c757f4ed1ac9d2fa659d51d60548"
 if (
   export BACKUP_OBJECT_STORAGE_PINNED_HOSTS="backup-off-host.example.test=198.51.100.42"
   run_backup_object_storage_rclone \

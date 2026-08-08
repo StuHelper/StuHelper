@@ -78,7 +78,7 @@ acl_tmp="$(mktemp "${ACL_DIR}/.users.acl.XXXXXX")"
 trap 'rm -f "${acl_tmp}"' EXIT
 cat >"${acl_tmp}" <<ACL
 user default off
-user ${REDIS_USERNAME} reset on #${app_password_hash} ~* &notify:* &notification:v2:* -@all +hello +auth +select +ping +get +set +getdel +del +exists +incr +decr +expire +pexpire +sadd +srem +smembers +zadd +zcard +zremrangebyscore +publish +subscribe +unsubscribe +psubscribe +punsubscribe +eval +evalsha +client|setinfo +client|setname
+user ${REDIS_USERNAME} reset on #${app_password_hash} ~* &notify:* &notification:v2:* -@all +hello +auth +select +ping +get +set +getdel +del +exists +incr +decr +expire +pexpire +sadd +srem +smembers +zadd +zcard +zremrangebyscore +publish +subscribe +unsubscribe +psubscribe +punsubscribe +multi +exec +eval +evalsha +client|setinfo +client|setname
 user ${REDIS_EXPORTER_USERNAME} reset on #${exporter_password_hash} resetkeys resetchannels -@all +auth +select +ping +client|setname +info +config|get +slowlog|len +slowlog|get +latency|latest +latency|histogram
 ${maintenance_acl_line}
 ACL

@@ -1,0 +1,1791 @@
+VerificationMethod:
+  type: string
+  enum:
+    - real_name_identity_check
+    - school_sso
+    - student_email_outbound_otp
+    - student_email_inbound_challenge
+    - manual_material_review
+
+VerificationMethodAvailability:
+  type: string
+  enum: [available, temporarily_unavailable, disabled]
+
+VerificationApplicationStatus:
+  type: string
+  enum:
+    - created
+    - in_progress
+    - pending_manual_review
+    - approved
+    - rejected
+    - cancelled
+    - expired
+
+VerificationCredentialStatus:
+  type: string
+  enum: [pending, active, review_required, expired, revoked, rejected]
+
+VerificationFieldDescriptor:
+  type: object
+  additionalProperties: false
+  required: [key, label, inputType, required]
+  properties:
+    key:
+      type: string
+      pattern: '^[a-z][A-Za-z0-9]{0,63}$'
+    label:
+      type: string
+      maxLength: 100
+    helpText:
+      type: string
+      maxLength: 300
+    inputType:
+      type: string
+      enum: [text, password, email, select, date, textarea]
+    autocomplete:
+      type: string
+      maxLength: 64
+    required:
+      type: boolean
+    maxLength:
+      type: integer
+      minimum: 1
+      maximum: 500
+    options:
+      type: array
+      maxItems: 100
+      items:
+        type: object
+        additionalProperties: false
+        required: [value, label]
+        properties:
+          value:
+            type: string
+            maxLength: 100
+          label:
+            type: string
+            maxLength: 100
+
+VerificationPrivacyNotice:
+  type: object
+  additionalProperties: false
+  required: [version, title, summary, dataCategories, retentionSummary]
+  properties:
+    version:
+      type: string
+      maxLength: 100
+    title:
+      type: string
+      maxLength: 120
+    summary:
+      type: string
+      maxLength: 1000
+    dataCategories:
+      type: array
+      maxItems: 20
+      items:
+        type: string
+        maxLength: 100
+    retentionSummary:
+      type: string
+      maxLength: 500
+    rightsUrl:
+      type: string
+      format: uri-reference
+      maxLength: 500
+
+VerificationMethodCapability:
+  type: object
+  additionalProperties: false
+  required: [method, displayName, description, availability, formFields]
+  properties:
+    method:
+      $ref: '#/VerificationMethod'
+    displayName:
+      type: string
+      maxLength: 100
+    description:
+      type: string
+      maxLength: 500
+    availability:
+      $ref: '#/VerificationMethodAvailability'
+    unavailableCode:
+      type: string
+      maxLength: 100
+      description: 面向用户的稳定降级分类；不得包含学校内部系统、表名或字段信息。
+    formFields:
+      type: array
+      maxItems: 30
+      items:
+        $ref: '#/VerificationFieldDescriptor'
+    privacyNotice:
+      oneOf:
+        - $ref: '#/VerificationPrivacyNotice'
+        - type: 'null'
+
+VerificationSchool:
+  type: object
+  additionalProperties: false
+  required: [code, name, methods]
+  properties:
+    code:
+      type: string
+      pattern: '^[0-9]{10}$'
+    name:
+      type: string
+      maxLength: 100
+    location:
+      type: string
+      maxLength: 100
+    methods:
+      type: array
+      items:
+        $ref: '#/VerificationMethodCapability'
+
+CreateVerificationApplicationRequest:
+  type: object
+  additionalProperties: false
+  required: [schoolCode]
+  properties:
+    schoolCode:
+      type: string
+      pattern: '^[0-9]{10}$'
+    continuationToken:
+      type: string
+      minLength: 20
+      maxLength: 2048
+      writeOnly: true
+
+VerificationApplication:
+  type: object
+  additionalProperties: false
+  required:
+    - id
+    - school
+    - status
+    - revision
+    - nextActions
+    - createdAt
+    - updatedAt
+    - expiresAt
+  properties:
+    id:
+      type: string
+      format: uuid
+    school:
+      type: object
+      additionalProperties: false
+      required: [code, name]
+      properties:
+        code:
+          type: string
+          pattern: '^[0-9]{10}$'
+        name:
+          type: string
+    status:
+      $ref: '#/VerificationApplicationStatus'
+    currentMethod:
+      oneOf:
+        - $ref: '#/VerificationMethod'
+        - type: 'null'
+    terminalCode:
+      type: string
+      maxLength: 100
+      description: 不可枚举、面向用户的稳定结果类别。
+    revision:
+      type: integer
+      format: int64
+      minimum: 1
+    nextActions:
+      type: array
+      uniqueItems: true
+      items:
+        type: string
+        enum:
+          - choose_method
+          - retry_current_method
+          - choose_another_method
+          - wait_for_review
+          - open_account_recovery
+          - return_to_consumer
+    credential:
+      oneOf:
+        - $ref: '#/StudentVerificationCredential'
+        - type: 'null'
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+    expiresAt:
+      type: string
+      format: date-time
+
+SensitiveMethodConsent:
+  type: object
+  additionalProperties: false
+  required: [privacyNoticeVersion, sensitiveDataConsent]
+  properties:
+    privacyNoticeVersion:
+      type: string
+      minLength: 1
+      maxLength: 100
+    sensitiveDataConsent:
+      type: boolean
+      enum: [true]
+
+VerifyRealNameRequest:
+  type: object
+  additionalProperties: false
+  required: [studentID, name, documentNumber, privacyNoticeVersion, sensitiveDataConsent]
+  properties:
+    studentID:
+      type: string
+      minLength: 1
+      maxLength: 64
+    name:
+      type: string
+      minLength: 1
+      maxLength: 100
+    documentNumber:
+      type: string
+      pattern: '^[0-9]{17}[0-9Xx]$'
+      writeOnly: true
+    privacyNoticeVersion:
+      type: string
+      minLength: 1
+      maxLength: 100
+    sensitiveDataConsent:
+      type: boolean
+      enum: [true]
+
+VerifySchoolSSORequest:
+  type: object
+  additionalProperties: false
+  required: [studentID, password, privacyNoticeVersion, sensitiveDataConsent]
+  properties:
+    studentID:
+      type: string
+      minLength: 1
+      maxLength: 64
+    password:
+      type: string
+      minLength: 1
+      maxLength: 256
+      writeOnly: true
+    privacyNoticeVersion:
+      type: string
+      minLength: 1
+      maxLength: 100
+    sensitiveDataConsent:
+      type: boolean
+      enum: [true]
+
+StudentEmailIdentityRequest:
+  type: object
+  additionalProperties: false
+  required: [studentID, name, privacyNoticeVersion, sensitiveDataConsent]
+  properties:
+    studentID:
+      type: string
+      minLength: 1
+      maxLength: 64
+    name:
+      type: string
+      minLength: 1
+      maxLength: 100
+    privacyNoticeVersion:
+      type: string
+      minLength: 1
+      maxLength: 100
+    sensitiveDataConsent:
+      type: boolean
+      enum: [true]
+
+StudentEmailOTPChallenge:
+  type: object
+  additionalProperties: false
+  required: [applicationID, maskedEmail, expiresAt, resendAvailableAt, remainingAttempts]
+  properties:
+    applicationID:
+      type: string
+      format: uuid
+    maskedEmail:
+      type: string
+      maxLength: 320
+    expiresAt:
+      type: string
+      format: date-time
+    resendAvailableAt:
+      type: string
+      format: date-time
+    remainingAttempts:
+      type: integer
+      minimum: 0
+
+VerifyStudentEmailOTPRequest:
+  type: object
+  additionalProperties: false
+  required: [code]
+  properties:
+    code:
+      type: string
+      pattern: '^[0-9]{4,10}$'
+      writeOnly: true
+
+InboundEmailChallenge:
+  type: object
+  additionalProperties: false
+  required:
+    - applicationID
+    - status
+    - targetAddress
+    - expectedSenderMasked
+    - subject
+    - expiresAt
+  properties:
+    applicationID:
+      type: string
+      format: uuid
+    status:
+      type: string
+      enum: [waiting, verified, expired, cancelled]
+    targetAddress:
+      type: string
+      format: email
+    expectedSenderMasked:
+      type: string
+      maxLength: 320
+    subject:
+      type: string
+      maxLength: 200
+    challengeValue:
+      type: string
+      minLength: 20
+      maxLength: 256
+      description: 仅在挑战仍等待时返回；验证完成、取消或过期后不再返回。
+    expiresAt:
+      type: string
+      format: date-time
+    verifiedAt:
+      type: string
+      format: date-time
+
+InboundEmailWebhookRequest:
+  type: object
+  additionalProperties: false
+  required: [envelopeFrom, headerFrom, subject, textBody, spf, dkim, dmarc, receivedAt]
+  properties:
+    envelopeFrom:
+      type: string
+      format: email
+      maxLength: 320
+      writeOnly: true
+    headerFrom:
+      type: string
+      format: email
+      maxLength: 320
+      writeOnly: true
+    subject:
+      type: string
+      minLength: 1
+      maxLength: 200
+      writeOnly: true
+    textBody:
+      type: string
+      minLength: 1
+      maxLength: 65536
+      writeOnly: true
+    spf:
+      type: string
+      enum: [pass, fail, neutral, none]
+    dkim:
+      type: string
+      enum: [pass, fail, neutral, none]
+    dmarc:
+      type: string
+      enum: [pass, fail, neutral, none]
+    receivedAt:
+      type: string
+      format: date-time
+
+RosterQualityCheck:
+  type: object
+  additionalProperties: false
+  required: [checkKey, status, measured, threshold, checkedAt]
+  properties:
+    checkKey:
+      type: string
+      pattern: '^[a-z][a-z0-9_.-]{1,99}$'
+    status:
+      type: string
+      enum: [pending, passed, warning, failed]
+    measured:
+      type: object
+      additionalProperties: true
+      description: 仅允许聚合或匿名测量值，不得包含学生明细。
+    threshold:
+      type: object
+      additionalProperties: true
+    detailCode:
+      type: string
+      maxLength: 100
+    checkedAt:
+      type: string
+      format: date-time
+
+RosterSnapshot:
+  type: object
+  additionalProperties: false
+  required:
+    - id
+    - schoolCode
+    - schoolName
+    - sourceKind
+    - sourceVersion
+    - importMode
+    - schemaVersion
+    - mappingVersion
+    - status
+    - sourceCutoffAt
+    - importStartedAt
+    - rowCount
+    - eligibleRowCount
+    - deletedRowCount
+    - isCurrent
+    - qualityChecks
+    - createdAt
+    - updatedAt
+  properties:
+    id:
+      type: string
+      format: uuid
+    schoolCode:
+      type: string
+      pattern: '^[0-9]{10}$'
+    schoolName:
+      type: string
+      maxLength: 100
+    sourceKind:
+      type: string
+      enum: [campus_connector, isolated_oracle_worker, fixture]
+    sourceVersion:
+      type: string
+      maxLength: 255
+    importMode:
+      type: string
+      enum: [full, incremental, reconciled_full]
+    schemaVersion:
+      type: integer
+      minimum: 1
+    mappingVersion:
+      type: string
+      maxLength: 64
+    status:
+      type: string
+      enum: [staging, validating, ready, active, superseded, failed, rolled_back]
+    sourceCutoffAt:
+      type: string
+      format: date-time
+    importStartedAt:
+      type: string
+      format: date-time
+    importCompletedAt:
+      type: [string, 'null']
+      format: date-time
+    activatedAt:
+      type: [string, 'null']
+      format: date-time
+    rowCount:
+      type: integer
+      format: int64
+      minimum: 0
+    eligibleRowCount:
+      type: integer
+      format: int64
+      minimum: 0
+    deletedRowCount:
+      type: integer
+      format: int64
+      minimum: 0
+    checksum:
+      type: [string, 'null']
+      pattern: '^[0-9a-f]{64}$'
+    failureCode:
+      type: string
+      maxLength: 100
+    activationRevision:
+      type: [integer, 'null']
+      format: int64
+      minimum: 1
+    isCurrent:
+      type: boolean
+    qualityChecks:
+      type: array
+      items:
+        $ref: '#/RosterQualityCheck'
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+RosterSnapshotSwitchRequest:
+  type: object
+  additionalProperties: false
+  required: [reason]
+  properties:
+    reason:
+      type: string
+      minLength: 4
+      maxLength: 500
+    allowSourceRegression:
+      type: boolean
+      default: false
+      description: 仅激活接口接受；必须由显式授权、MFA step-up 和审计共同保护。
+
+StudentVerificationCredential:
+  type: object
+  additionalProperties: false
+  required:
+    - id
+    - schoolCode
+    - schoolName
+    - method
+    - status
+    - credentialClass
+    - subjectDisplay
+    - verifiedAt
+    - revision
+  properties:
+    id:
+      type: string
+      format: uuid
+    schoolCode:
+      type: string
+      pattern: '^[0-9]{10}$'
+    schoolName:
+      type: string
+      maxLength: 100
+    method:
+      type: string
+      enum:
+        - real_name_identity_check
+        - school_sso
+        - student_email_outbound_otp
+        - student_email_inbound_challenge
+        - manual_material_review
+    status:
+      $ref: '#/VerificationCredentialStatus'
+    credentialClass:
+      type: string
+      enum: [formal_student, temporary_freshman]
+    subjectDisplay:
+      type: string
+      maxLength: 100
+    verifiedAt:
+      type: string
+      format: date-time
+    expiresAt:
+      type: [string, 'null']
+      format: date-time
+    reviewRequiredAt:
+      type: [string, 'null']
+      format: date-time
+    revision:
+      type: integer
+      format: int64
+      minimum: 1
+
+StudentEligibility:
+  type: object
+  additionalProperties: false
+  required: [eligible, schoolCode, credentialClass, credentialMethods, evaluatedAt, revision]
+  properties:
+    eligible:
+      type: boolean
+    schoolCode:
+      type: string
+      pattern: '^[0-9]{10}$'
+    credentialClass:
+      type: [string, 'null']
+      enum: [formal_student, temporary_freshman, null]
+    credentialMethods:
+      type: array
+      uniqueItems: true
+      items:
+        type: string
+        enum:
+          - real_name_identity_check
+          - school_sso
+          - student_email_outbound_otp
+          - student_email_inbound_challenge
+          - manual_material_review
+    expiresAt:
+      type: [string, 'null']
+      format: date-time
+    evaluatedAt:
+      type: string
+      format: date-time
+    revision:
+      type: integer
+      format: int64
+      minimum: 1
+
+PhoneVerificationMethod:
+  type: string
+  enum: [school_roster_phone_match, sms_possession]
+
+PhoneStatus:
+  type: object
+  additionalProperties: false
+  required: [state, publishingRequirementSatisfied, revision]
+  properties:
+    state:
+      type: string
+      enum: [unbound, syncing, verified, review_required]
+    maskedPhone:
+      type: [string, 'null']
+      maxLength: 32
+    method:
+      oneOf:
+        - $ref: '#/PhoneVerificationMethod'
+        - type: 'null'
+    verifiedAt:
+      type: [string, 'null']
+      format: date-time
+    expiresAt:
+      type: [string, 'null']
+      format: date-time
+    publishingRequirementSatisfied:
+      type: boolean
+    revision:
+      type: integer
+      format: int64
+      minimum: 1
+
+CreatePhoneOperationRequest:
+  type: object
+  additionalProperties: false
+  required: [phone]
+  properties:
+    phone:
+      type: string
+      pattern: '^1[3-9][0-9]{9}$'
+      writeOnly: true
+    schoolCode:
+      type: string
+      pattern: '^[0-9]{10}$'
+    studentID:
+      type: string
+      minLength: 1
+      maxLength: 64
+    name:
+      type: string
+      minLength: 1
+      maxLength: 100
+
+PhoneBindingOperation:
+  type: object
+  additionalProperties: false
+  required: [id, operationKind, status, verificationStep, expiresAt, revision]
+  properties:
+    id:
+      type: string
+      format: uuid
+    operationKind:
+      type: string
+      enum: [bind, change, unbind]
+    status:
+      type: string
+      enum:
+        - pending_verification
+        - verification_succeeded
+        - casdoor_update_pending
+        - casdoor_updated
+        - projection_sync_pending
+        - completed
+        - failed
+        - cancelled
+        - expired
+    maskedPhone:
+      type: [string, 'null']
+      maxLength: 32
+    verificationStep:
+      type: string
+      enum: [none, sms_otp, step_up_mfa, syncing]
+    smsResendAvailableAt:
+      type: [string, 'null']
+      format: date-time
+    expiresAt:
+      type: string
+      format: date-time
+    revision:
+      type: integer
+      format: int64
+      minimum: 1
+
+VerifyPhoneSMSRequest:
+  type: object
+  additionalProperties: false
+  required: [code]
+  properties:
+    code:
+      type: string
+      pattern: '^[0-9]{4,10}$'
+      writeOnly: true
+
+PhoneGateEligibility:
+  type: object
+  additionalProperties: false
+  required: [eligible, evaluatedAt, revision]
+  properties:
+    eligible:
+      type: boolean
+    method:
+      oneOf:
+        - $ref: '#/PhoneVerificationMethod'
+        - type: 'null'
+    expiresAt:
+      type: [string, 'null']
+      format: date-time
+    evaluatedAt:
+      type: string
+      format: date-time
+    revision:
+      type: integer
+      format: int64
+      minimum: 1
+
+ManualReviewStatus:
+  type: string
+  enum: [draft, pending, supplement_required, approved, rejected, cancelled, expired]
+
+ManualMaterialType:
+  type: string
+  enum: [campus_card, student_card, admission_notice, other_approved]
+
+UpsertManualReviewRequest:
+  type: object
+  additionalProperties: false
+  required: [materialType, formValues, privacyNoticeVersion, sensitiveDataConsent]
+  properties:
+    materialType:
+      $ref: '#/ManualMaterialType'
+    formValues:
+      type: object
+      minProperties: 4
+      maxProperties: 30
+      additionalProperties:
+        type: string
+        maxLength: 500
+      description: 仅允许当前学校受控 schema 中声明的字段；服务端加密保存。
+    privacyNoticeVersion:
+      type: string
+      minLength: 1
+      maxLength: 100
+    sensitiveDataConsent:
+      type: boolean
+      enum: [true]
+
+ManualReviewMaterial:
+  type: object
+  additionalProperties: false
+  required: [id, contentType, sizeBytes, width, height, capturedAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    contentType:
+      type: string
+      enum: [image/jpeg, image/png, image/webp]
+    sizeBytes:
+      type: integer
+      format: int64
+      minimum: 1
+    width:
+      type: integer
+      minimum: 320
+    height:
+      type: integer
+      minimum: 320
+    capturedAt:
+      type: string
+      format: date-time
+
+ManualReviewCase:
+  type: object
+  additionalProperties: false
+  required:
+    - id
+    - applicationID
+    - school
+    - status
+    - materialType
+    - applicantNameMasked
+    - studentIDMasked
+    - emailVerified
+    - emailVerificationRequired
+    - materials
+    - revision
+    - nextActions
+    - createdAt
+    - updatedAt
+  properties:
+    id:
+      type: string
+      format: uuid
+    applicationID:
+      type: string
+      format: uuid
+    school:
+      type: object
+      additionalProperties: false
+      required: [code, name]
+      properties:
+        code:
+          type: string
+          pattern: '^[0-9]{10}$'
+        name:
+          type: string
+          maxLength: 100
+    status:
+      $ref: '#/ManualReviewStatus'
+    materialType:
+      $ref: '#/ManualMaterialType'
+    applicantNameMasked:
+      type: string
+      maxLength: 100
+    studentIDMasked:
+      type: string
+      maxLength: 64
+    emailMasked:
+      type: [string, 'null']
+      maxLength: 320
+    emailVerified:
+      type: boolean
+      description: 仅表示该联系邮箱验证码已通过，不能单独授予学生身份。
+    emailVerificationRequired:
+      type: boolean
+    materials:
+      type: array
+      maxItems: 5
+      items:
+        $ref: '#/ManualReviewMaterial'
+    userVisibleReason:
+      type: [string, 'null']
+      maxLength: 500
+    credentialClass:
+      type: [string, 'null']
+      enum: [formal_student, temporary_freshman, null]
+    credentialExpiresAt:
+      type: [string, 'null']
+      format: date-time
+    revision:
+      type: integer
+      format: int64
+      minimum: 1
+    nextActions:
+      type: array
+      uniqueItems: true
+      items:
+        type: string
+        enum: [edit_form, capture_material, submit, wait_for_review, add_supplement, return_to_consumer]
+    submittedAt:
+      type: [string, 'null']
+      format: date-time
+    reviewedAt:
+      type: [string, 'null']
+      format: date-time
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+ManualCameraCaptureRequest:
+  type: object
+  additionalProperties: false
+  required: [contentType, imageBase64, captureSource]
+  properties:
+    contentType:
+      type: string
+      enum: [image/jpeg, image/png, image/webp]
+    imageBase64:
+      type: string
+      minLength: 16
+      maxLength: 27962028
+      writeOnly: true
+    captureSource:
+      type: string
+      enum: [web_camera]
+    requestedFacingMode:
+      type: string
+      enum: [environment, unknown]
+      default: environment
+      description: 仅记录浏览器请求意图，不表示已证明来自后置摄像头。
+
+ManualCameraHandoff:
+  type: object
+  additionalProperties: false
+  required: [id, caseID, status, expiresAt, maxMaterialBytes]
+  properties:
+    id:
+      type: string
+      format: uuid
+    caseID:
+      type: string
+      format: uuid
+    status:
+      type: string
+      enum: [pending, uploaded, locked, expired]
+    mobileURL:
+      type: string
+      format: uri-reference
+      maxLength: 2048
+      description: 只含一次性短期交接 token，不含原始个人信息。
+    continueOn:
+      type: [string, 'null']
+      enum: [desktop, mobile, null]
+    material:
+      oneOf:
+        - $ref: '#/ManualReviewMaterial'
+        - type: 'null'
+    expiresAt:
+      type: string
+      format: date-time
+    maxMaterialBytes:
+      type: integer
+      format: int64
+      minimum: 1
+
+ManualCameraContinuationRequest:
+  type: object
+  additionalProperties: false
+  required: [continueOn]
+  properties:
+    continueOn:
+      type: string
+      enum: [desktop, mobile]
+
+SubmitManualReviewRequest:
+  type: object
+  additionalProperties: false
+  required: [confirmMaterialUse]
+  properties:
+    confirmMaterialUse:
+      type: boolean
+      enum: [true]
+
+ManualEmailOTPChallenge:
+  type: object
+  additionalProperties: false
+  required: [caseID, maskedEmail, expiresAt, resendAvailableAt, remainingAttempts]
+  properties:
+    caseID:
+      type: string
+      format: uuid
+    maskedEmail:
+      type: string
+      maxLength: 320
+    expiresAt:
+      type: string
+      format: date-time
+    resendAvailableAt:
+      type: string
+      format: date-time
+    remainingAttempts:
+      type: integer
+      minimum: 0
+
+SchoolVerificationSuggestionRequest:
+  type: object
+  additionalProperties: false
+  required: [schoolName]
+  properties:
+    schoolName:
+      type: string
+      minLength: 2
+      maxLength: 100
+    schoolLocation:
+      type: string
+      minLength: 2
+      maxLength: 100
+
+SchoolVerificationSuggestion:
+  type: object
+  additionalProperties: false
+  required: [id, status, createdAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+    status:
+      type: string
+      enum: [pending]
+    createdAt:
+      type: string
+      format: date-time
+
+AdminManualReviewSummary:
+  $ref: '#/ManualReviewCase'
+  description: 管理列表仍只包含脱敏字段且 materials 仅为元数据，不包含对象 key 或 URL。
+
+AdminManualReviewDetail:
+  type: object
+  additionalProperties: false
+  required: [case, formValues]
+  properties:
+    case:
+      $ref: '#/ManualReviewCase'
+    formValues:
+      type: object
+      maxProperties: 30
+      additionalProperties:
+        type: string
+        maxLength: 500
+      description: 仅在学校范围授权和近期 MFA step-up 后返回。
+
+AdminManualMaterialAccess:
+  type: object
+  additionalProperties: false
+  required: [url, expiresAt]
+  properties:
+    url:
+      type: string
+      format: uri
+      maxLength: 4096
+    expiresAt:
+      type: string
+      format: date-time
+
+AdminManualReviewDecisionRequest:
+  type: object
+  additionalProperties: false
+  required: [action, userVisibleReason]
+  properties:
+    action:
+      type: string
+      enum: [request_supplement, approve, reject]
+    userVisibleReason:
+      type: string
+      minLength: 2
+      maxLength: 500
+    internalRiskNote:
+      type: string
+      maxLength: 2000
+      writeOnly: true
+    expiresInDays:
+      type: integer
+      minimum: 1
+      maximum: 366
+      description: 批准时必填；录取通知书的上限由服务端进一步收紧。
+
+AdminVerificationMethodConfig:
+  type: object
+  additionalProperties: false
+  required:
+    - method
+    - displayName
+    - description
+    - adapterID
+    - adapterVersion
+    - rosterDependency
+    - conditionalPolicy
+    - publicFormSchema
+    - riskPolicy
+    - privacyNotice
+    - enabled
+    - validationStatus
+    - healthStatus
+    - configRevision
+  properties:
+    method:
+      $ref: '#/VerificationMethod'
+    displayName:
+      type: string
+      minLength: 1
+      maxLength: 100
+    description:
+      type: string
+      maxLength: 500
+    adapterID:
+      type: string
+      pattern: '^[a-z][a-z0-9_]{1,63}$'
+    adapterVersion:
+      type: string
+      minLength: 1
+      maxLength: 64
+    rosterDependency:
+      type: string
+      enum: [required, independent, conditional]
+    conditionalPolicy:
+      type: object
+      additionalProperties: true
+    publicFormSchema:
+      type: object
+      additionalProperties: true
+    riskPolicy:
+      type: object
+      additionalProperties: true
+    credentialTTLSeconds:
+      type: [integer, 'null']
+      minimum: 60
+      maximum: 157680000
+    connectorOperationKey:
+      type: [string, 'null']
+      pattern: '^[a-z][a-z0-9_.-]{1,127}$'
+    secretConfigured:
+      type: boolean
+      readOnly: true
+    privacyNoticeVersion:
+      type: [string, 'null']
+      maxLength: 100
+    privacyNotice:
+      type: object
+      additionalProperties: true
+    enabled:
+      type: boolean
+    validationStatus:
+      type: string
+      enum: [pending, valid, invalid]
+    validationCode:
+      type: [string, 'null']
+      maxLength: 100
+    healthStatus:
+      type: string
+      enum: [unknown, healthy, degraded, unavailable]
+    healthCode:
+      type: [string, 'null']
+      maxLength: 100
+    healthCheckedAt:
+      type: [string, 'null']
+      format: date-time
+    configRevision:
+      type: integer
+      format: int64
+      minimum: 1
+    updatedAt:
+      type: string
+      format: date-time
+
+AdminVerificationSchoolConfig:
+  type: object
+  additionalProperties: false
+  required:
+    - schoolCode
+    - schoolName
+    - adapterID
+    - adapterVersion
+    - emailDomains
+    - studentIDPolicy
+    - nameMatchPolicy
+    - enrollmentPolicy
+    - manualFormSchema
+    - snapshotSyncIntervalSeconds
+    - snapshotWarningAfterSeconds
+    - snapshotHardExpirySeconds
+    - snapshotGraceSeconds
+    - snapshotAutoActivate
+    - enabled
+    - validationStatus
+    - configRevision
+    - methods
+    - updatedAt
+  properties:
+    schoolCode:
+      type: string
+      pattern: '^[0-9]{10}$'
+    schoolName:
+      type: string
+      maxLength: 200
+    location:
+      type: [string, 'null']
+      maxLength: 200
+    adapterID:
+      type: string
+      pattern: '^[a-z][a-z0-9_]{1,63}$'
+    adapterVersion:
+      type: string
+      minLength: 1
+      maxLength: 64
+    emailDomains:
+      type: array
+      maxItems: 20
+      items:
+        type: string
+        maxLength: 253
+    studentIDPolicy:
+      type: object
+      additionalProperties: true
+    nameMatchPolicy:
+      type: object
+      additionalProperties: true
+    enrollmentPolicy:
+      type: object
+      additionalProperties: true
+    manualFormSchema:
+      type: object
+      additionalProperties: true
+    snapshotSyncIntervalSeconds:
+      type: integer
+      minimum: 1
+    snapshotWarningAfterSeconds:
+      type: integer
+      minimum: 1
+    snapshotHardExpirySeconds:
+      type: integer
+      minimum: 1
+    snapshotGraceSeconds:
+      type: integer
+      minimum: 0
+    snapshotAutoActivate:
+      type: boolean
+      description: 明确启用后，只有通过全部质量门禁的新完整快照才会由系统自动原子激活；默认关闭。
+    enabled:
+      type: boolean
+    validationStatus:
+      type: string
+      enum: [pending, valid, invalid]
+    validationCode:
+      type: [string, 'null']
+      maxLength: 100
+    configRevision:
+      type: integer
+      format: int64
+      minimum: 1
+    updatedAt:
+      type: string
+      format: date-time
+    methods:
+      type: array
+      items:
+        $ref: '#/AdminVerificationMethodConfig'
+
+CreateAdminVerificationSchoolConfigRequest:
+  type: object
+  additionalProperties: false
+  required:
+    - schoolCode
+    - adapterID
+    - adapterVersion
+    - emailDomains
+    - studentIDPolicy
+    - nameMatchPolicy
+    - enrollmentPolicy
+    - manualFormSchema
+    - snapshotSyncIntervalSeconds
+    - snapshotWarningAfterSeconds
+    - snapshotHardExpirySeconds
+    - snapshotGraceSeconds
+    - snapshotAutoActivate
+    - reason
+  properties:
+    schoolCode:
+      type: string
+      pattern: '^[0-9]{10}$'
+      description: 必须先存在于学校目录；创建本配置才会进入待校验认证白名单。
+    adapterID:
+      type: string
+      pattern: '^[a-z][a-z0-9_]{1,63}$'
+    adapterVersion:
+      type: string
+      minLength: 1
+      maxLength: 64
+    emailDomains:
+      type: array
+      maxItems: 20
+      items:
+        type: string
+        maxLength: 253
+    studentIDPolicy:
+      type: object
+      additionalProperties: true
+    nameMatchPolicy:
+      type: object
+      additionalProperties: true
+    enrollmentPolicy:
+      type: object
+      additionalProperties: true
+    manualFormSchema:
+      type: object
+      additionalProperties: true
+    snapshotSyncIntervalSeconds:
+      type: integer
+      minimum: 1
+    snapshotWarningAfterSeconds:
+      type: integer
+      minimum: 1
+    snapshotHardExpirySeconds:
+      type: integer
+      minimum: 1
+    snapshotGraceSeconds:
+      type: integer
+      minimum: 0
+    snapshotAutoActivate:
+      type: boolean
+    reason:
+      type: string
+      minLength: 4
+      maxLength: 500
+
+UpdateAdminVerificationSchoolConfigRequest:
+  type: object
+  additionalProperties: false
+  required:
+    - adapterID
+    - adapterVersion
+    - emailDomains
+    - studentIDPolicy
+    - nameMatchPolicy
+    - enrollmentPolicy
+    - manualFormSchema
+    - snapshotSyncIntervalSeconds
+    - snapshotWarningAfterSeconds
+    - snapshotHardExpirySeconds
+    - snapshotGraceSeconds
+    - snapshotAutoActivate
+    - expectedRevision
+    - reason
+  properties:
+    adapterID:
+      type: string
+      pattern: '^[a-z][a-z0-9_]{1,63}$'
+    adapterVersion:
+      type: string
+      minLength: 1
+      maxLength: 64
+    emailDomains:
+      type: array
+      maxItems: 20
+      items:
+        type: string
+        maxLength: 253
+    studentIDPolicy:
+      type: object
+      additionalProperties: true
+    nameMatchPolicy:
+      type: object
+      additionalProperties: true
+    enrollmentPolicy:
+      type: object
+      additionalProperties: true
+    manualFormSchema:
+      type: object
+      additionalProperties: true
+    snapshotSyncIntervalSeconds:
+      type: integer
+      minimum: 1
+    snapshotWarningAfterSeconds:
+      type: integer
+      minimum: 1
+    snapshotHardExpirySeconds:
+      type: integer
+      minimum: 1
+    snapshotGraceSeconds:
+      type: integer
+      minimum: 0
+    snapshotAutoActivate:
+      type: boolean
+    expectedRevision:
+      type: integer
+      format: int64
+      minimum: 1
+    reason:
+      type: string
+      minLength: 4
+      maxLength: 500
+
+UpdateAdminVerificationMethodConfigRequest:
+  type: object
+  additionalProperties: false
+  required:
+    - displayName
+    - description
+    - adapterID
+    - adapterVersion
+    - rosterDependency
+    - conditionalPolicy
+    - publicFormSchema
+    - riskPolicy
+    - privacyNotice
+    - expectedRevision
+    - reason
+  properties:
+    displayName:
+      type: string
+      minLength: 1
+      maxLength: 100
+    description:
+      type: string
+      maxLength: 500
+    adapterID:
+      type: string
+      pattern: '^[a-z][a-z0-9_]{1,63}$'
+    adapterVersion:
+      type: string
+      minLength: 1
+      maxLength: 64
+    rosterDependency:
+      type: string
+      enum: [required, independent, conditional]
+    conditionalPolicy:
+      type: object
+      additionalProperties: true
+    publicFormSchema:
+      type: object
+      additionalProperties: true
+    riskPolicy:
+      type: object
+      additionalProperties: true
+    credentialTTLSeconds:
+      type: [integer, 'null']
+      minimum: 60
+      maximum: 157680000
+    connectorOperationKey:
+      type: [string, 'null']
+      pattern: '^[a-z][a-z0-9_.-]{1,127}$'
+    privacyNoticeVersion:
+      type: [string, 'null']
+      maxLength: 100
+    privacyNotice:
+      type: object
+      additionalProperties: true
+    expectedRevision:
+      type: integer
+      format: int64
+      minimum: 0
+      description: 新增该方法时传 0；更新已存在方法时传当前正整数 revision。
+    reason:
+      type: string
+      minLength: 4
+      maxLength: 500
+
+ValidateAdminVerificationConfigRequest:
+  type: object
+  additionalProperties: false
+  required: [enable, expectedRevision, reason]
+  properties:
+    enable:
+      type: boolean
+    expectedRevision:
+      type: integer
+      format: int64
+      minimum: 1
+    reason:
+      type: string
+      minLength: 4
+      maxLength: 500
+
+AdminStudentCredential:
+  type: object
+  additionalProperties: false
+  required:
+    - id
+    - userID
+    - schoolCode
+    - schoolName
+    - method
+    - status
+    - credentialClass
+    - subjectDisplay
+    - rosterDependency
+    - assurance
+    - verifiedAt
+    - revision
+  properties:
+    id:
+      type: string
+      format: uuid
+    userID:
+      type: integer
+      format: int64
+    schoolCode:
+      type: string
+      pattern: '^[0-9]{10}$'
+    schoolName:
+      type: string
+      maxLength: 100
+    method:
+      $ref: '#/VerificationMethod'
+    status:
+      $ref: '#/VerificationCredentialStatus'
+    credentialClass:
+      type: string
+      enum: [formal_student, temporary_freshman]
+    subjectDisplay:
+      type: string
+      maxLength: 100
+    rosterDependency:
+      type: string
+      enum: [required, independent, conditional]
+    assurance:
+      type: string
+      enum: [standard, reviewed]
+    verifiedAt:
+      type: string
+      format: date-time
+    expiresAt:
+      type: [string, 'null']
+      format: date-time
+    reviewRequiredAt:
+      type: [string, 'null']
+      format: date-time
+    revokedReason:
+      type: [string, 'null']
+      maxLength: 100
+    revision:
+      type: integer
+      format: int64
+      minimum: 1
+
+AdminCredentialRevokeRequest:
+  type: object
+  additionalProperties: false
+  required: [reason, expectedRevision]
+  properties:
+    reason:
+      type: string
+      minLength: 4
+      maxLength: 500
+    expectedRevision:
+      type: integer
+      format: int64
+      minimum: 1
+
+AdminStudentSubjectConflict:
+  type: object
+  additionalProperties: false
+  required:
+    - id
+    - schoolCode
+    - schoolName
+    - claimantUserID
+    - status
+    - reasonCode
+    - createdAt
+    - updatedAt
+  properties:
+    id:
+      type: string
+      format: uuid
+    schoolCode:
+      type: string
+      pattern: '^[0-9]{10}$'
+    schoolName:
+      type: string
+    claimantUserID:
+      type: integer
+      format: int64
+    incumbentUserID:
+      type: [integer, 'null']
+      format: int64
+    applicationID:
+      type: [string, 'null']
+      format: uuid
+    status:
+      type: string
+      enum: [open, under_review, resolved, dismissed]
+    reasonCode:
+      type: string
+      maxLength: 100
+    resolutionCode:
+      type: [string, 'null']
+      maxLength: 100
+    resolvedAt:
+      type: [string, 'null']
+      format: date-time
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+AdminSubjectConflictDecisionRequest:
+  type: object
+  additionalProperties: false
+  required: [action, reason]
+  properties:
+    action:
+      type: string
+      enum: [start_review, dismiss_claim, release_subject_for_reverification]
+    reason:
+      type: string
+      minLength: 4
+      maxLength: 500
+
+AdminCampusConnectorOperationHealth:
+  type: object
+  additionalProperties: false
+  required:
+    - schoolCode
+    - operationKey
+    - operationType
+    - adapterID
+    - adapterVersion
+    - enabled
+    - validationStatus
+    - healthStatus
+    - configRevision
+  properties:
+    schoolCode:
+      type: string
+      pattern: '^[0-9]{10}$'
+    operationKey:
+      type: string
+    operationType:
+      type: string
+      enum: [school_account_authenticate, roster_snapshot_upload]
+    adapterID:
+      type: string
+    adapterVersion:
+      type: string
+    enabled:
+      type: boolean
+    validationStatus:
+      type: string
+      enum: [pending, valid, invalid]
+    healthStatus:
+      type: string
+      enum: [unknown, healthy, degraded, unavailable]
+    healthCode:
+      type: [string, 'null']
+    healthCheckedAt:
+      type: [string, 'null']
+      format: date-time
+    configRevision:
+      type: integer
+      format: int64
+
+AdminCampusConnectorHealth:
+  type: object
+  additionalProperties: false
+  required:
+    - id
+    - displayName
+    - status
+    - protocolVersion
+    - softwareVersion
+    - certificateNotAfter
+    - maxConcurrency
+    - heartbeatIntervalSeconds
+    - revision
+    - operations
+  properties:
+    id:
+      type: string
+      format: uuid
+    displayName:
+      type: string
+    status:
+      type: string
+      enum: [registered, active, degraded, offline, revoked]
+    protocolVersion:
+      type: string
+    softwareVersion:
+      type: string
+    certificateNotAfter:
+      type: string
+      format: date-time
+    maxConcurrency:
+      type: integer
+    heartbeatIntervalSeconds:
+      type: integer
+    lastHeartbeatAt:
+      type: [string, 'null']
+      format: date-time
+    lastHealthCode:
+      type: [string, 'null']
+    revision:
+      type: integer
+      format: int64
+    operations:
+      type: array
+      items:
+        $ref: '#/AdminCampusConnectorOperationHealth'
+
+AdminRosterSyncCreateRequest:
+  type: object
+  additionalProperties: false
+  required: [reason]
+  properties:
+    reason:
+      type: string
+      minLength: 4
+      maxLength: 500
+      description: 审计原因、工单或事件编号；不会发送给校园连接器节点。
+
+AdminRosterSyncRequest:
+  type: object
+  additionalProperties: false
+  required:
+    - id
+    - schoolCode
+    - operationKey
+    - adapterID
+    - adapterVersion
+    - status
+    - requestedByUserID
+    - reason
+    - deadlineAt
+    - claimAttempts
+    - createdAt
+    - updatedAt
+  properties:
+    id:
+      type: string
+      format: uuid
+    schoolCode:
+      type: string
+      pattern: '^[0-9]{10}$'
+    operationKey:
+      type: string
+      pattern: '^[a-z][a-z0-9_.-]{1,127}$'
+    adapterID:
+      type: string
+      pattern: '^[a-z][a-z0-9_]{1,63}$'
+    adapterVersion:
+      type: string
+      minLength: 1
+      maxLength: 64
+    status:
+      type: string
+      enum: [pending, started, succeeded, failed, timed_out, cancelled]
+    resultCode:
+      type: [string, 'null']
+      maxLength: 100
+    requestedByUserID:
+      type: integer
+      format: int64
+      minimum: 1
+    reason:
+      type: string
+      minLength: 4
+      maxLength: 500
+    deadlineAt:
+      type: string
+      format: date-time
+    claimedAt:
+      type: [string, 'null']
+      format: date-time
+    claimAttempts:
+      type: integer
+      minimum: 0
+      maximum: 100
+    completedAt:
+      type: [string, 'null']
+      format: date-time
+    latencyMilliseconds:
+      type: [integer, 'null']
+      minimum: 0
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time

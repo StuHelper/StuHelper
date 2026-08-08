@@ -43,6 +43,12 @@ const casdoorLoginUsername = process.env.PROD_PARITY_CASDOOR_LOGIN_USERNAME || '
 const casdoorLoginPassword = process.env.PROD_PARITY_CASDOOR_LOGIN_PASSWORD || 'ProdParityAdmission1!';
 const admissionToken = process.env.PROD_PARITY_ADMISSION_TOKEN || 'PROD-PARITY-ADMIT-LOGIN';
 const admissionQQ = process.env.PROD_PARITY_ADMISSION_QQ || '990001';
+// The API contract requires a 32-byte-or-longer handoff token. Keep this
+// probe syntactically valid so the browser check reaches the not-found/error
+// state instead of being rejected by request validation before the page loads.
+const manualCameraProbeToken =
+  process.env.PROD_PARITY_MANUAL_CAMERA_PROBE_TOKEN ||
+  'PROD-PARITY-MANUAL-CAMERA-PROBE-0001';
 const evidenceFile =
   process.env.PROD_PARITY_BROWSER_SMOKE_EVIDENCE_FILE ||
   resolve(repoRoot, '.run/prod-parity/browser-smoke-evidence.json');
@@ -165,7 +171,7 @@ const checks = [
     url: joinURL(accountBaseURL, '/account/profile'),
     flow: 'account-authenticated-refresh',
     expectedTexts: ['个人资料', 'Profile'],
-    requiredTexts: ['联系信息', '授权披露字段', '实名认证'],
+    requiredTexts: ['联系信息', '授权披露字段', '学生认证'],
     expectedURLIncludes: joinURL(accountBaseURL, '/account/profile'),
     stubbedResources: [
       {
@@ -204,10 +210,8 @@ const checks = [
       '退出当前会话',
       '绑定手机',
       '授权应用',
-      '实名认证',
       '学生认证',
       '绑定 QQ',
-      '学业信息',
     ],
     expectedURLIncludes: joinURL(accountBaseURL, '/account/security'),
     stubbedResources: [
@@ -348,39 +352,11 @@ const checks = [
     ],
   },
   {
-    name: 'identity-identity-verification-authenticated',
+    name: 'identity-retired-identity-verification',
     url: joinURL(accountBaseURL, '/user/identity-verification'),
-    flow: 'account-authenticated-refresh',
-    expectedTexts: ['实名认证', 'Identity Verification'],
-    requiredTexts: ['实名认证'],
-    forbiddenTexts: ['我的评价', '我的点赞', '我的收藏', 'My Reviews', 'My Votes', 'My Favorites'],
+    expectedTexts: ['页面不存在', 'Page Not Found'],
+    requiredTexts: ['页面不存在'],
     expectedURLIncludes: joinURL(accountBaseURL, '/user/identity-verification'),
-    stubbedResources: [
-      {
-        url: 'https://fonts.googleapis.com/**',
-        contentType: 'text/css',
-        body: '/* prod-parity smoke uses system fonts for the Casdoor login page. */\n',
-      },
-      {
-        url: 'https://cdn.casbin.org/flag-icons/**',
-        contentType: 'image/svg+xml',
-        body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"></svg>\n',
-      },
-    ],
-    allowedAPIResponses: [
-      {
-        urlIncludes: '/api/v1/user/profile',
-        statuses: [404],
-      },
-      {
-        urlIncludes: '/api/v1/user/qq-binding',
-        statuses: [404],
-      },
-      {
-        urlIncludes: '/api/v1/user/identity',
-        statuses: [404],
-      },
-    ],
   },
   {
     name: 'identity-student-verification-authenticated',
@@ -488,43 +464,11 @@ const checks = [
     ],
   },
   {
-    name: 'identity-academic-info-authenticated',
+    name: 'identity-retired-academic-info',
     url: joinURL(accountBaseURL, '/user/academic-info'),
-    flow: 'account-authenticated-refresh',
-    expectedTexts: ['学业信息', 'Academic Info'],
-    requiredTexts: ['学业信息'],
-    forbiddenTexts: ['我的评价', '我的点赞', '我的收藏', 'My Reviews', 'My Votes', 'My Favorites'],
+    expectedTexts: ['页面不存在', 'Page Not Found'],
+    requiredTexts: ['页面不存在'],
     expectedURLIncludes: joinURL(accountBaseURL, '/user/academic-info'),
-    stubbedResources: [
-      {
-        url: 'https://fonts.googleapis.com/**',
-        contentType: 'text/css',
-        body: '/* prod-parity smoke uses system fonts for the Casdoor login page. */\n',
-      },
-      {
-        url: 'https://cdn.casbin.org/flag-icons/**',
-        contentType: 'image/svg+xml',
-        body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"></svg>\n',
-      },
-    ],
-    allowedAPIResponses: [
-      {
-        urlIncludes: '/api/v1/user/profile',
-        statuses: [404],
-      },
-      {
-        urlIncludes: '/api/v1/user/qq-binding',
-        statuses: [404],
-      },
-      {
-        urlIncludes: '/api/v1/user/identity',
-        statuses: [404],
-      },
-      {
-        urlIncludes: '/api/v1/user/profile/academic-info',
-        statuses: [403, 404],
-      },
-    ],
   },
   {
     name: 'identity-main-route-redirect',
@@ -637,7 +581,7 @@ const checks = [
     expectedResponseHeaders: [
       {
         name: 'permissions-policy',
-        includes: 'camera=(self)',
+        includes: 'camera=()',
       },
     ],
     allowedAPIResponses: [
@@ -652,10 +596,10 @@ const checks = [
     ],
   },
   {
-    name: 'admission-mobile-camera-permission',
-    url: joinURL(admissionBaseURL, '/admission/freshman/camera/__prod_parity_probe__'),
-    expectedTexts: ['新生材料拍照'],
-    requiredTexts: ['无法打开拍照链接'],
+    name: 'admission-manual-camera-permission',
+    url: joinURL(admissionBaseURL, `/student-verification/manual-camera/${manualCameraProbeToken}`),
+    expectedTexts: ['手机拍摄认证材料', 'Capture verification material'],
+    requiredTexts: [],
     expectedResponseHeaders: [
       {
         name: 'permissions-policy',
@@ -664,15 +608,15 @@ const checks = [
     ],
     allowedAPIResponses: [
       {
-        urlIncludes: '/api/v1/admission/freshman/mobile-camera-handoffs/__prod_parity_probe__',
+        urlIncludes: `/api/v1/student-verification/manual-camera-handoffs/${manualCameraProbeToken}`,
         statuses: [404],
       },
     ],
   },
   {
-    name: 'admission-sse-ingress',
+    name: 'admission-retired-sse-route',
     url: joinURL(admissionBaseURL, `/verify/${encodeURIComponent(admissionToken)}`),
-    flow: 'admission-sse-ingress',
+    flow: 'admission-retired-sse-route',
     expectedTexts: ['登录 StuHelper'],
     requiredTexts: ['入群身份认证', `QQ：${admissionQQ}`],
     allowedAPIResponses: [
@@ -686,7 +630,7 @@ const checks = [
       },
       {
         urlIncludes: '/api/v1/admission/freshman/camera-handoffs/__prod_parity_probe__/events',
-        statuses: [401],
+        statuses: [404],
       },
     ],
   },
@@ -817,10 +761,11 @@ const checks = [
     expectedURLIncludes: [joinURL(accountBaseURL, '/login'), 'redirect=/user/authorized-apps'],
   },
   {
-    name: 'web-protected-identity-verification',
+    name: 'web-retired-identity-verification',
     url: joinURL(webBaseURL, '/user/identity-verification'),
-    expectedTexts: ['登录', 'Login'],
-    expectedURLIncludes: [joinURL(accountBaseURL, '/login'), 'redirect=/user/identity-verification'],
+    expectedTexts: ['页面不存在', 'Page Not Found'],
+    requiredTexts: ['页面不存在'],
+    expectedURLIncludes: joinURL(webBaseURL, '/user/identity-verification'),
   },
   {
     name: 'web-protected-student-verification',
@@ -841,10 +786,11 @@ const checks = [
     expectedURLIncludes: [joinURL(accountBaseURL, '/login'), 'redirect=/user/qq-binding'],
   },
   {
-    name: 'web-protected-academic-info',
+    name: 'web-retired-academic-info',
     url: joinURL(webBaseURL, '/user/academic-info'),
-    expectedTexts: ['登录', 'Login'],
-    expectedURLIncludes: [joinURL(accountBaseURL, '/login'), 'redirect=/user/academic-info'],
+    expectedTexts: ['页面不存在', 'Page Not Found'],
+    requiredTexts: ['页面不存在'],
+    expectedURLIncludes: joinURL(webBaseURL, '/user/academic-info'),
   },
   {
     name: 'web-protected-notifications',
@@ -1322,8 +1268,8 @@ async function runCheckFlow(page, check, viewportVariant) {
   if (check.flow === 'account-connect-error-refresh') {
     return runIdentityConnectErrorRefreshFlow(page, check);
   }
-  if (check.flow === 'admission-sse-ingress') {
-    return runAdmissionSSEIngressFlow(page);
+  if (check.flow === 'admission-retired-sse-route') {
+    return runRetiredAdmissionSSERouteFlow(page);
   }
   return null;
 }
@@ -1525,30 +1471,23 @@ async function runIdentityConnectErrorRefreshFlow(page, check) {
   };
 }
 
-async function runAdmissionSSEIngressFlow(page) {
+async function runRetiredAdmissionSSERouteFlow(page) {
   const result = await page.evaluate(async () => {
     const response = await fetch('/api/v1/admission/freshman/camera-handoffs/__prod_parity_probe__/events', {
-      headers: {
-        Accept: 'text/event-stream',
-      },
     });
     return {
       status: response.status,
       contentType: response.headers.get('content-type') || '',
-      xAccelBuffering: response.headers.get('x-accel-buffering') || '',
       bodyPrefix: (await response.text()).slice(0, 120),
     };
   });
 
-  if (result.status !== 401) {
-    throw new Error(`admission SSE unauthenticated probe returned ${result.status}`);
-  }
-  if (result.xAccelBuffering.toLowerCase() !== 'no') {
-    throw new Error(`admission SSE X-Accel-Buffering=${JSON.stringify(result.xAccelBuffering)}`);
+  if (result.status !== 404) {
+    throw new Error(`retired admission SSE probe returned ${result.status}`);
   }
 
   return {
-    matchedText: 'admission SSE ingress disables buffering',
+    matchedText: 'retired admission SSE route returns 404',
     sseProbe: result,
   };
 }

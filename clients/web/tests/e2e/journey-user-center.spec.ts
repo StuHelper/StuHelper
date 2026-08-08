@@ -4,7 +4,13 @@
  *
  * Simulates a user navigating through their personal content.
  */
-import { test, expect, mockNotificationStream, type Page } from './fixtures'
+import {
+  test,
+  expect,
+  mockCurrentAccountProjections,
+  mockNotificationStream,
+  type Page,
+} from './fixtures'
 
 const user = {
   id: 'u2',
@@ -72,61 +78,12 @@ async function mockAuth(page: Page, authUser = user) {
       }),
   )
   await mockNotificationStream(page)
-  // Verification status (for AppShell badges + canViewFullReviews)
-  await page.route('**/api/v1/user/identity', (route) =>
-    route.fulfill({
-      contentType: 'application/json',
-      body: JSON.stringify({
-        success: true,
-        data: {
-          userID: 12,
-          docType: 'MAINLAND_ID',
-          realName: '张三',
-          verified: true,
-          verifyMethod: 'manual',
-          reviewedAt: '2026-05-24T04:00:00Z',
-          verifiedAt: '2026-05-24T04:00:00Z',
-          rejectionReason: null,
-          createdAt: '2026-05-24T04:00:00Z',
-          updatedAt: '2026-05-24T04:00:00Z',
-        },
-      }),
-    }),
-  )
-  await page.route('**/api/v1/user/profile', (route) =>
-    route.fulfill({
-      contentType: 'application/json',
-      body: JSON.stringify({
-        success: true,
-        data: {
-          userID: 12,
-          verificationStatus: 'verified',
-          schoolID: 4111010006,
-          studentIDs: ['20260001'],
-          activeStudentID: '20260001',
-          verificationMethod: 'manual',
-          rejectionReason: null,
-          reviewedAt: '2026-05-24T04:00:00Z',
-          phone: null,
-          phoneVerified: false,
-          consentGivenAt: '2026-05-24T04:00:00Z',
-          verifiedAt: '2026-05-24T04:00:00Z',
-          createdAt: '2026-05-24T04:00:00Z',
-          updatedAt: '2026-05-24T04:00:00Z',
-        },
-      }),
-    }),
-  )
-  await page.route('**/api/v1/user/qq-binding', (route) =>
-    route.fulfill({
-      status: 404,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        success: false,
-        error: { code: 'A0040404', message: 'not bound' },
-      }),
-    }),
-  )
+  await mockCurrentAccountProjections(page, {
+    displayName: authUser.displayName,
+    studentVerified: authUser.roles.includes('verified_student'),
+    phoneBound: true,
+    capabilities: authUser.capabilities,
+  })
   await page.route('**/api/v1/course/review/user/reviews*', (route) =>
     route.fulfill({
       contentType: 'application/json',
@@ -213,21 +170,22 @@ test.describe('User Journey: User Center', () => {
       timeout: 10_000,
     })
     await expect(main.getByText('bob@example.com')).toBeVisible()
-    await expect(main.getByText('实名认证', { exact: true })).toBeVisible()
+    await expect(main.getByText('实名认证', { exact: true })).toHaveCount(0)
     await expect(main.getByText('学生认证', { exact: true })).toBeVisible()
     await expect(main.getByText('绑定 QQ', { exact: true })).toBeVisible()
     await expect(main.getByText('绑定手机', { exact: true })).toBeVisible()
-    await expect(main.getByText('已认证', { exact: true })).toHaveCount(2)
-    await expect(main.getByText('未绑定', { exact: true })).toHaveCount(2)
+    await expect(main.getByText('已认证', { exact: true })).toBeVisible()
+    await expect(main.getByText('已验证', { exact: true })).toBeVisible()
+    await expect(main.getByText('未绑定', { exact: true })).toBeVisible()
 
     await expect(
-      main.getByRole('link', { name: '学业信息' }),
-    ).toHaveAttribute('href', '/user/academic-info')
+      main.getByRole('link', { name: /学生认证/ }),
+    ).toHaveAttribute('href', '/user/student-verification')
     await expect(
-      main.getByRole('link', { name: '生成绑定码' }),
+      main.getByRole('link', { name: /绑定 QQ/ }),
     ).toHaveAttribute('href', '/user/qq-binding')
     await expect(
-      main.getByRole('link', { name: '绑定', exact: true }),
+      main.getByRole('link', { name: /绑定手机/ }),
     ).toHaveAttribute('href', '/user/phone-binding')
   })
 
@@ -300,8 +258,10 @@ test.describe('User Journey: User Center', () => {
     const menu = page.getByRole('menu', { name: '用户' })
     await expect(menu).toBeVisible()
     await expect(menu.getByRole('menuitem', { name: /个人中心/ })).toBeVisible()
+    await expect(menu.getByRole('menuitem', { name: /个人资料/ })).toBeVisible()
+    await expect(menu.getByRole('menuitem', { name: /账号安全/ })).toBeVisible()
     await expect(menu.getByRole('menuitem', { name: /开发者应用/ })).toBeVisible()
-    await expect(menu.getByRole('menuitem', { name: /实名认证/ })).toBeVisible()
+    await expect(menu.getByRole('menuitem', { name: /实名认证/ })).toHaveCount(0)
     await expect(menu.getByRole('menuitem', { name: /学生认证/ })).toBeVisible()
     await expect(menu.getByRole('menuitem', { name: /绑定 QQ/ })).toBeVisible()
 

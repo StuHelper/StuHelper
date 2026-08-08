@@ -24,27 +24,38 @@ func (s *Service) GetAdmissionMe(
 	if err != nil {
 		return nil, err
 	}
-	credential, err := s.repo.GetLatestCredentialForUserSchool(ctx, userID, policy.SchoolID, s.now())
-	if err != nil {
-		return nil, err
+	if s.studentEligibility == nil {
+		return nil, ErrAdmissionProjectionUnavailable
+	}
+	if session.Status == StatusLinked || session.Status == StatusMaterialSubmitted ||
+		session.Status == StatusEligible || session.Status == StatusVerified {
+		decision, evaluationErr := s.studentEligibility.EvaluateStudentEligibility(ctx, userID, policy.SchoolID)
+		if evaluationErr != nil {
+			return nil, ErrAdmissionProjectionUnavailable
+		}
+		if decision.Revision > 0 {
+			if err := s.ReevaluateStudentEligibility(
+				ctx,
+				userID,
+				policy.SchoolID,
+				decision.Revision,
+			); err != nil {
+				return nil, err
+			}
+			session, err = s.repo.GetSessionByID(ctx, session.ID)
+			if err != nil {
+				return nil, err
+			}
+		}
 	}
 	pending, err := s.repo.HasPendingAdmissionProjection(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
 	session.ProjectionPending = pending
-	return admissionMeFromState(session, credential, pending), nil
-}
-
-func admissionMeFromState(
-	session *AdmissionSession,
-	credential *VerificationCredential,
-	pending bool,
-) *AdmissionMe {
-	me := &AdmissionMe{Status: session.Status, ProjectionPending: pending, Session: session}
-	if credential != nil {
-		me.CredentialKind = &credential.Kind
-		me.ProvisionalExpiresAt = credential.ExpiresAt
-	}
-	return me
+	return &AdmissionMe{
+		Status:            session.Status,
+		ProjectionPending: pending,
+		Session:           session,
+	}, nil
 }

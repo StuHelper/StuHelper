@@ -20,12 +20,18 @@ import {
   respondAdmissionEvent,
   respondAdmissionPolicyTargets,
   respondAdmissionSession,
-  respondFreshmanForwards,
   respondPendingActions,
   waitFor,
 } from './admission-test-support'
 import groupGuardPlugin from './index.ts'
 import { createKoishiTestRuntime } from '../../test-utils/runtime.ts'
+
+test('invalid resolved plugin config fails closed before runtime registration', () => {
+  assert.throws(
+    () => groupGuardPlugin.apply({} as never, null as never),
+    /stuhelper_group_guard_configuration_invalid/,
+  )
+})
 
 test('同步执行态绑定模板会驱动 admission 入群认证', async () => {
   const admissionEvents: unknown[] = []
@@ -34,7 +40,6 @@ test('同步执行态绑定模板会驱动 admission 入群认证', async () => 
     if (respondPendingActions(req, res, () => [])) return
     if (respondAdmissionEvent({ req, res, events: admissionEvents })) return
     if (respondAdmissionPolicyTargets(req, res)) return
-    if (respondFreshmanForwards(req, res)) return
     assert.fail(`unexpected platform request: ${req.method} ${req.url}`)
   })
 
@@ -124,71 +129,6 @@ test('同步执行态绑定模板会驱动 admission 入群认证', async () => 
   }
 })
 
-test('WebUI runtime setting default skips pending-forward backend scan', async () => {
-  let pendingForwardRequests = 0
-  const admissionEvents: unknown[] = []
-  const server = createServer((req, res) => {
-    if (respondAdmissionSession({ req, res, qqID: '10005', guildID: 'group-5' })) return
-    if (respondPendingActions(req, res, () => [])) return
-    if (respondAdmissionEvent({ req, res, events: admissionEvents })) return
-    if (respondAdmissionPolicyTargets(req, res, [admissionPolicyTarget('group-5')])) return
-    if (respondFreshmanForwards(req, res)) {
-      pendingForwardRequests += 1
-      return
-    }
-    assert.fail(`unexpected platform request: ${req.method} ${req.url}`)
-  })
-
-  await new Promise<void>((resolve) => server.listen(0, resolve))
-  const address = server.address()
-  assert.ok(address && typeof address === 'object')
-
-  const runtime = createKoishiTestRuntime()
-  const { root } = runtime
-  const tempDir = await mkdtemp(join(tmpdir(), 'stuhelper-koishi-guard-'))
-
-  runtime.register(sqlite, { path: join(tempDir, 'koishi.db') })
-  runtime.register(MockBot, { selfId: '514' })
-  runtime.register(groupGuardPlugin, {
-    platform: {
-      baseUrl: `http://127.0.0.1:${address.port}`,
-      serviceToken: 'test-token',
-    },
-    scheduler: {
-      scanIntervalSeconds: 1,
-    },
-  })
-
-  try {
-    await root.start()
-    const bot = root.bots[0] as unknown as Universal.Methods & { receive: ReceiveEvent }
-    Object.assign(bot, { platform: 'onebot' })
-    bot.muteGuildMember = async () => {}
-    bot.kickGuildMember = async () => {
-      throw new Error('kick should not be called in this test')
-    }
-    bot.sendMessage = async () => ['msg-1']
-
-    bot.receive({
-      type: 'guild-member-added',
-      user: { id: '10005', name: '10005' },
-      guild: { id: 'group-5' },
-      channel: { id: 'group-5', type: Universal.Channel.Type.TEXT },
-    })
-
-    await waitFor(async () => (await root.database.get(GUARD_MEMBER_TABLE, {})).length > 0)
-    await waitFor(() => Boolean(findEventByAction(admissionEvents, 'remind')))
-    await waitFor(async () => (await root.database.get(MODERATION_EVENT_TABLE, {})).length > 0)
-    await new Promise((resolve) => setTimeout(resolve, 1200))
-
-    assert.equal(pendingForwardRequests, 0)
-  } finally {
-    runtime.dispose()
-    await closeServer(server)
-    await rm(tempDir, { recursive: true, force: true })
-  }
-})
-
 type ReceiveEvent = (event: Partial<Universal.Event>) => void
 
 function findEventByAction(events: unknown[], action: string) {
@@ -214,5 +154,6 @@ function admissionPolicyTarget(guildID: string) {
     guildID,
     guardEnabled: true,
     joinHandlingStrategy: 'post_join_guard',
+    managementGuildIDs: [],
   }
 }

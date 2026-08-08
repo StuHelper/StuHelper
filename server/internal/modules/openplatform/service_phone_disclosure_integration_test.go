@@ -144,10 +144,27 @@ func TestPhoneDisclosureUsesInternalUserIDForAuthoritativeLookup(t *testing.T) {
 	userID := seedOpenPlatformUser(t, postgres, "phone-viewer")
 	_, err = postgres.DB.Exec(ctx, `
 		UPDATE users
-		SET phone_enc = $2,
-		    phone_hash = $3
+		SET phone_enc = decode('0101', 'hex'),
+		    phone_hash = $2,
+		    phone_masked = '+86 139****9000',
+		    phone_projection_state = 'synced',
+		    phone_projection_synced_at = NOW(),
+		    phone_encryption_key_version = 1,
+		    phone_hmac_key_version = 1
 		WHERE id = $1
-	`, userID, []byte("139****9000"), strings.Repeat("a", 64))
+	`, userID, strings.Repeat("a", 64))
+	require.NoError(t, err)
+	_, err = postgres.DB.Exec(ctx, `
+		INSERT INTO phone_verification_credentials (
+		    id, user_id, phone_hash, phone_display, method, assurance,
+		    status, verified_at, last_confirmed_at
+		)
+		VALUES (
+		    '00000000-0000-4000-8000-000000000002', $1, $2,
+		    '+86 139****9000', 'sms_possession', 'current_possession',
+		    'active', NOW(), NOW()
+		)
+	`, userID, strings.Repeat("a", 64))
 	require.NoError(t, err)
 	app := seedApprovedOpenPlatformApp(t, ctx, repo, ownerID, []string{ScopePhoneRead})
 	require.NoError(t, repo.GrantConsents(ctx, Consent{

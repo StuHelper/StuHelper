@@ -123,27 +123,6 @@ function isExpectedApiErrorResponse(response: Response) {
   }
   if (
     method === 'GET' &&
-    pathname === '/api/v1/user/qq-binding' &&
-    status === 404
-  ) {
-    return true
-  }
-  if (
-    method === 'GET' &&
-    pathname === '/api/v1/user/identity' &&
-    status === 404
-  ) {
-    return true
-  }
-  if (
-    method === 'GET' &&
-    pathname === '/api/v1/user/profile/academic-info' &&
-    (status === 403 || status === 404)
-  ) {
-    return true
-  }
-  if (
-    method === 'GET' &&
     /^\/api\/v1\/admission\/sessions\/[^/]+$/.test(pathname) &&
     (status === 400 || status === 404 || status === 409 || status === 410)
   ) {
@@ -235,3 +214,71 @@ export const test = base.extend<{ page: Page }>({
 export { expect }
 export { mockNotificationStream }
 export type { Page, Route }
+
+interface CurrentAccountProjectionOptions {
+  capabilities?: string[]
+  displayName?: string
+  phoneBound?: boolean
+  studentVerified?: boolean
+}
+
+/**
+ * Installs the three independent account projections consumed by AppShell.
+ * Student eligibility, phone verification and QQ binding deliberately remain
+ * separate responses so E2E tests cannot revive the deleted profile fallback.
+ */
+export async function mockCurrentAccountProjections(
+  page: Page,
+  options: CurrentAccountProjectionOptions = {},
+) {
+  const studentVerified = options.studentVerified ?? true
+  const phoneBound = options.phoneBound ?? false
+  await page.route('**/api/v1/user/me', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: {
+          displayName: options.displayName ?? 'Test User',
+          phone: phoneBound ? '138****8000' : null,
+          studentVerificationStatus: studentVerified ? 'approved' : 'none',
+          phoneBound,
+          capabilities: options.capabilities ?? [],
+        },
+      }),
+    }),
+  )
+  await page.route('**/api/v1/account/phone', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: phoneBound
+          ? {
+              state: 'verified',
+              maskedPhone: '138****8000',
+              method: 'sms_possession',
+              verifiedAt: '2026-08-05T08:00:00Z',
+              expiresAt: null,
+              publishingRequirementSatisfied: true,
+              revision: 1,
+            }
+          : {
+              state: 'unbound',
+              maskedPhone: null,
+              method: null,
+              verifiedAt: null,
+              expiresAt: null,
+              publishingRequirementSatisfied: false,
+              revision: 1,
+            },
+      }),
+    }),
+  )
+  await page.route('**/api/v1/user/qq-binding', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true, data: null }),
+    }),
+  )
+}

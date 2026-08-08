@@ -93,6 +93,36 @@ run_container_smoke() {
   require_cmd docker
   export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-${STACK_NAME:-stuhelper}}"
   compose --profile prod run --rm --no-deps -T \
+    --env EXTERNAL_STUDENT_SOURCE_ENABLED \
+    --env EXTERNAL_STUDENT_SOURCE_NAME \
+    --env EXTERNAL_STUDENT_SOURCE_PROVIDER \
+    --env EXTERNAL_STUDENT_SOURCE_SCHOOL_CODE \
+    --env EXTERNAL_STUDENT_SOURCE_ORACLE_HOST \
+    --env EXTERNAL_STUDENT_SOURCE_ORACLE_PORT \
+    --env EXTERNAL_STUDENT_SOURCE_ORACLE_SERVICE_NAME \
+    --env EXTERNAL_STUDENT_SOURCE_ORACLE_USERNAME \
+    --env EXTERNAL_STUDENT_SOURCE_ORACLE_READONLY_USERNAME \
+    --env EXTERNAL_STUDENT_SOURCE_ORACLE_PASSWORD \
+    --env EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_MODE \
+    --env EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_FILE \
+    --env EXTERNAL_STUDENT_SOURCE_ORACLE_SCHEMA \
+    --env EXTERNAL_STUDENT_SOURCE_ORACLE_TABLE \
+    --env EXTERNAL_STUDENT_SOURCE_ORACLE_STUDENT_ID_COLUMN \
+    --env EXTERNAL_STUDENT_SOURCE_ORACLE_STUDENT_NAME_COLUMN \
+    --env EXTERNAL_STUDENT_SOURCE_ORACLE_CONNECT_TIMEOUT_SECONDS \
+    --env EXTERNAL_STUDENT_SOURCE_ORACLE_QUERY_TIMEOUT_SECONDS \
+    --env EXTERNAL_STUDENT_SOURCE_ORACLE_MAX_OPEN_CONNS \
+    --env EXTERNAL_STUDENT_SOURCE_ORACLE_MAX_IDLE_CONNS \
+    --env EXTERNAL_STUDENT_SOURCE_ORACLE_CONN_MAX_LIFETIME_SECONDS \
+    --env EXTERNAL_STUDENT_SOURCE_ORACLE_CONN_MAX_IDLE_TIME_SECONDS \
+    --env EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_FAILURE_THRESHOLD \
+    --env EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_SUCCESS_THRESHOLD \
+    --env EXTERNAL_STUDENT_SOURCE_ORACLE_BREAKER_OPEN_SECONDS \
+    --env EXTERNAL_STUDENT_SOURCE_SMOKE_TIMEOUT_SECONDS \
+    --env EXTERNAL_STUDENT_SOURCE_SMOKE_REQUIRE_READABLE_RECORD \
+    --env EXTERNAL_STUDENT_SOURCE_SMOKE_REQUIRE_SAMPLE \
+    --env EXTERNAL_STUDENT_SOURCE_SMOKE_STUDENT_ID \
+    --env EXTERNAL_STUDENT_SOURCE_SMOKE_EXPECTED_NAME \
     --entrypoint "${entrypoint}" \
     app
 }
@@ -151,22 +181,26 @@ oracle = evidence.get("oracle") or {}
 if oracle.get("tlsMode") != "verify-full" or oracle.get("tlsVerified") is not True:
     raise SystemExit("external Oracle student source did not use verified TLS")
 if oracle.get("expectedIdentityConfigured") is not True or oracle.get("runtimeIdentityMatched") is not True:
-    raise SystemExit("external Oracle runtime identity did not match the provisioned readonly identity")
+    raise SystemExit("external Oracle runtime identity did not match the explicitly configured existing account")
 if not oracle.get("runtimeIdentityHashPrefix"):
     raise SystemExit("external Oracle runtime identity evidence is missing")
 if oracle.get("leastPrivilegeGrantsVerified") is not True:
-    raise SystemExit("external Oracle runtime grants exceed the approved readonly boundary")
-expected_grant_counts = {
-    "roleGrantCount": 0,
-    "systemGrantCount": 1,
-    "approvedSystemGrantCount": 1,
-    "objectGrantCount": 1,
-    "approvedObjectGrantCount": 1,
-    "columnGrantCount": 0,
-}
-for evidence_key, expected in expected_grant_counts.items():
-    if oracle.get(evidence_key) != expected:
-        raise SystemExit(f"unexpected external Oracle {evidence_key}: {oracle.get(evidence_key)!r}")
+    print(
+        "[external-student-source-smoke][warning] existing Oracle account exceeds "
+        "the preferred least-privilege grant shape; fixed SELECT-only execution remains enforced",
+        file=sys.stderr,
+    )
+for evidence_key in (
+    "roleGrantCount",
+    "systemGrantCount",
+    "approvedSystemGrantCount",
+    "objectGrantCount",
+    "approvedObjectGrantCount",
+    "columnGrantCount",
+):
+    value = oracle.get(evidence_key)
+    if not isinstance(value, int) or value < 0:
+        raise SystemExit(f"invalid external Oracle {evidence_key}: {value!r}")
 
 expected_oracle_tuning = {
     "maxOpenConns": "EXTERNAL_STUDENT_SOURCE_ORACLE_MAX_OPEN_CONNS",

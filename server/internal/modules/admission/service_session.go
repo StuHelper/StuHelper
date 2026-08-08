@@ -42,12 +42,12 @@ func (s *Service) CreateBotSession(ctx context.Context, input BotSessionCreateIn
 	if err != nil {
 		return nil, err
 	}
-	verifiedUserID, err := s.repo.GetVerifiedAdmissionUserByQQ(ctx, input.QQID, policy.SchoolID, s.now())
+	eligibleUser, err := s.getEligibleAdmissionUserByQQ(ctx, input.QQID, policy)
 	if err != nil {
 		return nil, err
 	}
-	if verifiedUserID != nil {
-		return s.createVerifiedBotSession(ctx, input, policy, *verifiedUserID)
+	if eligibleUser != nil {
+		return s.createVerifiedBotSession(ctx, input, policy, *eligibleUser)
 	}
 	return s.createPendingBotSession(ctx, input, policy)
 }
@@ -96,9 +96,9 @@ func (s *Service) createVerifiedBotSession(
 	ctx context.Context,
 	input BotSessionCreateInput,
 	policy *AdmissionPolicy,
-	userID int64,
+	eligibleUser eligibleAdmissionUser,
 ) (*CreatedAdmissionSession, error) {
-	created, _, err := s.createVerifiedBotSessionWithCancelledIDs(ctx, input, policy, userID)
+	created, _, err := s.createVerifiedBotSessionWithCancelledIDs(ctx, input, policy, eligibleUser)
 	return created, err
 }
 
@@ -106,7 +106,7 @@ func (s *Service) createVerifiedBotSessionWithCancelledIDs(
 	ctx context.Context,
 	input BotSessionCreateInput,
 	policy *AdmissionPolicy,
-	userID int64,
+	eligibleUser eligibleAdmissionUser,
 ) (*CreatedAdmissionSession, []string, error) {
 	subject := botSessionCreateSubject(input)
 	for attempt := 0; attempt < maxAdmissionJoinTokenCreateAttempts; attempt++ {
@@ -114,7 +114,7 @@ func (s *Service) createVerifiedBotSessionWithCancelledIDs(
 		if err != nil {
 			return nil, nil, fmt.Errorf("CreateBotSession verified token: %w", err)
 		}
-		session, err := s.newVerifiedAdmissionSession(input, policy, token, userID)
+		session, err := s.newVerifiedAdmissionSession(input, policy, token, eligibleUser)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -423,14 +423,26 @@ func (s *Service) resolveLinkedSessionVerificationTx(
 	if linked == nil || policy == nil {
 		return linked, ErrAdmissionInvalidInput
 	}
-	credential, err := s.repo.GetLatestCredentialForUserSchoolTx(ctx, tx, userID, policy.SchoolID, now)
-	if err != nil {
-		return nil, err
+	if s.studentEligibility == nil {
+		return nil, ErrAdmissionProjectionUnavailable
 	}
-	if credential == nil {
+	decision, err := s.studentEligibility.EvaluateStudentEligibility(ctx, userID, policy.SchoolID)
+	if err != nil {
+		return nil, ErrAdmissionProjectionUnavailable
+	}
+	if !studentEligibilityAllowedByPolicy(decision, policy) {
 		return linked, s.queueInitialBotActionsTx(ctx, tx, linked, now)
 	}
-	verified, err := s.repo.MarkVerifiedTx(ctx, tx, linked.ID, now)
+	if decision.Revision <= 0 {
+		return nil, ErrAdmissionProjectionUnavailable
+	}
+	verified, err := s.repo.MarkVerifiedWithRevisionTx(
+		ctx,
+		tx,
+		linked.ID,
+		decision.Revision,
+		now,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -471,7 +483,7 @@ func (s *Service) ensureRegeneratableSession(ctx context.Context, subject BotSes
 		}
 		return err
 	}
-	if session.Status == StatusVerified {
+	if session.Status == StatusVerified || session.Status == StatusAdmitted || session.Status == StatusReleased {
 		return ErrAdmissionInvalidStatus
 	}
 	return nil
@@ -497,12 +509,12 @@ func (s *Service) regenerateAdmissionSession(
 	if err != nil {
 		return nil, nil, err
 	}
-	verifiedUserID, err := s.repo.GetVerifiedAdmissionUserByQQ(ctx, input.QQID, policy.SchoolID, s.now())
+	eligibleUser, err := s.getEligibleAdmissionUserByQQ(ctx, input.QQID, policy)
 	if err != nil {
 		return nil, nil, err
 	}
-	if verifiedUserID != nil {
-		return s.createVerifiedBotSessionWithCancelledIDs(ctx, input, policy, *verifiedUserID)
+	if eligibleUser != nil {
+		return s.createVerifiedBotSessionWithCancelledIDs(ctx, input, policy, *eligibleUser)
 	}
 	for attempt := 0; attempt < maxAdmissionJoinTokenCreateAttempts; attempt++ {
 		token, err := s.generateJoinToken()
@@ -695,7 +707,7 @@ func sessionLinkedToUser(session *AdmissionSession, userID int64) bool {
 		return false
 	}
 	switch session.Status {
-	case StatusLinked, StatusMaterialSubmitted, StatusVerified:
+	case StatusLinked, StatusMaterialSubmitted, StatusEligible, StatusVerified, StatusAdmitted, StatusReleased:
 		return true
 	default:
 		return false
@@ -714,7 +726,7 @@ func (s *Service) ensureConsumedSessionCanResume(session *AdmissionSession) erro
 			return ErrAdmissionTokenExpired
 		}
 		return nil
-	case StatusVerified:
+	case StatusEligible, StatusVerified, StatusAdmitted, StatusReleased:
 		return nil
 	default:
 		return ErrAdmissionTokenExpired
@@ -852,7 +864,7 @@ func (s *Service) RecordBotActionEvent(ctx context.Context, actionID string, eve
 		}
 		session := &action.Session
 		if !sessionCanApplyBotEvent(session, event.Action) ||
-			!queuedBotActionStillMatchesSession(action.Action, session, s.now()) {
+			!queuedBotActionStillMatchesSession(action, session, s.now()) {
 			return s.repo.MarkBotActionStaleTx(ctx, tx, botActionID, s.now())
 		}
 		if !event.Success {
@@ -966,15 +978,20 @@ func sessionCanApplyBotEvent(session *AdmissionSession, action BotAction) bool {
 }
 
 func queuedBotActionStillMatchesSession(
-	queued BotAction,
+	queued *AdmissionBotActionOutboxRow,
 	session *AdmissionSession,
 	now time.Time,
 ) bool {
-	if !sessionCanDispatchQueuedBotAction(session) {
+	if queued == nil || !sessionCanDispatchQueuedBotAction(session) {
+		return false
+	}
+	if queued.Action == BotActionRelease &&
+		(queued.EligibilityRevision == nil || session.EligibilityRevision == nil ||
+			*queued.EligibilityRevision != *session.EligibilityRevision) {
 		return false
 	}
 	current, _ := resolvePendingAction(session, now)
-	return queuedActionCanDispatch(queued, current)
+	return queuedActionCanDispatch(queued.Action, current)
 }
 
 func (s *Service) incrementFailureFromKickEventTx(ctx context.Context, input successfulBotEventTxInput) error {
@@ -1071,17 +1088,21 @@ func (s *Service) newVerifiedAdmissionSession(
 	input BotSessionCreateInput,
 	policy *AdmissionPolicy,
 	token string,
-	userID int64,
+	eligibleUser eligibleAdmissionUser,
 ) (*AdmissionSession, error) {
 	session, err := s.newAdmissionSession(input, policy, token)
 	if err != nil {
 		return nil, err
 	}
 	now := s.now()
-	session.UserID = &userID
+	session.UserID = &eligibleUser.UserID
 	session.TokenConsumedAt = &now
 	session.Status = StatusVerified
 	session.VerifiedAt = &now
+	session.EligibilityRevision = &eligibleUser.Revision
+	session.EligibilityEvaluatedAt = &now
+	requirementsStatus := StatusLinked
+	session.RequirementsStatus = &requirementsStatus
 	session.nextReminderAt = nil
 	return session, nil
 }
