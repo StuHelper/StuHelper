@@ -124,8 +124,14 @@ func (s *Service) RequestStudentEmailOTP(
 	if err := s.storeEmailOTPChallenge(ctx, challenge, policy.TTL); err != nil {
 		return nil, err
 	}
-	if err := s.emailSender.SendStudentVerificationOTP(ctx, targetEmail, code); err != nil {
+	if sendErr := s.emailSender.SendStudentVerificationOTP(ctx, targetEmail, code); sendErr != nil {
 		cleanupErr := s.deleteEmailOTPChallenge(context.WithoutCancel(ctx), application.ID)
+		logger.FromContext(ctx).Warn(
+			"failed to send student verification email otp",
+			zap.String("application_id", application.ID),
+			zap.Error(sendErr),
+			zap.NamedError("cleanup_error", cleanupErr),
+		)
 		return nil, errors.Join(
 			fmt.Errorf("%w: send student email otp", ErrDependencyUnavailable),
 			cleanupErr,
