@@ -125,9 +125,10 @@ assert_contains "${SMOKE_SCRIPT}" 'isAPIURL'
 assert_contains "${SMOKE_SCRIPT}" 'getUserMedia'
 assert_contains "${SMOKE_SCRIPT}" 'use-fake-device-for-media-stream'
 assert_contains "${SMOKE_SCRIPT}" 'permissions-policy'
+assert_contains "${SMOKE_SCRIPT}" 'camera=\(\)'
 assert_contains "${SMOKE_SCRIPT}" 'camera=\(self\)'
 assert_contains "${SMOKE_SCRIPT}" 'Permissions policy violation'
-assert_contains "${SMOKE_SCRIPT}" 'mobile-camera-handoffs'
+assert_contains "${SMOKE_SCRIPT}" 'manual-camera-handoffs'
 assert_contains "${SMOKE_SCRIPT}" 'PUBLIC_WEB_AUTH_BROWSER_SMOKE_ALLOW_LOCAL_TARGETS'
 assert_contains "${SMOKE_SCRIPT}" 'PUBLIC_WEB_AUTH_BROWSER_EXECUTABLE_PATH'
 assert_contains "${SMOKE_SCRIPT}" 'rejectLoopbackResolvedTarget'
@@ -163,6 +164,7 @@ const portFile = process.argv[2];
 const cameraPolicyFile = process.argv[3];
 const apiFailureFile = process.argv[4];
 const defaultCameraPolicy = 'camera=(self), microphone=(), geolocation=(), payment=()';
+const verifyCameraPolicy = 'camera=(), microphone=(), geolocation=(), payment=()';
 
 function html(body, status = 200) {
   return {
@@ -279,15 +281,15 @@ const server = http.createServer((request, response) => {
       headers: { 'content-type': 'application/json' },
       body: '{"ok":true}',
     };
-  } else if (url.pathname === '/join/verify/__stuhelper_browser_smoke__' && url.search === '') {
+  } else if (url.pathname === '/join/verify/__stuhelper_browser_smoke_manual_probe__' && url.search === '') {
     result = withCameraPolicy(html(`
       <main><h1>StuHelper 加群验证</h1><button>使用统一身份认证登录</button></main>
       <script>
         fetch('/join/api/v1/metrics/vitals?browser=smoke').catch(() => {});
       </script>
-    `));
-  } else if (url.pathname === '/join/admission/freshman/camera/__stuhelper_browser_smoke__') {
-    result = withCameraPolicy(html('<main><h1>新生材料拍照</h1><p>无法打开拍照链接</p></main>'));
+    `), verifyCameraPolicy);
+  } else if (url.pathname === '/join/student-verification/manual-camera/__stuhelper_browser_smoke_manual_probe__') {
+    result = withCameraPolicy(html('<main><h1>手机拍摄认证材料</h1><p>无法打开拍摄链接</p></main>'));
   } else {
     result = html(`<main>unexpected ${url.pathname}</main>`, 500);
   }

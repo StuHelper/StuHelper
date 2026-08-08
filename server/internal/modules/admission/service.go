@@ -85,10 +85,7 @@ type Service struct {
 	schoolSSO          SchoolSSOExchanger
 	studentEligibility StudentEligibilityGateway
 
-	beforeFreshmanApplicationCreate               func()
-	beforeFreshmanCameraHandoffCreate             func()
-	beforeFreshmanCameraHandoffMarkUploaded       func()
-	beforeFreshmanCameraHandoffContinuationChoose func()
+	beforeFreshmanApplicationCreate func()
 }
 
 type ServiceOption func(*Service)

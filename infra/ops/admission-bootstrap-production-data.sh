@@ -189,7 +189,7 @@ school_config_upsert AS (
     school_upsert.id,
     validated.school_name,
     'manual',
-    'academic.buaa_students',
+    NULL,
     '本功能将使用您提供的学校账号或学校邮箱验证学生身份。认证结果用于 StuHelper 入群验证和平台服务。',
     jsonb_build_object(
       'admission',
@@ -210,7 +210,7 @@ school_config_upsert AS (
   CROSS JOIN school_upsert
   ON CONFLICT (school_id) DO UPDATE
   SET school_name = EXCLUDED.school_name,
-      academic_db_table = EXCLUDED.academic_db_table,
+      academic_db_table = NULL,
       manual_form_fields =
         jsonb_set(
           jsonb_set(

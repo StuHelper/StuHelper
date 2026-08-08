@@ -8,6 +8,7 @@ source "${SCRIPT_DIR}/lib/common.sh"
 require_cmd awk
 require_cmd nginx
 require_cmd openssl
+require_cmd pgrep
 require_cmd sed
 if [[ "${EUID}" -ne 0 ]]; then
   require_cmd sudo
@@ -249,14 +250,7 @@ server {
     }
 
     location ^~ /api/v1/admission/freshman/camera-handoffs/ {
-        proxy_pass http://127.0.0.1:${backend_port};
-        proxy_http_version 1.1;
-        proxy_set_header Connection "";
-        proxy_buffering off;
-        proxy_cache off;
-        proxy_read_timeout 3600s;
-        proxy_send_timeout 3600s;
-        add_header X-Accel-Buffering no always;
+        return 404;
     }
 
     location = /api/v1/bot/admission/actions/stream {
@@ -366,20 +360,17 @@ server {
         proxy_http_version 1.1;
     }
 
-    location ^~ /admission/freshman/camera/ {
+    location ^~ /student-verification/manual-camera/ {
         proxy_pass http://127.0.0.1:${web_port};
         proxy_http_version 1.1;
     }
 
+    location ^~ /admission/freshman/camera/ {
+        return 404;
+    }
+
     location ^~ /api/v1/admission/freshman/camera-handoffs/ {
-        proxy_pass http://127.0.0.1:${backend_port};
-        proxy_http_version 1.1;
-        proxy_set_header Connection "";
-        proxy_buffering off;
-        proxy_cache off;
-        proxy_read_timeout 3600s;
-        proxy_send_timeout 3600s;
-        add_header X-Accel-Buffering no always;
+        return 404;
     }
 
     location ^~ /api/ {
@@ -466,7 +457,12 @@ install_nginx_config() {
   fi
   rm -f "${tmp}"
   run_root nginx -t
-  run_root nginx -s reload
+  if pgrep -x nginx >/dev/null 2>&1; then
+    run_root nginx -s reload
+  else
+    log "Nginx is not running; starting it for the local prod-parity ingress"
+    run_root nginx
+  fi
   log "installed local prod-parity ingress: ${target}"
 }
 

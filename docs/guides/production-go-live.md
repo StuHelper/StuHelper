@@ -150,7 +150,9 @@ Join 入口：
 
 ```text
 join.stuhelper.com /verify/<code> -> http://127.0.0.1:18000
-join.stuhelper.com /admission/freshman/camera/* -> http://127.0.0.1:18000
+join.stuhelper.com /student-verification/manual-camera/* -> http://127.0.0.1:18000
+join.stuhelper.com /admission/freshman/camera/*           -> 404
+join.stuhelper.com /api/v1/admission/freshman/camera-handoffs/* -> 404
 join.stuhelper.com /verify                 -> 404
 join.stuhelper.com / 和主站业务页面路径   -> 404
 join.stuhelper.com /api/*                  -> http://127.0.0.1:18080
@@ -240,7 +242,7 @@ sudo \
 ./infra/ops/admission-production-readiness.sh
 ```
 
-验收条件：学校目录中存在 `code=4111010006` 的北京航空航天大学；管理后台学校配置页以 `schools` 目录为基表展示所有已录入学校，缺少 `school_configs` 的学校按默认停用配置展示，只有 `school_configs.enabled=true` 才进入学生认证和 admission 白名单。当前 admission 白名单只开放北航，对外、前端表单和运维检查使用学校代码 `4111010006`，不得再把旧五位学校 ID 作为业务事实或配置入口。公开学生认证、admission 邮箱 OTP、新生材料申请和学校 SSO 路径都应以 `schoolCode` 为主识别字段。`manual_form_fields.admission.emailDomains` 只有 `buaa.edu.cn`，且 `emailIdentityPolicy.type=academic_student_email`。`group_admission_policies` 至少包含 `platform=qq, guild_id=178037297, auto_approve_verified_join=true, auto_approve_unverified_join=true, forward_raw_material_to_qq=false`，除非对象存储公开材料下载链路已完成并单独验收。手机拍照接力桌面端优先使用 `/api/v1/admission/freshman/camera-handoffs/{id}/events` SSE 获取实时状态，失败时才回退短轮询；上传后 continuation 必须锁定另一端，防止重复提交。`bot_service_credentials` 中存在 `koishi-runtime`，未吊销、未过期，audience 包含 `/api/v1/bot/*`，scopes 覆盖 QQ 绑定、admission session/event/review/forward 和 member blacklist。
+验收条件：学校目录中存在 `code=4111010006` 的北京航空航天大学；管理后台学校配置页以 `schools` 目录为基表展示所有已录入学校，缺少 `school_configs` 的学校按默认停用配置展示，只有 `school_configs.enabled=true` 才进入学生认证和 admission 白名单。当前 admission 白名单只开放北航，对外、前端表单和运维检查使用学校代码 `4111010006`，不得再把旧五位学校 ID 作为业务事实或配置入口。公开学生认证和学校 SSO 路径都应以 `schoolCode` 为主识别字段。人工审核的跨设备拍照只使用 student-verification 契约：桌面端创建并查询 `/api/v1/student-verification/applications/{applicationID}/manual-review/camera-handoffs`，手机端使用 `/student-verification/manual-camera/{token}` 及 `/api/v1/student-verification/manual-camera-handoffs/{token}` 系列端点；旧 admission freshman camera 页面和 SSE 永久返回 404。`group_admission_policies` 至少包含 `platform=qq, guild_id=178037297, auto_approve_verified_join=true, auto_approve_unverified_join=true, forward_raw_material_to_qq=false`。`bot_service_credentials` 中存在 `koishi-runtime`，未吊销、未过期，audience 包含 `/api/v1/bot/*`，scopes 覆盖 QQ 绑定、admission session/event/review/forward 和 member blacklist。
 
 北航学生认证不再允许生产 Web API 直接连接学校 Oracle 或 LDAP。`docker-compose.prod.yml` 会强制把
 `EXTERNAL_STUDENT_SOURCE_ENABLED` 和 Oracle host/user/password 清空；学校内网访问只能发生在独立校园
@@ -525,7 +527,7 @@ RESEND_EMAIL_SMOKE_TO=<recipient-email> ./infra/ops/resend-email-channel-smoke.s
 
 `sso-public-smoke.sh` 不只检查 discovery/JWKS/authorize 路由，也会读取公开 Casdoor application 元数据并断言 `admin/stuhelper-web` 仍为 `organization=stuhelper`、`enableSignUp=true`、`Password` 登录方式为 `All`、`Face ID` 为 `None`，且注册项包含必填的 `Password` 与 `Confirm password`。如果这里失败，先运行仓库内 `bootstrap-platform.sh prod` 修复 Casdoor 配置漂移，不要在 Casdoor 控制台手工改完就结束。
 
-`admission-public-smoke.sh` 不只检查 `join.stuhelper.com/verify/<code>` 和旧入口 404，还会确认 `join.stuhelper.com/` 与 `join.stuhelper.com/developers/apps` 返回 404，避免 join 域串到主站首页或开发者入口。脚本会从 join 域向 `/api/v1/metrics/vitals`、`/api/v1/metrics/frontend-errors` 发送同源 beacon，要求返回 204，避免真实页面加载时 F12 出现红色 metrics 请求却被上线 smoke 漏掉。脚本还会无登录探测 `/api/v1/admission/freshman/camera-handoffs/<probe>/events`，要求走到后端返回 401 且 `X-Accel-Buffering: no`，防止手机拍照接力 SSE 被 Nginx 误转给 SPA 或被缓冲。
+`admission-public-smoke.sh` 不只检查 `join.stuhelper.com/verify/<code>`，还会确认专用 `/student-verification/manual-camera/<token>` 页面允许 camera、普通 verify 页面禁用 camera，并要求旧 `/admission/freshman/camera/*` 与 `/api/v1/admission/freshman/camera-handoffs/*` 永久返回 404。脚本也会确认 `join.stuhelper.com/` 与 `join.stuhelper.com/developers/apps` 返回 404，避免 join 域串到主站首页或开发者入口；并从 join 域向 `/api/v1/metrics/vitals`、`/api/v1/metrics/frontend-errors` 发送同源 beacon，要求返回 204。
 
 `public-web-auth-browser-smoke.mjs` 会用真实浏览器确认主站登录按钮进入 `sso.stuhelper.com/login/oauth/authorize` 后仍有账号密码登录和 `/signup/oauth/authorize` 注册入口，确认主站“注册账号”进入 `sso.stuhelper.com/signup/oauth/authorize` 的账号密码注册表单，并确认 `join.stuhelper.com/` 与 `join.stuhelper.com/developers/apps` 不渲染主站内容、`join.stuhelper.com/verify/<code>` 可加载、手机拍照页允许 camera。这样 Casdoor 配置漂移成“只剩 Face ID”、注册按钮走错授权路径、join 域串站或 camera permission 漂移时，公网浏览器 smoke 会直接失败。生产模式还会拒绝 `stuhelper.com`、`join.stuhelper.com` 或 `sso.stuhelper.com` 解析到 loopback；如果运维机 `/etc/hosts` 或浏览器代理把生产域名指向本地开发环境，先修正解析再生成 evidence。
 

@@ -13,12 +13,12 @@ Verifies the public production admission ingress:
 
   - ADMISSION_PUBLIC_BASE_URL /verify/<token> serves the Web SPA
   - ADMISSION_PUBLIC_BASE_URL /start serves the Web SPA for no-token self-service readiness
-  - ADMISSION_PUBLIC_BASE_URL /verify/<token> allows camera permission for
-    desktop material capture
+  - ADMISSION_PUBLIC_BASE_URL /verify/<token> keeps camera permission disabled
+  - ADMISSION_PUBLIC_BASE_URL /student-verification/manual-camera/<token> allows
+    camera permission for the dedicated manual-review handoff
   - ADMISSION_PUBLIC_BASE_URL /api/v1/metrics/vitals accepts same-origin Web Vitals beacons
   - ADMISSION_PUBLIC_BASE_URL /api/v1/metrics/frontend-errors accepts same-origin frontend error beacons
-  - ADMISSION_PUBLIC_BASE_URL /api/v1/admission/freshman/camera-handoffs/<id>/events reaches the backend
-    as an SSE endpoint with buffering disabled
+  - retired freshman camera and camera-handoff SSE routes return 404
   - ADMISSION_PUBLIC_BASE_URL / returns 404 and never serves the main Web SPA
   - ADMISSION_PUBLIC_BASE_URL /developers/apps returns 404 and never serves the main Web SPA
   - ADMISSION_PUBLIC_BASE_URL /verify returns 404
@@ -206,7 +206,9 @@ web_verify_url="${web_public_url}/verify/${probe_token}"
 web_bare_verify_url="${web_public_url}/verify"
 admission_metrics_vitals_url="${admission_public_base_url}/api/v1/metrics/vitals"
 admission_metrics_frontend_errors_url="${admission_public_base_url}/api/v1/metrics/frontend-errors"
-admission_camera_handoff_events_url="${admission_public_base_url}/api/v1/admission/freshman/camera-handoffs/${probe_token}/events"
+admission_manual_camera_url="${admission_public_base_url}/student-verification/manual-camera/${probe_token}"
+admission_retired_camera_url="${admission_public_base_url}/admission/freshman/camera/${probe_token}"
+admission_retired_camera_handoff_events_url="${admission_public_base_url}/api/v1/admission/freshman/camera-handoffs/${probe_token}/events"
 admission_origin="$(url_origin "${admission_public_base_url}")"
 
 pass=0
@@ -450,6 +452,7 @@ check_get_status_header_contains() {
   local expected_status="$3"
   local header_name="$4"
   local expected_header_value="$5"
+  local accept_header="${6:-}"
   local attempt
   local response_file
   local headers_file
@@ -472,6 +475,10 @@ check_get_status_header_contains() {
     : >"${response_file}"
     : >"${headers_file}"
     : >"${error_file}"
+    local request_args=()
+    if [[ -n "${accept_header}" ]]; then
+      request_args+=( -H "Accept: ${accept_header}" )
+    fi
     if ! meta="$(
       curl \
         -sS \
@@ -479,9 +486,9 @@ check_get_status_header_contains() {
         -D "${headers_file}" \
         -w $'%{http_code}\n%{url_effective}\n%{ssl_verify_result}' \
         -o "${response_file}" \
-        -H 'Accept: text/event-stream' \
         -H "Origin: ${admission_origin}" \
         -H "Referer: ${admission_verify_url}" \
+        "${request_args[@]}" \
         "${url}" \
         2>"${error_file}"
     )"; then
@@ -497,7 +504,7 @@ check_get_status_header_contains() {
 
     if [[ "${status}" == "${expected_status}" && "${actual_header}" == *"${expected_header_value}"* ]]; then
       rm -f "${response_file}" "${headers_file}" "${error_file}"
-      record_pass "${name}" "$(json_detail url "${url}" httpStatus "${status}" attempts "${attempt}" bytes "${bytes}" contentType "${content_type}" sslVerifyResult "${ssl_verify_result}" headerName "${header_name}" headerValue "${actual_header}" curlError "${curl_error}")"
+      record_pass "${name}" "$(json_detail url "${url}" httpStatus "${status}" attempts "${attempt}" bytes "${bytes}" contentType "${content_type}" sslVerifyResult "${ssl_verify_result}" headerName "${header_name}" headerValue "${actual_header}" acceptHeader "${accept_header}" curlError "${curl_error}")"
       return
     fi
 
@@ -508,7 +515,7 @@ check_get_status_header_contains() {
 
   snippet="$(body_snippet "${response_file}")"
   rm -f "${response_file}" "${headers_file}" "${error_file}"
-  record_fail "${name} expected ${expected_status} and ${header_name} containing ${expected_header_value}, got ${status:-000} and ${actual_header:-<missing>}" "$(json_detail url "${url}" expectedStatus "${expected_status}" httpStatus "${status:-000}" attempts "${retries}" contentType "${content_type:-}" sslVerifyResult "${ssl_verify_result:-}" bodySnippet "${snippet}" headerName "${header_name}" headerValue "${actual_header:-}" curlError "${curl_error:-}" effectiveURL "${effective_url:-}")"
+  record_fail "${name} expected ${expected_status} and ${header_name} containing ${expected_header_value}, got ${status:-000} and ${actual_header:-<missing>}" "$(json_detail url "${url}" expectedStatus "${expected_status}" httpStatus "${status:-000}" attempts "${retries}" contentType "${content_type:-}" sslVerifyResult "${ssl_verify_result:-}" bodySnippet "${snippet}" headerName "${header_name}" headerValue "${actual_header:-}" acceptHeader "${accept_header}" curlError "${curl_error:-}" effectiveURL "${effective_url:-}")"
 }
 
 write_evidence() {
@@ -533,7 +540,9 @@ write_evidence() {
       "${web_bare_verify_url}" \
       "${admission_metrics_vitals_url}" \
       "${admission_metrics_frontend_errors_url}" \
-      "${admission_camera_handoff_events_url}" \
+      "${admission_manual_camera_url}" \
+      "${admission_retired_camera_url}" \
+      "${admission_retired_camera_handoff_events_url}" \
       "${resolve_ip}" \
       "${pass}" \
       "${fail}" \
@@ -543,7 +552,7 @@ import json
 import sys
 from pathlib import Path
 
-checks_path = Path(sys.argv[21])
+checks_path = Path(sys.argv[23])
 checks = []
 if checks_path.exists():
     checks = [
@@ -571,15 +580,17 @@ bundle = {
         "webBareVerify": sys.argv[13],
         "admissionMetricsVitals": sys.argv[14],
         "admissionMetricsFrontendErrors": sys.argv[15],
-        "admissionCameraHandoffEvents": sys.argv[16],
+        "admissionManualCamera": sys.argv[16],
+        "admissionRetiredCamera": sys.argv[17],
+        "admissionRetiredCameraHandoffEvents": sys.argv[18],
     },
-    "resolveIP": sys.argv[17],
+    "resolveIP": sys.argv[19],
     "summary": {
-        "passed": int(sys.argv[18]),
-        "failed": int(sys.argv[19]),
+        "passed": int(sys.argv[20]),
+        "failed": int(sys.argv[21]),
     },
     "checks": checks,
-    "passed": sys.argv[20] == "true",
+    "passed": sys.argv[22] == "true",
 }
 print(json.dumps(bundle, ensure_ascii=True, indent=2))
 PY
@@ -606,10 +617,12 @@ check_jsonl="${tmpdir}/checks.jsonl"
 
 check_http_status "Admission join verify token serves Web SPA" "${admission_verify_url}" "200" "true"
 check_http_status "Admission join start serves Web SPA" "${admission_start_url}" "200" "true"
-check_get_status_header_contains "Admission join verify token allows camera capture" "${admission_verify_url}" "200" "Permissions-Policy" "camera=(self)"
+check_get_status_header_contains "Admission join verify token keeps camera disabled" "${admission_verify_url}" "200" "Permissions-Policy" "camera=()"
+check_get_status_header_contains "Admission join manual camera handoff allows camera capture" "${admission_manual_camera_url}" "200" "Permissions-Policy" "camera=(self)"
 check_post_json_status "Admission join metrics vitals beacon returns 204" "${admission_metrics_vitals_url}" '{"name":"LCP","value":1234.5,"rating":"good"}' "204" "${admission_origin}" "${admission_verify_url}"
 check_post_json_status "Admission join metrics frontend error beacon returns 204" "${admission_metrics_frontend_errors_url}" '{"kind":"error","message":"public admission smoke"}' "204" "${admission_origin}" "${admission_verify_url}"
-check_get_status_header_contains "Admission join camera handoff SSE ingress returns 401 with buffering disabled" "${admission_camera_handoff_events_url}" "401" "X-Accel-Buffering" "no"
+check_http_status "Admission join retired freshman camera route returns 404" "${admission_retired_camera_url}" "404"
+check_http_status "Admission join retired camera handoff SSE route returns 404" "${admission_retired_camera_handoff_events_url}" "404"
 check_http_status "Admission join root returns 404" "${admission_root_url}" "404"
 check_http_status "Admission join main Web route returns 404" "${admission_main_route_probe_url}" "404"
 check_http_status "Admission join bare verify returns 404" "${admission_bare_verify_url}" "404"

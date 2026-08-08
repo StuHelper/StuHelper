@@ -46,16 +46,18 @@ def require(condition, message):
         raise SystemExit(message)
 
 require(evidence.get("passed") is True, "smoke did not pass")
-require(evidence.get("summary", {}).get("passed") == 12, "passed count")
+require(evidence.get("summary", {}).get("passed") == 14, "passed count")
 require(evidence.get("summary", {}).get("failed") == 0, "failed count")
-require(len(checks) == 12, "check count")
+require(len(checks) == 14, "check count")
 for name in (
     "Admission join verify token serves Web SPA",
     "Admission join start serves Web SPA",
-    "Admission join verify token allows camera capture",
+    "Admission join verify token keeps camera disabled",
+    "Admission join manual camera handoff allows camera capture",
     "Admission join metrics vitals beacon returns 204",
     "Admission join metrics frontend error beacon returns 204",
-    "Admission join camera handoff SSE ingress returns 401 with buffering disabled",
+    "Admission join retired freshman camera route returns 404",
+    "Admission join retired camera handoff SSE route returns 404",
     "Admission join root returns 404",
     "Admission join main Web route returns 404",
     "Admission join bare verify returns 404",
@@ -76,7 +78,9 @@ require(endpoints.get("webVerify", "").endswith("/web/verify/__stuhelper_public_
 require(endpoints.get("webBareVerify", "").endswith("/web/verify"), "webBareVerify endpoint")
 require(endpoints.get("admissionMetricsVitals", "").endswith("/join/api/v1/metrics/vitals"), "admissionMetricsVitals endpoint")
 require(endpoints.get("admissionMetricsFrontendErrors", "").endswith("/join/api/v1/metrics/frontend-errors"), "admissionMetricsFrontendErrors endpoint")
-require(endpoints.get("admissionCameraHandoffEvents", "").endswith("/join/api/v1/admission/freshman/camera-handoffs/__stuhelper_public_smoke__/events"), "admissionCameraHandoffEvents endpoint")
+require(endpoints.get("admissionManualCamera", "").endswith("/join/student-verification/manual-camera/__stuhelper_public_smoke__"), "admissionManualCamera endpoint")
+require(endpoints.get("admissionRetiredCamera", "").endswith("/join/admission/freshman/camera/__stuhelper_public_smoke__"), "admissionRetiredCamera endpoint")
+require(endpoints.get("admissionRetiredCameraHandoffEvents", "").endswith("/join/api/v1/admission/freshman/camera-handoffs/__stuhelper_public_smoke__/events"), "admissionRetiredCameraHandoffEvents endpoint")
 require("qq" not in evidence.get("probe", {}), "probe qq must not be emitted")
 PY
 }
@@ -98,14 +102,14 @@ assert_contains "${SMOKE_SCRIPT}" '/verify/\$\{probe_token\}'
 assert_contains "${SMOKE_SCRIPT}" '/start'
 assert_contains "${SMOKE_SCRIPT}" '/api/v1/metrics/vitals'
 assert_contains "${SMOKE_SCRIPT}" '/api/v1/metrics/frontend-errors'
-assert_contains "${SMOKE_SCRIPT}" '/api/v1/admission/freshman/camera-handoffs/'
-assert_contains "${SMOKE_SCRIPT}" 'Admission join verify token allows camera capture'
+assert_contains "${SMOKE_SCRIPT}" '/student-verification/manual-camera/'
+assert_contains "${SMOKE_SCRIPT}" '/admission/freshman/camera/'
+assert_contains "${SMOKE_SCRIPT}" 'Admission join verify token keeps camera disabled'
+assert_contains "${SMOKE_SCRIPT}" 'Admission join manual camera handoff allows camera capture'
 assert_contains "${SMOKE_SCRIPT}" 'Admission join start serves Web SPA'
 assert_contains "${SMOKE_SCRIPT}" 'Permissions-Policy'
 assert_contains "${SMOKE_SCRIPT}" 'camera=\(self\)'
-assert_contains "${SMOKE_SCRIPT}" 'Accept: text/event-stream'
-assert_contains "${SMOKE_SCRIPT}" 'X-Accel-Buffering'
-assert_contains "${SMOKE_SCRIPT}" 'Admission join camera handoff SSE ingress returns 401 with buffering disabled'
+assert_contains "${SMOKE_SCRIPT}" 'Admission join retired camera handoff SSE route returns 404'
 assert_contains "${SMOKE_SCRIPT}" 'Admission join metrics vitals beacon returns 204'
 assert_contains "${SMOKE_SCRIPT}" 'Admission join metrics frontend error beacon returns 204'
 assert_contains "${SMOKE_SCRIPT}" 'Origin: \$\{origin\}'
@@ -139,12 +143,12 @@ generated_env_file="${tmpdir}/.env.generated"
 generated_secret_env_file="${tmpdir}/.env.generated.secrets"
 generated_obs_dir="${tmpdir}/obs"
 evidence_file="${tmpdir}/admission-public-smoke-evidence.json"
-bad_sse_evidence_file="${tmpdir}/admission-public-smoke-bad-sse-evidence.json"
+bad_camera_evidence_file="${tmpdir}/admission-public-smoke-bad-camera-evidence.json"
 port_file="${tmpdir}/port"
-sse_buffering_file="${tmpdir}/sse-buffering-header"
+camera_policy_file="${tmpdir}/manual-camera-policy"
 touch "${generated_env_file}" "${generated_secret_env_file}"
 mkdir -p "${generated_obs_dir}"
-printf '%s\n' 'no' >"${sse_buffering_file}"
+printf '%s\n' 'camera=(self), microphone=(), geolocation=(), payment=()' >"${camera_policy_file}"
 
 cat >"${tmpdir}/fake-admission-server.py" <<'PY'
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -153,13 +157,13 @@ from urllib.parse import urlparse
 import sys
 
 port_file = Path(sys.argv[1])
-sse_buffering_file = Path(sys.argv[2])
+camera_policy_file = Path(sys.argv[2])
 
-def sse_buffering_header():
+def manual_camera_policy():
     try:
-        return sse_buffering_file.read_text(encoding="utf-8").strip() or "no"
+        return camera_policy_file.read_text(encoding="utf-8").strip() or "camera=()"
     except FileNotFoundError:
-        return "no"
+        return "camera=()"
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
@@ -180,21 +184,23 @@ class Handler(BaseHTTPRequestHandler):
             encoded = b'<!doctype html><title>StuHelper</title><div id="app"></div>'
             self.send_response(200)
             self.send_header("Content-Type", "text/html")
-            self.send_header("Permissions-Policy", "camera=(self), microphone=(), geolocation=(), payment=()")
+            self.send_header("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()")
             self.send_header("Content-Length", str(len(encoded)))
             self.end_headers()
             self.wfile.write(encoded)
             return
-        if path == "/join/api/v1/admission/freshman/camera-handoffs/__stuhelper_public_smoke__/events":
-            encoded = b'{"success":false,"error":{"code":"A0010100","message":"login required"}}'
-            self.send_response(401)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("X-Accel-Buffering", sse_buffering_header())
+        if path == "/join/student-verification/manual-camera/__stuhelper_public_smoke__":
+            encoded = b'<!doctype html><title>StuHelper</title><div id="app"></div>'
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.send_header("Permissions-Policy", manual_camera_policy())
             self.send_header("Content-Length", str(len(encoded)))
             self.end_headers()
             self.wfile.write(encoded)
             return
         if path in {
+            "/join/admission/freshman/camera/__stuhelper_public_smoke__",
+            "/join/api/v1/admission/freshman/camera-handoffs/__stuhelper_public_smoke__/events",
             "/join/",
             "/join/developers/apps",
             "/join/verify",
@@ -233,7 +239,7 @@ port_file.write_text(str(server.server_port))
 server.serve_forever()
 PY
 
-python3 "${tmpdir}/fake-admission-server.py" "${port_file}" "${sse_buffering_file}" &
+python3 "${tmpdir}/fake-admission-server.py" "${port_file}" "${camera_policy_file}" &
 server_pid=$!
 for _ in {1..50}; do
   [[ -s "${port_file}" ]] && break
@@ -307,25 +313,25 @@ output="$(
 printf '%s\n' "${output}" | grep -q 'public admission smoke passed' || fail "smoke did not pass against fake admission server"
 assert_evidence "${evidence_file}"
 
-printf '%s\n' 'yes' >"${sse_buffering_file}"
-bad_sse_output="$(
+printf '%s\n' 'camera=()' >"${camera_policy_file}"
+bad_camera_output="$(
   ENV_FILE="${env_file}" \
   GENERATED_ENV_FILE="${generated_env_file}" \
   GENERATED_SECRET_ENV_FILE="${generated_secret_env_file}" \
   GENERATED_OBS_DIR="${generated_obs_dir}" \
-  ADMISSION_PUBLIC_SMOKE_EVIDENCE_FILE="${bad_sse_evidence_file}" \
+  ADMISSION_PUBLIC_SMOKE_EVIDENCE_FILE="${bad_camera_evidence_file}" \
   ADMISSION_PUBLIC_SMOKE_ALLOW_LOCAL_TARGETS=true \
   ADMISSION_PUBLIC_SMOKE_RETRIES=1 \
   "${SMOKE_SCRIPT}" 2>&1
-)" && fail "smoke unexpectedly passed when SSE ingress buffering was enabled"
+)" && fail "smoke unexpectedly passed when manual camera permission was disabled"
 
-printf '%s\n' "${bad_sse_output}" | grep -q 'Admission join camera handoff SSE ingress returns 401 with buffering disabled' || \
-  fail "bad SSE buffering run did not report the camera handoff SSE check"
+printf '%s\n' "${bad_camera_output}" | grep -q 'Admission join manual camera handoff allows camera capture' || \
+  fail "bad camera permission run did not report the manual camera check"
 
 jq -e '
   .passed == false
   and .summary.failed == 1
-  and ([.checks[] | select(.name | test("Admission join camera handoff SSE ingress returns 401 with buffering disabled")) | select(.passed == false)] | length == 1)
-' "${bad_sse_evidence_file}" >/dev/null || fail "bad SSE buffering evidence did not fail the expected check"
+  and ([.checks[] | select(.name | test("Admission join manual camera handoff allows camera capture")) | select(.passed == false)] | length == 1)
+' "${bad_camera_evidence_file}" >/dev/null || fail "bad camera permission evidence did not fail the expected check"
 
 echo "[admission-public-smoke-contract] all assertions passed"

@@ -114,14 +114,6 @@ func respondFreshmanAdmissionError(c *gin.Context, err error) bool {
 		response.BadRequest(c, "admission material image data invalid")
 	case errors.Is(err, ErrAdmissionMaterialTooLarge):
 		response.Error(c, http.StatusRequestEntityTooLarge, errs.ErrPayloadTooLarge, "admission material too large")
-	case errors.Is(err, ErrAdmissionCameraHandoffNotFound):
-		response.NotFound(c, "admission camera handoff not found")
-	case errors.Is(err, ErrAdmissionCameraHandoffExpired):
-		response.Error(c, http.StatusGone, errs.ErrInvalidParam, "admission camera handoff expired")
-	case errors.Is(err, ErrAdmissionCameraHandoffLocked):
-		response.Conflict(c, "admission camera handoff locked")
-	case errors.Is(err, ErrAdmissionCameraHandoffInvalidChoice):
-		response.BadRequest(c, "admission camera handoff continuation invalid")
 	default:
 		return false
 	}

@@ -21,6 +21,14 @@ assert_contains() {
   fi
 }
 
+assert_not_contains() {
+  local file="$1"
+  local pattern="$2"
+  if grep -Eq "${pattern}" "${file}"; then
+    fail "expected ${file} to not contain pattern: ${pattern}"
+  fi
+}
+
 for file in \
   "${BOOTSTRAP_SCRIPT}" \
   "${PROD_ENV_EXAMPLE}" \
@@ -58,7 +66,8 @@ assert_contains "${BOOTSTRAP_SCRIPT}" 'school_configs'
 assert_contains "${BOOTSTRAP_SCRIPT}" "emailDomains"
 assert_contains "${BOOTSTRAP_SCRIPT}" "emailIdentityPolicy"
 assert_contains "${BOOTSTRAP_SCRIPT}" "academic_student_email"
-assert_contains "${BOOTSTRAP_SCRIPT}" "academic_db_table = EXCLUDED.academic_db_table"
+assert_contains "${BOOTSTRAP_SCRIPT}" "academic_db_table = NULL"
+assert_not_contains "${BOOTSTRAP_SCRIPT}" "academic.buaa_students"
 assert_contains "${BOOTSTRAP_SCRIPT}" "disabled_other_school_configs"
 assert_contains "${BOOTSTRAP_SCRIPT}" "sc.school_id <> school_upsert.id"
 assert_contains "${BOOTSTRAP_SCRIPT}" "prune_other_group_policies"

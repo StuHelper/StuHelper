@@ -52,22 +52,6 @@ const (
 	AdmissionJoinHandlingPostJoinTimeCode  AdmissionJoinHandlingStrategy = "post_join_time_code"
 )
 
-type FreshmanCameraHandoffStatus string
-
-const (
-	FreshmanCameraHandoffPending  FreshmanCameraHandoffStatus = "pending"
-	FreshmanCameraHandoffUploaded FreshmanCameraHandoffStatus = "uploaded"
-	FreshmanCameraHandoffLocked   FreshmanCameraHandoffStatus = "locked"
-	FreshmanCameraHandoffExpired  FreshmanCameraHandoffStatus = "expired"
-)
-
-type FreshmanCameraContinuation string
-
-const (
-	FreshmanCameraContinueDesktop FreshmanCameraContinuation = "desktop"
-	FreshmanCameraContinueMobile  FreshmanCameraContinuation = "mobile"
-)
-
 type VerificationCredentialKind string
 
 const (
@@ -252,54 +236,6 @@ type AdminFreshmanReviewInput struct {
 	Reason         *string
 	ExpiresInDays  *int
 	OperatorUserID int64
-}
-
-type CameraCaptureInput struct {
-	UserID        int64
-	ApplicationID string
-	ContentType   string
-	ImageBase64   string
-}
-
-type FreshmanCameraHandoff struct {
-	ID               string                      `json:"id"`
-	ApplicationID    string                      `json:"applicationID"`
-	UserID           int64                       `json:"userID"`
-	Status           FreshmanCameraHandoffStatus `json:"status"`
-	ContinueOn       *FreshmanCameraContinuation `json:"continueOn,omitempty"`
-	MobileURL        string                      `json:"mobileURL,omitempty"`
-	ExpiresAt        time.Time                   `json:"expiresAt"`
-	UploadedAt       *time.Time                  `json:"uploadedAt,omitempty"`
-	ChosenAt         *time.Time                  `json:"chosenAt,omitempty"`
-	CreatedAt        time.Time                   `json:"createdAt"`
-	MaxMaterialBytes int64                       `json:"maxMaterialBytes"`
-}
-
-func (h FreshmanCameraHandoff) MarshalJSON() ([]byte, error) {
-	type alias FreshmanCameraHandoff
-	return json.Marshal(struct {
-		alias
-		UserID string `json:"userID"`
-	}{
-		alias:  alias(h),
-		UserID: strconv.FormatInt(h.UserID, 10),
-	})
-}
-
-type FreshmanCameraHandoffCreateInput struct {
-	UserID        int64
-	ApplicationID string
-}
-
-type FreshmanCameraHandoffCaptureInput struct {
-	Token       string
-	ContentType string
-	ImageBase64 string
-}
-
-type FreshmanCameraHandoffContinuationInput struct {
-	Token      string
-	ContinueOn FreshmanCameraContinuation
 }
 
 type SchoolEmailOTPInput struct {

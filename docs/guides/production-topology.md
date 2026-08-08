@@ -24,7 +24,8 @@ last-verified: 2026-07-29
     ├── stuhelper.com /             → 127.0.0.1:18000 → web 前端 (Nginx, :80)
     ├── stuhelper.com /verify 和 /verify/* → 404（不兼容旧入口）
     ├── join.stuhelper.com /verify/<code> → 127.0.0.1:18000 → web 前端
-    ├── join.stuhelper.com /admission/freshman/camera/* → 127.0.0.1:18000 → web 前端
+    ├── join.stuhelper.com /student-verification/manual-camera/* → 127.0.0.1:18000 → web 前端
+    ├── join.stuhelper.com /admission/freshman/camera/* 与旧 handoff SSE → 404
     ├── join.stuhelper.com /verify → 404
     ├── join.stuhelper.com / 和主站业务页面路径 → 404（防止串站）
     ├── join.stuhelper.com /api/* 与 /health/* → 127.0.0.1:18080 → backend
