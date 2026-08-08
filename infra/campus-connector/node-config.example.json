@@ -30,7 +30,7 @@
         "userDNTemplate": "uid={student_id},ou=people,dc=example,dc=edu",
         "searchBaseDN": "ou=people,dc=example,dc=edu",
         "systemBindDN": "uid=stuhelper-reader,ou=system,dc=example,dc=edu",
-        "systemBindPasswordEnv": "SCHOOL_LDAP_READER_PASSWORD",
+        "systemBindPasswordFile": "/run/secrets/upstream/school-ldap-reader-password",
         "uidAttribute": "uid",
         "subjectAttribute": "uid",
         "accountLockedAttribute": "accountLocked",
@@ -52,8 +52,8 @@
       "timeoutMilliseconds": 120000,
       "oracleRoster": {
         "serviceName": "REPLACE_WITH_SERVICE_NAME",
-        "usernameEnv": "SCHOOL_ORACLE_EXISTING_USERNAME",
-        "passwordEnv": "SCHOOL_ORACLE_EXISTING_PASSWORD",
+        "usernameFile": "/run/secrets/upstream/school-oracle-existing-username",
+        "passwordFile": "/run/secrets/upstream/school-oracle-existing-password",
         "caFile": "/run/secrets/school-oracle-ca.crt",
         "allowedDialTargets": [
           "oracle.internal.example.edu:2484",

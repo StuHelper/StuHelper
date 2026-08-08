@@ -208,6 +208,12 @@ mTLS、Ed25519 签名、operation allowlist、重放保护、快照加密、固�
 
 - `docker-compose.example.yml` 展示只读根文件系统、无 Linux capabilities、`no-new-privileges`、有界
   PID 和临时目录的最小容器基线。
+- 节点配置只引用 `/run/secrets` 下的单个文件，不再使用环境变量承载 LDAP/Oracle 凭据。每个文件必须是
+  普通文件、由连接器运行用户可读、权限为 `0400` 或 `0600`，且只包含一行值（可带一个末尾换行）。
+  Compose 示例把已由 Git 忽略的节点本地 `./secrets` 以只读方式挂载；不要把口令写进 `.env`、Compose
+  `environment`、JSON、日志或命令行。密钥文件及其父目录都不得是符号链接。更新既有口令时，先在受控
+  终端原子替换对应文件，再重启节点并验证健康；旧口令在新值验证前保留，但不得复制到其他渠道。
+  `docker inspect` 应只能看到 secret 挂载路径，不能看到口令值。
 - 节点、operation、上游和中心只记录稳定错误分类与不可逆请求引用；不得记录学号、姓名、证件号、
   手机号、学校密码、Oracle 行或材料。
 - mTLS 证书、Ed25519 签名密钥、X25519 快照接收密钥和上游只读口令分别轮换。先登记新公钥/证书并

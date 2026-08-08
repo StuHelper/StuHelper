@@ -1,6 +1,9 @@
 package node
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -27,8 +30,16 @@ func TestConfigRejectsGenericNetworkAndInlineSecretShapes(t *testing.T) {
 			mutate: func(cfg *Config) { cfg.Operations[0].TargetHost = "https://target.example/path" },
 		},
 		{
-			name:   "inline service password",
-			mutate: func(cfg *Config) { cfg.Operations[0].LDAP.SystemBindPasswordEnv = "literal-password" },
+			name: "secret outside fixed mount",
+			mutate: func(cfg *Config) {
+				cfg.Operations[0].LDAP.SystemBindPasswordFile = "/tmp/literal-password"
+			},
+		},
+		{
+			name: "secret path traversal",
+			mutate: func(cfg *Config) {
+				cfg.Operations[0].LDAP.SystemBindPasswordFile = "/run/secrets/../connector-password"
+			},
 		},
 		{
 			name: "unreviewed DN token",
@@ -48,6 +59,53 @@ func TestConfigRejectsGenericNetworkAndInlineSecretShapes(t *testing.T) {
 			require.Error(t, cfg.Validate())
 		})
 	}
+}
+
+func TestLoadConfigRejectsRetiredEnvironmentSecretFields(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "node.json")
+	raw := `{
+  "nodeID":"00000000-0000-4000-8000-000000000001",
+  "softwareVersion":"test",
+  "centralBaseURL":"https://central.example:9444",
+  "clientCertificateFile":"/run/secrets/client.crt",
+  "clientPrivateKeyFile":"/run/secrets/client.key",
+  "centralCAFile":"/run/secrets/ca.crt",
+  "signingKeyID":"signing-key-1",
+  "signingPrivateKeyFile":"/run/secrets/signing.key",
+  "snapshotEncryptionKeyID":"snapshot-key-1",
+  "snapshotPublicKeyFile":"/run/secrets/snapshot.pub",
+  "protocolVersion":"1",
+  "heartbeatIntervalSeconds":30,
+  "pollWorkers":2,
+  "maxInteractivePasswordBytes":256,
+  "operations":[{
+    "key":"school.account.authenticate",
+    "schoolCode":"0000000001",
+    "type":"school_account_authenticate",
+    "adapterID":"school_ldap_bind",
+    "adapterVersion":"1",
+    "upstreamProtocol":"ldaps",
+    "targetHost":"ldap.internal.example",
+    "targetPort":636,
+    "tlsServerName":"ldap.internal.example",
+    "timeoutMilliseconds":5000,
+    "ldap":{
+      "caFile":"/run/secrets/ldap-ca.crt",
+      "userDNTemplate":"uid={student_id},ou=people,dc=example",
+      "searchBaseDN":"ou=people,dc=example",
+      "systemBindDN":"uid=reader,ou=system,dc=example",
+      "systemBindPasswordEnv":"SCHOOL_LDAP_READER_PASSWORD",
+      "uidAttribute":"uid",
+      "subjectAttribute":"uid",
+      "accountLockedAttribute":"accountLocked",
+      "accountDisabledAttribute":"accountDisabled"
+    }
+  }]
+}`
+	require.NoError(t, os.WriteFile(path, []byte(raw), 0o600))
+	_, err := LoadConfig(path)
+	require.Error(t, err)
+	require.Contains(t, strings.ToLower(err.Error()), "unknown field")
 }
 
 func TestOracleRosterConfigCannotRepresentSQL(t *testing.T) {
@@ -134,12 +192,12 @@ func validTestConfig() Config {
 			TargetHost: "ldap.internal.example", TargetPort: 636,
 			TLSServerName: "ldap.internal.example", TimeoutMilliseconds: 5000,
 			LDAP: &LDAPOperationConfig{
-				CAFile:                "/run/secrets/ldap-ca.crt",
-				UserDNTemplate:        "uid={student_id},ou=people,dc=example",
-				SearchBaseDN:          "ou=people,dc=example",
-				SystemBindDN:          "uid=reader,ou=system,dc=example",
-				SystemBindPasswordEnv: "SCHOOL_LDAP_READER_PASSWORD",
-				UIDAttribute:          "uid", SubjectAttribute: "uid",
+				CAFile:                 "/run/secrets/ldap-ca.crt",
+				UserDNTemplate:         "uid={student_id},ou=people,dc=example",
+				SearchBaseDN:           "ou=people,dc=example",
+				SystemBindDN:           "uid=reader,ou=system,dc=example",
+				SystemBindPasswordFile: "/run/secrets/school-ldap-reader-password",
+				UIDAttribute:           "uid", SubjectAttribute: "uid",
 				AccountLockedAttribute:   "accountLocked",
 				AccountDisabledAttribute: "accountDisabled",
 			},
@@ -155,8 +213,8 @@ func validOracleOperation() OperationConfig {
 		TargetHost: "oracle.internal.example", TargetPort: 2484,
 		TLSServerName: "oracle.internal.example", TimeoutMilliseconds: 120000,
 		OracleRoster: &OracleRosterOperationConfig{
-			ServiceName: "ORCL", UsernameEnv: "SCHOOL_ORACLE_USERNAME",
-			PasswordEnv: "SCHOOL_ORACLE_PASSWORD", CAFile: "/run/secrets/oracle-ca.crt",
+			ServiceName: "ORCL", UsernameFile: "/run/secrets/school-oracle-username",
+			PasswordFile: "/run/secrets/school-oracle-password", CAFile: "/run/secrets/oracle-ca.crt",
 			AllowedDialTargets: []string{"oracle.internal.example:2484", "10.20.30.41:2484"},
 			ExpectedUsername:   "STUHELPER_RO", Schema: "ZHFWDB", Table: "T_XS_JBXX",
 			ActiveFilterColumn: "DQXJ", ActiveFilterValue: "1", ActiveEligibilityCode: "CURRENT",

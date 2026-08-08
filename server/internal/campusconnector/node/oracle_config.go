@@ -2,7 +2,6 @@ package node
 
 import (
 	"errors"
-	"os"
 	"time"
 
 	"github.com/StuHelper/StuHelper/server/internal/modules/externaldata"
@@ -10,7 +9,7 @@ import (
 
 // BuildOracleRosterSnapshotConfig converts one already validated local
 // operation into the fixed Oracle reader configuration. Credentials are read
-// only from the operation's environment references and are never serialized.
+// only from the operation's local secret files and are never serialized.
 func BuildOracleRosterSnapshotConfig(operation OperationConfig) (externaldata.OracleRosterSnapshotConfig, error) {
 	if err := operation.Validate(); err != nil {
 		return externaldata.OracleRosterSnapshotConfig{}, err
@@ -19,16 +18,21 @@ func BuildOracleRosterSnapshotConfig(operation OperationConfig) (externaldata.Or
 		return externaldata.OracleRosterSnapshotConfig{}, errors.New("operation is not an Oracle roster snapshot")
 	}
 	cfg := operation.OracleRoster
-	username := os.Getenv(cfg.UsernameEnv)
-	password := os.Getenv(cfg.PasswordEnv)
-	if username == "" || password == "" {
+	username, usernameErr := readSecretFile(cfg.UsernameFile)
+	if usernameErr != nil {
 		return externaldata.OracleRosterSnapshotConfig{}, errors.New("oracle roster secret reference is unavailable")
 	}
+	defer wipe(username)
+	password, passwordErr := readSecretFile(cfg.PasswordFile)
+	if passwordErr != nil {
+		return externaldata.OracleRosterSnapshotConfig{}, errors.New("oracle roster secret reference is unavailable")
+	}
+	defer wipe(password)
 	timeout := time.Duration(operation.TimeoutMilliseconds) * time.Millisecond
 	return externaldata.OracleRosterSnapshotConfig{
 		Host: operation.TargetHost, Port: operation.TargetPort, TransportMode: operation.UpstreamProtocol,
 		TLSServerName: operation.TLSServerName, ServiceName: cfg.ServiceName,
-		Username: username, Password: password, ExpectedUsername: cfg.ExpectedUsername,
+		Username: string(username), Password: string(password), ExpectedUsername: cfg.ExpectedUsername,
 		CAFile: cfg.CAFile, Schema: cfg.Schema, Table: cfg.Table,
 		AllowedDialTargets: append([]string(nil), cfg.AllowedDialTargets...),
 		ActiveFilterColumn: cfg.ActiveFilterColumn, ActiveFilterValue: cfg.ActiveFilterValue,

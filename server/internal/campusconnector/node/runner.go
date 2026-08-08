@@ -133,8 +133,8 @@ func (r *Runner) operationHealth(ctx context.Context, operation OperationConfig)
 		}
 		return code
 	}
-	if operation.OracleRoster == nil || os.Getenv(operation.OracleRoster.UsernameEnv) == "" ||
-		os.Getenv(operation.OracleRoster.PasswordEnv) == "" {
+	if operation.OracleRoster == nil || !secretFileAvailable(operation.OracleRoster.UsernameFile) ||
+		!secretFileAvailable(operation.OracleRoster.PasswordFile) {
 		state.failure("secret_unavailable")
 		return "secret_unavailable"
 	}

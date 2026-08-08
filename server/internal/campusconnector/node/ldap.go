@@ -113,6 +113,11 @@ func (a *LDAPAdapter) Authenticate(
 }
 
 func (a *LDAPAdapter) Health(ctx context.Context) (health string) {
+	secret, err := readSecretFile(a.operation.LDAP.SystemBindPasswordFile)
+	if err != nil {
+		return "secret_unavailable"
+	}
+	defer wipe(secret)
 	connection, err := a.dial(ctx)
 	if err != nil {
 		return mapLDAPDependencyError(err)
@@ -123,11 +128,7 @@ func (a *LDAPAdapter) Health(ctx context.Context) (health string) {
 			health = mapLDAPDependencyError(closeErr)
 		}
 	}()
-	secret := os.Getenv(a.operation.LDAP.SystemBindPasswordEnv)
-	if secret == "" {
-		return "secret_unavailable"
-	}
-	err = connection.Bind(a.operation.LDAP.SystemBindDN, secret)
+	err = connection.Bind(a.operation.LDAP.SystemBindDN, string(secret))
 	if err != nil {
 		return mapLDAPDependencyError(err)
 	}
@@ -135,6 +136,11 @@ func (a *LDAPAdapter) Health(ctx context.Context) (health string) {
 }
 
 func (a *LDAPAdapter) lookupAccount(ctx context.Context, studentID string) (entryResult *ldap.Entry, resultCode string) {
+	secret, err := readSecretFile(a.operation.LDAP.SystemBindPasswordFile)
+	if err != nil {
+		return nil, "secret_unavailable"
+	}
+	defer wipe(secret)
 	connection, err := a.dial(ctx)
 	if err != nil {
 		return nil, mapLDAPDependencyError(err)
@@ -146,11 +152,7 @@ func (a *LDAPAdapter) lookupAccount(ctx context.Context, studentID string) (entr
 			resultCode = mapLDAPDependencyError(closeErr)
 		}
 	}()
-	secret := os.Getenv(a.operation.LDAP.SystemBindPasswordEnv)
-	if secret == "" {
-		return nil, "secret_unavailable"
-	}
-	err = connection.Bind(a.operation.LDAP.SystemBindDN, secret)
+	err = connection.Bind(a.operation.LDAP.SystemBindDN, string(secret))
 	if err != nil {
 		return nil, mapLDAPDependencyError(err)
 	}

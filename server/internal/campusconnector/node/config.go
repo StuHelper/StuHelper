@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strconv"
@@ -24,7 +25,6 @@ import (
 var (
 	operationKeyPattern     = regexp.MustCompile(`^[a-z][a-z0-9_.-]{1,127}$`)
 	adapterIDPattern        = regexp.MustCompile(`^[a-z][a-z0-9_]{1,63}$`)
-	envReferencePattern     = regexp.MustCompile(`^[A-Z][A-Z0-9_]{2,127}$`)
 	oracleIdentifierPattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]{0,127}$`)
 	ldapAttributePattern    = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9-]{0,63}$`)
 	schoolCodePattern       = regexp.MustCompile(`^\d{10}$`)
@@ -69,7 +69,7 @@ type LDAPOperationConfig struct {
 	UserDNTemplate               string   `json:"userDNTemplate"`
 	SearchBaseDN                 string   `json:"searchBaseDN"`
 	SystemBindDN                 string   `json:"systemBindDN"`
-	SystemBindPasswordEnv        string   `json:"systemBindPasswordEnv"`
+	SystemBindPasswordFile       string   `json:"systemBindPasswordFile"`
 	UIDAttribute                 string   `json:"uidAttribute"`
 	SubjectAttribute             string   `json:"subjectAttribute"`
 	AccountLockedAttribute       string   `json:"accountLockedAttribute"`
@@ -80,8 +80,8 @@ type LDAPOperationConfig struct {
 
 type OracleRosterOperationConfig struct {
 	ServiceName                 string              `json:"serviceName"`
-	UsernameEnv                 string              `json:"usernameEnv"`
-	PasswordEnv                 string              `json:"passwordEnv"`
+	UsernameFile                string              `json:"usernameFile"`
+	PasswordFile                string              `json:"passwordFile"`
 	CAFile                      string              `json:"caFile"`
 	AllowPlaintextSSHTunnel     bool                `json:"allowPlaintextSSHTunnel,omitempty"`
 	AllowedDialTargets          []string            `json:"allowedDialTargets"`
@@ -271,7 +271,7 @@ func (cfg LDAPOperationConfig) Validate() error {
 	if strings.Count(cfg.UserDNTemplate, "{student_id}") != 1 ||
 		strings.Contains(strings.ReplaceAll(cfg.UserDNTemplate, "{student_id}", ""), "{") ||
 		strings.TrimSpace(cfg.SearchBaseDN) == "" || strings.TrimSpace(cfg.SystemBindDN) == "" ||
-		!envReferencePattern.MatchString(cfg.SystemBindPasswordEnv) {
+		!validSecretFileReference(cfg.SystemBindPasswordFile) {
 		return errors.New("LDAP DN templates or system secret reference are invalid")
 	}
 	attributes := []string{cfg.UIDAttribute, cfg.SubjectAttribute,
@@ -301,8 +301,8 @@ func isRFC1918IPv4(ip net.IP) bool {
 }
 
 func (cfg OracleRosterOperationConfig) Validate() error {
-	if strings.TrimSpace(cfg.ServiceName) == "" || !envReferencePattern.MatchString(cfg.UsernameEnv) ||
-		!envReferencePattern.MatchString(cfg.PasswordEnv) ||
+	if strings.TrimSpace(cfg.ServiceName) == "" || !validSecretFileReference(cfg.UsernameFile) ||
+		!validSecretFileReference(cfg.PasswordFile) || cfg.UsernameFile == cfg.PasswordFile ||
 		len(cfg.AllowedDialTargets) == 0 || len(cfg.AllowedDialTargets) > 64 ||
 		!oracleIdentifierPattern.MatchString(cfg.ExpectedUsername) ||
 		!oracleIdentifierPattern.MatchString(cfg.Schema) || !oracleIdentifierPattern.MatchString(cfg.Table) ||
@@ -349,6 +349,20 @@ func (cfg OracleRosterOperationConfig) Validate() error {
 		return errors.New("oracle active filter must use an approved status column")
 	}
 	return nil
+}
+
+// validSecretFileReference limits upstream credentials to one exact file under
+// the connector's read-only secret mount. This prevents the non-secret node
+// configuration from becoming an arbitrary local-file reader.
+func validSecretFileReference(path string) bool {
+	trimmed := strings.TrimSpace(path)
+	if path == "" || path != trimmed || path != filepath.Clean(path) ||
+		!filepath.IsAbs(path) || strings.ContainsRune(path, '\x00') {
+		return false
+	}
+	relative, err := filepath.Rel(secretFileRoot, path)
+	return err == nil && relative != "." && relative != ".." &&
+		!strings.HasPrefix(relative, ".."+string(os.PathSeparator))
 }
 
 func (cfg OracleRosterOperationConfig) ValidateDialTargets(initialHost string, initialPort int) error {
