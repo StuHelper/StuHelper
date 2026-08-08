@@ -266,7 +266,11 @@ ensure_value "CAMPUS_CONNECTOR_GATEWAY_PUBLIC_PORT" "${CAMPUS_CONNECTOR_GATEWAY_
 ensure_value "CAMPUS_CONNECTOR_GATEWAY_EXTERNAL_PORT" "${CAMPUS_CONNECTOR_GATEWAY_EXTERNAL_PORT:-}" "19444"
 ensure_value "CAMPUS_CONNECTOR_ALLOWED_SOURCE_CIDRS" "${CAMPUS_CONNECTOR_ALLOWED_SOURCE_CIDRS:-}" "REPLACE_WITH_APPROVED_CAMPUS_CONNECTOR_SOURCE_CIDRS"
 ensure_value "CAMPUS_CONNECTOR_PKI_DIR" "${CAMPUS_CONNECTOR_PKI_DIR:-}" "./infra/generated/campus-connector-pki"
-ensure_value "CAMPUS_CONNECTOR_GATEWAY_SECRET_DIR" "${CAMPUS_CONNECTOR_GATEWAY_SECRET_DIR:-}" "./infra/generated/campus-connector-gateway-runtime"
+ensure_prod_default \
+  "CAMPUS_CONNECTOR_GATEWAY_SECRET_DIR" \
+  "${CAMPUS_CONNECTOR_GATEWAY_SECRET_DIR:-}" \
+  "./infra/generated/campus-connector-gateway-runtime" \
+  "./infra/generated/campus-connector-pki/gateway"
 ensure_value "CAMPUS_CONNECTOR_GATEWAY_TLS_CERT_FILE" "${CAMPUS_CONNECTOR_GATEWAY_TLS_CERT_FILE:-}" "/run/secrets/campus-connector/gateway.crt"
 ensure_value "CAMPUS_CONNECTOR_GATEWAY_TLS_KEY_FILE" "${CAMPUS_CONNECTOR_GATEWAY_TLS_KEY_FILE:-}" "/run/secrets/campus-connector/gateway.key"
 ensure_value "CAMPUS_CONNECTOR_GATEWAY_CLIENT_CA_FILE" "${CAMPUS_CONNECTOR_GATEWAY_CLIENT_CA_FILE:-}" "/run/secrets/campus-connector/client-ca.crt"
