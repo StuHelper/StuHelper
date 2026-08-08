@@ -467,6 +467,16 @@ require_production_object_storage
 [[ "${TOKEN_COOKIE_SECURE:-false}" == "true" ]] || die "TOKEN_COOKIE_SECURE must be true for production deploy"
 [[ "${ADMISSION_PUBLIC_BASE_URL:-}" == "https://join.stuhelper.com" ]] || die "ADMISSION_PUBLIC_BASE_URL must be exactly https://join.stuhelper.com for production deploy"
 [[ "${STUDENT_VERIFICATION_PUBLIC_BASE_URL:-}" == "https://stuhelper.com" ]] || die "STUDENT_VERIFICATION_PUBLIC_BASE_URL must be exactly https://stuhelper.com for production deploy"
+require_nonempty BACKEND_RUNTIME_UID "${BACKEND_RUNTIME_UID:-}"
+require_nonempty BACKEND_RUNTIME_GID "${BACKEND_RUNTIME_GID:-}"
+[[ "${BACKEND_RUNTIME_UID}" =~ ^[1-9][0-9]*$ ]] ||
+  die "BACKEND_RUNTIME_UID must be a non-root numeric UID"
+[[ "${BACKEND_RUNTIME_GID}" =~ ^[1-9][0-9]*$ ]] ||
+  die "BACKEND_RUNTIME_GID must be a non-root numeric GID"
+[[ "${BACKEND_RUNTIME_UID}" == "$(id -u)" ]] ||
+  die "BACKEND_RUNTIME_UID must match the production deploy user's UID"
+[[ "${BACKEND_RUNTIME_GID}" == "$(id -g)" ]] ||
+  die "BACKEND_RUNTIME_GID must match the production deploy user's primary GID"
 if [[ "${CAMPUS_CONNECTOR_GATEWAY_ENABLED:-false}" == "true" ]]; then
   require_nonempty CAMPUS_CONNECTOR_GATEWAY_PUBLIC_HOST "${CAMPUS_CONNECTOR_GATEWAY_PUBLIC_HOST:-}"
   require_nonempty CAMPUS_CONNECTOR_GATEWAY_PUBLIC_PORT "${CAMPUS_CONNECTOR_GATEWAY_PUBLIC_PORT:-}"
@@ -498,16 +508,15 @@ if [[ "${CAMPUS_CONNECTOR_GATEWAY_ENABLED:-false}" == "true" ]]; then
     die "PUBLIC_INGRESS_CONFIG_PREFLIGHT_ENABLED must be true when the Campus Connector Gateway is enabled"
   [[ "${NGINX_PUBLIC_INGRESS_PROFILE:-}" == "app-all" ]] ||
     die "NGINX_PUBLIC_INGRESS_PROFILE must be app-all when the Campus Connector Gateway is enabled"
-  campus_connector_pki_dir="$(resolve_env_path "${CAMPUS_CONNECTOR_PKI_DIR:-./infra/generated/campus-connector-pki}")"
-  "${SCRIPT_DIR}/generate-campus-connector-pki.sh" \
-    --check \
-    --output "${campus_connector_pki_dir}" \
-    --gateway-host "${CAMPUS_CONNECTOR_GATEWAY_PUBLIC_HOST}"
-  generated_campus_connector_snapshot_key_id="$(
-    jq -er '.snapshotKeyID' "${campus_connector_pki_dir}/public-metadata.json"
+  campus_connector_gateway_secret_dir="$(
+    resolve_env_path "${CAMPUS_CONNECTOR_GATEWAY_SECRET_DIR}"
   )"
-  [[ "${CAMPUS_CONNECTOR_SNAPSHOT_KEY_ID}" == "${generated_campus_connector_snapshot_key_id}" ]] ||
-    die "CAMPUS_CONNECTOR_SNAPSHOT_KEY_ID does not match campus connector PKI"
+  "${SCRIPT_DIR}/validate-campus-connector-gateway-runtime.sh" \
+    --dir "${campus_connector_gateway_secret_dir}" \
+    --gateway-host "${CAMPUS_CONNECTOR_GATEWAY_PUBLIC_HOST}" \
+    --snapshot-key-id "${CAMPUS_CONNECTOR_SNAPSHOT_KEY_ID}" \
+    --expected-uid "${BACKEND_RUNTIME_UID}" \
+    --expected-gid "${BACKEND_RUNTIME_GID}"
 fi
 [[ "${OTEL_ENABLED:-false}" == "true" ]] || die "OTEL_ENABLED must be true for production deploy"
 [[ "${CASDOOR_BOOTSTRAP_ENABLED:-false}" == "true" ]] || die "CASDOOR_BOOTSTRAP_ENABLED must be true for production deploy"

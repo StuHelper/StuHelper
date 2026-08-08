@@ -112,6 +112,11 @@ assert_file_contains "${fresh_dir}/stdout.log" 'from \.env\.prod\.example'
 assert_file_contains "${fresh_env}" '^# StuHelper 生产环境配置样板$'
 assert_env_value "${fresh_env}" "APP_ENV" "production"
 assert_env_value "${fresh_env}" "APP_RUNTIME_MODE" "app"
+assert_env_value "${fresh_env}" "BACKEND_RUNTIME_UID" "$(id -u)"
+assert_env_value "${fresh_env}" "BACKEND_RUNTIME_GID" "$(id -g)"
+assert_env_value "${fresh_env}" "CAMPUS_CONNECTOR_GATEWAY_SECRET_DIR" "./infra/generated/campus-connector-gateway-runtime"
+[[ ! -e "${fresh_dir}/infra/generated/campus-connector-pki" ]] ||
+  fail "init-prod-env must not generate the full Connector PKI hierarchy"
 assert_file_contains "${REPO_ROOT}/.env.prod.example" '^# 生成期占位：不是生产凭据。init-prod-env 只复制该占位符；prod-deploy 前必须从真实 bot service credential 或 secret backend 注入。$'
 assert_file_contains "${REPO_ROOT}/.env.prod.example" '^BOT_SERVICE_TOKEN=REPLACE_WITH_BOT_SERVICE_TOKEN_BOOTSTRAP$'
 assert_file_not_contains "${REPO_ROOT}/.env.prod.example" 'init-prod-env/bootstrap 会创建真实 bot service credential'
@@ -394,6 +399,7 @@ bash "${INIT_SCRIPT}" >"${legacy_dir}/stdout.log" 2>"${legacy_dir}/stderr.log"
 legacy_env="${legacy_dir}/.env.prod.shared"
 assert_env_value "${legacy_env}" "APP_ENV" "production"
 assert_env_value "${legacy_env}" "APP_RUNTIME_MODE" "app"
+assert_env_value "${legacy_env}" "CAMPUS_CONNECTOR_GATEWAY_SECRET_DIR" "./infra/generated/campus-connector-gateway-runtime"
 assert_env_value "${legacy_env}" "DATABASE_URL" "postgres://stuhelper_app:REPLACE_WITH_STUHELPER_APP_DB_PASSWORD@postgres:5432/stuhelper?sslmode=verify-full&sslrootcert=/tls/ca.crt"
 assert_env_value "${legacy_env}" "BACKUP_DATABASE_URL" "postgres://stuhelper_backup:REPLACE_WITH_STUHELPER_BACKUP_DB_PASSWORD@postgres:5432/stuhelper?sslmode=verify-full&sslrootcert=/tls/ca.crt"
 assert_env_value "${legacy_env}" "REPLICATION_DATABASE_URL" "postgres://stuhelper_replication:REPLACE_WITH_STUHELPER_REPLICATION_DB_PASSWORD@postgres:5432/stuhelper?sslmode=verify-full&sslrootcert=/tls/ca.crt"
@@ -605,6 +611,29 @@ assert_env_value "${external_env}" "REDIS_EXPORTER_USERNAME" "stuhelper_metrics"
 assert_env_value "${external_env}" "REDIS_TLS_ENABLED" "true"
 assert_env_value "${external_env}" "REDIS_TLS_CA" "/tls/ca.crt"
 assert_file_not_contains "${external_dir}/.env.prod.secrets.local" '^POSTGRES_PASSWORD='
+
+root_identity_dir="$(mktemp -d)"
+cleanup_dirs+=("${root_identity_dir}")
+cp "${REPO_ROOT}/.env.prod.example" "${root_identity_dir}/.env.prod.shared"
+sed -i -E '/^BACKEND_RUNTIME_(UID|GID)=/s/=.*/=0/' "${root_identity_dir}/.env.prod.shared"
+touch "${root_identity_dir}/.env.prod.secrets.local" "${root_identity_dir}/.env.prod.generated" "${root_identity_dir}/.env.prod.generated.secrets"
+if ENV_FILE="${root_identity_dir}/.env.prod.shared" \
+SECRETS_ENV_FILE="${root_identity_dir}/.env.prod.secrets.local" \
+GENERATED_ENV_FILE="${root_identity_dir}/.env.prod.generated" \
+GENERATED_SECRET_ENV_FILE="${root_identity_dir}/.env.prod.generated.secrets" \
+GENERATED_OBS_DIR="${root_identity_dir}/generated/observability" \
+POSTGRES_TLS_DIR="${root_identity_dir}/generated/postgres" \
+REDIS_TLS_DIR="${root_identity_dir}/generated/redis" \
+REDIS_ACL_DIR="${root_identity_dir}/generated/redis" \
+POSTGRES_CLIENT_CA_DIR="${root_identity_dir}/generated/postgres-client-ca" \
+REDIS_CLIENT_CA_DIR="${root_identity_dir}/generated/redis-client-ca" \
+OBJECT_STORAGE_CLIENT_CA_DIR="${root_identity_dir}/generated/object-storage-client-ca" \
+EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_DIR="${root_identity_dir}/generated/external-student-source-client-ca" \
+DEPLOY_STATE_DIR="${root_identity_dir}/.deploy" \
+bash "${INIT_SCRIPT}" >"${root_identity_dir}/stdout.log" 2>"${root_identity_dir}/stderr.log"; then
+  fail "expected init-prod-env.sh to reject a root backend runtime identity"
+fi
+assert_file_contains "${root_identity_dir}/stderr.log" 'BACKEND_RUNTIME_UID must be a non-root numeric UID'
 
 insecure_dir="$(mktemp -d)"
 cleanup_dirs+=("${insecure_dir}")

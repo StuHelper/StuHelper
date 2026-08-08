@@ -53,6 +53,8 @@ bootstrap_validator_source_line="$(line_number 'source_casdoor_bootstrap_env # l
 postgres_ssl_line="$(line_number 'require_production_postgres_ssl')"
 external_student_source_security_line="$(line_number 'require_production_external_student_source_security')"
 object_storage_gate_line="$(line_number 'require_production_object_storage')"
+backend_runtime_identity_end_line="$(line_number 'BACKEND_RUNTIME_GID must match the production deploy user')"
+connector_gateway_enabled_line="$(line_number 'if [[ "${CAMPUS_CONNECTOR_GATEWAY_ENABLED:-false}" == "true" ]]; then')"
 public_ingress_config_preflight_line="$(line_number 'require_public_ingress_config_preflight')"
 public_ingress_preflight_line="$(line_number 'require_public_identity_ingress_preflight')"
 render_postgres_tls_line="$(line_number 'render-postgres-tls.sh')"
@@ -524,6 +526,18 @@ grep -qF 'PUBLIC_INGRESS_CONFIG_PREFLIGHT_ENABLED must be true when the Campus C
   fail "production deploy must not allow the Connector ingress preflight to be disabled"
 grep -qF 'NGINX_PUBLIC_INGRESS_PROFILE must be app-all when the Campus Connector Gateway is enabled' "${PROD_DEPLOY_FILE}" ||
   fail "production deploy must audit both the main HTTP ingress and Connector stream ingress"
+grep -qF 'BACKEND_RUNTIME_UID must match the production deploy user' "${PROD_DEPLOY_FILE}" ||
+  fail "production deploy must bind the backend runtime UID to the deploy user"
+grep -qF 'BACKEND_RUNTIME_GID must match the production deploy user' "${PROD_DEPLOY_FILE}" ||
+  fail "production deploy must bind the backend runtime GID to the deploy user"
+if (( backend_runtime_identity_end_line >= connector_gateway_enabled_line )); then
+  fail "production deploy must validate the non-root backend runtime identity even when the Connector Gateway is disabled"
+fi
+grep -qF 'validate-campus-connector-gateway-runtime.sh' "${PROD_DEPLOY_FILE}" ||
+  fail "production deploy must validate the minimal Gateway runtime bundle"
+if grep -qF 'generate-campus-connector-pki.sh' "${PROD_DEPLOY_FILE}"; then
+  fail "production deploy must not require the full offline PKI hierarchy"
+fi
 
 authz_block="$(
   awk '

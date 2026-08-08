@@ -105,6 +105,13 @@ ensure_bootstrap_env_value() {
 
 load_env
 
+backend_runtime_uid_candidate="${BACKEND_RUNTIME_UID:-$(id -u)}"
+backend_runtime_gid_candidate="${BACKEND_RUNTIME_GID:-$(id -g)}"
+[[ "${backend_runtime_uid_candidate}" =~ ^[1-9][0-9]*$ ]] ||
+  die "BACKEND_RUNTIME_UID must be a non-root numeric UID; initialize production as the non-root deploy user or set the approved runtime UID explicitly"
+[[ "${backend_runtime_gid_candidate}" =~ ^[1-9][0-9]*$ ]] ||
+  die "BACKEND_RUNTIME_GID must be a non-root numeric GID; initialize production as the non-root deploy user or set the approved runtime GID explicitly"
+
 if [[ "${EXTERNAL_POSTGRES_ENABLED:-false}" != "true" ]]; then
   if placeholder_or_empty "${POSTGRES_PASSWORD:-}" || [[ "${POSTGRES_PASSWORD:-}" == "dev123" ]]; then
     upsert_env_file "${SECRETS_ENV_FILE}" "POSTGRES_PASSWORD" "prod-pg-$(random_hex 16)"
@@ -258,13 +265,19 @@ ensure_prod_default "CORS_ORIGINS" "${CORS_ORIGINS:-}" "https://stuhelper.com,ht
 ensure_prod_default "ADMISSION_PUBLIC_BASE_URL" "${ADMISSION_PUBLIC_BASE_URL:-}" "https://join.stuhelper.com" "REPLACE_WITH_ADMISSION_PUBLIC_BASE_URL" "http://localhost:3000" "http://join.localhost:3000" "http://join.stuhelper.com"
 ensure_prod_default "STUDENT_VERIFICATION_PUBLIC_BASE_URL" "${STUDENT_VERIFICATION_PUBLIC_BASE_URL:-}" "https://stuhelper.com" "REPLACE_WITH_STUDENT_VERIFICATION_PUBLIC_BASE_URL" "http://localhost:3000" "http://127.0.0.1:3000"
 ensure_prod_default "CAMPUS_CONNECTOR_GATEWAY_ENABLED" "${CAMPUS_CONNECTOR_GATEWAY_ENABLED:-}" "false"
+ensure_value "BACKEND_RUNTIME_UID" "${BACKEND_RUNTIME_UID:-}" "${backend_runtime_uid_candidate}"
+ensure_value "BACKEND_RUNTIME_GID" "${BACKEND_RUNTIME_GID:-}" "${backend_runtime_gid_candidate}"
 ensure_value "CAMPUS_CONNECTOR_GATEWAY_LISTEN_ADDRESS" "${CAMPUS_CONNECTOR_GATEWAY_LISTEN_ADDRESS:-}" ":9444"
 ensure_prod_default "CAMPUS_CONNECTOR_GATEWAY_PUBLIC_HOST" "${CAMPUS_CONNECTOR_GATEWAY_PUBLIC_HOST:-}" "connector.stuhelper.com" "REPLACE_WITH_CAMPUS_CONNECTOR_GATEWAY_PUBLIC_HOST" "localhost"
 ensure_value "CAMPUS_CONNECTOR_GATEWAY_PUBLIC_PORT" "${CAMPUS_CONNECTOR_GATEWAY_PUBLIC_PORT:-}" "9444"
 ensure_value "CAMPUS_CONNECTOR_GATEWAY_EXTERNAL_PORT" "${CAMPUS_CONNECTOR_GATEWAY_EXTERNAL_PORT:-}" "19444"
 ensure_value "CAMPUS_CONNECTOR_ALLOWED_SOURCE_CIDRS" "${CAMPUS_CONNECTOR_ALLOWED_SOURCE_CIDRS:-}" "REPLACE_WITH_APPROVED_CAMPUS_CONNECTOR_SOURCE_CIDRS"
 ensure_value "CAMPUS_CONNECTOR_PKI_DIR" "${CAMPUS_CONNECTOR_PKI_DIR:-}" "./infra/generated/campus-connector-pki"
-ensure_value "CAMPUS_CONNECTOR_GATEWAY_SECRET_DIR" "${CAMPUS_CONNECTOR_GATEWAY_SECRET_DIR:-}" "./infra/generated/campus-connector-pki/gateway"
+ensure_prod_default \
+  "CAMPUS_CONNECTOR_GATEWAY_SECRET_DIR" \
+  "${CAMPUS_CONNECTOR_GATEWAY_SECRET_DIR:-}" \
+  "./infra/generated/campus-connector-gateway-runtime" \
+  "./infra/generated/campus-connector-pki/gateway"
 ensure_value "CAMPUS_CONNECTOR_GATEWAY_TLS_CERT_FILE" "${CAMPUS_CONNECTOR_GATEWAY_TLS_CERT_FILE:-}" "/run/secrets/campus-connector/gateway.crt"
 ensure_value "CAMPUS_CONNECTOR_GATEWAY_TLS_KEY_FILE" "${CAMPUS_CONNECTOR_GATEWAY_TLS_KEY_FILE:-}" "/run/secrets/campus-connector/gateway.key"
 ensure_value "CAMPUS_CONNECTOR_GATEWAY_CLIENT_CA_FILE" "${CAMPUS_CONNECTOR_GATEWAY_CLIENT_CA_FILE:-}" "/run/secrets/campus-connector/client-ca.crt"
@@ -506,21 +519,29 @@ ensure_prod_default "FRONTEND_IMAGE_REF" "${FRONTEND_IMAGE_REF:-}" "REPLACE_WITH
 ensure_prod_default "ADMIN_IMAGE_REF" "${ADMIN_IMAGE_REF:-}" "REPLACE_WITH_ADMIN_IMAGE_REF" "registry.stuhelper.com/stuhelper/admin:latest" "stuhelper/admin:dev-placeholder"
 
 load_env
-campus_connector_pki_dir="$(resolve_env_path "${CAMPUS_CONNECTOR_PKI_DIR:-./infra/generated/campus-connector-pki}")"
-"${SCRIPT_DIR}/generate-campus-connector-pki.sh" \
-  --output "${campus_connector_pki_dir}" \
-  --gateway-host "${CAMPUS_CONNECTOR_GATEWAY_PUBLIC_HOST:-connector.stuhelper.com}"
-generated_campus_connector_snapshot_key_id="$(
-  jq -er '.snapshotKeyID' "${campus_connector_pki_dir}/public-metadata.json"
-)"
-if placeholder_or_empty "${CAMPUS_CONNECTOR_SNAPSHOT_KEY_ID:-}"; then
-  upsert_env_file \
-    "${ENV_FILE}" \
-    "CAMPUS_CONNECTOR_SNAPSHOT_KEY_ID" \
-    "${generated_campus_connector_snapshot_key_id}"
-  export CAMPUS_CONNECTOR_SNAPSHOT_KEY_ID="${generated_campus_connector_snapshot_key_id}"
-elif [[ "${CAMPUS_CONNECTOR_SNAPSHOT_KEY_ID}" != "${generated_campus_connector_snapshot_key_id}" ]]; then
-  die "CAMPUS_CONNECTOR_SNAPSHOT_KEY_ID does not match generated campus connector PKI"
+if [[ "${CAMPUS_CONNECTOR_GATEWAY_ENABLED:-false}" == "true" ]]; then
+  campus_connector_gateway_secret_dir="$(
+    resolve_env_path "${CAMPUS_CONNECTOR_GATEWAY_SECRET_DIR:-./infra/generated/campus-connector-gateway-runtime}"
+  )"
+  gateway_validator=(
+    "${SCRIPT_DIR}/validate-campus-connector-gateway-runtime.sh"
+    --dir "${campus_connector_gateway_secret_dir}"
+    --gateway-host "${CAMPUS_CONNECTOR_GATEWAY_PUBLIC_HOST:-connector.stuhelper.com}"
+    --expected-uid "${BACKEND_RUNTIME_UID}"
+    --expected-gid "${BACKEND_RUNTIME_GID}"
+  )
+  if placeholder_or_empty "${CAMPUS_CONNECTOR_SNAPSHOT_KEY_ID:-}"; then
+    generated_campus_connector_snapshot_key_id="$(
+      "${gateway_validator[@]}" --print-snapshot-key-id
+    )"
+    upsert_env_file \
+      "${ENV_FILE}" \
+      "CAMPUS_CONNECTOR_SNAPSHOT_KEY_ID" \
+      "${generated_campus_connector_snapshot_key_id}"
+    export CAMPUS_CONNECTOR_SNAPSHOT_KEY_ID="${generated_campus_connector_snapshot_key_id}"
+  else
+    "${gateway_validator[@]}" --snapshot-key-id "${CAMPUS_CONNECTOR_SNAPSHOT_KEY_ID}"
+  fi
 fi
 materialize_postgres_runtime_urls
 require_production_postgres_ssl
