@@ -124,6 +124,46 @@ if "${VALIDATE_RUNTIME}" \
 fi
 mv -- "${tmp_dir}/snapshot-x25519.key.valid" "${runtime_dir}/snapshot-x25519.key"
 
+mv -- "${runtime_dir}/client-ca.crt" "${tmp_dir}/client-ca.crt.valid"
+openssl req \
+  -x509 \
+  -newkey rsa:2048 \
+  -nodes \
+  -days 365 \
+  -subj /CN=not-a-client-ca \
+  -addext basicConstraints=critical,CA:FALSE \
+  -addext keyUsage=critical,digitalSignature \
+  -keyout "${tmp_dir}/not-a-client-ca.key" \
+  -out "${runtime_dir}/client-ca.crt" >/dev/null 2>&1
+chmod 0644 "${runtime_dir}/client-ca.crt"
+if "${VALIDATE_RUNTIME}" \
+  --dir "${runtime_dir}" \
+  --gateway-host connector.example.test \
+  --expected-uid "${owner_uid}" \
+  --expected-gid "${owner_gid}" >/dev/null 2>&1; then
+  fail "runtime validator accepted client-ca.crt with CA:FALSE"
+fi
+
+openssl req \
+  -x509 \
+  -newkey rsa:2048 \
+  -nodes \
+  -days 365 \
+  -subj /CN=client-ca-without-key-cert-sign \
+  -addext basicConstraints=critical,CA:TRUE \
+  -addext keyUsage=critical,digitalSignature \
+  -keyout "${tmp_dir}/client-ca-without-key-cert-sign.key" \
+  -out "${runtime_dir}/client-ca.crt" >/dev/null 2>&1
+chmod 0644 "${runtime_dir}/client-ca.crt"
+if "${VALIDATE_RUNTIME}" \
+  --dir "${runtime_dir}" \
+  --gateway-host connector.example.test \
+  --expected-uid "${owner_uid}" \
+  --expected-gid "${owner_gid}" >/dev/null 2>&1; then
+  fail "runtime validator accepted a client CA without certificate-signing key usage"
+fi
+mv -- "${tmp_dir}/client-ca.crt.valid" "${runtime_dir}/client-ca.crt"
+
 touch "${runtime_dir}/unexpected.key"
 if "${VALIDATE_RUNTIME}" \
   --dir "${runtime_dir}" \

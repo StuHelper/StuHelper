@@ -153,6 +153,16 @@ openssl verify -CAfile "${runtime_dir}/gateway-ca.crt" \
   "${runtime_dir}/gateway-ca.crt" >/dev/null || die "gateway CA certificate validation failed"
 openssl verify -CAfile "${runtime_dir}/client-ca.crt" \
   "${runtime_dir}/client-ca.crt" >/dev/null || die "client CA certificate validation failed"
+client_ca_basic_constraints="$(
+  openssl x509 -in "${runtime_dir}/client-ca.crt" -noout -ext basicConstraints 2>/dev/null
+)" || die "could not inspect client CA basic constraints"
+grep -Eq 'CA:TRUE([,[:space:]]|$)' <<<"${client_ca_basic_constraints}" ||
+  die "client CA certificate must have CA:TRUE basic constraints"
+client_ca_key_usage="$(
+  openssl x509 -in "${runtime_dir}/client-ca.crt" -noout -ext keyUsage 2>/dev/null
+)" || die "could not inspect client CA key usage"
+grep -Fq 'Certificate Sign' <<<"${client_ca_key_usage}" ||
+  die "client CA certificate key usage must allow certificate signing"
 openssl verify -purpose sslserver \
   -CAfile "${runtime_dir}/gateway-ca.crt" \
   "${runtime_dir}/gateway.crt" >/dev/null || die "gateway certificate chain validation failed"
