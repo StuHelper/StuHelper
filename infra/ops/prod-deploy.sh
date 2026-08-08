@@ -467,22 +467,22 @@ require_production_object_storage
 [[ "${TOKEN_COOKIE_SECURE:-false}" == "true" ]] || die "TOKEN_COOKIE_SECURE must be true for production deploy"
 [[ "${ADMISSION_PUBLIC_BASE_URL:-}" == "https://join.stuhelper.com" ]] || die "ADMISSION_PUBLIC_BASE_URL must be exactly https://join.stuhelper.com for production deploy"
 [[ "${STUDENT_VERIFICATION_PUBLIC_BASE_URL:-}" == "https://stuhelper.com" ]] || die "STUDENT_VERIFICATION_PUBLIC_BASE_URL must be exactly https://stuhelper.com for production deploy"
+require_nonempty BACKEND_RUNTIME_UID "${BACKEND_RUNTIME_UID:-}"
+require_nonempty BACKEND_RUNTIME_GID "${BACKEND_RUNTIME_GID:-}"
+[[ "${BACKEND_RUNTIME_UID}" =~ ^[1-9][0-9]*$ ]] ||
+  die "BACKEND_RUNTIME_UID must be a non-root numeric UID"
+[[ "${BACKEND_RUNTIME_GID}" =~ ^[1-9][0-9]*$ ]] ||
+  die "BACKEND_RUNTIME_GID must be a non-root numeric GID"
+[[ "${BACKEND_RUNTIME_UID}" == "$(id -u)" ]] ||
+  die "BACKEND_RUNTIME_UID must match the production deploy user's UID"
+[[ "${BACKEND_RUNTIME_GID}" == "$(id -g)" ]] ||
+  die "BACKEND_RUNTIME_GID must match the production deploy user's primary GID"
 if [[ "${CAMPUS_CONNECTOR_GATEWAY_ENABLED:-false}" == "true" ]]; then
-  require_nonempty BACKEND_RUNTIME_UID "${BACKEND_RUNTIME_UID:-}"
-  require_nonempty BACKEND_RUNTIME_GID "${BACKEND_RUNTIME_GID:-}"
   require_nonempty CAMPUS_CONNECTOR_GATEWAY_PUBLIC_HOST "${CAMPUS_CONNECTOR_GATEWAY_PUBLIC_HOST:-}"
   require_nonempty CAMPUS_CONNECTOR_GATEWAY_PUBLIC_PORT "${CAMPUS_CONNECTOR_GATEWAY_PUBLIC_PORT:-}"
   require_nonempty CAMPUS_CONNECTOR_ALLOWED_SOURCE_CIDRS "${CAMPUS_CONNECTOR_ALLOWED_SOURCE_CIDRS:-}"
   require_nonempty CAMPUS_CONNECTOR_GATEWAY_SECRET_DIR "${CAMPUS_CONNECTOR_GATEWAY_SECRET_DIR:-}"
   require_nonempty CAMPUS_CONNECTOR_SNAPSHOT_KEY_ID "${CAMPUS_CONNECTOR_SNAPSHOT_KEY_ID:-}"
-  [[ "${BACKEND_RUNTIME_UID}" =~ ^[1-9][0-9]*$ ]] ||
-    die "BACKEND_RUNTIME_UID must be a non-root numeric UID"
-  [[ "${BACKEND_RUNTIME_GID}" =~ ^[1-9][0-9]*$ ]] ||
-    die "BACKEND_RUNTIME_GID must be a non-root numeric GID"
-  [[ "${BACKEND_RUNTIME_UID}" == "$(id -u)" ]] ||
-    die "BACKEND_RUNTIME_UID must match the production deploy user's UID"
-  [[ "${BACKEND_RUNTIME_GID}" == "$(id -g)" ]] ||
-    die "BACKEND_RUNTIME_GID must match the production deploy user's primary GID"
   reject_placeholder \
     CAMPUS_CONNECTOR_ALLOWED_SOURCE_CIDRS \
     "${CAMPUS_CONNECTOR_ALLOWED_SOURCE_CIDRS:-}" \

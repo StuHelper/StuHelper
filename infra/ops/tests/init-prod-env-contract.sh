@@ -612,6 +612,29 @@ assert_env_value "${external_env}" "REDIS_TLS_ENABLED" "true"
 assert_env_value "${external_env}" "REDIS_TLS_CA" "/tls/ca.crt"
 assert_file_not_contains "${external_dir}/.env.prod.secrets.local" '^POSTGRES_PASSWORD='
 
+root_identity_dir="$(mktemp -d)"
+cleanup_dirs+=("${root_identity_dir}")
+cp "${REPO_ROOT}/.env.prod.example" "${root_identity_dir}/.env.prod.shared"
+sed -i -E '/^BACKEND_RUNTIME_(UID|GID)=/s/=.*/=0/' "${root_identity_dir}/.env.prod.shared"
+touch "${root_identity_dir}/.env.prod.secrets.local" "${root_identity_dir}/.env.prod.generated" "${root_identity_dir}/.env.prod.generated.secrets"
+if ENV_FILE="${root_identity_dir}/.env.prod.shared" \
+SECRETS_ENV_FILE="${root_identity_dir}/.env.prod.secrets.local" \
+GENERATED_ENV_FILE="${root_identity_dir}/.env.prod.generated" \
+GENERATED_SECRET_ENV_FILE="${root_identity_dir}/.env.prod.generated.secrets" \
+GENERATED_OBS_DIR="${root_identity_dir}/generated/observability" \
+POSTGRES_TLS_DIR="${root_identity_dir}/generated/postgres" \
+REDIS_TLS_DIR="${root_identity_dir}/generated/redis" \
+REDIS_ACL_DIR="${root_identity_dir}/generated/redis" \
+POSTGRES_CLIENT_CA_DIR="${root_identity_dir}/generated/postgres-client-ca" \
+REDIS_CLIENT_CA_DIR="${root_identity_dir}/generated/redis-client-ca" \
+OBJECT_STORAGE_CLIENT_CA_DIR="${root_identity_dir}/generated/object-storage-client-ca" \
+EXTERNAL_STUDENT_SOURCE_ORACLE_TLS_CA_DIR="${root_identity_dir}/generated/external-student-source-client-ca" \
+DEPLOY_STATE_DIR="${root_identity_dir}/.deploy" \
+bash "${INIT_SCRIPT}" >"${root_identity_dir}/stdout.log" 2>"${root_identity_dir}/stderr.log"; then
+  fail "expected init-prod-env.sh to reject a root backend runtime identity"
+fi
+assert_file_contains "${root_identity_dir}/stderr.log" 'BACKEND_RUNTIME_UID must be a non-root numeric UID'
+
 insecure_dir="$(mktemp -d)"
 cleanup_dirs+=("${insecure_dir}")
 cp "${REPO_ROOT}/.env.prod.example" "${insecure_dir}/.env.prod.shared"
