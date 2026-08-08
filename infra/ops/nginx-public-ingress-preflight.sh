@@ -573,6 +573,36 @@ def validate_connector_server(block: Node, public_port: int, upstream_port: int,
         )
 
 
+def effective_configuration_section(effective_text: str, config_path: Path) -> str | None:
+    candidate_paths = {str(config_path), str(config_path.absolute())}
+    try:
+        candidate_paths.add(str(config_path.resolve()))
+    except OSError:
+        # A root-generated nginx -T snapshot is specifically used when the
+        # deploy identity cannot traverse Baota's root-only config tree.
+        pass
+
+    marker_pattern = re.compile(r"^# configuration file (.+):\s*$")
+    lines = effective_text.splitlines(keepends=True)
+    matching_sections: list[str] = []
+    for index, line in enumerate(lines):
+        match = marker_pattern.match(line.rstrip("\r\n"))
+        if match is None or match.group(1) not in candidate_paths:
+            continue
+        end = index + 1
+        while end < len(lines):
+            if marker_pattern.match(lines[end].rstrip("\r\n")) is not None:
+                break
+            end += 1
+        matching_sections.append("".join(lines[index + 1:end]))
+
+    if len(matching_sections) > 1:
+        raise CheckError(
+            f"campus connector stream config appears multiple times in the effective nginx -T dump: {config_path}"
+        )
+    return matching_sections[0] if matching_sections else None
+
+
 def validate_connector_ingress(effective_text: str, effective_path: Path) -> None:
     public_port = connector_port("CAMPUS_CONNECTOR_GATEWAY_PUBLIC_PORT", "9444")
     upstream_port = connector_port("CAMPUS_CONNECTOR_GATEWAY_EXTERNAL_PORT", "19444")
@@ -581,23 +611,22 @@ def validate_connector_ingress(effective_text: str, effective_path: Path) -> Non
     allowed_cidrs = connector_allowed_cidrs()
 
     connector_path = Path(sys.argv[2])
-    if not connector_path.is_file():
-        raise CheckError(f"campus connector stream config file is missing: {connector_path}")
-    connector_text = connector_path.read_text(encoding="utf-8", errors="replace")
     same_file = False
     try:
         same_file = connector_path.resolve() == effective_path.resolve()
     except OSError:
         pass
-    if not same_file:
-        marker_candidates = {
-            f"# configuration file {connector_path}:",
-            f"# configuration file {connector_path.resolve()}:",
-        }
-        if not any(marker in effective_text for marker in marker_candidates):
-            raise CheckError(
-                f"campus connector stream config is not present in the effective nginx -T dump: {connector_path}"
-            )
+    connector_text = effective_text if same_file else effective_configuration_section(effective_text, connector_path)
+    if connector_text is None:
+        try:
+            connector_exists = connector_path.is_file()
+        except OSError:
+            connector_exists = False
+        if not connector_exists:
+            raise CheckError(f"campus connector stream config file is missing: {connector_path}")
+        raise CheckError(
+            f"campus connector stream config is not present in the effective nginx -T dump: {connector_path}"
+        )
 
     connector_nodes, _ = parse_nodes(tokenize(connector_text))
     connector_servers = [node for node in connector_nodes if node.name == "server"]
