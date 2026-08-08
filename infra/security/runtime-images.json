@@ -107,9 +107,9 @@
       "scope": "optional loopback-only local identity-provider development fixture",
       "owner": "identity",
       "pin_review": {
-        "verified_on": "2026-08-03",
+        "verified_on": "2026-08-08",
         "review_by": "2026-08-10",
-        "upstream_evidence": "https://github.com/casdoor/casdoor/releases/tag/v3.140.0"
+        "upstream_evidence": "https://github.com/casdoor/casdoor/releases/tag/v3.144.0"
       }
     },
     {
@@ -138,11 +138,16 @@
     {
       "id": "ALLOY",
       "kind": "registry",
-      "image": "grafana/alloy:v1.18.0@sha256:491b0578c04983fd54fe99b587b6fab4404dc46d0dc16677bd6b00cc1140b308",
+      "image": "grafana/alloy:v1.18.1@sha256:0f4434c92b3e6cdac38bb129b344e1790c246f7b6e2eaffcc16a5fa363240e33",
       "env_var": "GRAFANA_ALLOY_IMAGE_REF",
       "env_files": [".env.example", ".env.prod.example"],
       "scope": "production telemetry collector on private observability networks",
-      "owner": "observability"
+      "owner": "observability",
+      "pin_review": {
+        "verified_on": "2026-08-08",
+        "review_by": "2026-08-12",
+        "upstream_evidence": "https://github.com/grafana/alloy/releases/tag/v1.18.1"
+      }
     },
     {
       "id": "PROMETHEUS",
@@ -300,9 +305,9 @@
     {
       "image_id": "CASDOOR_DEV",
       "owner": "platform-security",
-      "approved_on": "2026-08-03",
+      "approved_on": "2026-08-08",
       "expires_on": "2026-08-10",
-      "rationale": "Casdoor 3.140.0 is the newest upstream image, but its next dependency rebuild is still pending.",
+      "rationale": "Casdoor 3.144.0 was reviewed, but it still contains the go-git finding and is not a net-safer rebuild for this immutable development-only fixture.",
       "mitigations": [
         "The service exists only in the dev-full profile and every published port binds to loopback.",
         "It is not the production identity provider and no production identity data is mounted or queried.",
@@ -338,6 +343,7 @@
         {"id": "CVE-2026-42508", "severity": "HIGH", "package": "golang.org/x/crypto", "installed_version": "v0.47.0", "fixed_version": "0.52.0"},
         {"id": "CVE-2026-44973", "severity": "HIGH", "package": "github.com/go-git/go-billy/v5", "installed_version": "v5.6.2", "fixed_version": "5.9.0"},
         {"id": "CVE-2026-45022", "severity": "HIGH", "package": "github.com/go-git/go-git/v5", "installed_version": "v5.16.3", "fixed_version": "5.19.0"},
+        {"id": "CVE-2026-71556", "severity": "HIGH", "package": "github.com/go-git/go-git/v5", "installed_version": "v5.16.3", "fixed_version": "5.19.2"},
         {"id": "CVE-2026-46595", "severity": "HIGH", "package": "golang.org/x/crypto", "installed_version": "v0.47.0", "fixed_version": "0.52.0"},
         {"id": "CVE-2026-46597", "severity": "HIGH", "package": "golang.org/x/crypto", "installed_version": "v0.47.0", "fixed_version": "0.52.0"},
         {"id": "CVE-2026-46602", "severity": "HIGH", "package": "golang.org/x/image", "installed_version": "v0.18.0", "fixed_version": "0.43.0"},
@@ -373,20 +379,20 @@
     {
       "image_id": "ALLOY",
       "owner": "platform-security",
-      "approved_on": "2026-07-29",
+      "approved_on": "2026-08-08",
       "expires_on": "2026-08-12",
-      "rationale": "Alloy 1.18.0 is current and its next upstream dependency rebuild has not been published.",
+      "rationale": "Alloy 1.18.1 fixes two previously tracked dependencies, but upstream has not yet published a rebuild with go-git 5.19.2.",
       "mitigations": [
         "Alloy has no raw Docker socket and uses a GET-only allowlisted proxy on an internal network.",
         "The proxy denies POST, archive upload, exec, image, and volume APIs.",
-        "Alloy runs non-root with a read-only filesystem and all Linux capabilities dropped."
+        "Alloy runs non-root with a read-only filesystem and all Linux capabilities dropped.",
+        "The deployed Alloy configuration does not enable import.git or mount a writable Git worktree."
       ],
       "findings": [
         {"id": "CVE-2026-34040", "severity": "HIGH", "package": "github.com/docker/docker", "installed_version": "v28.5.2+incompatible", "fixed_version": "29.3.1"},
         {"id": "CVE-2026-41567", "severity": "HIGH", "package": "github.com/docker/docker", "installed_version": "v28.5.2+incompatible", "fixed_version": ""},
         {"id": "CVE-2026-42306", "severity": "HIGH", "package": "github.com/docker/docker", "installed_version": "v28.5.2+incompatible", "fixed_version": ""},
-        {"id": "CVE-2026-56852", "severity": "HIGH", "package": "golang.org/x/text", "installed_version": "v0.38.0", "fixed_version": "0.39.0"},
-        {"id": "GHSA-hrxh-6v49-42gf", "severity": "HIGH", "package": "google.golang.org/grpc", "installed_version": "v1.81.1", "fixed_version": "1.82.1"},
+        {"id": "CVE-2026-71556", "severity": "HIGH", "package": "github.com/go-git/go-git/v5", "installed_version": "v5.19.1", "fixed_version": "5.19.2"},
         {"id": "GO-2026-5932", "severity": "UNKNOWN", "package": "golang.org/x/crypto", "installed_version": "v0.53.0", "fixed_version": ""}
       ]
     },
