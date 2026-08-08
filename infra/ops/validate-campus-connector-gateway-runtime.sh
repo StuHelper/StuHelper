@@ -189,6 +189,13 @@ private_key_public_digest() {
    "$(private_key_public_digest "${runtime_dir}/gateway.key")" ]] ||
   die "gateway certificate and private key do not match"
 
+openssl pkey \
+  -in "${runtime_dir}/snapshot-x25519.key" \
+  -pubout \
+  -outform DER 2>/dev/null |
+  openssl asn1parse -inform DER 2>/dev/null |
+  grep -Eq 'prim:[[:space:]]+OBJECT[[:space:]]*:X25519$' ||
+  die "snapshot private key must use X25519"
 snapshot_digest="$(private_key_public_digest "${runtime_dir}/snapshot-x25519.key")"
 [[ "${snapshot_digest}" =~ ^[0-9a-f]{64}$ ]] || die "could not derive snapshot public-key digest"
 snapshot_key_id="cc-snapshot-x25519-${snapshot_digest:0:16}"

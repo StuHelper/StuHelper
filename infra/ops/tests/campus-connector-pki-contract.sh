@@ -109,6 +109,21 @@ if "${VALIDATE_RUNTIME}" \
 fi
 chmod 0600 "${runtime_dir}/gateway.key"
 
+mv -- "${runtime_dir}/snapshot-x25519.key" "${tmp_dir}/snapshot-x25519.key.valid"
+openssl genpkey \
+  -algorithm RSA \
+  -pkeyopt rsa_keygen_bits:2048 \
+  -out "${runtime_dir}/snapshot-x25519.key" >/dev/null 2>&1
+chmod 0600 "${runtime_dir}/snapshot-x25519.key"
+if "${VALIDATE_RUNTIME}" \
+  --dir "${runtime_dir}" \
+  --gateway-host connector.example.test \
+  --expected-uid "${owner_uid}" \
+  --expected-gid "${owner_gid}" >/dev/null 2>&1; then
+  fail "runtime validator accepted a non-X25519 snapshot key"
+fi
+mv -- "${tmp_dir}/snapshot-x25519.key.valid" "${runtime_dir}/snapshot-x25519.key"
+
 touch "${runtime_dir}/unexpected.key"
 if "${VALIDATE_RUNTIME}" \
   --dir "${runtime_dir}" \
