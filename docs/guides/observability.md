@@ -106,7 +106,7 @@ Admin SPA fallback 代替此反代。
 - `GRAFANA_ADMIN_PASSWORD`
 - `ALERTMANAGER_WEBHOOK_URL`（推荐配置到值班系统 / ChatOps）
 - `ALERTMANAGER_WEBHOOK_TOKEN`（至少 32 字节；与 Koishi 节点同值，Alertmanager YAML 只使用 `credentials_file`）
-- `ALERTMANAGER_CONFIG_GID=65534`（生产生成 token 文件的读取组；不要把 token 写进 YAML）
+- `ALERTMANAGER_CONFIG_GID=65534`（生产生成 Prometheus/Alertmanager 配置与 token 文件的容器读取组；不要把 token 写进 YAML）
 - `OTEL_ENABLED=true`
 - `OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318`
 - `OTEL_TRACE_SAMPLE_RATIO=0.2`（可按流量调整）

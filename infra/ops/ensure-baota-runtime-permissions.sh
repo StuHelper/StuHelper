@@ -26,6 +26,12 @@ Environment:
                                  root. Default: 1000:1000 for casbin/casdoor.
   OPENLIST_CONTAINER_OWNER       Host owner for OpenList runtime data when run
                                  as root. Default: 1001:1001.
+  GENERATED_OBSERVABILITY_CONFIG_OWNER_UID
+                                 Host UID allowed to rewrite generated
+                                 Prometheus/Alertmanager configs. Default: the
+                                 owner UID of --source-dir.
+  ALERTMANAGER_CONFIG_GID        Host group that reads generated observability
+                                 configs in containers. Default: 65534.
 
 The script does not read or print secret file contents.
 USAGE
@@ -77,6 +83,13 @@ warn() {
 
 [[ -d "${source_dir}" ]] || die "source dir not found: ${source_dir}"
 source_dir="$(cd "${source_dir}" && pwd)"
+generated_observability_owner_uid="${GENERATED_OBSERVABILITY_CONFIG_OWNER_UID:-$(stat -c '%u' "${source_dir}")}"
+generated_observability_group_gid="${ALERTMANAGER_CONFIG_GID:-65534}"
+[[ "${generated_observability_owner_uid}" =~ ^[0-9]+$ ]] ||
+  die "GENERATED_OBSERVABILITY_CONFIG_OWNER_UID must be a numeric UID"
+[[ "${generated_observability_group_gid}" =~ ^[0-9]+$ ]] ||
+  die "ALERTMANAGER_CONFIG_GID must be a numeric GID"
+generated_observability_owner="${generated_observability_owner_uid}:${generated_observability_group_gid}"
 
 run_or_print() {
   if [[ "${apply}" == "true" ]]; then
@@ -220,8 +233,8 @@ for generated_config_dir in \
   "${generated_observability_dir}/prometheus" \
   "${generated_observability_dir}/alertmanager"; do
   if [[ -d "${generated_config_dir}" ]]; then
-    log "normalizing generated observability config permissions: ${generated_config_dir}"
-    normalize_owned_tree "${generated_config_dir}" "65534:65534" 750 640
+    log "normalizing generated observability config permissions: ${generated_config_dir} (owner=${generated_observability_owner})"
+    normalize_owned_tree "${generated_config_dir}" "${generated_observability_owner}" 2750 640
   fi
 done
 

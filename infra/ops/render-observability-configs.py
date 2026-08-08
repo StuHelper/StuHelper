@@ -34,6 +34,23 @@ def yaml_quote(value: str) -> str:
     return json.dumps(value)
 
 
+def write_private_text(path: Path, value: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    fd = os.open(path, flags, 0o640)
+    try:
+        # os.open's creation mode is still filtered by the process umask, and
+        # an existing file keeps its old mode. Enforce the production contract
+        # before any secret-bearing content is written.
+        os.fchmod(fd, 0o640)
+        with os.fdopen(fd, "w", encoding="utf-8", closefd=False) as output:
+            output.write(value)
+    finally:
+        os.close(fd)
+
+
 def write_prometheus(mode: str) -> None:
     metrics_user = env("METRICS_USER", "prometheus")
     metrics_password = env("METRICS_PASSWORD")
@@ -45,8 +62,7 @@ def write_prometheus(mode: str) -> None:
     rendered = rendered.replace("__METRICS_PASSWORD__", yaml_quote(metrics_password))
     external_targets = PRODUCTION_EXTERNAL_HTTP_TARGETS if mode == "prod" else ""
     rendered = rendered.replace("__BLACKBOX_PRODUCTION_HTTP_TARGETS__", external_targets)
-    PROM_OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    PROM_OUTPUT.write_text(rendered)
+    write_private_text(PROM_OUTPUT, rendered)
 
 
 def write_alertmanager(mode: str) -> None:
@@ -65,13 +81,7 @@ def write_alertmanager(mode: str) -> None:
             "ALERTMANAGER_WEBHOOK_TOKEN must be 32-512 bytes using the approved token alphabet"
         )
 
-    ALERT_TOKEN_OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    token_fd = os.open(ALERT_TOKEN_OUTPUT, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o640)
-    try:
-        os.fchmod(token_fd, 0o640)
-        os.write(token_fd, token.encode("utf-8"))
-    finally:
-        os.close(token_fd)
+    write_private_text(ALERT_TOKEN_OUTPUT, token)
 
     if webhook:
         authorization = ""
@@ -126,8 +136,7 @@ receivers:
   - name: default
 """
 
-    ALERT_OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    ALERT_OUTPUT.write_text(rendered)
+    write_private_text(ALERT_OUTPUT, rendered)
 
 
 def main() -> None:

@@ -11,6 +11,15 @@ fail() {
   exit 1
 }
 
+assert_mode() {
+  local expected="$1"
+  local path="$2"
+  local actual
+  actual="$(stat -c '%a' "${path}")"
+  [[ "${actual}" == "${expected}" ]] ||
+    fail "expected ${path} mode ${expected}, got ${actual}"
+}
+
 cleanup() {
   if [[ -n "${tmpdir:-}" && -d "${tmpdir}" ]]; then
     rm -rf "${tmpdir}"
@@ -50,16 +59,26 @@ fi
 
 alertmanager_config="${tmpdir}/prod/alertmanager/alertmanager.yml"
 alertmanager_token_file="${tmpdir}/prod/alertmanager/webhook-token"
+assert_mode 640 "${prod_output}"
+assert_mode 640 "${alertmanager_config}"
 grep -Fq -- 'credentials_file: /etc/alertmanager/secrets/webhook-token' "${alertmanager_config}" ||
   fail "production Alertmanager rendering lost credentials_file authorization"
 if grep -Fq -- 'contract-alertmanager-token-0123456789abcdef' "${alertmanager_config}"; then
   fail "production Alertmanager config leaked the webhook token"
 fi
 [[ -f "${alertmanager_token_file}" ]] || fail "production Alertmanager token file was not rendered"
-[[ "$(stat -c '%a' "${alertmanager_token_file}")" == "640" ]] ||
-  fail "production Alertmanager token file must be mode 640 before deployment normalization"
+assert_mode 640 "${alertmanager_token_file}"
 [[ "$(wc -c <"${alertmanager_token_file}")" -ge 32 ]] ||
   fail "production Alertmanager token file is unexpectedly short"
+
+# A previous renderer or manual recovery may have left existing outputs
+# world-readable. Rendering must correct those modes itself rather than rely on
+# a later root-owned permission normalizer.
+chmod 666 "${prod_output}" "${alertmanager_config}" "${alertmanager_token_file}"
+render_mode prod >/dev/null
+assert_mode 640 "${prod_output}"
+assert_mode 640 "${alertmanager_config}"
+assert_mode 640 "${alertmanager_token_file}"
 
 if METRICS_PASSWORD="contract-only-metrics-password" \
   ALERTMANAGER_WEBHOOK_URL="https://alerts.example.test/stuhelper" \

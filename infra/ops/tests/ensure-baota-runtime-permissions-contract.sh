@@ -95,6 +95,7 @@ touch \
   "${openlist_root}/data.db"
 
 printf '{}\n' >"${openlist_root}/config.json"
+source_owner_uid="$(stat -c '%u' "${source_dir}")"
 
 chmod 700 \
   "${source_dir}/infra/generated/postgres" \
@@ -117,8 +118,26 @@ chmod 600 "${casdoor_root}/conf/app.conf" "${casdoor_root}/logs/casdoor.log"
   --casdoor-compose-root "${casdoor_root}" \
   --openlist-data-dir "${openlist_root}" >"${tmpdir}/dry-run.out"
 assert_contains "${tmpdir}/dry-run.out" 'dry-run complete'
+assert_contains "${tmpdir}/dry-run.out" "owner=${source_owner_uid}:65534"
 assert_mode 700 "${source_dir}/infra/generated/postgres"
 assert_mode 600 "${source_dir}/infra/generated/redis/users.acl"
+
+GENERATED_OBSERVABILITY_CONFIG_OWNER_UID=4242 \
+ALERTMANAGER_CONFIG_GID=4343 \
+  "${SCRIPT}" \
+  --source-dir "${source_dir}" \
+  --skip-casdoor \
+  --skip-openlist >"${tmpdir}/observability-owner-override.out"
+assert_contains "${tmpdir}/observability-owner-override.out" 'owner=4242:4343'
+
+if GENERATED_OBSERVABILITY_CONFIG_OWNER_UID=invalid \
+  "${SCRIPT}" \
+  --source-dir "${source_dir}" \
+  --skip-casdoor \
+  --skip-openlist >"${tmpdir}/invalid-observability-owner.out" 2>&1; then
+  fail "expected invalid generated observability owner UID to fail"
+fi
+assert_contains "${tmpdir}/invalid-observability-owner.out" 'must be a numeric UID'
 
 # Recovered Baota trees can contain a non-traversable generated observability
 # parent even when its child directories have usable modes. The repair must
@@ -177,9 +196,9 @@ assert_mode 755 "${source_dir}/infra/observability/grafana/dashboards"
 assert_mode 644 "${source_dir}/infra/observability/grafana/dashboards/overview.json"
 
 assert_mode 755 "${source_dir}/infra/generated/observability"
-assert_mode 750 "${source_dir}/infra/generated/observability/prometheus"
+assert_mode 2750 "${source_dir}/infra/generated/observability/prometheus"
 assert_mode 640 "${source_dir}/infra/generated/observability/prometheus/prometheus.yml"
-assert_mode 750 "${source_dir}/infra/generated/observability/alertmanager"
+assert_mode 2750 "${source_dir}/infra/generated/observability/alertmanager"
 assert_mode 640 "${source_dir}/infra/generated/observability/alertmanager/alertmanager.yml"
 assert_mode 640 "${source_dir}/infra/generated/observability/alertmanager/webhook-token"
 
